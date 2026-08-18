@@ -1,0 +1,64 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Machine-specific SDK paths
+/android/local.properties
+
+# Gradle/Kotlin build state
+/android/.gradle/
+/android/.kotlin/
+
+# ML model weights. Multi-hundred-MB binaries that must not enter git history.
+# Obtain these separately and place them in assets/models/ -- see docs/progress.md.
+assets/models/*.bin
+
+# Native build artifacts from the vendored whisper_ggml_plus fork (~167MB).
+# The patched C++ source under packages/ IS tracked; only build output is not.
+packages/**/.cxx/
+packages/**/build/

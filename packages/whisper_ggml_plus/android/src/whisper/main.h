@@ -13,6 +13,8 @@ extern "C"
 
     FUNCTION_ATTRIBUTE char *request(char *body);
     FUNCTION_ATTRIBUTE void free_string(char *ptr);
+    // FORK: transcription progress, 0-100. See main.cpp.
+    FUNCTION_ATTRIBUTE int get_progress(void);
 
 #ifdef __cplusplus
 }

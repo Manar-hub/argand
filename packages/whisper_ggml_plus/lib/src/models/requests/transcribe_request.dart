@@ -24,6 +24,15 @@ abstract class TranscribeRequest with _$TranscribeRequest {
     @Default(WhisperVadMode.auto) WhisperVadMode vadMode,
     String? vadModelPath,
     @Default(null) Stream<String>? realtimeStream,
+    /// FORK: suppress non-speech tokens, so ambient noise and music are not
+    /// transcribed as text. Applied natively; upstream declared no such field.
+    @Default(true) bool suppressNst,
+    /// FORK: soft bias toward supplied vocabulary. Capped around 224 tokens
+    /// by whisper.cpp, with later tokens weighted more heavily.
+    String? initialPrompt,
+    /// FORK: 'auto' keeps upstream's model-shape inference; 'greedy' or
+    /// 'beam' make the choice explicit.
+    @Default('auto') String samplingStrategy,
   }) = _TranscribeRequest;
   const TranscribeRequest._();
 }

@@ -24,6 +24,14 @@ export 'whisper_audio_convert.dart';
 typedef WReqNative = Pointer<Utf8> Function(Pointer<Utf8> body);
 typedef WFreeStringNative = Void Function(Pointer<Utf8> response);
 
+/// FORK: transcription progress getter, 0-100.
+typedef WGetProgressNative = Int32 Function();
+typedef WGetProgress = int Function();
+
+/// FORK: cached symbol lookup. [Whisper] is const so it cannot hold this,
+/// and the function is polled on a timer rather than called once.
+WGetProgress? _cachedGetProgress;
+
 /// Entry point
 class Whisper {
   /// [model] is required
@@ -113,6 +121,18 @@ class Whisper {
       result,
     );
     return response.message;
+  }
+
+  /// FORK: current transcription progress, 0-100.
+  ///
+  /// Reads a native atomic and never takes the lock held by an in-flight
+  /// transcription, so this is safe to poll from the main isolate while
+  /// [transcribe] runs in another one. Resets to 0 when a run starts and
+  /// reaches 100 when decoding finishes.
+  int getProgress() {
+    final fn = _cachedGetProgress ??= _openLib()
+        .lookupFunction<WGetProgressNative, WGetProgress>('get_progress');
+    return fn();
   }
 
   Future<void> abort() async {

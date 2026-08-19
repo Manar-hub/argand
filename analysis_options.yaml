@@ -18,6 +18,9 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Vendored third-party fork. Kept faithful to upstream so version bumps
+    # stay mergeable, so it is not held to this project's lint rules.
+    - packages/**
 
 linter:
   # The lint rules applied to this project can be customized in the

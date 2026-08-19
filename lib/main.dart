@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,16 +30,33 @@ class WhisperScreen extends ConsumerStatefulWidget {
 class _WhisperScreenState extends ConsumerState<WhisperScreen> {
   String status = 'Ready';
 
+  Timer? _progressTimer;
+
+  @override
+  void dispose() {
+    _progressTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _runWhisper() async {
     setState(() => status = 'Loading model + transcribing...');
     final stopwatch = Stopwatch()..start();
     try {
       final service = ref.read(whisperServiceProvider);
+
+      // Poll the native progress counter while inference runs in its own
+      // isolate. Proves the forked progress_callback is actually firing.
+      _progressTimer?.cancel();
+      _progressTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (!mounted) return;
+        setState(() => status = 'Transcribing... ${service.progressPercent}%');
+      });
       // Phase-0 wiring proof: a real WAV pushed to the device at a fixed
       // path (see docs/progress.md). Phase 1 replaces this with real file
       // import via audio_decoder.
       final result = await service.transcribeWav('/data/local/tmp/test_speech.wav');
       stopwatch.stop();
+      _progressTimer?.cancel();
 
       final words = result.segments ?? const [];
       final wordLines = words
@@ -48,6 +67,7 @@ class _WhisperScreenState extends ConsumerState<WhisperScreen> {
           'Done in ${stopwatch.elapsedMilliseconds}ms\n\nText: ${result.text}\n\nWords:\n$wordLines');
     } catch (e) {
       stopwatch.stop();
+      _progressTimer?.cancel();
       setState(() => status = 'Error: $e');
     }
   }

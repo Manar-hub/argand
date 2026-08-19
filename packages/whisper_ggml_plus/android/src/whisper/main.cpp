@@ -60,6 +60,10 @@ struct whisper_params
     bool print_progress = false;
     bool no_timestamps = false;
     bool split_on_word = false;
+    // FORK: suppress non-speech tokens so ambient noise and music are not
+    // emitted as text (music notes, bracketed sound tags). Locked on by
+    // docs/engine-architecture.md; upstream never wired this to whisper.cpp.
+    bool suppress_nst = true;
     whisper_vad_mode vad_mode = whisper_vad_mode::auto_mode;
 
     std::string language = "id";
@@ -97,6 +101,31 @@ static void dispose_context_locked() {
 
 static bool abort_callback(void* user_data) {
     return g_should_abort.load();
+}
+
+// FORK: transcription progress, 0-100, published for the Dart side to read
+// via get_progress(). Polling an atomic avoids pulling in the Dart API DL
+// and native ports just to drive a progress bar, and whisper.cpp invokes the
+// callback often enough that sampling it looks identical to being pushed.
+static std::atomic<int> g_progress(0);
+
+static void progress_callback_fn(struct whisper_context * /*ctx*/,
+                                 struct whisper_state * /*state*/,
+                                 int progress,
+                                 void * /*user_data*/) {
+    g_progress.store(progress);
+}
+
+// FORK: nlohmann's .value() throws (type_error.302) when a key is present
+// but null -- which is exactly what the Dart layer sends for unset optional
+// fields. Treat present-but-null as absent.
+template <typename T>
+static T json_get(const json & body, const char * key, T fallback) {
+    const auto it = body.find(key);
+    if (it == body.end() || it->is_null()) {
+        return fallback;
+    }
+    return it->template get<T>();
 }
 
 char *jsonToChar(json jsonData)
@@ -140,7 +169,14 @@ json transcribe(json jsonBody)
     params.diarize = jsonBody["diarize"];
     params.speed_up = jsonBody["speed_up"];
     params.vad_mode = parse_vad_mode(jsonBody);
-    params.vad_model_path = jsonBody.value("vad_model_path", std::string(""));
+    // FORK: was jsonBody.value(...), which threw when Dart sent an explicit
+    // null (the resolver deliberately leaves this null when split_on_word
+    // is set, since VAD does not apply).
+    params.vad_model_path = json_get(jsonBody, "vad_model_path", std::string(""));
+    // FORK: parameters upstream never read off the request.
+    params.no_fallback = json_get(jsonBody, "no_fallback", false);
+    params.suppress_nst = json_get(jsonBody, "suppress_nst", true);
+    params.prompt = json_get(jsonBody, "initial_prompt", std::string(""));
 
     json jsonResult;
     jsonResult["@type"] = "transcribe";
@@ -196,7 +232,18 @@ json transcribe(json jsonBody)
                         "[DEBUG] Model info - n_text_layer: %d, n_vocab: %d, is_turbo: %d", 
                         model_n_text_layer, model_n_vocab, is_turbo);
 
+    // FORK: upstream inferred the strategy purely from model shape, so a
+    // caller that requires greedy got it only as a side effect of not using
+    // a turbo model. Default still follows upstream; "greedy"/"beam" make it
+    // an explicit choice.
     whisper_sampling_strategy strategy = is_turbo ? WHISPER_SAMPLING_BEAM_SEARCH : WHISPER_SAMPLING_GREEDY;
+    const std::string strategy_name = json_get(jsonBody, "sampling_strategy", std::string("auto"));
+    if (strategy_name == "greedy") {
+        strategy = WHISPER_SAMPLING_GREEDY;
+    } else if (strategy_name == "beam") {
+        strategy = WHISPER_SAMPLING_BEAM_SEARCH;
+    }
+
     whisper_full_params wparams = whisper_full_default_params(strategy);
     
     wparams.print_realtime = false;
@@ -227,11 +274,34 @@ json transcribe(json jsonBody)
         wparams.vad = false;
     }
 
-    if (is_turbo) {
+    // FORK: only meaningful when beam search actually won above.
+    if (is_turbo && strategy == WHISPER_SAMPLING_BEAM_SEARCH) {
         wparams.beam_search.beam_size = 3;
         __android_log_print(ANDROID_LOG_DEBUG, "WhisperFlutter",
                             "[DEBUG] Turbo model detected - using beam search (beam_size=3)");
     }
+
+    // FORK: locked inference params from docs/engine-architecture.md that
+    // upstream never applied.
+    //
+    // no_fallback pins decoding to a single pass. Without it whisper.cpp
+    // re-decodes any window that fails its quality thresholds at rising
+    // temperatures, which on weak hardware or difficult audio can stall for
+    // a very long time -- the exact hazard the doc cites.
+    if (params.no_fallback) {
+        wparams.temperature = 0.0f;
+        wparams.temperature_inc = 0.0f;
+    }
+    wparams.suppress_nst = params.suppress_nst;
+
+    // Soft bias toward supplied vocabulary. params outlives whisper_full().
+    if (!params.prompt.empty()) {
+        wparams.initial_prompt = params.prompt.c_str();
+    }
+
+    g_progress.store(0);
+    wparams.progress_callback = progress_callback_fn;
+    wparams.progress_callback_user_data = nullptr;
 
     if (params.split_on_word) {
         wparams.max_len = 1;
@@ -264,6 +334,8 @@ json transcribe(json jsonBody)
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
 
     __android_log_print(ANDROID_LOG_DEBUG, "WhisperFlutter", "[DEBUG] Transcription completed in %lldms", (int)duration);
+
+    g_progress.store(100);
 
     const int n_segments = whisper_full_n_segments(g_ctx);
     std::vector<json> segmentsJson = {};
@@ -321,5 +393,13 @@ extern "C"
     FUNCTION_ATTRIBUTE void free_string(char *ptr)
     {
         delete[] ptr;
+    }
+
+    // FORK: current transcription progress, 0-100. Safe to call from any
+    // isolate at any time -- it reads an atomic and never blocks on the
+    // mutex held by an in-flight transcribe().
+    FUNCTION_ATTRIBUTE int get_progress()
+    {
+        return g_progress.load();
     }
 }

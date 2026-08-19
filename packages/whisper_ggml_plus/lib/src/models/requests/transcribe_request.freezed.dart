@@ -31,6 +31,18 @@ mixin _$TranscribeRequest {
   String? get vadModelPath;
   Stream<String>? get realtimeStream;
 
+  /// FORK: suppress non-speech tokens, so ambient noise and music are not
+  /// transcribed as text. Applied natively; upstream declared no such field.
+  bool get suppressNst;
+
+  /// FORK: soft bias toward supplied vocabulary. Capped around 224 tokens
+  /// by whisper.cpp, with later tokens weighted more heavily.
+  String? get initialPrompt;
+
+  /// FORK: 'auto' keeps upstream's model-shape inference; 'greedy' or
+  /// 'beam' make the choice explicit.
+  String get samplingStrategy;
+
   /// Create a copy of TranscribeRequest
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -70,32 +82,42 @@ mixin _$TranscribeRequest {
             (identical(other.vadModelPath, vadModelPath) ||
                 other.vadModelPath == vadModelPath) &&
             (identical(other.realtimeStream, realtimeStream) ||
-                other.realtimeStream == realtimeStream));
+                other.realtimeStream == realtimeStream) &&
+            (identical(other.suppressNst, suppressNst) ||
+                other.suppressNst == suppressNst) &&
+            (identical(other.initialPrompt, initialPrompt) ||
+                other.initialPrompt == initialPrompt) &&
+            (identical(other.samplingStrategy, samplingStrategy) ||
+                other.samplingStrategy == samplingStrategy));
   }
 
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      audio,
-      isTranslate,
-      threads,
-      isVerbose,
-      language,
-      isSpecialTokens,
-      isNoTimestamps,
-      isRealtime,
-      nProcessors,
-      splitOnWord,
-      noFallback,
-      diarize,
-      speedUp,
-      vadMode,
-      vadModelPath,
-      realtimeStream);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        audio,
+        isTranslate,
+        threads,
+        isVerbose,
+        language,
+        isSpecialTokens,
+        isNoTimestamps,
+        isRealtime,
+        nProcessors,
+        splitOnWord,
+        noFallback,
+        diarize,
+        speedUp,
+        vadMode,
+        vadModelPath,
+        realtimeStream,
+        suppressNst,
+        initialPrompt,
+        samplingStrategy
+      ]);
 
   @override
   String toString() {
-    return 'TranscribeRequest(audio: $audio, isTranslate: $isTranslate, threads: $threads, isVerbose: $isVerbose, language: $language, isSpecialTokens: $isSpecialTokens, isNoTimestamps: $isNoTimestamps, isRealtime: $isRealtime, nProcessors: $nProcessors, splitOnWord: $splitOnWord, noFallback: $noFallback, diarize: $diarize, speedUp: $speedUp, vadMode: $vadMode, vadModelPath: $vadModelPath, realtimeStream: $realtimeStream)';
+    return 'TranscribeRequest(audio: $audio, isTranslate: $isTranslate, threads: $threads, isVerbose: $isVerbose, language: $language, isSpecialTokens: $isSpecialTokens, isNoTimestamps: $isNoTimestamps, isRealtime: $isRealtime, nProcessors: $nProcessors, splitOnWord: $splitOnWord, noFallback: $noFallback, diarize: $diarize, speedUp: $speedUp, vadMode: $vadMode, vadModelPath: $vadModelPath, realtimeStream: $realtimeStream, suppressNst: $suppressNst, initialPrompt: $initialPrompt, samplingStrategy: $samplingStrategy)';
   }
 }
 
@@ -121,7 +143,10 @@ abstract mixin class $TranscribeRequestCopyWith<$Res> {
       bool speedUp,
       WhisperVadMode vadMode,
       String? vadModelPath,
-      Stream<String>? realtimeStream});
+      Stream<String>? realtimeStream,
+      bool suppressNst,
+      String? initialPrompt,
+      String samplingStrategy});
 }
 
 /// @nodoc
@@ -153,6 +178,9 @@ class _$TranscribeRequestCopyWithImpl<$Res>
     Object? vadMode = null,
     Object? vadModelPath = freezed,
     Object? realtimeStream = freezed,
+    Object? suppressNst = null,
+    Object? initialPrompt = freezed,
+    Object? samplingStrategy = null,
   }) {
     return _then(_self.copyWith(
       audio: null == audio
@@ -219,6 +247,18 @@ class _$TranscribeRequestCopyWithImpl<$Res>
           ? _self.realtimeStream
           : realtimeStream // ignore: cast_nullable_to_non_nullable
               as Stream<String>?,
+      suppressNst: null == suppressNst
+          ? _self.suppressNst
+          : suppressNst // ignore: cast_nullable_to_non_nullable
+              as bool,
+      initialPrompt: freezed == initialPrompt
+          ? _self.initialPrompt
+          : initialPrompt // ignore: cast_nullable_to_non_nullable
+              as String?,
+      samplingStrategy: null == samplingStrategy
+          ? _self.samplingStrategy
+          : samplingStrategy // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -332,7 +372,10 @@ extension TranscribeRequestPatterns on TranscribeRequest {
             bool speedUp,
             WhisperVadMode vadMode,
             String? vadModelPath,
-            Stream<String>? realtimeStream)?
+            Stream<String>? realtimeStream,
+            bool suppressNst,
+            String? initialPrompt,
+            String samplingStrategy)?
         $default, {
     required TResult orElse(),
   }) {
@@ -355,7 +398,10 @@ extension TranscribeRequestPatterns on TranscribeRequest {
             _that.speedUp,
             _that.vadMode,
             _that.vadModelPath,
-            _that.realtimeStream);
+            _that.realtimeStream,
+            _that.suppressNst,
+            _that.initialPrompt,
+            _that.samplingStrategy);
       case _:
         return orElse();
     }
@@ -392,7 +438,10 @@ extension TranscribeRequestPatterns on TranscribeRequest {
             bool speedUp,
             WhisperVadMode vadMode,
             String? vadModelPath,
-            Stream<String>? realtimeStream)
+            Stream<String>? realtimeStream,
+            bool suppressNst,
+            String? initialPrompt,
+            String samplingStrategy)
         $default,
   ) {
     final _that = this;
@@ -414,7 +463,10 @@ extension TranscribeRequestPatterns on TranscribeRequest {
             _that.speedUp,
             _that.vadMode,
             _that.vadModelPath,
-            _that.realtimeStream);
+            _that.realtimeStream,
+            _that.suppressNst,
+            _that.initialPrompt,
+            _that.samplingStrategy);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -450,7 +502,10 @@ extension TranscribeRequestPatterns on TranscribeRequest {
             bool speedUp,
             WhisperVadMode vadMode,
             String? vadModelPath,
-            Stream<String>? realtimeStream)?
+            Stream<String>? realtimeStream,
+            bool suppressNst,
+            String? initialPrompt,
+            String samplingStrategy)?
         $default,
   ) {
     final _that = this;
@@ -472,7 +527,10 @@ extension TranscribeRequestPatterns on TranscribeRequest {
             _that.speedUp,
             _that.vadMode,
             _that.vadModelPath,
-            _that.realtimeStream);
+            _that.realtimeStream,
+            _that.suppressNst,
+            _that.initialPrompt,
+            _that.samplingStrategy);
       case _:
         return null;
     }
@@ -498,7 +556,10 @@ class _TranscribeRequest extends TranscribeRequest {
       this.speedUp = false,
       this.vadMode = WhisperVadMode.auto,
       this.vadModelPath,
-      this.realtimeStream = null})
+      this.realtimeStream = null,
+      this.suppressNst = true,
+      this.initialPrompt,
+      this.samplingStrategy = 'auto'})
       : super._();
 
   @override
@@ -548,6 +609,23 @@ class _TranscribeRequest extends TranscribeRequest {
   @JsonKey()
   final Stream<String>? realtimeStream;
 
+  /// FORK: suppress non-speech tokens, so ambient noise and music are not
+  /// transcribed as text. Applied natively; upstream declared no such field.
+  @override
+  @JsonKey()
+  final bool suppressNst;
+
+  /// FORK: soft bias toward supplied vocabulary. Capped around 224 tokens
+  /// by whisper.cpp, with later tokens weighted more heavily.
+  @override
+  final String? initialPrompt;
+
+  /// FORK: 'auto' keeps upstream's model-shape inference; 'greedy' or
+  /// 'beam' make the choice explicit.
+  @override
+  @JsonKey()
+  final String samplingStrategy;
+
   /// Create a copy of TranscribeRequest
   /// with the given fields replaced by the non-null parameter values.
   @override
@@ -587,32 +665,42 @@ class _TranscribeRequest extends TranscribeRequest {
             (identical(other.vadModelPath, vadModelPath) ||
                 other.vadModelPath == vadModelPath) &&
             (identical(other.realtimeStream, realtimeStream) ||
-                other.realtimeStream == realtimeStream));
+                other.realtimeStream == realtimeStream) &&
+            (identical(other.suppressNst, suppressNst) ||
+                other.suppressNst == suppressNst) &&
+            (identical(other.initialPrompt, initialPrompt) ||
+                other.initialPrompt == initialPrompt) &&
+            (identical(other.samplingStrategy, samplingStrategy) ||
+                other.samplingStrategy == samplingStrategy));
   }
 
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      audio,
-      isTranslate,
-      threads,
-      isVerbose,
-      language,
-      isSpecialTokens,
-      isNoTimestamps,
-      isRealtime,
-      nProcessors,
-      splitOnWord,
-      noFallback,
-      diarize,
-      speedUp,
-      vadMode,
-      vadModelPath,
-      realtimeStream);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        audio,
+        isTranslate,
+        threads,
+        isVerbose,
+        language,
+        isSpecialTokens,
+        isNoTimestamps,
+        isRealtime,
+        nProcessors,
+        splitOnWord,
+        noFallback,
+        diarize,
+        speedUp,
+        vadMode,
+        vadModelPath,
+        realtimeStream,
+        suppressNst,
+        initialPrompt,
+        samplingStrategy
+      ]);
 
   @override
   String toString() {
-    return 'TranscribeRequest(audio: $audio, isTranslate: $isTranslate, threads: $threads, isVerbose: $isVerbose, language: $language, isSpecialTokens: $isSpecialTokens, isNoTimestamps: $isNoTimestamps, isRealtime: $isRealtime, nProcessors: $nProcessors, splitOnWord: $splitOnWord, noFallback: $noFallback, diarize: $diarize, speedUp: $speedUp, vadMode: $vadMode, vadModelPath: $vadModelPath, realtimeStream: $realtimeStream)';
+    return 'TranscribeRequest(audio: $audio, isTranslate: $isTranslate, threads: $threads, isVerbose: $isVerbose, language: $language, isSpecialTokens: $isSpecialTokens, isNoTimestamps: $isNoTimestamps, isRealtime: $isRealtime, nProcessors: $nProcessors, splitOnWord: $splitOnWord, noFallback: $noFallback, diarize: $diarize, speedUp: $speedUp, vadMode: $vadMode, vadModelPath: $vadModelPath, realtimeStream: $realtimeStream, suppressNst: $suppressNst, initialPrompt: $initialPrompt, samplingStrategy: $samplingStrategy)';
   }
 }
 
@@ -640,7 +728,10 @@ abstract mixin class _$TranscribeRequestCopyWith<$Res>
       bool speedUp,
       WhisperVadMode vadMode,
       String? vadModelPath,
-      Stream<String>? realtimeStream});
+      Stream<String>? realtimeStream,
+      bool suppressNst,
+      String? initialPrompt,
+      String samplingStrategy});
 }
 
 /// @nodoc
@@ -672,6 +763,9 @@ class __$TranscribeRequestCopyWithImpl<$Res>
     Object? vadMode = null,
     Object? vadModelPath = freezed,
     Object? realtimeStream = freezed,
+    Object? suppressNst = null,
+    Object? initialPrompt = freezed,
+    Object? samplingStrategy = null,
   }) {
     return _then(_TranscribeRequest(
       audio: null == audio
@@ -738,6 +832,18 @@ class __$TranscribeRequestCopyWithImpl<$Res>
           ? _self.realtimeStream
           : realtimeStream // ignore: cast_nullable_to_non_nullable
               as Stream<String>?,
+      suppressNst: null == suppressNst
+          ? _self.suppressNst
+          : suppressNst // ignore: cast_nullable_to_non_nullable
+              as bool,
+      initialPrompt: freezed == initialPrompt
+          ? _self.initialPrompt
+          : initialPrompt // ignore: cast_nullable_to_non_nullable
+              as String?,
+      samplingStrategy: null == samplingStrategy
+          ? _self.samplingStrategy
+          : samplingStrategy // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }

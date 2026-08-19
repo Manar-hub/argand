@@ -1,0 +1,56 @@
+name: audio_decoder
+description: "Decode MP3, M4A, AAC, FLAC, OGG & more to WAV/PCM using native platform APIs. Convert, trim, and analyze audio — no FFmpeg required."
+version: 0.8.1
+homepage: https://www.silversoft.nl
+repository: https://github.com/sjoenk/audio_decoder
+issue_tracker: https://github.com/sjoenk/audio_decoder/issues
+funding:
+  - https://github.com/sponsors/sjoenk
+
+topics:
+  - audio
+  - audio-processing
+  - decoder
+  - pcm
+  - flutter-plugin
+
+screenshots:
+  - description: 'audio_decoder package logo'
+    path: screenshots/logo.png
+
+environment:
+  sdk: ^3.10.8
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  plugin_platform_interface: ^2.0.2
+  web: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: nl.silversoft.audio_decoder
+        pluginClass: AudioDecoderPlugin
+      ios:
+        pluginClass: AudioDecoderPlugin
+        sharedDarwinSource: true
+      macos:
+        pluginClass: AudioDecoderPlugin
+        sharedDarwinSource: true
+      linux:
+        pluginClass: AudioDecoderPlugin
+      windows:
+        pluginClass: AudioDecoderPluginCApi
+      web:
+        pluginClass: AudioDecoderWeb
+        fileName: audio_decoder_web.dart

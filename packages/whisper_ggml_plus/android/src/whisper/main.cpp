@@ -211,6 +211,21 @@ json transcribe(json jsonBody)
             return jsonResult;
         }
 
+        // FORK: whisper_full() below assumes its samples are 16 kHz -- there is
+        // no rate argument and no conversion. Upstream fed drwav's output
+        // straight in, so a WAV at any other rate was silently interpreted at
+        // the wrong speed and returned a fluent, confident, wrong transcript
+        // rather than an error. Refuse it instead.
+        if (wav.sampleRate != WHISPER_SAMPLE_RATE)
+        {
+            const uint32_t actual_rate = wav.sampleRate;
+            drwav_uninit(&wav);
+            jsonResult["@type"] = "error";
+            jsonResult["message"] = "WAV must be " + std::to_string(WHISPER_SAMPLE_RATE) +
+                                    " Hz, got " + std::to_string(actual_rate) + " Hz";
+            return jsonResult;
+        }
+
         int n = wav.totalPCMFrameCount;
         std::vector<int16_t> pcm16(n * wav.channels);
         drwav_read_pcm_frames_s16(&wav, n, pcm16.data());

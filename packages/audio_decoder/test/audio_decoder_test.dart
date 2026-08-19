@@ -1,0 +1,470 @@
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:audio_decoder/audio_decoder.dart';
+import 'package:audio_decoder/audio_decoder_platform_interface.dart';
+import 'package:audio_decoder/audio_decoder_method_channel.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+final class MockAudioDecoderPlatform extends AudioDecoderPlatform with MockPlatformInterfaceMixin {
+  @override
+  Future<String> convertToWav(String inputPath, String outputPath, {int? sampleRate, int? channels, int? bitDepth}) =>
+      Future.value(outputPath);
+
+  @override
+  Future<String> convertToM4a(String inputPath, String outputPath) => Future.value(outputPath);
+
+  @override
+  Future<AudioInfo> getAudioInfo(String path) => Future.value(
+    const AudioInfo(
+      duration: Duration(seconds: 5),
+      sampleRate: 44100,
+      channels: 2,
+      bitRate: 128000,
+      format: 'mp3',
+    ),
+  );
+
+  @override
+  Future<String> trimAudio(String inputPath, String outputPath, Duration start, Duration end) =>
+      Future.value(outputPath);
+
+  WaveformNormalization? lastNormalization;
+
+  @override
+  Future<List<double>> getWaveform(
+    String path,
+    int numberOfSamples, {
+    WaveformNormalization normalization = WaveformNormalization.perFile,
+  }) {
+    lastNormalization = normalization;
+    return Future.value(List.filled(numberOfSamples, 0.5));
+  }
+
+  @override
+  Future<Uint8List> convertToWavBytes(
+    Uint8List inputData,
+    String formatHint, {
+    int? sampleRate,
+    int? channels,
+    int? bitDepth,
+    bool? includeHeader,
+  }) => Future.value(
+    Uint8List.fromList(
+      (includeHeader == false) ? [0x00, 0x01] : [0x52, 0x49, 0x46, 0x46],
+    ),
+  );
+
+  @override
+  Future<Uint8List> convertToM4aBytes(Uint8List inputData, String formatHint) =>
+      Future.value(Uint8List.fromList([0x00, 0x00, 0x00, 0x20])); // ftyp header stub
+
+  @override
+  Future<AudioInfo> getAudioInfoBytes(Uint8List inputData, String formatHint) => Future.value(
+    const AudioInfo(
+      duration: Duration(seconds: 3),
+      sampleRate: 48000,
+      channels: 1,
+      bitRate: 192000,
+      format: 'mp3',
+    ),
+  );
+
+  @override
+  Future<Uint8List> trimAudioBytes(
+    Uint8List inputData,
+    String formatHint,
+    Duration start,
+    Duration end, {
+    String outputFormat = 'wav',
+  }) => Future.value(Uint8List.fromList([0x52, 0x49, 0x46, 0x46]));
+
+  @override
+  Future<List<double>> getWaveformBytes(
+    Uint8List inputData,
+    String formatHint,
+    int numberOfSamples, {
+    WaveformNormalization normalization = WaveformNormalization.perFile,
+  }) {
+    lastNormalization = normalization;
+    return Future.value(List.filled(numberOfSamples, 0.7));
+  }
+}
+
+void main() {
+  final AudioDecoderPlatform initialPlatform = AudioDecoderPlatform.instance;
+
+  test('$MethodChannelAudioDecoder is the default instance', () {
+    expect(initialPlatform, isInstanceOf<MethodChannelAudioDecoder>());
+  });
+
+  test('convertToWav delegates to platform', () async {
+    MockAudioDecoderPlatform fakePlatform = MockAudioDecoderPlatform();
+    AudioDecoderPlatform.instance = fakePlatform;
+
+    expect(
+      await AudioDecoder.convertToWav('/input/test.mp3', '/output/test.wav'),
+      '/output/test.wav',
+    );
+  });
+
+  test('convertToM4a delegates to platform', () async {
+    MockAudioDecoderPlatform fakePlatform = MockAudioDecoderPlatform();
+    AudioDecoderPlatform.instance = fakePlatform;
+
+    expect(
+      await AudioDecoder.convertToM4a('/input/test.wav', '/output/test.m4a'),
+      '/output/test.m4a',
+    );
+  });
+
+  test('getAudioInfo delegates to platform', () async {
+    MockAudioDecoderPlatform fakePlatform = MockAudioDecoderPlatform();
+    AudioDecoderPlatform.instance = fakePlatform;
+
+    final info = await AudioDecoder.getAudioInfo('/path/to/test.mp3');
+    expect(info.duration, const Duration(seconds: 5));
+    expect(info.sampleRate, 44100);
+    expect(info.channels, 2);
+    expect(info.bitRate, 128000);
+    expect(info.format, 'mp3');
+  });
+
+  test('trimAudio delegates to platform', () async {
+    MockAudioDecoderPlatform fakePlatform = MockAudioDecoderPlatform();
+    AudioDecoderPlatform.instance = fakePlatform;
+
+    expect(
+      await AudioDecoder.trimAudio(
+        '/input/test.mp3',
+        '/output/trimmed.wav',
+        const Duration(seconds: 1),
+        const Duration(seconds: 3),
+      ),
+      '/output/trimmed.wav',
+    );
+  });
+
+  test('getWaveform delegates to platform', () async {
+    MockAudioDecoderPlatform fakePlatform = MockAudioDecoderPlatform();
+    AudioDecoderPlatform.instance = fakePlatform;
+
+    final waveform = await AudioDecoder.getWaveform('/path/to/test.mp3', numberOfSamples: 50);
+    expect(waveform.length, 50);
+    expect(waveform.first, 0.5);
+    expect(fakePlatform.lastNormalization, WaveformNormalization.perFile);
+  });
+
+  test('WaveformNormalization wireValue is the contract with native side', () {
+    // The wireValue strings are matched literally inside the native
+    // backends (Kotlin/Swift/C++). Renaming or changing them silently
+    // breaks all platforms, so this test pins them as a contract.
+    expect(WaveformNormalization.perFile.wireValue, 'perFile');
+    expect(WaveformNormalization.absolute.wireValue, 'absolute');
+  });
+
+  test('getWaveform forwards absolute normalization to platform', () async {
+    MockAudioDecoderPlatform fakePlatform = MockAudioDecoderPlatform();
+    AudioDecoderPlatform.instance = fakePlatform;
+
+    await AudioDecoder.getWaveform(
+      '/path/to/test.mp3',
+      numberOfSamples: 50,
+      normalization: WaveformNormalization.absolute,
+    );
+    expect(fakePlatform.lastNormalization, WaveformNormalization.absolute);
+  });
+
+  group('needsConversion', () {
+    test('returns false for .wav files', () {
+      expect(AudioDecoder.needsConversion('/path/to/file.wav'), false);
+      expect(AudioDecoder.needsConversion('/path/to/FILE.WAV'), false);
+      expect(AudioDecoder.needsConversion('/path/to/file.wave'), false);
+    });
+
+    test('returns true for MP3 files', () {
+      expect(AudioDecoder.needsConversion('/path/to/file.mp3'), true);
+    });
+
+    test('returns true for M4A files', () {
+      expect(AudioDecoder.needsConversion('/path/to/file.m4a'), true);
+    });
+
+    test('returns true for AAC files', () {
+      expect(AudioDecoder.needsConversion('/path/to/file.aac'), true);
+    });
+
+    test('returns true for all supported formats', () {
+      for (final ext in AudioDecoder.supportedExtensions) {
+        expect(
+          AudioDecoder.needsConversion('/path/to/file$ext'),
+          true,
+          reason: 'Expected true for $ext',
+        );
+      }
+    });
+
+    test('returns false for unknown extensions', () {
+      expect(AudioDecoder.needsConversion('/path/to/file.xyz'), false);
+      expect(AudioDecoder.needsConversion('/path/to/file.txt'), false);
+    });
+  });
+
+  group('bytes API', () {
+    late MockAudioDecoderPlatform fakePlatform;
+
+    setUp(() {
+      fakePlatform = MockAudioDecoderPlatform();
+      AudioDecoderPlatform.instance = fakePlatform;
+    });
+
+    test('convertToWavBytes delegates to platform', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final result = await AudioDecoder.convertToWavBytes(input, formatHint: 'mp3');
+      expect(result, isNotEmpty);
+      expect(result[0], 0x52); // 'R' from RIFF
+    });
+
+    test('convertToM4aBytes delegates to platform', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final result = await AudioDecoder.convertToM4aBytes(input, formatHint: 'wav');
+      expect(result, isNotEmpty);
+      expect(result[0], 0x00);
+    });
+
+    test('getAudioInfoBytes delegates to platform', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final info = await AudioDecoder.getAudioInfoBytes(input, formatHint: 'mp3');
+      expect(info.duration, const Duration(seconds: 3));
+      expect(info.sampleRate, 48000);
+      expect(info.channels, 1);
+      expect(info.bitRate, 192000);
+      expect(info.format, 'mp3');
+    });
+
+    test('trimAudioBytes delegates to platform', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final result = await AudioDecoder.trimAudioBytes(
+        input,
+        formatHint: 'mp3',
+        start: const Duration(seconds: 1),
+        end: const Duration(seconds: 2),
+      );
+      expect(result, isNotEmpty);
+    });
+
+    test('getWaveformBytes delegates to platform', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final waveform = await AudioDecoder.getWaveformBytes(
+        input,
+        formatHint: 'mp3',
+        numberOfSamples: 30,
+      );
+      expect(waveform.length, 30);
+      expect(waveform.first, 0.7);
+      expect(fakePlatform.lastNormalization, WaveformNormalization.perFile);
+    });
+
+    test('getWaveformBytes forwards absolute normalization to platform', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      await AudioDecoder.getWaveformBytes(
+        input,
+        formatHint: 'mp3',
+        numberOfSamples: 30,
+        normalization: WaveformNormalization.absolute,
+      );
+      expect(fakePlatform.lastNormalization, WaveformNormalization.absolute);
+    });
+  });
+
+  group('parameter validation', () {
+    late MockAudioDecoderPlatform fakePlatform;
+
+    setUp(() {
+      fakePlatform = MockAudioDecoderPlatform();
+      AudioDecoderPlatform.instance = fakePlatform;
+    });
+
+    test('getWaveform rejects zero numberOfSamples', () {
+      expect(
+        () => AudioDecoder.getWaveform('/in.mp3', numberOfSamples: 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('getWaveform rejects negative numberOfSamples', () {
+      expect(
+        () => AudioDecoder.getWaveform('/in.mp3', numberOfSamples: -10),
+        throwsArgumentError,
+      );
+    });
+
+    test('getWaveformBytes rejects zero numberOfSamples', () {
+      expect(
+        () => AudioDecoder.getWaveformBytes(
+          Uint8List(1),
+          formatHint: 'mp3',
+          numberOfSamples: 0,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('getWaveformBytes rejects negative numberOfSamples', () {
+      expect(
+        () => AudioDecoder.getWaveformBytes(
+          Uint8List(1),
+          formatHint: 'mp3',
+          numberOfSamples: -1,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWav rejects zero sampleRate', () {
+      expect(
+        () => AudioDecoder.convertToWav('/in.mp3', '/out.wav', sampleRate: 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWav rejects negative sampleRate', () {
+      expect(
+        () => AudioDecoder.convertToWav('/in.mp3', '/out.wav', sampleRate: -1),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWav rejects zero channels', () {
+      expect(
+        () => AudioDecoder.convertToWav('/in.mp3', '/out.wav', channels: 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWav rejects negative channels', () {
+      expect(
+        () => AudioDecoder.convertToWav('/in.mp3', '/out.wav', channels: -5),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWav rejects invalid bitDepth', () {
+      expect(
+        () => AudioDecoder.convertToWav('/in.mp3', '/out.wav', bitDepth: 12),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWavBytes rejects zero sampleRate', () {
+      expect(
+        () => AudioDecoder.convertToWavBytes(Uint8List(1), formatHint: 'mp3', sampleRate: 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWavBytes rejects negative channels', () {
+      expect(
+        () => AudioDecoder.convertToWavBytes(Uint8List(1), formatHint: 'mp3', channels: -1),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWavBytes rejects invalid bitDepth', () {
+      expect(
+        () => AudioDecoder.convertToWavBytes(Uint8List(1), formatHint: 'mp3', bitDepth: 7),
+        throwsArgumentError,
+      );
+    });
+
+    test('convertToWav accepts valid parameters', () async {
+      final result = await AudioDecoder.convertToWav(
+        '/in.mp3',
+        '/out.wav',
+        sampleRate: 44100,
+        channels: 2,
+        bitDepth: 16,
+      );
+      expect(result, '/out.wav');
+    });
+
+    test('convertToWavBytes accepts all valid bitDepths', () async {
+      for (final depth in [8, 16, 24, 32]) {
+        final result = await AudioDecoder.convertToWavBytes(
+          Uint8List.fromList([1, 2, 3]),
+          formatHint: 'mp3',
+          bitDepth: depth,
+        );
+        expect(result, isNotEmpty, reason: 'bitDepth $depth should be valid');
+      }
+    });
+  });
+
+  group('convertToWav with optional parameters', () {
+    late MockAudioDecoderPlatform fakePlatform;
+
+    setUp(() {
+      fakePlatform = MockAudioDecoderPlatform();
+      AudioDecoderPlatform.instance = fakePlatform;
+    });
+
+    test('convertToWav accepts sampleRate parameter', () async {
+      expect(
+        await AudioDecoder.convertToWav('/input/test.mp3', '/output/test.wav', sampleRate: 44100),
+        '/output/test.wav',
+      );
+    });
+
+    test('convertToWav accepts channels parameter', () async {
+      expect(
+        await AudioDecoder.convertToWav('/input/test.mp3', '/output/test.wav', channels: 1),
+        '/output/test.wav',
+      );
+    });
+
+    test('convertToWav accepts bitDepth parameter', () async {
+      expect(
+        await AudioDecoder.convertToWav('/input/test.mp3', '/output/test.wav', bitDepth: 24),
+        '/output/test.wav',
+      );
+    });
+
+    test('convertToWav accepts all parameters', () async {
+      expect(
+        await AudioDecoder.convertToWav(
+          '/input/test.mp3',
+          '/output/test.wav',
+          sampleRate: 48000,
+          channels: 2,
+          bitDepth: 16,
+        ),
+        '/output/test.wav',
+      );
+    });
+
+    test('convertToWavBytes accepts optional parameters', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final result = await AudioDecoder.convertToWavBytes(
+        input,
+        formatHint: 'mp3',
+        sampleRate: 22050,
+        channels: 1,
+        bitDepth: 8,
+      );
+      expect(result, isNotEmpty);
+    });
+
+    test('convertToWavBytes with includeHeader: false returns raw PCM', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final result = await AudioDecoder.convertToWavBytes(input, formatHint: 'mp3', includeHeader: false);
+      expect(result, isNotEmpty);
+      expect(result[0], isNot(0x52)); // Should not start with 'R' from RIFF
+    });
+
+    test('convertToWavBytes defaults to including header', () async {
+      final input = Uint8List.fromList([1, 2, 3]);
+      final result = await AudioDecoder.convertToWavBytes(input, formatHint: 'mp3');
+      expect(result[0], 0x52); // 'R' from RIFF
+    });
+  });
+}

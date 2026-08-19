@@ -1,0 +1,32 @@
+# Drift must finish writing its part file before riverpod_generator analyses
+# any library that references a generated row class. Without this the build
+# order is incidental: build_runner's asset reader treats a not-yet-produced
+# output as missing even when a stale copy is sitting on disk, so the first
+# clean build of a checkout would fail while a rebuild appeared to work.
+global_options:
+  drift_dev:not_shared:
+    runs_before:
+      - riverpod_generator:riverpod_generator
+
+targets:
+  $default:
+    builders:
+      # Drift's default builder is a *shared* part builder: it emits a
+      # `.drift.g.part` fragment that source_gen only merges into
+      # `database.g.dart` after every other generator has already run. That
+      # makes the generated row classes (Project, Transcript, Word) invisible
+      # to riverpod_generator, which runs in the same phase -- referencing one
+      # in an `@riverpod` signature fails the build with
+      # `InvalidTypeException: The type is invalid and cannot be converted to
+      # code`.
+      #
+      # `not_shared` emits a standalone part file instead, which exists as a
+      # real asset by the time riverpod_generator reads it. Drift documents
+      # this builder for precisely this case. `database.dart` therefore points
+      # its `part` directive at `database.drift.dart`, not `database.g.dart`.
+      drift_dev:
+        enabled: false
+      drift_dev:not_shared:
+        enabled: true
+      drift_dev:analyzer:
+        enabled: true

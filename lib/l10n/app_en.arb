@@ -1,0 +1,93 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Argand",
+  "@appTitle": { "description": "Application name, shown in the library app bar" },
+
+  "libraryEmptyTitle": "No projects yet",
+  "@libraryEmptyTitle": { "description": "Headline on the empty library screen" },
+
+  "libraryEmptyBody": "Import a video or audio file to transcribe it on your device.",
+  "@libraryEmptyBody": { "description": "Supporting text on the empty library screen" },
+
+  "importAction": "Import media",
+  "@importAction": { "description": "Label of the button that opens the file picker" },
+
+  "importCancelled": "No file selected.",
+  "@importCancelled": { "description": "Shown when the user dismisses the file picker" },
+
+  "stagePreparingModel": "Preparing model",
+  "@stagePreparingModel": { "description": "Pipeline stage: copying the model into place" },
+
+  "stageCopyingMedia": "Copying media",
+  "@stageCopyingMedia": { "description": "Pipeline stage: copying the picked file into app storage" },
+
+  "stageExtractingAudio": "Extracting audio",
+  "@stageExtractingAudio": { "description": "Pipeline stage: decoding to 16kHz mono WAV" },
+
+  "stageTranscribing": "Transcribing",
+  "@stageTranscribing": { "description": "Pipeline stage: running speech recognition" },
+
+  "stageSaving": "Saving",
+  "@stageSaving": { "description": "Pipeline stage: writing results to the database" },
+
+  "transcribingPercent": "Transcribing… {percent}%",
+  "@transcribingPercent": {
+    "description": "Transcription stage with a known completion percentage",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+
+  "transcriptTitle": "Transcript",
+  "@transcriptTitle": { "description": "Header above the word list on the project screen" },
+
+  "wordCount": "{count, plural, =0{No words} =1{1 word} other{{count} words}}",
+  "@wordCount": {
+    "description": "Number of transcribed words in a transcript",
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "transcriptEmpty": "No speech was detected in this file.",
+  "@transcriptEmpty": { "description": "Shown when transcription produced no words" },
+
+  "playAction": "Play",
+  "@playAction": { "description": "Button that starts media playback" },
+
+  "pauseAction": "Pause",
+  "@pauseAction": { "description": "Button that pauses media playback" },
+
+  "audioOnlyLabel": "Audio only",
+  "@audioOnlyLabel": { "description": "Placeholder shown when the media has no video track" },
+
+  "playerUnavailable": "This file can't be played back.",
+  "@playerUnavailable": { "description": "Shown when the media player fails to load the file" },
+
+  "deleteAction": "Delete",
+  "@deleteAction": { "description": "Menu entry that soft-deletes a project" },
+
+  "errorTitle": "Something went wrong",
+  "@errorTitle": { "description": "Headline shown when the import pipeline fails" },
+
+  "transcriptionModelTitle": "Transcription model",
+  "@transcriptionModelTitle": { "description": "Header of the menu that selects which Whisper model transcribes" },
+
+  "modelNameBase": "Base",
+  "@modelNameBase": { "description": "Display name of the bundled base Whisper model" },
+
+  "modelNameSmallQ51": "Small (quantized)",
+  "@modelNameSmallQ51": { "description": "Display name of the bundled small-q5_1 Whisper model" },
+
+  "modelHintFaster": "Faster, less accurate",
+  "@modelHintFaster": { "description": "Subtitle describing the smaller, quicker model" },
+
+  "modelHintAccurate": "Slower, more accurate",
+  "@modelHintAccurate": { "description": "Subtitle describing the larger, more accurate model" },
+
+  "modelSwitched": "Now transcribing with {model}",
+  "@modelSwitched": {
+    "description": "Confirmation shown after choosing a different transcription model",
+    "placeholders": { "model": { "type": "String" } }
+  },
+
+  "retryAction": "Try again",
+  "@retryAction": { "description": "Button that retries a failed operation" }
+}

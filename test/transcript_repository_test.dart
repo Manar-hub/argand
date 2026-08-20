@@ -24,6 +24,7 @@ void main() {
         mediaPath: '/tmp/interview.mp4',
         duration: const Duration(seconds: 3),
         language: TranscriptionLanguage.english,
+        speakerSpans: const [],
         result: const WhisperTranscribeResponse(
           type: 'transcribe',
           text: ' Hello there world',
@@ -70,6 +71,7 @@ void main() {
         mediaPath: '/tmp/pauses.wav',
         duration: null,
         language: TranscriptionLanguage.english,
+        speakerSpans: const [],
         result: const WhisperTranscribeResponse(
           type: 'transcribe',
           text: ' you',
@@ -107,6 +109,7 @@ void main() {
         mediaPath: '/tmp/clip.m4a',
         duration: null,
         language: TranscriptionLanguage.english,
+        speakerSpans: const [],
         result: const WhisperTranscribeResponse(
           type: 'transcribe',
           text: 'hi',

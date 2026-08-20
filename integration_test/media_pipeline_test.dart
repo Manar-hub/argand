@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:argand/core/audio/audio_denoiser.dart';
+import 'package:argand/core/diarization/speaker_diarizer.dart';
 import 'package:argand/core/media/media_converter.dart';
+import 'package:argand/core/media/wav_codec.dart';
 import 'package:argand/core/media/wav_header.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/core/whisper/whisper_model_catalog.dart';
@@ -24,6 +26,9 @@ void main() {
   const quicktimeFixture = '/data/local/tmp/speech_test.mov';
   const heAacFixture = '/data/local/tmp/speech_test_heaac.mp4';
   const audioFixture = '/data/local/tmp/test_speech.wav';
+  // Two speakers in conversation, from sherpa-onnx's speaker-segmentation-models
+  // release. Nothing else on the device has more than one voice.
+  const twoSpeakerFixture = '/data/local/tmp/two_speakers.wav';
 
   final converter = MediaConverter();
 
@@ -283,5 +288,72 @@ void main() {
       isEmpty,
       reason: 'Expected no speech in a silent clip, got "${result.text.trim()}"',
     );
+  });
+
+  testWidgets('diarization separates two speakers', (tester) async {
+    final media = await stage(twoSpeakerFixture, 'itest-diarize');
+    final wav = await converter.extractWavForTranscription(media.path);
+    final source = WavHeader.parse(await wav.readAsBytes());
+
+    final spans = await SpeakerDiarizer().diarize(wav.path);
+
+    expect(spans, isNotNull, reason: 'Fixture is far under the duration cap');
+    expect(spans!, isNotEmpty);
+
+    final speakers = spans.map((s) => s.speaker).toSet();
+    expect(
+      speakers.length,
+      greaterThanOrEqualTo(2),
+      reason: 'A two-speaker recording collapsed to ${speakers.length} '
+          'speaker(s) -- clustering threshold is merging voices',
+    );
+
+    // Spans must be ordered and inside the media, for the same reason word
+    // timestamps must be: anything downstream (caption colouring, tap-to-seek)
+    // treats these as positions on the real timeline.
+    for (final span in spans) {
+      expect(span.startMs, greaterThanOrEqualTo(0));
+      expect(span.endMs, greaterThan(span.startMs));
+      expect(
+        span.endMs,
+        lessThanOrEqualTo(source.duration.inMilliseconds + 500),
+        reason: 'Span runs past the end of the audio',
+      );
+    }
+
+    // Sorted ascending by start, which diarize() guarantees.
+    final starts = spans.map((s) => s.startMs).toList();
+    final sorted = [...starts]..sort();
+    expect(starts, sorted);
+  });
+
+  testWidgets('diarization declines a file past the duration cap', (tester) async {
+    // A header claiming far more audio than the cap allows. The guard is
+    // checked before any allocation, so this never reads samples -- which is
+    // exactly the behaviour being pinned: refuse cheaply rather than OOM.
+    final overCap = SpeakerDiarizer.maxDuration + const Duration(minutes: 1);
+    final declaredBytes = overCap.inMilliseconds * 16000 * 2 ~/ 1000;
+
+    final dir = await Directory.systemTemp.createTemp('itest-cap');
+    final file = File('${dir.path}/oversized.wav');
+    await file.writeAsBytes(
+      buildWavHeader(
+        sampleRate: 16000,
+        channels: 1,
+        bitsPerSample: 16,
+        dataBytes: declaredBytes,
+      ),
+    );
+
+    final spans = await SpeakerDiarizer().diarize(file.path);
+
+    expect(
+      spans,
+      isNull,
+      reason: 'Files over the cap must return null, not throw and not attempt '
+          'a ${declaredBytes ~/ 1048576}MB allocation',
+    );
+
+    await dir.delete(recursive: true);
   });
 }

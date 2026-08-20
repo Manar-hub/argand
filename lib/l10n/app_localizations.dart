@@ -244,6 +244,18 @@ abstract class AppLocalizations {
   /// **'Slower, more accurate'**
   String get modelHintAccurate;
 
+  /// Pipeline stage: running speaker diarization over the extracted audio
+  ///
+  /// In en, this message translates to:
+  /// **'Identifying speakers'**
+  String get stageIdentifyingSpeakers;
+
+  /// Diarization stage with a known completion percentage
+  ///
+  /// In en, this message translates to:
+  /// **'Identifying speakers… {percent}%'**
+  String identifyingSpeakersPercent(int percent);
+
   /// Button that retries a failed operation
   ///
   /// In en, this message translates to:
@@ -297,6 +309,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Transcribe speech only. Faster, and avoids invented words over silence.'**
   String get silenceSkippingHint;
+
+  /// Header of the settings section toggling speaker diarization
+  ///
+  /// In en, this message translates to:
+  /// **'Identify speakers'**
+  String get diarizationTitle;
+
+  /// Subtitle explaining what the speaker-identification toggle does
+  ///
+  /// In en, this message translates to:
+  /// **'Label who is speaking. Slower, and skipped on very long recordings.'**
+  String get diarizationHint;
 }
 
 class _AppLocalizationsDelegate

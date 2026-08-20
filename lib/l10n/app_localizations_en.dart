@@ -97,6 +97,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelHintAccurate => 'Slower, more accurate';
 
   @override
+  String get stageIdentifyingSpeakers => 'Identifying speakers';
+
+  @override
+  String identifyingSpeakersPercent(int percent) {
+    return 'Identifying speakers… $percent%';
+  }
+
+  @override
   String get retryAction => 'Try again';
 
   @override
@@ -123,4 +131,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get silenceSkippingHint =>
       'Transcribe speech only. Faster, and avoids invented words over silence.';
+
+  @override
+  String get diarizationTitle => 'Identify speakers';
+
+  @override
+  String get diarizationHint =>
+      'Label who is speaking. Slower, and skipped on very long recordings.';
 }

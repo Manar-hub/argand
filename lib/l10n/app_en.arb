@@ -82,6 +82,15 @@
   "modelHintAccurate": "Slower, more accurate",
   "@modelHintAccurate": { "description": "Subtitle describing the larger, more accurate model" },
 
+  "stageIdentifyingSpeakers": "Identifying speakers",
+  "@stageIdentifyingSpeakers": { "description": "Pipeline stage: running speaker diarization over the extracted audio" },
+
+  "identifyingSpeakersPercent": "Identifying speakers… {percent}%",
+  "@identifyingSpeakersPercent": {
+    "description": "Diarization stage with a known completion percentage",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+
   "retryAction": "Try again",
   "@retryAction": { "description": "Button that retries a failed operation" },
 
@@ -107,5 +116,11 @@
   "@silenceSkippingTitle": { "description": "Header of the settings section toggling voice activity detection" },
 
   "silenceSkippingHint": "Transcribe speech only. Faster, and avoids invented words over silence.",
-  "@silenceSkippingHint": { "description": "Subtitle explaining what the silence-skipping toggle does" }
+  "@silenceSkippingHint": { "description": "Subtitle explaining what the silence-skipping toggle does" },
+
+  "diarizationTitle": "Identify speakers",
+  "@diarizationTitle": { "description": "Header of the settings section toggling speaker diarization" },
+
+  "diarizationHint": "Label who is speaking. Slower, and skipped on very long recordings.",
+  "@diarizationHint": { "description": "Subtitle explaining what the speaker-identification toggle does" }
 }

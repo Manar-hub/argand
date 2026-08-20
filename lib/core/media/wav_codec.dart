@@ -34,6 +34,25 @@ Float32List pcm16ToFloat32(Uint8List bytes) {
   return out;
 }
 
+/// Decodes [bytes] into [out] starting at [outOffset], returning how many
+/// samples were written.
+///
+/// Exists so a caller that already knows the total sample count can allocate
+/// the [Float32List] once and stream into it. The alternative — reading the
+/// whole file to a [Uint8List] and calling [pcm16ToFloat32] — holds the bytes
+/// *and* the floats at the same time, which for a 30-minute recording is an
+/// extra ~58MB on top of the ~115MB that has to exist anyway.
+int pcm16ToFloat32Into(Uint8List bytes, Float32List out, int outOffset) {
+  final available = bytes.lengthInBytes ~/ 2;
+  final room = out.length - outOffset;
+  final writable = available < room ? available : room;
+  final view = ByteData.sublistView(bytes);
+  for (var i = 0; i < writable; i++) {
+    out[outOffset + i] = view.getInt16(i * 2, Endian.little) / _pcm16Scale;
+  }
+  return writable;
+}
+
 /// Encodes normalised floats back to little-endian 16-bit PCM.
 ///
 /// Clamps rather than wrapping. A speech-enhancement model can return samples

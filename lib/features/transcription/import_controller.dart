@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/diarization/diarization_controller.dart';
+import '../../core/diarization/speaker_diarizer.dart';
+import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
@@ -19,11 +23,15 @@ part 'import_controller.g.dart';
 /// Silence skipping does not appear here: it is a parameter of the transcribe
 /// call rather than a pass over the audio, so it happens inside
 /// [transcribing] rather than before it.
+///
+/// [identifyingSpeakers] is skipped when the setting is off, so this is the
+/// order stages appear in, not a sequence every import runs in full.
 enum ImportStage {
   preparingModel,
   copyingMedia,
   extractingAudio,
   transcribing,
+  identifyingSpeakers,
   saving,
 }
 
@@ -152,6 +160,26 @@ class ImportController extends _$ImportController {
       );
       _stopProgressPolling();
 
+      // Runs after transcription, over the same extracted WAV. Deliberately
+      // not fatal to the import: a transcript without speaker labels is still
+      // the thing the user asked for, whereas failing here would throw away a
+      // transcription that already succeeded and cost the most time.
+      var speakerSpans = const <SpeakerSpan>[];
+      if (await ref.read(speakerDiarizationEnabledProvider.future)) {
+        state = const ImportRunning(ImportStage.identifyingSpeakers, percent: 0);
+        try {
+          speakerSpans = await ref.read(speakerDiarizerProvider).diarize(
+                    wav.path,
+                    onProgress: _reportDiarizationProgress,
+                  ) ??
+              const <SpeakerSpan>[];
+        } catch (error, stackTrace) {
+          // Swallowed on purpose, but never silently: the words still save.
+          debugPrint('Diarization failed, saving without speakers: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+
       state = const ImportRunning(ImportStage.saving);
       await repository.saveImport(
         projectId: projectId,
@@ -159,6 +187,7 @@ class ImportController extends _$ImportController {
         mediaPath: media.path,
         duration: duration,
         language: language,
+        speakerSpans: speakerSpans,
         result: result,
       );
 
@@ -189,6 +218,18 @@ class ImportController extends _$ImportController {
       if (current is! ImportRunning || current.stage != ImportStage.transcribing) return;
       state = ImportRunning(ImportStage.transcribing, percent: whisper.progressPercent);
     });
+  }
+
+  /// Unlike whisper's progress, which has to be polled off a native atomic,
+  /// diarization pushes: the native callback runs on the worker isolate and
+  /// sends through a port. So this is a plain state write, not a timer.
+  void _reportDiarizationProgress(int percent) {
+    final current = state;
+    if (current is! ImportRunning ||
+        current.stage != ImportStage.identifyingSpeakers) {
+      return;
+    }
+    state = ImportRunning(ImportStage.identifyingSpeakers, percent: percent);
   }
 
   void _stopProgressPolling() {

@@ -4,6 +4,8 @@ import 'package:uuid/uuid.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 import '../../core/database/database.dart';
+import '../../core/diarization/speaker_assignment.dart';
+import '../../core/diarization/speaker_span.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 
 part 'transcript_repository.g.dart';
@@ -46,12 +48,17 @@ class TranscriptRepository {
   /// what explains a transcript when someone later asks why it came out in the
   /// wrong language. Surfacing the detected code needs a change in the
   /// vendored fork; see docs/progress.md.
+  /// [speakerSpans] comes from diarization and may be empty — the setting is
+  /// off, the file was too long, or no speech was found. Empty simply leaves
+  /// every `speakerId` null, which is the same state every transcript was in
+  /// before diarization existed.
   Future<void> saveImport({
     required String projectId,
     required String title,
     required String mediaPath,
     required Duration? duration,
     required TranscriptionLanguage language,
+    required List<SpeakerSpan> speakerSpans,
     required WhisperTranscribeResponse result,
   }) async {
     final now = DateTime.now();
@@ -111,6 +118,19 @@ class TranscriptRepository {
                 word: entry.text,
                 startMs: entry.segment.fromTs.inMilliseconds,
                 endMs: entry.segment.toTs.inMilliseconds,
+                // Resolved per word rather than per segment because
+                // diarization's boundaries are independent of whisper's; see
+                // speaker_assignment.dart for how disagreements are settled.
+                speakerId: Value(
+                  switch (speakerForWord(
+                    startMs: entry.segment.fromTs.inMilliseconds,
+                    endMs: entry.segment.toTs.inMilliseconds,
+                    spans: speakerSpans,
+                  )) {
+                    final int speaker => speakerIdFor(speaker),
+                    null => null,
+                  },
+                ),
               ),
           ],
         );

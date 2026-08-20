@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
+import '../../core/diarization/diarization_controller.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_catalog.dart';
@@ -48,7 +49,8 @@ class LibraryScreen extends ConsumerWidget {
         title: Text(l10n.appTitle),
         // Disabled mid-import: every setting behind this button changes what a
         // later stage of the running pipeline would do -- which weights load,
-        // which language is declared, whether the audio is denoised.
+        // which language is declared, whether silence is skipped, whether
+        // speakers are labelled.
         actions: [_SettingsButton(enabled: import is! ImportRunning)],
       ),
       body: Column(
@@ -191,6 +193,9 @@ class _ImportProgress extends StatelessWidget {
       ImportStage.extractingAudio => l10n.stageExtractingAudio,
       ImportStage.transcribing =>
         percent == null ? l10n.stageTranscribing : l10n.transcribingPercent(percent),
+      ImportStage.identifyingSpeakers => percent == null
+          ? l10n.stageIdentifyingSpeakers
+          : l10n.identifyingSpeakersPercent(percent),
       ImportStage.saving => l10n.stageSaving,
     };
 
@@ -202,11 +207,12 @@ class _ImportProgress extends StatelessWidget {
           Text(label, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            // Only the transcription stage knows how far along it is; the
-            // rest animate indeterminately rather than faking a number.
-            value: status.stage == ImportStage.transcribing && percent != null
-                ? percent / 100
-                : null,
+            // Transcription and diarization both report real progress; the
+            // remaining stages animate indeterminately rather than faking a
+            // number. Driven off `percent` being present rather than off the
+            // stage, so a future stage that learns to report needs no change
+            // here.
+            value: percent == null ? null : percent / 100,
           ),
         ],
       ),
@@ -289,11 +295,11 @@ class _SettingsButton extends StatelessWidget {
 }
 
 /// Everything that changes what the *next* import does: which model runs,
-/// which language the engine is told to expect, and whether non-speech audio
-/// is skipped.
+/// which language the engine is told to expect, whether non-speech audio is
+/// skipped, and whether speakers are labelled.
 ///
 /// A bottom sheet rather than the popup menu this replaces. A popup dismisses
-/// itself on every selection, which is wrong for a surface holding three
+/// itself on every selection, which is wrong for a surface holding several
 /// independent settings, and it cannot host a switch at all. The sheet also
 /// makes the confirmation snackbars redundant — each row shows its own state,
 /// so the change is visible where it was made.
@@ -307,6 +313,7 @@ class _SettingsSheet extends ConsumerWidget {
     final selectedModel = ref.watch(selectedWhisperModelProvider).value;
     final language = ref.watch(selectedTranscriptionLanguageProvider).value;
     final skipSilence = ref.watch(silenceSkippingEnabledProvider).value;
+    final diarize = ref.watch(speakerDiarizationEnabledProvider).value;
 
     return SafeArea(
       child: ConstrainedBox(
@@ -354,6 +361,16 @@ class _SettingsSheet extends ConsumerWidget {
                   ? null
                   : (value) => ref
                       .read(silenceSkippingEnabledProvider.notifier)
+                      .setEnabled(value),
+            ),
+            SwitchListTile(
+              value: diarize ?? SpeakerDiarizationEnabled.defaultEnabled,
+              title: Text(l10n.diarizationTitle),
+              subtitle: Text(l10n.diarizationHint),
+              onChanged: diarize == null
+                  ? null
+                  : (value) => ref
+                      .read(speakerDiarizationEnabledProvider.notifier)
                       .setEnabled(value),
             ),
           ],

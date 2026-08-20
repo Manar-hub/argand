@@ -54,11 +54,20 @@ app.*.map.json
 /android/.gradle/
 /android/.kotlin/
 
-# ML model weights. Multi-hundred-MB binaries that must not enter git history.
+# Whisper model weights. Multi-hundred-MB binaries that must not enter git history.
 # Obtain these separately and place them in assets/models/ -- see docs/progress.md.
+#
+# The pattern is deliberately narrow. gtcrn_simple.onnx sits in the same folder
+# but is only 536KB and IS tracked, so a fresh checkout has everything the
+# Tier 2 audio-cleanup feature needs without a separate download.
 assets/models/*.bin
 
 # Native build artifacts from the vendored whisper_ggml_plus fork (~167MB).
 # The patched C++ source under packages/ IS tracked; only build output is not.
 packages/**/.cxx/
 packages/**/build/
+
+# Whisper models parked out of the asset bundle so they are not shipped or
+# installed. Move one back into assets/models/ to make it selectable again --
+# see docs/progress.md, "Which models are bundled".
+/dev-models/

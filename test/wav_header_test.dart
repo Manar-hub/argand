@@ -62,6 +62,7 @@ void main() {
       expect(header.channels, 1);
       expect(header.bitsPerSample, 16);
       expect(header.dataBytes, 32000);
+      expect(header.dataOffset, 44);
       expect(header.duration, const Duration(seconds: 1));
     });
 
@@ -78,6 +79,11 @@ void main() {
 
       expect(header.dataBytes, 16000);
       expect(header.duration, const Duration(milliseconds: 500));
+      // 44 for the canonical header, plus 8 for the LIST chunk header, plus
+      // its 5 bytes of body rounded up to 6 for word alignment. Anything that
+      // seeks to a hardcoded 44 would land inside the LIST chunk and read
+      // metadata as audio.
+      expect(header.dataOffset, 58);
     });
 
     test('duration exposes a wrong-ratio resample that the header hides', () {

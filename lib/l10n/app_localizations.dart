@@ -244,17 +244,59 @@ abstract class AppLocalizations {
   /// **'Slower, more accurate'**
   String get modelHintAccurate;
 
-  /// Confirmation shown after choosing a different transcription model
-  ///
-  /// In en, this message translates to:
-  /// **'Now transcribing with {model}'**
-  String modelSwitched(String model);
-
   /// Button that retries a failed operation
   ///
   /// In en, this message translates to:
   /// **'Try again'**
   String get retryAction;
+
+  /// Tooltip on the app-bar button that opens transcription settings
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription settings'**
+  String get settingsMenuTooltip;
+
+  /// Header of the menu section that selects the spoken language of the media
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get transcriptionLanguageTitle;
+
+  /// Language option letting the engine identify the spoken language itself
+  ///
+  /// In en, this message translates to:
+  /// **'Detect automatically'**
+  String get languageAuto;
+
+  /// Subtitle for the automatic language-detection option
+  ///
+  /// In en, this message translates to:
+  /// **'The model identifies the language'**
+  String get languageAutoHint;
+
+  /// Language option pinning transcription to English
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageEnglish;
+
+  /// Subtitle for the pinned-English language option
+  ///
+  /// In en, this message translates to:
+  /// **'Skip detection, assume English'**
+  String get languageEnglishHint;
+
+  /// Header of the settings section toggling voice activity detection
+  ///
+  /// In en, this message translates to:
+  /// **'Skip silence'**
+  String get silenceSkippingTitle;
+
+  /// Subtitle explaining what the silence-skipping toggle does
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe speech only. Faster, and avoids invented words over silence.'**
+  String get silenceSkippingHint;
 }
 
 class _AppLocalizationsDelegate

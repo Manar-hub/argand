@@ -16,7 +16,12 @@ Future<TranscribeRequest> resolveVadModelPath(
   TranscribeRequest request,
 ) async {
   final String? providedPath = request.vadModelPath?.trim();
-  if (request.splitOnWord || request.vadMode == WhisperVadMode.disabled) {
+  // FORK: upstream also short-circuited here when split_on_word was set, so
+  // the bundled Silero model was never resolved and VAD could not run
+  // alongside word-level timestamps. The native layer carried a matching
+  // guard, removed too -- see android/src/whisper/main.cpp for why it was
+  // unnecessary for this fork's read path. Re-apply on any upstream bump.
+  if (request.vadMode == WhisperVadMode.disabled) {
     return request.copyWith(vadModelPath: providedPath);
   }
 

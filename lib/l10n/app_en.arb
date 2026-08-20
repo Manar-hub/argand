@@ -82,12 +82,30 @@
   "modelHintAccurate": "Slower, more accurate",
   "@modelHintAccurate": { "description": "Subtitle describing the larger, more accurate model" },
 
-  "modelSwitched": "Now transcribing with {model}",
-  "@modelSwitched": {
-    "description": "Confirmation shown after choosing a different transcription model",
-    "placeholders": { "model": { "type": "String" } }
-  },
-
   "retryAction": "Try again",
-  "@retryAction": { "description": "Button that retries a failed operation" }
+  "@retryAction": { "description": "Button that retries a failed operation" },
+
+  "settingsMenuTooltip": "Transcription settings",
+  "@settingsMenuTooltip": { "description": "Tooltip on the app-bar button that opens transcription settings" },
+
+  "transcriptionLanguageTitle": "Language",
+  "@transcriptionLanguageTitle": { "description": "Header of the menu section that selects the spoken language of the media" },
+
+  "languageAuto": "Detect automatically",
+  "@languageAuto": { "description": "Language option letting the engine identify the spoken language itself" },
+
+  "languageAutoHint": "The model identifies the language",
+  "@languageAutoHint": { "description": "Subtitle for the automatic language-detection option" },
+
+  "languageEnglish": "English",
+  "@languageEnglish": { "description": "Language option pinning transcription to English" },
+
+  "languageEnglishHint": "Skip detection, assume English",
+  "@languageEnglishHint": { "description": "Subtitle for the pinned-English language option" },
+
+  "silenceSkippingTitle": "Skip silence",
+  "@silenceSkippingTitle": { "description": "Header of the settings section toggling voice activity detection" },
+
+  "silenceSkippingHint": "Transcribe speech only. Faster, and avoids invented words over silence.",
+  "@silenceSkippingHint": { "description": "Subtitle explaining what the silence-skipping toggle does" }
 }

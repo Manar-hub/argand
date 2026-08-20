@@ -12,6 +12,7 @@ class WavHeader {
     required this.sampleRate,
     required this.bitsPerSample,
     required this.dataBytes,
+    required this.dataOffset,
   });
 
   final int channels;
@@ -20,6 +21,13 @@ class WavHeader {
 
   /// Length of the `data` chunk in bytes.
   final int dataBytes;
+
+  /// Byte offset of the first sample within the file.
+  ///
+  /// Not a constant 44: the chunk walk below exists precisely because encoders
+  /// may place `LIST`, `fact` or other chunks ahead of `data`. Anything that
+  /// reads samples must seek here rather than assuming a canonical header.
+  final int dataOffset;
 
   /// How long the samples actually run for, derived from the data size rather
   /// than from any duration field.
@@ -49,6 +57,7 @@ class WavHeader {
     int? sampleRate;
     int? bitsPerSample;
     int? dataBytes;
+    int? dataOffset;
 
     // Chunks are walked rather than read at fixed offsets: encoders are free to
     // put LIST or fact chunks ahead of `data`, so its position is not fixed.
@@ -64,6 +73,7 @@ class WavHeader {
         bitsPerSample = data.getUint16(body + 14, Endian.little);
       } else if (id == 'data') {
         dataBytes = size;
+        dataOffset = body;
         break;
       }
 
@@ -74,7 +84,7 @@ class WavHeader {
     if (channels == null || sampleRate == null || bitsPerSample == null) {
       throw const FormatException('WAV file has no fmt chunk');
     }
-    if (dataBytes == null) {
+    if (dataBytes == null || dataOffset == null) {
       throw const FormatException('WAV file has no data chunk');
     }
 
@@ -83,6 +93,7 @@ class WavHeader {
       sampleRate: sampleRate,
       bitsPerSample: bitsPerSample,
       dataBytes: dataBytes,
+      dataOffset: dataOffset,
     );
   }
 

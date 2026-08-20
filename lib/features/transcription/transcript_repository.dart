@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 import '../../core/database/database.dart';
+import '../../core/whisper/transcription_language_controller.dart';
 
 part 'transcript_repository.g.dart';
 
@@ -37,11 +38,20 @@ class TranscriptRepository {
   ///
   /// Written in a single transaction so a failure part-way through cannot
   /// leave a project with a half-populated transcript.
+  ///
+  /// [language] records what the engine was *asked* for, which for
+  /// [TranscriptionLanguage.auto] is not the same as what it detected: the
+  /// package's response carries no detected-language field, so that value is
+  /// currently unrecoverable. Storing the request is still worth doing — it is
+  /// what explains a transcript when someone later asks why it came out in the
+  /// wrong language. Surfacing the detected code needs a change in the
+  /// vendored fork; see docs/progress.md.
   Future<void> saveImport({
     required String projectId,
     required String title,
     required String mediaPath,
     required Duration? duration,
+    required TranscriptionLanguage language,
     required WhisperTranscribeResponse result,
   }) async {
     final now = DateTime.now();
@@ -65,6 +75,7 @@ class TranscriptRepository {
               createdAt: now,
               updatedAt: now,
               projectId: projectId,
+              language: Value(language.code),
               fullText: result.text.trim(),
             ),
           );

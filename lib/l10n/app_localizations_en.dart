@@ -97,10 +97,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelHintAccurate => 'Slower, more accurate';
 
   @override
-  String modelSwitched(String model) {
-    return 'Now transcribing with $model';
-  }
+  String get retryAction => 'Try again';
 
   @override
-  String get retryAction => 'Try again';
+  String get settingsMenuTooltip => 'Transcription settings';
+
+  @override
+  String get transcriptionLanguageTitle => 'Language';
+
+  @override
+  String get languageAuto => 'Detect automatically';
+
+  @override
+  String get languageAutoHint => 'The model identifies the language';
+
+  @override
+  String get languageEnglish => 'English';
+
+  @override
+  String get languageEnglishHint => 'Skip detection, assume English';
+
+  @override
+  String get silenceSkippingTitle => 'Skip silence';
+
+  @override
+  String get silenceSkippingHint =>
+      'Transcribe speech only. Faster, and avoids invented words over silence.';
 }

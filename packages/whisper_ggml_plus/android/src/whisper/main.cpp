@@ -271,11 +271,26 @@ json transcribe(json jsonBody)
     wparams.audio_ctx = params.speed_up ? 768 : 0; // Use smaller audio context for speedUp
     wparams.single_segment = false;
 
-    if (params.split_on_word) {
-        __android_log_print(ANDROID_LOG_DEBUG, "WhisperFlutter",
-                            "[DEBUG] Disabling VAD because split_on_word requires stable timestamps");
-        wparams.vad = false;
-    } else if (params.vad_mode == whisper_vad_mode::disabled) {
+    // FORK: upstream unconditionally disabled VAD whenever split_on_word was
+    // set, on the grounds that word-level output "requires stable timestamps".
+    // That is over-conservative for how this fork reads results. Word data is
+    // emitted through whisper_full_get_segment_t0/t1 (see build_result below),
+    // and those accessors DO remap through state->vad_mapping_table
+    // (whisper.cpp, map_processed_to_original_time). The accessor that returns
+    // un-remapped, VAD-relative times is whisper_full_get_token_data, which
+    // this fork never calls. Within a speech run the mapping is exact -- the
+    // run is memcpy'd verbatim into the filtered buffer -- with extra
+    // interpolation points every 200ms; error can only appear across the
+    // synthetic padding between runs, where by construction there are no words.
+    // VAD is therefore governed by vad_mode alone, as it is without
+    // split_on_word. Re-apply on any upstream bump; ios/Classes has its own
+    // copy of this logic.
+    //
+    // Note wparams.vad_params is left at whisper_vad_default_params():
+    // threshold 0.5, min_speech 250ms, min_silence 100ms, speech_pad 30ms,
+    // samples_overlap 0.1s. Inherited deliberately, not tuned -- record a
+    // measurement in docs/progress.md before changing any of them.
+    if (params.vad_mode == whisper_vad_mode::disabled) {
         wparams.vad = false;
     } else if (!params.vad_model_path.empty()) {
         wparams.vad = true;

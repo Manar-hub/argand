@@ -56,6 +56,12 @@ dependencies:
   file_picker: ^12.0.0
   video_player: ^2.14.0
   path: ^1.9.1
+  # ONNX inference runtime, used from Phase 2 for the GTCRN noise-suppression
+  # pass and from Phase 3 for diarization. Taken straight from pub rather than
+  # vendored: unlike whisper_ggml_plus and audio_decoder, nothing here has
+  # needed patching. Pulls in per-platform native binaries as transitive
+  # packages (sherpa_onnx_android_*, _ios, _windows, ...).
+  sherpa_onnx: ^1.13.6
 dev_dependencies:
   flutter_test:
     sdk: flutter

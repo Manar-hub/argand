@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
+import 'transcription_language_controller.dart';
 import 'whisper_model_catalog.dart';
 
 part 'whisper_service.g.dart';
@@ -25,20 +26,6 @@ part 'whisper_service.g.dart';
 ///    does not surface the params this project pins in
 ///    docs/engine-architecture.md.
 class WhisperService {
-  /// Spoken language of the audio, or `auto` to let whisper.cpp detect it.
-  ///
-  /// Previously left unset, which silently took the package's `'en'` default
-  /// and told the engine every file was English no matter what it contained.
-  /// Overridable at build time while the right shipping default is settled:
-  ///
-  /// ```
-  /// flutter run --release --dart-define=WHISPER_LANGUAGE=en
-  /// ```
-  static const String _language = String.fromEnvironment(
-    'WHISPER_LANGUAGE',
-    defaultValue: 'auto',
-  );
-
   static const int _lockedThreads = 4;
 
   /// The enum value is inert: [Whisper.transcribe] takes an explicit
@@ -85,9 +72,23 @@ class WhisperService {
   int get progressPercent => _whisper.getProgress();
 
   /// Transcribes an already-prepared 16kHz mono WAV file using [model].
+  ///
+  /// [language] is required rather than defaulted. The package's own default
+  /// is `'en'`, and taking it silently was a real bug: every file was declared
+  /// English regardless of content, with nothing in the output to show for it.
+  /// Forcing the caller to name a language keeps that decision visible — and
+  /// the two it can name are exactly the user-facing choice, detection or
+  /// pinned English.
+  ///
+  /// [skipSilence] turns on whisper.cpp's built-in Silero VAD, which decodes
+  /// only the speech regions of the file and maps the resulting timestamps
+  /// back onto the original timeline. The vendored fork had to be patched to
+  /// permit this alongside `splitOnWord`; see docs/engine-architecture.md.
   Future<WhisperTranscribeResponse> transcribeWav(
     String wavPath, {
     required WhisperModelDescriptor model,
+    required TranscriptionLanguage language,
+    required bool skipSilence,
   }) async {
     await ensureModelReady(model);
 
@@ -102,7 +103,15 @@ class WhisperService {
         suppressNst: true,
         samplingStrategy: 'greedy',
         splitOnWord: true,
-        language: _language,
+        language: language.code,
+        // `enabled` rather than `auto`: auto silently degrades to no VAD if
+        // the bundled model cannot be prepared, and a setting the user turned
+        // on should fail loudly instead of quietly not applying.
+        vadMode: skipSilence ? WhisperVadMode.enabled : WhisperVadMode.disabled,
+        // Left null so the package resolves its own bundled Silero model. The
+        // Phase 0 workaround that passed '' here is gone: the fork's json_get
+        // helper tolerates null, and '' would now read as "no model" and make
+        // `enabled` throw.
       ),
       modelPath: await modelPath(model),
     );

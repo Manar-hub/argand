@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
+import '../../core/whisper/transcription_language_controller.dart';
+import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_catalog.dart';
 import '../../core/whisper/whisper_model_controller.dart';
 import '../../l10n/app_localizations.dart';
@@ -44,9 +46,10 @@ class LibraryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.appTitle),
-        // Disabled mid-import: switching models underneath a running
-        // transcription would change which weights the next stage loads.
-        actions: [_ModelMenu(enabled: import is! ImportRunning)],
+        // Disabled mid-import: every setting behind this button changes what a
+        // later stage of the running pipeline would do -- which weights load,
+        // which language is declared, whether the audio is denoised.
+        actions: [_SettingsButton(enabled: import is! ImportRunning)],
       ),
       body: Column(
         children: [
@@ -257,60 +260,156 @@ String _formatDuration(Duration duration) {
   return '$minutes:$seconds';
 }
 
-/// App-bar menu for choosing which model transcribes.
-///
-/// Lists whatever models this build actually ships (see
-/// [WhisperModelCatalog]); it is not a hardcoded pair, so adding a `.bin` to
-/// `assets/models/` makes it appear here with no change to this widget.
-class _ModelMenu extends ConsumerWidget {
-  const _ModelMenu({required this.enabled});
+/// App-bar entry point for the transcription settings sheet.
+class _SettingsButton extends StatelessWidget {
+  const _SettingsButton({required this.enabled});
 
   final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return IconButton(
+      icon: const Icon(Icons.tune),
+      tooltip: l10n.settingsMenuTooltip,
+      onPressed: enabled
+          ? () => showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                // The sheet sizes to its content but is allowed to scroll, so
+                // a large accessibility text scale grows it instead of
+                // clipping the last row off the bottom.
+                isScrollControlled: true,
+                builder: (_) => const _SettingsSheet(),
+              )
+          : null,
+    );
+  }
+}
+
+/// Everything that changes what the *next* import does: which model runs,
+/// which language the engine is told to expect, and whether non-speech audio
+/// is skipped.
+///
+/// A bottom sheet rather than the popup menu this replaces. A popup dismisses
+/// itself on every selection, which is wrong for a surface holding three
+/// independent settings, and it cannot host a switch at all. The sheet also
+/// makes the confirmation snackbars redundant — each row shows its own state,
+/// so the change is visible where it was made.
+class _SettingsSheet extends ConsumerWidget {
+  const _SettingsSheet();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final models = ref.watch(availableWhisperModelsProvider).value ?? const [];
-    final selected = ref.watch(selectedWhisperModelProvider).value;
+    final selectedModel = ref.watch(selectedWhisperModelProvider).value;
+    final language = ref.watch(selectedTranscriptionLanguageProvider).value;
+    final skipSilence = ref.watch(silenceSkippingEnabledProvider).value;
 
-    // A picker over fewer than two options is just clutter.
-    if (models.length < 2) return const SizedBox.shrink();
-
-    return PopupMenuButton<WhisperModelDescriptor>(
-      enabled: enabled,
-      icon: const Icon(Icons.tune),
-      tooltip: l10n.transcriptionModelTitle,
-      onSelected: (model) async {
-        await ref.read(selectedWhisperModelProvider.notifier).select(model);
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(
-            SnackBar(content: Text(l10n.modelSwitched(_labelFor(l10n, model)))),
-          );
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<WhisperModelDescriptor>(
-          enabled: false,
-          child: Text(
-            l10n.transcriptionModelTitle,
-            style: Theme.of(context).textTheme.labelMedium,
-          ),
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
         ),
-        const PopupMenuDivider(),
-        for (final model in models)
-          PopupMenuItem<WhisperModelDescriptor>(
-            value: model,
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(
-                model == selected ? Icons.check : Icons.radio_button_unchecked,
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 16),
+          children: [
+            // A picker over fewer than two models is just clutter; the rest of
+            // the sheet still earns its place.
+            if (models.length >= 2) ...[
+              _SectionHeader(label: l10n.transcriptionModelTitle),
+              for (final model in models)
+                _ChoiceTile(
+                  selected: model == selectedModel,
+                  title: _labelFor(l10n, model),
+                  subtitle: _hintFor(l10n, model),
+                  onTap: () => ref
+                      .read(selectedWhisperModelProvider.notifier)
+                      .select(model),
+                ),
+              const Divider(),
+            ],
+            _SectionHeader(label: l10n.transcriptionLanguageTitle),
+            for (final option in TranscriptionLanguage.values)
+              _ChoiceTile(
+                selected: option == language,
+                title: _languageLabel(l10n, option),
+                subtitle: _languageHint(l10n, option),
+                onTap: () => ref
+                    .read(selectedTranscriptionLanguageProvider.notifier)
+                    .select(option),
               ),
-              title: Text(_labelFor(l10n, model)),
-              subtitle: Text(_hintFor(l10n, model)),
+            const Divider(),
+            SwitchListTile(
+              // Falls back to the declared default only for the instant before
+              // the stored value has been read; `onChanged` stays null until
+              // then so a tap cannot race the load and write the wrong value.
+              value: skipSilence ?? SilenceSkippingEnabled.defaultEnabled,
+              title: Text(l10n.silenceSkippingTitle),
+              subtitle: Text(l10n.silenceSkippingHint),
+              onChanged: skipSilence == null
+                  ? null
+                  : (value) => ref
+                      .read(silenceSkippingEnabledProvider.notifier)
+                      .setEnabled(value),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(
+        label,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+/// One row in a mutually exclusive group.
+///
+/// Text is deliberately left to wrap rather than capped with `maxLines`:
+/// these strings are localized and the sheet already scrolls, so growing is
+/// always preferable to hiding half of an option's explanation.
+class _ChoiceTile extends StatelessWidget {
+  const _ChoiceTile({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(selected ? Icons.check : Icons.radio_button_unchecked),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      selected: selected,
+      onTap: onTap,
     );
   }
 }
@@ -332,5 +431,23 @@ String _hintFor(AppLocalizations l10n, WhisperModelDescriptor model) {
   return switch (model.id) {
     'base' => l10n.modelHintFaster,
     _ => l10n.modelHintAccurate,
+  };
+}
+
+/// Exhaustive over [TranscriptionLanguage] rather than falling back to the
+/// code, unlike the model labels above: this enum is closed and every entry is
+/// one this build deliberately offers, so a missing string is a bug the
+/// compiler should catch rather than something to paper over at runtime.
+String _languageLabel(AppLocalizations l10n, TranscriptionLanguage language) {
+  return switch (language) {
+    TranscriptionLanguage.auto => l10n.languageAuto,
+    TranscriptionLanguage.english => l10n.languageEnglish,
+  };
+}
+
+String _languageHint(AppLocalizations l10n, TranscriptionLanguage language) {
+  return switch (language) {
+    TranscriptionLanguage.auto => l10n.languageAutoHint,
+    TranscriptionLanguage.english => l10n.languageEnglishHint,
   };
 }

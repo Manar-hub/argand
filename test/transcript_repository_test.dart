@@ -1,4 +1,5 @@
 import 'package:argand/core/database/database.dart';
+import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +23,7 @@ void main() {
         title: 'interview',
         mediaPath: '/tmp/interview.mp4',
         duration: const Duration(seconds: 3),
+        language: TranscriptionLanguage.english,
         result: const WhisperTranscribeResponse(
           type: 'transcribe',
           text: ' Hello there world',
@@ -67,6 +69,7 @@ void main() {
         title: 'pauses',
         mediaPath: '/tmp/pauses.wav',
         duration: null,
+        language: TranscriptionLanguage.english,
         result: const WhisperTranscribeResponse(
           type: 'transcribe',
           text: ' you',
@@ -103,6 +106,7 @@ void main() {
         title: 'clip',
         mediaPath: '/tmp/clip.m4a',
         duration: null,
+        language: TranscriptionLanguage.english,
         result: const WhisperTranscribeResponse(
           type: 'transcribe',
           text: 'hi',

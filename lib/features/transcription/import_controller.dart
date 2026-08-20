@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/media/media_converter.dart';
+import '../../core/whisper/transcription_language_controller.dart';
+import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_controller.dart';
 import '../../core/whisper/whisper_service.dart';
 import 'transcript_repository.dart';
@@ -13,7 +15,17 @@ part 'import_controller.g.dart';
 
 /// Steps the import pipeline moves through, in order. The UI maps these to
 /// localized labels; the controller never holds display strings itself.
-enum ImportStage { preparingModel, copyingMedia, extractingAudio, transcribing, saving }
+///
+/// Silence skipping does not appear here: it is a parameter of the transcribe
+/// call rather than a pass over the audio, so it happens inside
+/// [transcribing] rather than before it.
+enum ImportStage {
+  preparingModel,
+  copyingMedia,
+  extractingAudio,
+  transcribing,
+  saving,
+}
 
 sealed class ImportStatus {
   const ImportStatus();
@@ -123,9 +135,21 @@ class ImportController extends _$ImportController {
       final wav = await converter.extractWavForTranscription(media.path);
       final duration = await converter.probeDuration(media.path);
 
+      // Both of these are engine parameters rather than passes over the audio,
+      // so they are read here and handed to the one transcribe call. Nothing
+      // rewrites the extracted WAV: whisper is always fed exactly what
+      // MediaConverter produced.
+      final language = await ref.read(selectedTranscriptionLanguageProvider.future);
+      final skipSilence = await ref.read(silenceSkippingEnabledProvider.future);
+
       state = const ImportRunning(ImportStage.transcribing, percent: 0);
       _startProgressPolling(whisper);
-      final result = await whisper.transcribeWav(wav.path, model: model);
+      final result = await whisper.transcribeWav(
+        wav.path,
+        model: model,
+        language: language,
+        skipSilence: skipSilence,
+      );
       _stopProgressPolling();
 
       state = const ImportRunning(ImportStage.saving);
@@ -134,6 +158,7 @@ class ImportController extends _$ImportController {
         title: p.basenameWithoutExtension(picked.name),
         mediaPath: media.path,
         duration: duration,
+        language: language,
         result: result,
       );
 

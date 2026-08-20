@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:argand/core/audio/audio_denoiser.dart';
 import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/media/wav_header.dart';
+import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/core/whisper/whisper_model_catalog.dart';
 import 'package:argand/core/whisper/whisper_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -122,7 +124,12 @@ void main() {
     final model = await const WhisperModelCatalog().resolve(null);
     expect(model, isNotNull, reason: 'No model is bundled in this build');
 
-    final result = await WhisperService().transcribeWav(wav.path, model: model!);
+    final result = await WhisperService().transcribeWav(
+      wav.path,
+      model: model!,
+      language: TranscriptionLanguage.auto,
+      skipSilence: true,
+    );
 
     expect(result.text.trim(), isNotEmpty);
     final segments = result.segments ?? const [];
@@ -135,5 +142,146 @@ void main() {
       expect(segment.fromTs.inMilliseconds, greaterThanOrEqualTo(previous));
       previous = segment.fromTs.inMilliseconds;
     }
+  });
+
+  testWidgets('noise suppression returns audio the engine still accepts',
+      (tester) async {
+    final media = await stage(audioFixture, 'itest-denoise');
+    final wav = await converter.extractWavForTranscription(media.path);
+    final source = WavHeader.parse(await wav.readAsBytes());
+
+    final denoised = await AudioDenoiser().denoiseWav(wav.path);
+
+    expect(await denoised.exists(), isTrue);
+    expect(
+      denoised.path,
+      isNot(wav.path),
+      reason: 'The extracted WAV must survive the pass for a fallback to exist',
+    );
+    expect(await wav.exists(), isTrue);
+
+    final header = WavHeader.parse(await denoised.readAsBytes());
+
+    // Format has to survive untouched: whisper.cpp takes no sample-rate
+    // argument, it assumes 16kHz, so a denoiser that quietly changed the rate
+    // would be transcribed at the wrong speed rather than rejected.
+    expect(header.sampleRate, 16000);
+    expect(header.channels, 1);
+    expect(header.bitsPerSample, 16);
+    expect(header.dataBytes, greaterThan(0));
+
+    // The duration assertion, not the format one, is what catches a real bug
+    // here -- the same lesson the HE-AAC extraction failure taught. A dropped
+    // flush() truncates the tail, and a chunking error stretches or shortens
+    // the whole file, neither of which touches the header.
+    final drift = (header.duration - source.duration).abs();
+    expect(
+      drift,
+      lessThan(const Duration(milliseconds: 250)),
+      reason: 'Denoised audio ran for ${header.duration.inMilliseconds}ms '
+          'against a ${source.duration.inMilliseconds}ms input',
+    );
+
+    await denoised.delete();
+  });
+
+  testWidgets('transcribes denoised audio end to end', (tester) async {
+    final media = await stage(audioFixture, 'itest-denoise-asr');
+    final wav = await converter.extractWavForTranscription(media.path);
+    final denoised = await AudioDenoiser().denoiseWav(wav.path);
+
+    final model = await const WhisperModelCatalog().resolve(null);
+    expect(model, isNotNull, reason: 'No model is bundled in this build');
+
+    final result = await WhisperService().transcribeWav(
+      denoised.path,
+      model: model!,
+      language: TranscriptionLanguage.auto,
+      skipSilence: true,
+    );
+
+    // Deliberately not asserting the *text*. Whether denoising helps or hurts
+    // word error rate on a given clip is the open question this phase leaves
+    // for measurement (docs/progress.md); what a test can pin down is that the
+    // pass produces something the engine can still decode into timed words.
+    expect(result.text.trim(), isNotEmpty);
+    expect(result.segments ?? const [], isNotEmpty);
+
+    await denoised.delete();
+  });
+
+  /// The assertion that gates the VAD fork patch.
+  ///
+  /// With VAD on, whisper.cpp decodes a *compacted* buffer containing only the
+  /// speech runs, then maps the resulting times back through
+  /// `state->vad_mapping_table`. Upstream refused to allow this alongside
+  /// `splitOnWord` at all, on the grounds that word output "requires stable
+  /// timestamps". This test is what makes removing that guard defensible:
+  /// if the remap were broken, word times would land on the compacted
+  /// timeline and run off the end of the media.
+  testWidgets('silence skipping keeps word times on the original timeline',
+      (tester) async {
+    final media = await stage(audioFixture, 'itest-vad-timeline');
+    final wav = await converter.extractWavForTranscription(media.path);
+    final duration = await converter.probeDuration(media.path);
+    expect(duration, isNotNull, reason: 'Fixture duration is needed to bound times');
+
+    final model = await const WhisperModelCatalog().resolve(null);
+    expect(model, isNotNull, reason: 'No model is bundled in this build');
+
+    final result = await WhisperService().transcribeWav(
+      wav.path,
+      model: model!,
+      language: TranscriptionLanguage.english,
+      skipSilence: true,
+    );
+
+    final segments = result.segments ?? const [];
+    expect(segments, isNotEmpty, reason: 'VAD dropped a clip that is mostly speech');
+
+    // A little slack: whisper pads speech regions by speech_pad_ms and rounds
+    // to centiseconds, so a final word may legitimately end fractionally past
+    // the container's own duration.
+    final limit = duration! + const Duration(milliseconds: 500);
+
+    var previous = -1;
+    for (final segment in segments) {
+      expect(
+        segment.fromTs.inMilliseconds,
+        greaterThanOrEqualTo(previous),
+        reason: 'Word times went backwards, so the VAD remap is not monotonic',
+      );
+      expect(
+        segment.toTs,
+        lessThanOrEqualTo(limit),
+        reason: 'Word ends at ${segment.toTs.inMilliseconds}ms but the media is '
+            'only ${duration.inMilliseconds}ms -- times are on the compacted '
+            'VAD timeline, not the original one',
+      );
+      previous = segment.fromTs.inMilliseconds;
+    }
+  });
+
+  testWidgets('silence skipping suppresses speech invented over silence',
+      (tester) async {
+    // Pinned English on near-silent audio is whisper.cpp's classic
+    // hallucination case -- it emits a stray "you". VAD should find no speech
+    // to decode at all, so there is nothing for it to invent over.
+    final media = await stage(quicktimeFixture, 'itest-vad-silence');
+    final wav = await converter.extractWavForTranscription(media.path);
+
+    final model = await const WhisperModelCatalog().resolve(null);
+    final result = await WhisperService().transcribeWav(
+      wav.path,
+      model: model!,
+      language: TranscriptionLanguage.english,
+      skipSilence: true,
+    );
+
+    expect(
+      result.segments ?? const [],
+      isEmpty,
+      reason: 'Expected no speech in a silent clip, got "${result.text.trim()}"',
+    );
   });
 }

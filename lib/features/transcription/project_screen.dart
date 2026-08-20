@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/captions/caption_controller.dart';
+import '../../core/captions/caption_grouper.dart';
+import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../l10n/app_localizations.dart';
 import 'media_player_controller.dart';
@@ -49,7 +52,13 @@ class _ProjectBody extends ConsumerWidget {
 
     return Column(
       children: [
-        _PlayerPane(mediaPath: project.mediaPath),
+        // The player needs the transcript id to draw captions over the video.
+        // Null until the transcript loads, and null forever for a project that
+        // produced no speech -- the overlay simply does not appear.
+        _PlayerPane(
+          mediaPath: project.mediaPath,
+          transcriptId: transcript.value?.id,
+        ),
         const Divider(height: 1),
         Expanded(
           child: transcript.when(
@@ -66,9 +75,10 @@ class _ProjectBody extends ConsumerWidget {
 }
 
 class _PlayerPane extends ConsumerWidget {
-  const _PlayerPane({required this.mediaPath});
+  const _PlayerPane({required this.mediaPath, required this.transcriptId});
 
   final String mediaPath;
+  final String? transcriptId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,15 +94,24 @@ class _PlayerPane extends ConsumerWidget {
         height: 200,
         child: _CenteredMessage(message: l10n.playerUnavailable),
       ),
-      data: (controller) => _Player(mediaPath: mediaPath, controller: controller),
+      data: (controller) => _Player(
+        mediaPath: mediaPath,
+        transcriptId: transcriptId,
+        controller: controller,
+      ),
     );
   }
 }
 
 class _Player extends ConsumerWidget {
-  const _Player({required this.mediaPath, required this.controller});
+  const _Player({
+    required this.mediaPath,
+    required this.transcriptId,
+    required this.controller,
+  });
 
   final String mediaPath;
+  final String? transcriptId;
   final VideoPlayerController controller;
 
   @override
@@ -110,19 +129,43 @@ class _Player extends ConsumerWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Capped so a portrait phone video cannot push the transcript off
-            // the bottom of the screen.
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: hasVideo
-                  ? AspectRatio(
-                      aspectRatio: value.aspectRatio,
-                      child: VideoPlayer(controller),
-                    )
-                  : SizedBox(
-                      height: 120,
-                      child: _CenteredMessage(message: l10n.audioOnlyLabel),
+            // A fixed-height black stage, with the picture letterboxed inside
+            // it. The height cap stops a portrait video pushing the transcript
+            // off screen; the black is what makes the caption bar below read as
+            // part of the player. Without it the caption floats over page
+            // background beside a narrow portrait video, which looks like a
+            // stray tooltip rather than a caption.
+            SizedBox(
+              height: hasVideo ? 240 : 120,
+              width: double.infinity,
+              child: ColoredBox(
+                color: hasVideo ? Colors.black : Colors.transparent,
+                child: Stack(
+                  // Captions sit over the picture, which is where they will be
+                  // burned in at export -- but they are live widgets here,
+                  // never rasterized (docs/engine-architecture.md).
+                  children: [
+                    Center(
+                      child: hasVideo
+                          ? AspectRatio(
+                              aspectRatio: value.aspectRatio,
+                              child: VideoPlayer(controller),
+                            )
+                          : _CenteredMessage(message: l10n.audioOnlyLabel),
                     ),
+                    if (transcriptId != null)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _CaptionOverlay(
+                          transcriptId: transcriptId!,
+                          positionMs: value.position.inMilliseconds,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
             Row(
               children: [
@@ -143,6 +186,69 @@ class _Player extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// The caption for the current playback position, drawn over the video.
+///
+/// This is the Tier 1 caption surface: one grouping mode, coloured by speaker,
+/// and structured all the way down — the cue keeps its words, so nothing here
+/// has flattened the caption into pixels or even into a bare string.
+class _CaptionOverlay extends ConsumerWidget {
+  const _CaptionOverlay({
+    required this.transcriptId,
+    required this.positionMs,
+  });
+
+  final String transcriptId;
+  final int positionMs;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cues = ref.watch(captionCuesProvider(transcriptId)).value;
+    if (cues == null || cues.isEmpty) return const SizedBox.shrink();
+
+    final cue = cueAt(cues, positionMs);
+    // Nothing is being said right now. Rendering an empty box rather than a
+    // blank scrim keeps the picture clear between lines, the way captions
+    // actually behave.
+    if (cue == null) return const SizedBox.shrink();
+
+    final color = SpeakerPalette.colorFor(cue.speaker, fallback: Colors.white);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          // A scrim rather than a solid bar: enough to keep text legible over
+          // a bright frame without hiding the video behind it.
+          color: Colors.black.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            cue.text,
+            textAlign: TextAlign.center,
+            // Bounded so a large accessibility text scale cannot grow the
+            // caption past the video and shove the controls off screen.
+            // Truncation is close to unreachable in practice because grouping
+            // already caps a cue at CaptionStyle.maxCharacters.
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                  // Captions land on unpredictable frames, so the scrim alone
+                  // is not always enough separation.
+                  shadows: const [
+                    Shadow(blurRadius: 4, color: Colors.black87),
+                  ],
+                ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -316,39 +422,28 @@ class _SpeakerLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final scheme = theme.colorScheme;
 
-    // Cycled from theme roles rather than hardcoded hues, so the labels stay
-    // legible in both light and dark without a palette of our own. More
-    // speakers than roles simply wrap round; distinguishing many speakers by
-    // colour is Phase 4's problem, not this placeholder's.
-    final containers = [
-      scheme.primaryContainer,
-      scheme.tertiaryContainer,
-      scheme.secondaryContainer,
-      scheme.errorContainer,
-    ];
-    final onContainers = [
-      scheme.onPrimaryContainer,
-      scheme.onTertiaryContainer,
-      scheme.onSecondaryContainer,
-      scheme.onErrorContainer,
-    ];
-    final slot = speaker % containers.length;
+    // Same palette the captions use, so a speaker is the same colour whether
+    // you are reading the transcript or watching the video. That consistency
+    // is the whole reason the colour exists.
+    final background =
+        SpeakerPalette.colorFor(speaker, fallback: theme.colorScheme.surfaceContainerHighest);
+    final foreground =
+        SpeakerPalette.onColorFor(speaker, fallback: theme.colorScheme.onSurface);
 
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 6),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: containers[slot],
+          color: background,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
           // Engine indices are 0-based; people count from one.
           l10n.speakerLabel(speaker + 1),
           style: theme.textTheme.labelMedium?.copyWith(
-            color: onContainers[slot],
+            color: foreground,
             fontWeight: FontWeight.w600,
           ),
         ),

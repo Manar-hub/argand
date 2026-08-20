@@ -67,7 +67,7 @@ assets/models/*.bin
 packages/**/.cxx/
 packages/**/build/
 
-# Whisper models parked out of the asset bundle so they are not shipped or
-# installed. Move one back into assets/models/ to make it selectable again --
-# see docs/progress.md, "Which models are bundled".
+# Optional parking spot for a whisper model you want kept but not bundled.
+# Currently unused -- both models ship in assets/models/. See docs/runbook.md,
+# "Which models are bundled", for when and how to use it.
 /dev-models/

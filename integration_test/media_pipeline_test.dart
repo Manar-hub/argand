@@ -356,4 +356,51 @@ void main() {
 
     await dir.delete(recursive: true);
   });
+
+  testWidgets('diarization reports progress through a bound callback',
+      (tester) async {
+    // Regression test for a bug the other diarization tests could not catch,
+    // because they all call diarize() with no onProgress. A Dart closure
+    // captures its whole enclosing scope, so passing a callback that is a
+    // *method on an object* dragged that object's unsendable fields into the
+    // isolate message. Isolate.run then failed before running any of the body,
+    // and since diarization is non-fatal the import quietly saved with no
+    // speakers -- indistinguishable from diarization finding nothing.
+    //
+    // The callback here is deliberately a bound instance method, not a bare
+    // closure over an int, because that is the shape that broke.
+    final collector = _ProgressCollector();
+
+    final media = await stage(twoSpeakerFixture, 'itest-diarize-progress');
+    final wav = await converter.extractWavForTranscription(media.path);
+
+    final spans = await SpeakerDiarizer().diarize(
+      wav.path,
+      onProgress: collector.record,
+    );
+
+    expect(spans, isNotNull, reason: 'Diarization must survive a callback');
+    expect(spans!, isNotEmpty);
+    expect(
+      collector.values,
+      isNotEmpty,
+      reason: 'No progress was reported, so the callback never reached the '
+          'native pass',
+    );
+    for (final value in collector.values) {
+      expect(value, inInclusiveRange(0, 100));
+    }
+  });
+}
+
+/// Holds state the way a real caller does, so `record` is a bound method whose
+/// receiver has fields — the condition that triggered the original failure.
+class _ProgressCollector {
+  final List<int> values = [];
+  Future<void>? _unsendable;
+
+  void record(int percent) {
+    _unsendable ??= Future<void>.value();
+    values.add(percent);
+  }
 }

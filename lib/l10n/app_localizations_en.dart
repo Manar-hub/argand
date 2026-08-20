@@ -61,6 +61,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String speakerLabel(int number) {
+    return 'Speaker $number';
+  }
+
+  @override
   String get transcriptEmpty => 'No speech was detected in this file.';
 
   @override

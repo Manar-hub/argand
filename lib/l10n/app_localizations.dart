@@ -172,6 +172,12 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0{No words} =1{1 word} other{{count} words}}'**
   String wordCount(int count);
 
+  /// Heading above a run of words attributed to one speaker. Numbered from 1 because the engine's own indices start at 0.
+  ///
+  /// In en, this message translates to:
+  /// **'Speaker {number}'**
+  String speakerLabel(int number);
+
   /// Shown when transcription produced no words
   ///
   /// In en, this message translates to:

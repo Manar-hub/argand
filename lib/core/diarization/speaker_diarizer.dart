@@ -121,28 +121,49 @@ class SpeakerDiarizer {
       if (message is int) onProgress?.call(message);
     });
 
-    // Hoisted out of the closure deliberately. Writing `progress.sendPort`
-    // inside it would capture `progress` -- the ReceivePort, which is *not*
-    // sendable -- and Isolate.run would fail with "object is unsendable"
-    // before running a line of the body. Capturing the SendPort alone is fine,
-    // and is what lets the native progress callback (which fires on the worker
-    // isolate) reach the UI. sherpa's FFI bindings are per-isolate state, so
-    // _runDiarization initialises them itself.
-    final sendPort = progress.sendPort;
-
     try {
-      return await Isolate.run(
-        () => _runDiarization(
-          wavPath: wavPath,
-          segmentationModelPath: segmentation,
-          embeddingModelPath: embedding,
-          clusteringThreshold: clusteringThreshold,
-          progress: sendPort,
-        ),
+      return await _spawn(
+        wavPath: wavPath,
+        segmentationModelPath: segmentation,
+        embeddingModelPath: embedding,
+        clusteringThreshold: clusteringThreshold,
+        progress: progress.sendPort,
       );
     } finally {
       progress.close();
     }
+  }
+
+  /// Spawns the worker.
+  ///
+  /// **This indirection is load-bearing, not style.** A Dart closure captures
+  /// its whole enclosing scope, not merely the variables it names, so building
+  /// the `Isolate.run` closure inside [diarize] pulled that method's *other*
+  /// locals into the message -- including `onProgress`, which callers bind to a
+  /// method on their own object. `Isolate.run` then failed before executing a
+  /// line of the body with `object is unsendable ... Class: _Future`, and
+  /// because diarization is deliberately non-fatal the import simply saved with
+  /// no speakers. It looked exactly like diarization finding nothing.
+  ///
+  /// Every parameter here is sendable, so the closure below has nothing
+  /// unsendable in scope to capture. Keep it that way: do not add a callback,
+  /// a Future, or a reference to `this` to this signature.
+  static Future<List<SpeakerSpan>?> _spawn({
+    required String wavPath,
+    required String segmentationModelPath,
+    required String embeddingModelPath,
+    required double clusteringThreshold,
+    required SendPort progress,
+  }) {
+    return Isolate.run(
+      () => _runDiarization(
+        wavPath: wavPath,
+        segmentationModelPath: segmentationModelPath,
+        embeddingModelPath: embeddingModelPath,
+        clusteringThreshold: clusteringThreshold,
+        progress: progress,
+      ),
+    );
   }
 }
 

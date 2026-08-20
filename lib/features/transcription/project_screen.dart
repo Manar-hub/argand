@@ -225,43 +225,171 @@ class _WordFlowContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final activeIndex = positionMs == null ? -1 : _activeWordIndex(words, positionMs!);
+
+    final turns = _groupIntoTurns(words);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      child: Wrap(
-        spacing: 4,
-        runSpacing: 4,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final (index, word) in words.indexed)
-            InkWell(
-              borderRadius: BorderRadius.circular(4),
-              onTap: () => ref
-                  .read(mediaPlayerProvider(mediaPath).notifier)
-                  .seekToWord(word.startMs),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                  color: index == activeIndex
-                      ? theme.colorScheme.primaryContainer
-                      : Colors.transparent,
-                ),
-                child: Text(
-                  word.word,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: index == activeIndex
-                        ? theme.colorScheme.onPrimaryContainer
-                        : null,
+          for (final turn in turns) ...[
+            // Absent on a transcript that was never diarized, in which case
+            // this renders as the single uninterrupted run of words it was
+            // before speakers existed.
+            if (turn.speaker != null)
+              _SpeakerLabel(speaker: turn.speaker!),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                for (final (offset, word) in turn.words.indexed)
+                  _WordChip(
+                    word: word,
+                    // The highlight is driven by position in the whole
+                    // transcript, so turns have to contribute their own offset
+                    // rather than restarting the count.
+                    active: turn.startIndex + offset == activeIndex,
+                    onTap: () => ref
+                        .read(mediaPlayerProvider(mediaPath).notifier)
+                        .seekToWord(word.startMs),
                   ),
-                ),
-              ),
+              ],
             ),
+            if (turn.speaker != null) const SizedBox(height: 16),
+          ],
         ],
       ),
     );
   }
+}
+
+class _WordChip extends StatelessWidget {
+  const _WordChip({
+    required this.word,
+    required this.active,
+    required this.onTap,
+  });
+
+  final Word word;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(4),
+          color: active ? theme.colorScheme.primaryContainer : Colors.transparent,
+        ),
+        child: Text(
+          word.word,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: active ? theme.colorScheme.onPrimaryContainer : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Who is talking, above the run of words they said.
+///
+/// Deliberately modest: a name and a colour drawn from the theme, keyed off the
+/// engine's speaker index. Real speaker records — editable names, a stable
+/// colour per person, colours that survive into exported captions — are the
+/// Phase 4 captions data model. This exists so Phase 3's output is visible and
+/// checkable at all, which it was not when diarization first shipped.
+class _SpeakerLabel extends StatelessWidget {
+  const _SpeakerLabel({required this.speaker});
+
+  final int speaker;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final scheme = theme.colorScheme;
+
+    // Cycled from theme roles rather than hardcoded hues, so the labels stay
+    // legible in both light and dark without a palette of our own. More
+    // speakers than roles simply wrap round; distinguishing many speakers by
+    // colour is Phase 4's problem, not this placeholder's.
+    final containers = [
+      scheme.primaryContainer,
+      scheme.tertiaryContainer,
+      scheme.secondaryContainer,
+      scheme.errorContainer,
+    ];
+    final onContainers = [
+      scheme.onPrimaryContainer,
+      scheme.onTertiaryContainer,
+      scheme.onSecondaryContainer,
+      scheme.onErrorContainer,
+    ];
+    final slot = speaker % containers.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: containers[slot],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          // Engine indices are 0-based; people count from one.
+          l10n.speakerLabel(speaker + 1),
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: onContainers[slot],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A run of consecutive words sharing one speaker.
+class _Turn {
+  _Turn({required this.speaker, required this.startIndex});
+
+  /// Null when the transcript carries no speaker information at all.
+  final int? speaker;
+
+  /// Where this run begins in the flat word list, so the active-word
+  /// highlight keeps working across turns.
+  final int startIndex;
+
+  final List<Word> words = [];
+}
+
+/// Splits [words] wherever the speaker changes.
+///
+/// A transcript with no diarization yields exactly one unlabelled turn, so the
+/// rendering path is shared rather than branched.
+List<_Turn> _groupIntoTurns(List<Word> words) {
+  final turns = <_Turn>[];
+  String? currentId;
+
+  for (final (index, word) in words.indexed) {
+    if (turns.isEmpty || word.speakerId != currentId) {
+      currentId = word.speakerId;
+      turns.add(
+        _Turn(speaker: int.tryParse(word.speakerId ?? ''), startIndex: index),
+      );
+    }
+    turns.last.words.add(word);
+  }
+
+  return turns;
 }
 
 /// Index of the word being spoken at [positionMs], or -1 before the first one.

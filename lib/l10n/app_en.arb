@@ -46,6 +46,12 @@
     "placeholders": { "count": { "type": "int" } }
   },
 
+  "speakerLabel": "Speaker {number}",
+  "@speakerLabel": {
+    "description": "Heading above a run of words attributed to one speaker. Numbered from 1 because the engine's own indices start at 0.",
+    "placeholders": { "number": { "type": "int" } }
+  },
+
   "transcriptEmpty": "No speech was detected in this file.",
   "@transcriptEmpty": { "description": "Shown when transcription produced no words" },
 

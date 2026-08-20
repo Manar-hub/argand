@@ -1,4 +1,5 @@
 import '../database/database.dart';
+import '../text/sentence_boundaries.dart';
 import 'caption_cue.dart';
 
 /// Limits that shape a caption line.
@@ -94,9 +95,9 @@ List<CaptionCue> groupIntoCues(
 
     // Punctuation breaks apply *after* the word that carries them, so the
     // full stop stays on the line it terminates.
-    if (_endsSentence(word.word)) {
+    if (endsSentence(word.word)) {
       flush();
-    } else if (_endsClause(word.word) &&
+    } else if (endsClause(word.word) &&
         currentChars >= style.minCharactersForClauseBreak) {
       flush();
     }
@@ -120,27 +121,4 @@ CaptionCue? cueAt(List<CaptionCue> cues, int positionMs) {
     if (cue.startMs > positionMs) break;
   }
   return null;
-}
-
-/// Trailing quotes and brackets sit outside the punctuation that matters, so
-/// they are stripped before testing: `said."` still ends a sentence.
-String _stripTrailingWrappers(String text) {
-  const wrappers = {'"', "'", '»', '”', '’', ')', ']', '}'};
-  var end = text.length;
-  while (end > 0 && wrappers.contains(text[end - 1])) {
-    end--;
-  }
-  return text.substring(0, end);
-}
-
-bool _endsSentence(String text) {
-  final trimmed = _stripTrailingWrappers(text.trimRight());
-  if (trimmed.isEmpty) return false;
-  return const {'.', '!', '?', '…'}.contains(trimmed[trimmed.length - 1]);
-}
-
-bool _endsClause(String text) {
-  final trimmed = _stripTrailingWrappers(text.trimRight());
-  if (trimmed.isEmpty) return false;
-  return const {',', ';', ':', '—', '–'}.contains(trimmed[trimmed.length - 1]);
 }

@@ -78,6 +78,33 @@ class SpeakerDiarizer {
   /// current value.
   static const double defaultClusteringThreshold = 0.75;
 
+  /// Shortest turn the engine will keep, in seconds.
+  ///
+  /// Segments shorter than this are discarded outright
+  /// (`if (seg.Duration() > min_duration_on)` in sherpa's pyannote impl).
+  static const double defaultMinDurationOn = 0.2;
+
+  /// Largest same-speaker gap that gets bridged, in seconds.
+  ///
+  /// sherpa merges a speaker's own segments whenever the gap between them is
+  /// under this, and that merge runs *per speaker* with no regard for who spoke
+  /// in between — so in principle "A talks, B says yeah, A resumes" can collapse
+  /// into one long A span straddling B.
+  ///
+  /// **That theory was tested and is not what caused replies to be swallowed.**
+  /// It is the obvious explanation and it is wrong: dropping this from 0.5 to
+  /// 0.05 moved the span count from 14 to 15 on the clip that exhibited the bug
+  /// and fixed none of it. Segmentation had found the turns all along and was
+  /// emitting them as *overlapping* spans; the words were lost afterwards, in
+  /// the word-to-span rule in `speaker_assignment.dart`. Lowering these also
+  /// made one case actively worse — "What do you mean?" split across two
+  /// speakers at 0.1/0.1 and stayed whole at these defaults.
+  ///
+  /// Both values are therefore sherpa's own, kept on evidence rather than
+  /// inertia. They stay injectable so repeating that experiment is cheap, not
+  /// because they are expected to change.
+  static const double defaultMinDurationOff = 0.5;
+
   Future<String> _modelPath(String fileName) async {
     final dir = await getApplicationSupportDirectory();
     return p.join(dir.path, fileName);
@@ -108,6 +135,8 @@ class SpeakerDiarizer {
     String wavPath, {
     void Function(int percent)? onProgress,
     double clusteringThreshold = defaultClusteringThreshold,
+    double minDurationOn = defaultMinDurationOn,
+    double minDurationOff = defaultMinDurationOff,
   }) async {
     await ensureModelsReady();
     // Resolved here rather than inside the isolate: path_provider is a
@@ -127,6 +156,8 @@ class SpeakerDiarizer {
         segmentationModelPath: segmentation,
         embeddingModelPath: embedding,
         clusteringThreshold: clusteringThreshold,
+        minDurationOn: minDurationOn,
+        minDurationOff: minDurationOff,
         progress: progress.sendPort,
       );
     } finally {
@@ -153,6 +184,8 @@ class SpeakerDiarizer {
     required String segmentationModelPath,
     required String embeddingModelPath,
     required double clusteringThreshold,
+    required double minDurationOn,
+    required double minDurationOff,
     required SendPort progress,
   }) {
     return Isolate.run(
@@ -161,6 +194,8 @@ class SpeakerDiarizer {
         segmentationModelPath: segmentationModelPath,
         embeddingModelPath: embeddingModelPath,
         clusteringThreshold: clusteringThreshold,
+        minDurationOn: minDurationOn,
+        minDurationOff: minDurationOff,
         progress: progress,
       ),
     );
@@ -172,6 +207,8 @@ List<SpeakerSpan>? _runDiarization({
   required String segmentationModelPath,
   required String embeddingModelPath,
   required double clusteringThreshold,
+  required double minDurationOn,
+  required double minDurationOff,
   required SendPort progress,
 }) {
   sherpa.initBindings();
@@ -232,8 +269,8 @@ List<SpeakerSpan>? _runDiarization({
           numClusters: -1,
           threshold: clusteringThreshold,
         ),
-        minDurationOn: 0.2,
-        minDurationOff: 0.5,
+        minDurationOn: minDurationOn,
+        minDurationOff: minDurationOff,
       ),
     );
 

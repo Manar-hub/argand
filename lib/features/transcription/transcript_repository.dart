@@ -101,6 +101,20 @@ class TranscriptRepository {
           .where((entry) => entry.text.isNotEmpty)
           .toList();
 
+      // Assigned in one pass over the whole transcript rather than per row,
+      // because turn-boundary smoothing needs neighbouring words as context.
+      final speakers = assignSpeakers(
+        [
+          for (final entry in segments)
+            (
+              text: entry.text,
+              startMs: entry.segment.fromTs.inMilliseconds,
+              endMs: entry.segment.toTs.inMilliseconds,
+            ),
+        ],
+        speakerSpans,
+      );
+
       await _db.batch((batch) {
         batch.insertAll(
           _db.words,
@@ -118,15 +132,10 @@ class TranscriptRepository {
                 word: entry.text,
                 startMs: entry.segment.fromTs.inMilliseconds,
                 endMs: entry.segment.toTs.inMilliseconds,
-                // Resolved per word rather than per segment because
-                // diarization's boundaries are independent of whisper's; see
+                // Diarization's boundaries are independent of whisper's; see
                 // speaker_assignment.dart for how disagreements are settled.
                 speakerId: Value(
-                  switch (speakerForWord(
-                    startMs: entry.segment.fromTs.inMilliseconds,
-                    endMs: entry.segment.toTs.inMilliseconds,
-                    spans: speakerSpans,
-                  )) {
+                  switch (speakers[index]) {
                     final int speaker => speakerIdFor(speaker),
                     null => null,
                   },

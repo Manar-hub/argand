@@ -122,4 +122,151 @@ void main() {
       expect(speakerIdFor(12), '12');
     });
   });
+
+  group('speakerForWord overlap specificity', () {
+    test('a nested short span beats the long one enclosing it', () {
+      // The exact shape measured on a real clip: spk0 talks across spk1's
+      // reply, so both spans cover the word completely. Scoring by raw
+      // milliseconds gave it to spk0 and swallowed the reply.
+      final spans = [span(35452, 41965, 0), span(37088, 39772, 1)];
+
+      expect(speakerForWord(startMs: 38000, endMs: 38400, spans: spans), 1);
+    });
+
+    test('order does not decide it when one span encloses another', () {
+      final nestedFirst = [span(37088, 39772, 1), span(35452, 41965, 0)];
+
+      expect(speakerForWord(startMs: 38000, endMs: 38400, spans: nestedFirst), 1);
+    });
+
+    test('the enclosing span still wins outside the nested one', () {
+      final spans = [span(35452, 41965, 0), span(37088, 39772, 1)];
+
+      expect(speakerForWord(startMs: 36000, endMs: 36400, spans: spans), 0);
+      expect(speakerForWord(startMs: 40500, endMs: 40900, spans: spans), 0);
+    });
+
+    test('higher coverage beats a shorter span that only clips the word', () {
+      // Specificity is the tie-break, not the primary rule: a span covering
+      // the whole word must beat a tiny one grazing its edge.
+      final spans = [span(1000, 2000, 0), span(1900, 1950, 1)];
+
+      expect(speakerForWord(startMs: 1000, endMs: 1400, spans: spans), 0);
+    });
+  });
+
+  group('assignSpeakers sentence smoothing', () {
+    WordTiming wt(String text, int startMs, int endMs) =>
+        (text: text, startMs: startMs, endMs: endMs);
+
+    test('pulls a stray leading word onto its own sentence', () {
+      // The reported case: "AI is expensive." arrived with "AI" on the
+      // previous speaker because the turn boundary landed one word late.
+      final words = [
+        wt('you?', 0, 300),
+        wt('AI', 300, 600),
+        wt('is', 600, 900),
+        wt('expensive.', 900, 1200),
+      ];
+      final spans = [span(0, 650, 0), span(650, 1200, 1)];
+
+      final result = assignSpeakers(words, spans);
+
+      expect(result[0], 0, reason: 'The earlier sentence is untouched');
+      expect(result.sublist(1), [1, 1, 1], reason: '"AI" joins its own sentence');
+    });
+
+    test('pulls a stray trailing word back', () {
+      final words = [
+        wt('I', 0, 300),
+        wt('like', 300, 600),
+        wt('that', 600, 900),
+        wt('one.', 900, 1200),
+      ];
+      // The boundary lands early, stranding "one." with the next speaker.
+      final spans = [span(0, 850, 0), span(850, 2000, 1)];
+
+      expect(assignSpeakers(words, spans), [0, 0, 0, 0]);
+    });
+
+    test('leaves a genuinely shared sentence alone', () {
+      // A long minority run is a real mid-sentence handover, not a boundary
+      // slip, and flattening it would invent a turn that did not happen.
+      final words = [
+        wt('What', 0, 300),
+        wt('do', 300, 600),
+        wt('you', 600, 900),
+        wt('mean', 900, 1200),
+        wt('by', 1200, 1500),
+        wt('that?', 1500, 1800),
+      ];
+      final spans = [span(0, 900, 0), span(900, 1800, 1)];
+
+      expect(assignSpeakers(words, spans), [0, 0, 0, 1, 1, 1]);
+    });
+
+    test('a tie leaves the sentence alone', () {
+      final words = [
+        wt('What', 0, 300),
+        wt('do', 300, 600),
+        wt('you', 600, 900),
+        wt('mean?', 900, 1200),
+      ];
+      final spans = [span(0, 600, 0), span(600, 1200, 1)];
+
+      expect(
+        assignSpeakers(words, spans),
+        [0, 0, 1, 1],
+        reason: 'Two against two is no evidence, so nothing should move',
+      );
+    });
+
+    test('a sentence too short to have a majority is left alone', () {
+      final words = [wt("That's", 0, 300), wt('right.', 300, 600)];
+      final spans = [span(0, 350, 1), span(350, 600, 0)];
+
+      expect(assignSpeakers(words, spans), [1, 0]);
+    });
+
+    test('smoothing can be switched off for measurement', () {
+      final words = [
+        wt('you?', 0, 300),
+        wt('AI', 300, 600),
+        wt('is', 600, 900),
+        wt('expensive.', 900, 1200),
+      ];
+      final spans = [span(0, 650, 0), span(650, 1200, 1)];
+
+      expect(
+        assignSpeakers(words, spans, smoothing: SpeakerSmoothing.none),
+        [0, 0, 1, 1],
+      );
+    });
+
+    test('handles the final sentence when it has no closing punctuation', () {
+      final words = [
+        wt('and', 0, 300),
+        wt('then', 300, 600),
+        wt('we', 600, 900),
+        wt('left', 900, 1200),
+      ];
+      final spans = [span(0, 250, 1), span(250, 1200, 0)];
+
+      expect(assignSpeakers(words, spans), [0, 0, 0, 0]);
+    });
+
+    test('returns all nulls when diarization produced nothing', () {
+      final words = [wt('a', 0, 300), wt('b.', 300, 600)];
+
+      expect(assignSpeakers(words, const []), [null, null]);
+    });
+
+    test('returns one entry per word', () {
+      final words = [
+        for (var i = 0; i < 7; i++) wt('w$i', i * 100, i * 100 + 90),
+      ];
+
+      expect(assignSpeakers(words, [span(0, 700, 0)]).length, 7);
+    });
+  });
 }

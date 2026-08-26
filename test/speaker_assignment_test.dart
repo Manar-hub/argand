@@ -123,45 +123,35 @@ void main() {
     });
   });
 
-  group('speakerForWord with overlapping spans', () {
-    test('the dominant span wins over a short nested one', () {
-      // Nested spans are mostly spurious on real media -- one clip had 253ms,
-      // 658ms and 1030ms spans scattered inside multi-second turns. Letting
-      // the short one win lets each steal individual words, which flaps the
-      // transcript between speakers mid-sentence.
-      final spans = [span(9667, 17277, 0), span(13666, 13919, 1)];
+  group('speakerForWord overlap specificity', () {
+    test('a nested short span beats the long one enclosing it', () {
+      // The exact shape measured on a real clip: spk0 talks across spk1's
+      // reply, so both spans cover the word completely. Scoring by raw
+      // milliseconds gave it to spk0 and swallowed the reply.
+      final spans = [span(35452, 41965, 0), span(37088, 39772, 1)];
 
-      expect(speakerForWord(startMs: 13700, endMs: 13800, spans: spans), 0);
+      expect(speakerForWord(startMs: 38000, endMs: 38400, spans: spans), 1);
     });
 
     test('order does not decide it when one span encloses another', () {
-      final nestedFirst = [span(13666, 13919, 1), span(9667, 17277, 0)];
+      final nestedFirst = [span(37088, 39772, 1), span(35452, 41965, 0)];
 
-      expect(
-        speakerForWord(startMs: 13700, endMs: 13800, spans: nestedFirst),
-        0,
-      );
+      expect(speakerForWord(startMs: 38000, endMs: 38400, spans: nestedFirst), 1);
     });
 
-    test('a span covering more of the word still wins', () {
-      // The rule is plain longest-overlap, so a span holding most of the word
-      // beats one grazing its edge regardless of either span's total length.
-      final spans = [span(1000, 2000, 0), span(1900, 5000, 1)];
-
-      expect(speakerForWord(startMs: 1000, endMs: 1400, spans: spans), 0);
-      expect(speakerForWord(startMs: 1800, endMs: 2400, spans: spans), 1);
-    });
-
-    test('the known cost: a genuine nested reply is absorbed', () {
-      // Recorded rather than hidden: this is the accepted cost of leaning the
-      // tie-break long, and it is the smaller of the two failure modes.
+    test('the enclosing span still wins outside the nested one', () {
       final spans = [span(35452, 41965, 0), span(37088, 39772, 1)];
 
-      expect(
-        speakerForWord(startMs: 38000, endMs: 38400, spans: spans),
-        0,
-        reason: 'Longest-overlap gives nested turns to the surrounding speaker',
-      );
+      expect(speakerForWord(startMs: 36000, endMs: 36400, spans: spans), 0);
+      expect(speakerForWord(startMs: 40500, endMs: 40900, spans: spans), 0);
+    });
+
+    test('higher coverage beats a shorter span that only clips the word', () {
+      // Specificity is the tie-break, not the primary rule: a span covering
+      // the whole word must beat a tiny one grazing its edge.
+      final spans = [span(1000, 2000, 0), span(1900, 1950, 1)];
+
+      expect(speakerForWord(startMs: 1000, endMs: 1400, spans: spans), 0);
     });
   });
 
@@ -231,21 +221,11 @@ void main() {
       );
     });
 
-    test('a two-word sentence is attributed whole, not split', () {
-      // "That's / right." landing on two different speakers was a standing
-      // known error: edge smoothing needs a majority and refuses to act on
-      // two words, so nothing could fix it. Sentence-level attribution can,
-      // and should -- a two-word sentence shared between two people is a
-      // boundary slip, because a real handover mid-sentence needs a sentence
-      // long enough to hand over in.
+    test('a sentence too short to have a majority is left alone', () {
       final words = [wt("That's", 0, 300), wt('right.', 300, 600)];
       final spans = [span(0, 350, 1), span(350, 600, 0)];
 
-      expect(
-        assignSpeakers(words, spans),
-        [1, 1],
-        reason: 'Speaker 1 holds 350ms of the 600ms sentence, speaker 0 250ms',
-      );
+      expect(assignSpeakers(words, spans), [1, 0]);
     });
 
     test('smoothing can be switched off for measurement', () {
@@ -287,134 +267,6 @@ void main() {
       ];
 
       expect(assignSpeakers(words, [span(0, 700, 0)]).length, 7);
-    });
-  });
-
-  // Spans and sentence extents below are real, measured on device by
-  // integration_test/diarization_probe_test.dart. They are committed as
-  // literals so the reconciliation rule can be exercised against material that
-  // actually failed, without a device and without re-running inference.
-  //
-  // Cluster 0 is the boss, cluster 1 the employee. That mapping is fixed by
-  // the measured table in docs/engineering-notes.md.
-  group('sentence attribution, on measured spans', () {
-    /// `alberta.mp4`, the clip where replies were swallowed.
-    final alberta = [
-      span(31, 2444, 0),
-      span(2444, 4368, 1),
-      span(4115, 5195, 0),
-      span(5161, 7861, 1),
-      span(7203, 12552, 0),
-      span(12468, 15472, 1),
-      span(15472, 17142, 0),
-      span(17142, 19319, 1),
-      span(19319, 22762, 0),
-      span(21833, 23504, 1),
-      span(23555, 26356, 0),
-      span(27571, 34186, 1),
-      span(35452, 41965, 0),
-      span(37088, 39772, 1),
-    ];
-
-    /// Builds a sentence of [wordCount] evenly spaced words over the extent,
-    /// ending in a full stop. Only the timings matter to the rule.
-    List<WordTiming> sentence(int startMs, int endMs, int wordCount) {
-      final step = (endMs - startMs) ~/ wordCount;
-      return [
-        for (var i = 0; i < wordCount; i++)
-          (
-            text: i == wordCount - 1 ? 'word.' : 'word',
-            startMs: startMs + i * step,
-            endMs: i == wordCount - 1 ? endMs : startMs + (i + 1) * step,
-          ),
-      ];
-    }
-
-    test('rescues a reply nested inside the other speaker\'s span', () {
-      // "You want me to write code manually now?" 21670-23470. The employee's
-      // span 21833-23504 is nested inside the boss's 19319-22762, so overlap
-      // ties and the longer span takes every word. IoU sees that the boss's
-      // span spends most of its length outside this sentence.
-      final words = sentence(21670, 23470, 8);
-
-      expect(
-        assignSpeakers(words, alberta).toSet(),
-        {1},
-        reason: 'The whole sentence belongs to the employee',
-      );
-    });
-
-    test('rescues two consecutive short replies at the end of the clip', () {
-      // "Yeah, I'm sure you do." and "Of course, yeah, that makes sense."
-      // both sit wholly inside 0:35452-41965 and 1:37088-39772, so both spans
-      // cover them completely and raw overlap cannot tell them apart at all.
-      for (final extent in [(37650, 38650, 5), (38650, 39650, 6)]) {
-        final words = sentence(extent.$1, extent.$2, extent.$3);
-
-        expect(
-          assignSpeakers(words, alberta).toSet(),
-          {1},
-          reason: 'Sentence at ${extent.$1}-${extent.$2} is the employee',
-        );
-      }
-    });
-
-    test('leaves a correctly attributed sentence where it is', () {
-      // "What do you mean?" 7170-7920 is the boss, and already correct. It is
-      // the closest call in the clip -- 0.250 against 0.133 -- which is what
-      // sets the lower bound on the margin. A smaller margin moves this and
-      // breaks it.
-      final words = sentence(7170, 7920, 4);
-
-      expect(assignSpeakers(words, alberta).toSet(), {0});
-    });
-
-    test('cannot rescue a turn the segmenter never reported', () {
-      // "Tokens cost money." 7920-9400 is the employee, and comes out as the
-      // boss. It is not a reconciliation failure: the only span touching this
-      // interval is 0:7203-12552, and there is no employee activity anywhere
-      // between 7861 and 12468. No rule over these spans can place a word on
-      // a speaker the segmenter never reported, so this is pinned as a known
-      // limit rather than left looking like a bug in the rule.
-      final words = sentence(7920, 9400, 3);
-
-      expect(
-        assignSpeakers(words, alberta).toSet(),
-        {0},
-        reason: 'Documents the segmentation gap, not desired behaviour',
-      );
-    });
-
-    test('ignores spurious short spans nested in a long turn', () {
-      // `syria.mp4`, the opposite failure. Three stray employee activations
-      // -- 658ms, 253ms and 1030ms -- sit inside one 7.6s span. Preferring
-      // the shorter span let each steal words and flapped the transcript;
-      // IoU scores them near zero because they cover almost none of the
-      // sentence they land in.
-      final syria = [
-        span(31, 6562, 0),
-        span(6562, 9751, 1),
-        span(9667, 17277, 0),
-        span(10527, 11185, 1),
-        span(13666, 13919, 1),
-        span(14695, 15725, 1),
-      ];
-      final words = sentence(9751, 17277, 20);
-
-      expect(
-        assignSpeakers(words, syria).toSet(),
-        {0},
-        reason: 'The dominant speaker keeps the sentence',
-      );
-    });
-
-    test('a genuinely shared sentence is left to the per-word rule', () {
-      // Two speakers holding half a sentence each score too close to act on,
-      // which is what stops this pass flattening a real mid-sentence handover.
-      final words = sentence(0, 4000, 8);
-      final shared = [span(0, 2000, 0), span(2000, 4000, 1)];
-
-      expect(assignSpeakers(words, shared).toSet(), {0, 1});
     });
   });
 }

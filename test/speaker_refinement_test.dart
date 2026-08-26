@@ -308,7 +308,42 @@ void main() {
       expect(plan.isEmpty, isFalse);
     });
 
-    test('a span long enough to hide a turn never becomes a voice print', () {
+    test('the trigger does not depend on how the model segments sentences', () {
+      // The property that matters for model independence. Same audio, same
+      // spans, two different sentence segmentations -- as base and small-q5_1
+      // genuinely produce -- must ask about the same region, because the
+      // trigger is a span-duration comparison and never consults whisper.
+      List<RefinementCandidate> candidatesFor(List<WordTiming> words) =>
+          planRefinement(
+            spans: alberta,
+            words: words,
+            assigned: assignSpeakers(words, alberta),
+          ).candidates;
+
+      // One model splits the reply into its own sentence.
+      final split = [
+        ...sentence(7170, 7920, 4),
+        ...sentence(7920, 9400, 3),
+        ...sentence(9400, 12390, 12),
+      ];
+      // Another merges the first two, as small-q5_1 does elsewhere in this clip.
+      final merged = [
+        ...sentence(7170, 9400, 7),
+        ...sentence(9400, 12390, 12),
+      ];
+
+      // Both must reach into the over-long span, whichever way it was cut up.
+      expect(
+        candidatesFor(split).any((c) => c.startMs >= 7170 && c.endMs <= 12390),
+        isTrue,
+      );
+      expect(
+        candidatesFor(merged).any((c) => c.startMs >= 7170 && c.endMs <= 12390),
+        isTrue,
+      );
+    });
+
+    test('a span sharing time with another speaker is never a voice print', () {
       final words = [
         ...sentence(7170, 7920, 4),
         ...sentence(7920, 9400, 3),
@@ -320,9 +355,11 @@ void main() {
         assigned: assignSpeakers(words, alberta),
       );
 
-      // 0:7203-12552 conceals the employee's reply. Learning the boss's voice
-      // from it would fold the employee into the reference the employee is
-      // then compared against.
+      // 0:7203-12552 conceals the employee's reply, and segmentation also
+      // declares an overlap with 1:5161-7861 -- which is what excludes it here.
+      // A span that conceals a turn *without* any declared overlap is caught
+      // acoustically instead, by the coherence check in SpeakerRefiner, since
+      // no span-shape rule can see it.
       for (final regions in plan.references.values) {
         expect(
           regions.any((r) => r.startMs == 7203 && r.endMs == 12552),

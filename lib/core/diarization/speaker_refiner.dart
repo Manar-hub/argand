@@ -197,10 +197,28 @@ List<RefinementDecision> _runRefinement({
 
     // Voice prints first. A speaker without one cannot win a reassignment, and
     // cannot lose one either.
+    //
+    // Each proposed reference is split in half and both halves embedded. If
+    // they do not sound like each other, the span holds more than one voice --
+    // a turn segmentation never reported -- and learning from it would fold the
+    // wrong person into this speaker's print. Testing that acoustically is what
+    // replaced guessing at it from span length and sentence count, which
+    // depended on how whisper happened to segment and so changed with the
+    // transcription model.
     final prints = <int, Float32List>{};
     plan.references.forEach((speaker, regions) {
       final vectors = <Float32List>[];
       for (final region in regions) {
+        final middle = region.startMs + (region.endMs - region.startMs) ~/ 2;
+        final first = unitVector(embed(region.startMs, middle));
+        final second = unitVector(embed(middle, region.endMs));
+
+        if (first != null && second != null) {
+          if (cosineSimilarity(first, second) < config.minReferenceCoherence) {
+            continue;
+          }
+        }
+
         final vector = unitVector(embed(region.startMs, region.endMs));
         if (vector != null) vectors.add(vector);
       }

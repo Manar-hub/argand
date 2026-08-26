@@ -675,4 +675,86 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 45)),
   );
+
+  testWidgets(
+    'cross-model agreement: does refinement depend on the whisper model',
+    (tester) async {
+      final source = File(fixture);
+      expect(await source.exists(), isTrue);
+
+      final media = await converter.importToAppStorage(
+        projectId: 'agreement',
+        fileName: 'alberta.mp4',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+
+      // Diarized once and shared. Spans do not depend on whisper, so holding
+      // them fixed means any disagreement below is attributable to the
+      // transcription model alone -- which is exactly the question.
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+      expect(spans, isNotNull);
+
+      final models = await const WhisperModelCatalog().available();
+
+      /// Speaker at each 10ms tick, or null where no word covers it.
+      Future<List<int?>> timelineFor(
+        WhisperModelDescriptor model, {
+        required bool refine,
+      }) async {
+        final result = await WhisperService().transcribeWav(
+          wav.path,
+          model: model,
+          language: TranscriptionLanguage.auto,
+          skipSilence: true,
+        );
+        final words = wordTimingsOf(result);
+        var effective = spans!;
+        if (refine) {
+          effective = (await SpeakerRefiner().refine(
+            wavPath: wav.path,
+            spans: spans,
+            words: words,
+            assigned: assignSpeakers(words, spans),
+          ))
+              .spans;
+        }
+        final assigned = assignSpeakers(words, effective);
+
+        final lastMs = words.isEmpty ? 0 : words.last.endMs;
+        final ticks = List<int?>.filled(lastMs ~/ 10 + 1, null);
+        for (var i = 0; i < words.length; i++) {
+          for (var t = words[i].startMs ~/ 10; t <= words[i].endMs ~/ 10; t++) {
+            if (t < ticks.length) ticks[t] = assigned[i];
+          }
+        }
+        return ticks;
+      }
+
+      void report(String label, List<int?> a, List<int?> b) {
+        final n = a.length < b.length ? a.length : b.length;
+        var shared = 0;
+        var same = 0;
+        for (var i = 0; i < n; i++) {
+          if (a[i] == null || b[i] == null) continue;
+          shared++;
+          if (a[i] == b[i]) same++;
+        }
+        final pct = shared == 0 ? 0.0 : same * 100 / shared;
+        debugPrint('AGREE $label $same/$shared ticks '
+            '${pct.toStringAsFixed(1)}%');
+      }
+
+      // Without refinement first: the floor set by whisper's own timing
+      // differences, which no attribution rule can remove.
+      final rawBase = await timelineFor(models[0], refine: false);
+      final rawSmall = await timelineFor(models[1], refine: false);
+      report('no-refinement ${models[0].id} vs ${models[1].id}', rawBase, rawSmall);
+
+      final refBase = await timelineFor(models[0], refine: true);
+      final refSmall = await timelineFor(models[1], refine: true);
+      report('refined       ${models[0].id} vs ${models[1].id}', refBase, refSmall);
+    },
+    timeout: const Timeout(Duration(minutes: 60)),
+  );
 }

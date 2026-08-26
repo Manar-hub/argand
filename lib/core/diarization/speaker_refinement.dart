@@ -41,8 +41,8 @@ class SpeakerRefinement {
     this.minMargin = 0.15,
     this.maxCandidates = 40,
     this.edgeTrimMs = 50,
-    this.minHiddenTurnSpanMs = 8000,
-    this.minHiddenTurnSentences = 3,
+    this.longSpanMedianMultiple = 1.5,
+    this.minReferenceCoherence = 0.5,
   });
 
   /// Shortest region worth embedding.
@@ -81,22 +81,29 @@ class SpeakerRefinement {
   /// neighbouring speaker is.
   final int edgeTrimMs;
 
-  /// A span this long that also covers [minHiddenTurnSentences] sentences is
-  /// treated as possibly concealing a turn nobody reported, so it is never used
-  /// to learn a voice.
+  /// How much longer than this file's *median* span a span must be before the
+  /// sentences inside it are re-examined.
   ///
-  /// This, not candidacy, is what makes a reference unsafe. A reference is
-  /// dangerous when it may contain *another speaker's* voice, which happens
-  /// either because segmentation says so — it overlaps another speaker's span —
-  /// or because it is long enough to hide a turn segmentation missed. Excluding
-  /// every span that merely touches a region under test was tried first and is
-  /// far too strong: on the development clip it rejected every span for both
-  /// speakers, leaving no references and silently turning the whole pass into a
-  /// no-op.
-  final int minHiddenTurnSpanMs;
+  /// **Relative, not absolute, and that is the point.** An unusually long span
+  /// is where an unreported turn can hide, but "unusually long" means nothing
+  /// in milliseconds: a rapid exchange and a lecture have completely different
+  /// span distributions. Measuring against the file's own median self-calibrates
+  /// to the material, and — unlike counting sentences — never consults whisper,
+  /// so the trigger cannot shift when the transcription model changes.
+  final double longSpanMedianMultiple;
 
-  /// See [minHiddenTurnSpanMs].
-  final int minHiddenTurnSentences;
+  /// How much a reference span's two halves must sound like each other before
+  /// that span is trusted to represent one voice.
+  ///
+  /// **This replaces a proxy with the actual property.** A reference is unsafe
+  /// when it contains someone else's voice, which happens either because
+  /// segmentation declares an overlap or because the span conceals a turn
+  /// nobody reported. The second case was previously guessed at from span
+  /// length and sentence count — model-dependent, and fitted to one clip.
+  /// Splitting the span and asking whether its halves match tests the thing
+  /// directly: one speaker talking is internally consistent, two speakers are
+  /// not.
+  final double minReferenceCoherence;
 
   /// Refinement off, for measuring what it contributes. Same shape as
   /// [SpeakerSmoothing.none].
@@ -227,6 +234,17 @@ RefinementPlan planRefinement({
     start = i + 1;
   }
 
+  // Median rather than mean: diarization emits a few very long spans and many
+  // short ones, and a mean would be dragged upward by exactly the spans this
+  // is meant to flag.
+  final durations = spans.map((s) => s.durationMs).toList()..sort();
+  final median = durations.length.isOdd
+      ? durations[durations.length ~/ 2]
+      : (durations[durations.length ~/ 2 - 1] +
+              durations[durations.length ~/ 2]) /
+          2;
+  final longSpanThresholdMs = median * config.longSpanMedianMultiple;
+
   final candidates = <RefinementCandidate>[];
   for (final sentence in sentences) {
     final holders = <int>{};
@@ -239,15 +257,15 @@ RefinementPlan planRefinement({
 
     final ambiguous = holders.length > 1;
 
-    // Does some single span covering this sentence also cover another one?
+    // Is it buried in a span unusually long *for this file*? That is where a
+    // turn nobody reported can hide. Judged against the file's own median span
+    // rather than a fixed duration or a sentence count, so the trigger depends
+    // only on diarization — which never sees the transcription model.
     var insideLongSpan = false;
     if (!ambiguous) {
       for (final span in spans) {
         if (span.overlapWith(sentence.startMs, sentence.endMs) <= 0) continue;
-        final covered = sentences
-            .where((s) => span.overlapWith(s.startMs, s.endMs) > 0)
-            .length;
-        if (covered > 1) {
+        if (span.durationMs > longSpanThresholdMs) {
           insideLongSpan = true;
           break;
         }
@@ -302,17 +320,11 @@ RefinementPlan planRefinement({
           other.overlapWith(span.startMs, span.endMs) > 0);
       if (sharedWithOther) continue;
 
-      // Long enough, over enough sentences, to hide a turn that was never
-      // reported -- which is exactly the failure this pass exists to catch, so
-      // such a span must never be used to learn a voice.
-      final covered = sentences
-          .where((s) => span.overlapWith(s.startMs, s.endMs) > 0)
-          .length;
-      if (span.durationMs >= config.minHiddenTurnSpanMs &&
-          covered >= config.minHiddenTurnSentences) {
-        continue;
-      }
-
+      // A span may still conceal a turn nobody reported, which would fold
+      // another voice into this speaker's reference. That is checked
+      // acoustically by [SpeakerRefiner], which splits each proposed reference
+      // and requires its halves to match. Guessing at it here from span length
+      // and sentence count was model-dependent and fitted to one clip.
       clean.add(span);
     }
     if (clean.isEmpty) continue;

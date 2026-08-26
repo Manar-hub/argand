@@ -1,0 +1,49 @@
+{
+  "clip": "alberta.mp4",
+  "note": "Ground truth confirmed by the user against the audio. Cluster 0 is the boss, cluster 1 the employee. Sentence indices are over whisper's output with silence skipping ON and the bundled base model -- word timings, and therefore sentence boundaries, shift if either changes.",
+  "spans": [
+    {"speaker": 0, "startMs": 31, "endMs": 2444},
+    {"speaker": 1, "startMs": 2444, "endMs": 4368},
+    {"speaker": 0, "startMs": 4115, "endMs": 5195},
+    {"speaker": 1, "startMs": 5161, "endMs": 7861},
+    {"speaker": 0, "startMs": 7203, "endMs": 12552},
+    {"speaker": 1, "startMs": 12468, "endMs": 15472},
+    {"speaker": 0, "startMs": 15472, "endMs": 17142},
+    {"speaker": 1, "startMs": 17142, "endMs": 19319},
+    {"speaker": 0, "startMs": 19319, "endMs": 22762},
+    {"speaker": 1, "startMs": 21833, "endMs": 23504},
+    {"speaker": 0, "startMs": 23555, "endMs": 26356},
+    {"speaker": 1, "startMs": 27571, "endMs": 34186},
+    {"speaker": 0, "startMs": 35452, "endMs": 41965},
+    {"speaker": 1, "startMs": 37088, "endMs": 39772}
+  ],
+  "sentences": [
+    {"i": 0,  "startMs": 60,    "endMs": 2390,  "speaker": 0, "text": "Why did I get a 700K oppie bill from opening I?"},
+    {"i": 1,  "startMs": 2390,  "endMs": 2780,  "speaker": 1, "text": "Appie?"},
+    {"i": 2,  "startMs": 2780,  "endMs": 4120,  "speaker": 1, "text": "You mean like an API bill?"},
+    {"i": 3,  "startMs": 4120,  "endMs": 5120,  "speaker": 0, "text": "Yeah, whatever it is."},
+    {"i": 4,  "startMs": 5120,  "endMs": 7170,  "speaker": 1, "text": "Okay, that's all the tokens you've been having to spend."},
+    {"i": 5,  "startMs": 7170,  "endMs": 7920,  "speaker": 0, "text": "What do you mean?"},
+    {"i": 6,  "startMs": 7920,  "endMs": 9400,  "speaker": 1, "text": "Tokens cost money."},
+    {"i": 7,  "startMs": 9400,  "endMs": 12390, "speaker": 0, "text": "Yeah, I know tokens cost money, but why do they cost more than you?"},
+    {"i": 8,  "startMs": 12390, "endMs": 13280, "speaker": 1, "text": "AI is expensive."},
+    {"i": 9,  "startMs": 13280, "endMs": 15380, "speaker": 1, "text": "Did you not know that when you put me on a token improvement?"},
+    {"i": 10, "startMs": 15380, "endMs": 17050, "speaker": 0, "text": "Can we just please tone it down a bit?"},
+    {"i": 11, "startMs": 17050, "endMs": 19240, "speaker": 1, "text": "All that I'm using AI for now is just coding."},
+    {"i": 12, "startMs": 19240, "endMs": 21670, "speaker": 0, "text": "Well, why don't you write code a little bit manually, too?"},
+    {"i": 13, "startMs": 21670, "endMs": 23470, "speaker": 1, "text": "You want me to write code manually now?"},
+    {"i": 14, "startMs": 23470, "endMs": 25260, "speaker": 0, "text": "We're spending 700K on tokens, okay?"},
+    {"i": 15, "startMs": 25260, "endMs": 27090, "speaker": 0, "text": "What is your salary?"},
+    {"i": 16, "startMs": 27090, "endMs": 28590, "speaker": 1, "text": "150K."},
+    {"i": 17, "startMs": 28630, "endMs": 33590, "speaker": 1, "text": "I'm just saying if we want to reduce the bill, we can get rid of the AI agent"},
+    {"i": 18, "startMs": 33590, "endMs": 35650, "speaker": 1, "text": "How about that?"},
+    {"i": 19, "startMs": 35650, "endMs": 36650, "speaker": 0, "text": "No, I like that."},
+    {"i": 20, "startMs": 36650, "endMs": 37650, "speaker": 0, "text": "I like that one."},
+    {"i": 21, "startMs": 37650, "endMs": 38650, "speaker": 1, "text": "Yeah, I'm sure you do."},
+    {"i": 22, "startMs": 38650, "endMs": 39650, "speaker": 1, "text": "Of course, yeah, that makes sense."},
+    {"i": 23, "startMs": 39650, "endMs": 41850, "speaker": 0, "text": "I don't want any more happy bills coming in my way."}
+  ],
+  "unreachable": [
+    {"i": 6, "why": "No cluster-1 span touches 7920-9400. The only span covering it is 0:7203-12552, and pyannote reports no second-speaker activity anywhere between 7861 and 12468. No reconciliation rule can attribute a word to a speaker segmentation never reported, so 23/24 is the ceiling until segmentation changes."}
+  ]
+}

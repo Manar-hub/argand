@@ -830,4 +830,198 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 60)),
   );
+
+  testWidgets(
+    'two_speakers: full pipeline with decisions and similarities',
+    (tester) async {
+      const clip = '/data/local/tmp/two_speakers.wav';
+      final source = File(clip);
+      expect(await source.exists(), isTrue, reason: 'Missing $clip');
+
+      final media = await converter.importToAppStorage(
+        projectId: 'two-spk',
+        fileName: 'two_speakers.wav',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+      expect(spans, isNotNull);
+      for (var i = 0; i < spans!.length; i += 4) {
+        debugPrint('TWO spans[$i] ${spans.skip(i).take(4).map(
+              (s) => '${s.speaker}:${s.startMs}-${s.endMs}',
+            ).join(' ')}');
+      }
+
+      final model = await const WhisperModelCatalog().resolve(null);
+      final result = await WhisperService().transcribeWav(
+        wav.path,
+        model: model!,
+        language: TranscriptionLanguage.auto,
+        skipSilence: true,
+      );
+      final words = wordTimingsOf(result);
+
+      final baseline = assignSpeakers(words, spans);
+      final refined = await SpeakerRefiner().refine(
+        wavPath: wav.path,
+        spans: spans,
+        words: words,
+        assigned: baseline,
+      );
+      final after = assignSpeakers(words, refined.spans);
+
+      debugPrint('TWO candidates=${refined.decisions.length} '
+          'moved=${refined.movedCount} embeddings=${refined.embeddedRegions} '
+          '${refined.elapsedMs}ms');
+
+      // Similarities are the number that answers "is this our rules or the
+      // models?" -- margins like alberta's mean the voices separate.
+      for (final d in refined.decisions) {
+        final scores = d.similarities.entries
+            .map((e) => 'spk${e.key}:${e.value.toStringAsFixed(3)}')
+            .join(' ');
+        debugPrint('TWO cand ${d.candidate.startMs}-${d.candidate.endMs} '
+            'was=spk${d.candidate.currentSpeaker} $scores ${d.outcome.name}');
+      }
+
+      var start = 0;
+      var index = 0;
+      for (var i = 0; i < words.length; i++) {
+        final isLast = i == words.length - 1;
+        if (!endsSentence(words[i].text) && !isLast) continue;
+
+        String label(List<int?> a) {
+          final s = <int?>{};
+          for (var j = start; j <= i; j++) {
+            s.add(a[j]);
+          }
+          return s.length == 1 && s.first != null
+              ? 'Speaker ${s.first! + 1}'
+              : s.map((x) => x == null ? '?' : 'S${x + 1}').join('/');
+        }
+
+        final text = words.sublist(start, i + 1).map((w) => w.text).join(' ');
+        debugPrint('TWO [${index.toString().padLeft(2)}] ${label(after)} | '
+            '${words[start].startMs}-${words[i].endMs} | '
+            '${text.length > 60 ? '${text.substring(0, 60)}...' : text}');
+
+        start = i + 1;
+        index++;
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 45)),
+  );
+
+  testWidgets(
+    'diagnose sentence 8 halves on two_speakers',
+    (tester) async {
+      const clip = '/data/local/tmp/two_speakers.wav';
+      final source = File(clip);
+      expect(await source.exists(), isTrue);
+
+      final media = await converter.importToAppStorage(
+        projectId: 'diag8',
+        fileName: 'two_speakers.wav',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+
+      await SpeakerDiarizer().ensureModelsReady();
+      final supportDir = await getApplicationSupportDirectory();
+      final modelPath =
+          p.join(supportDir.path, SpeakerDiarizer.embeddingModelFile);
+
+      final bytes = await File(wav.path).readAsBytes();
+      final header = WavHeader.parse(bytes);
+      final bytesPerMs =
+          header.sampleRate * header.channels * (header.bitsPerSample ~/ 8) / 1000;
+
+      sherpa.initBindings();
+      final extractor = sherpa.SpeakerEmbeddingExtractor(
+        config: sherpa.SpeakerEmbeddingExtractorConfig(
+          model: modelPath,
+          numThreads: 1,
+          debug: false,
+        ),
+      );
+
+      ({Float32List? vec, double rms}) probe(int startMs, int endMs) {
+        var from = (startMs * bytesPerMs).floor();
+        var to = (endMs * bytesPerMs).ceil();
+        if (from < 0) from = 0;
+        if (to > header.dataBytes) to = header.dataBytes;
+        final slice = Uint8List.sublistView(
+            bytes, header.dataOffset + from, header.dataOffset + to);
+        final samples = pcm16ToFloat32(slice);
+
+        // Loudness matters: a half that is mostly silence cannot characterise
+        // a voice, and would explain halves "disagreeing" without two people.
+        var sum = 0.0;
+        for (final s in samples) {
+          sum += s * s;
+        }
+        final rms = samples.isEmpty ? 0.0 : math.sqrt(sum / samples.length);
+
+        final stream = extractor.createStream();
+        try {
+          stream.acceptWaveform(
+              samples: samples, sampleRate: header.sampleRate);
+          stream.inputFinished();
+          if (!extractor.isReady(stream)) return (vec: null, rms: rms);
+          final e = extractor.compute(stream);
+          return (vec: e.isEmpty ? null : unitVector(e), rms: rms);
+        } finally {
+          stream.free();
+        }
+      }
+
+      // Voice prints from the clip's long clean spans.
+      final prints = <int, Float32List>{};
+      for (final spk in {0, 1}) {
+        final refs = <Float32List>[];
+        for (final s in spans!.where((s) => s.speaker == spk)) {
+          if (s.durationMs < 2000) continue;
+          final shared = spans.any((o) =>
+              o.speaker != spk && o.overlapWith(s.startMs, s.endMs) > 0);
+          if (shared) continue;
+          final r = probe(s.startMs, s.endMs);
+          if (r.vec != null) refs.add(r.vec!);
+        }
+        final c = centroidOf(refs);
+        if (c != null) prints[spk] = c;
+        debugPrint('D8 spk$spk prints from ${refs.length} span(s)');
+      }
+
+      void report(String label, int startMs, int endMs) {
+        final r = probe(startMs, endMs);
+        if (r.vec == null) {
+          debugPrint('D8 $label $startMs-$endMs (${endMs - startMs}ms) '
+              'rms=${r.rms.toStringAsFixed(4)} NO EMBEDDING');
+          return;
+        }
+        final scores = prints.entries
+            .map((e) => 'spk${e.key}:${cosineSimilarity(r.vec!, e.value).toStringAsFixed(3)}')
+            .join(' ');
+        debugPrint('D8 $label $startMs-$endMs (${endMs - startMs}ms) '
+            'rms=${r.rms.toStringAsFixed(4)} $scores');
+      }
+
+      // The region, and each side of the cut segmentation reports at 17817.
+      report('whole ', 16960, 18410);
+      report('before', 16960, 17817);
+      report('after ', 17817, 18410);
+
+      final before = probe(16960, 17817).vec;
+      final after = probe(17817, 18410).vec;
+      if (before != null && after != null) {
+        debugPrint('D8 coherence(before,after) = '
+            '${cosineSimilarity(before, after).toStringAsFixed(3)}');
+      }
+
+      extractor.free();
+    },
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
 }

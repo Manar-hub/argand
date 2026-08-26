@@ -1,0 +1,38 @@
+{
+  "clip": "two_speakers.wav",
+  "source": "sherpa-onnx speaker-segmentation-models release, 2-two-speakers-en.wav",
+  "note": "Ground truth confirmed by the user against the audio. A 1980s broadcast interview: cluster 0 is the interviewer, cluster 1 the interviewee. Sentence indices are over whisper's output with silence skipping ON and the bundled base model; word timings, and so sentence boundaries, shift if either changes. Labels belong to this segmentation and do not transfer to another model.",
+  "spans": [
+    {"speaker": 0, "startMs": 31, "endMs": 2765},
+    {"speaker": 1, "startMs": 2765, "endMs": 7810},
+    {"speaker": 0, "startMs": 7844, "endMs": 11118},
+    {"speaker": 1, "startMs": 11287, "endMs": 13902},
+    {"speaker": 0, "startMs": 13953, "endMs": 16923},
+    {"speaker": 1, "startMs": 17159, "endMs": 17817},
+    {"speaker": 0, "startMs": 17817, "endMs": 18627},
+    {"speaker": 1, "startMs": 18374, "endMs": 21125},
+    {"speaker": 0, "startMs": 21125, "endMs": 27453}
+  ],
+  "sentences": [
+    {"i": 0,  "startMs": 30,    "endMs": 2690,  "speaker": 0, "text": "Yeah, and you worked on the original computer in this country, right?"},
+    {"i": 1,  "startMs": 2690,  "endMs": 6540,  "speaker": 1, "text": "I was very fortunate the Navy ordered me into the first big computer"},
+    {"i": 2,  "startMs": 6540,  "endMs": 7730,  "speaker": 1, "text": "Mark I and Harbin."},
+    {"i": 3,  "startMs": 7730,  "endMs": 9390,  "speaker": 0, "text": "It's called Mark I and Harbin?"},
+    {"i": 4,  "startMs": 9390,  "endMs": 11230, "speaker": 0, "text": "Yeah, in those days the thing was..."},
+    {"i": 5,  "startMs": 11230, "endMs": 13970, "speaker": 1, "text": "51 feet long, 8 feet high, and 8 feet deep."},
+    {"i": 6,  "startMs": 13970, "endMs": 15440, "speaker": 0, "text": "And that was the pocket model."},
+    {"i": 7,  "startMs": 15440, "endMs": 16910, "speaker": 0, "text": "I see."},
+    {"i": 8,  "startMs": 16910, "endMs": 18460, "speaker": 1, "text": "That's right."},
+    {"i": 9,  "startMs": 18460, "endMs": 21000, "speaker": 1, "text": "You could put it on a little tiny corner of a chip now."},
+    {"i": 10, "startMs": 21000, "endMs": 21510, "speaker": 0, "text": "Yeah."},
+    {"i": 11, "startMs": 21510, "endMs": 24160, "speaker": 0, "text": "Now, how did you know so much about computers then?"},
+    {"i": 12, "startMs": 24160, "endMs": 25120, "speaker": 1, "text": "I didn't."},
+    {"i": 13, "startMs": 25120, "endMs": 26200, "speaker": 0, "text": "How did you..."},
+    {"i": 14, "startMs": 26200, "endMs": 26780, "speaker": 1, "text": "It was the first one."},
+    {"i": 15, "startMs": 26780, "endMs": 27040, "speaker": 0, "text": "Yeah."}
+  ],
+  "known": [
+    {"i": 8, "why": "Diarization reports a handover at 17817 that is not there, flanked by two short spans (658ms, 810ms). The straddle guard refuses the region because a cut splits it 59/41, so it is never evaluated -- the guard is protecting a spurious boundary."},
+    {"i": 14, "why": "Evaluated and answered wrongly: spk0 0.222 against spk1 0.100, where the truth is spk1. A 480ms fragment between two stretches of the other speaker; both scores sit far below this clip's usual 0.7-0.9. Not reachable by threshold changes, since the winner is the wrong speaker."}
+  ]
+}

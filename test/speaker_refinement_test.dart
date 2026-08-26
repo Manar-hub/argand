@@ -368,11 +368,12 @@ void main() {
       }
     });
 
-    test('refuses a region a speaker change cuts through the middle of', () {
-      // "I like that one." 36650-37650. Span 1:37088-39772 opens 388ms into
-      // the trimmed region, splitting it 43/57 -- so its audio is a blend of
-      // both voices and the embedding describes neither. This is the exact
-      // region that moved to the wrong speaker before this guard existed.
+    test('flags a region a speaker change cuts through, for testing', () {
+      // "I like that one." 36650-37650. Span 1:37088-39772 opens 388ms into the
+      // trimmed region, splitting it 43/57. The cut is recorded rather than
+      // acted on: whether it is a genuine handover -- in which case the audio
+      // is a blend and unusable -- or one segmentation invented is decided by
+      // listening to each side, in SpeakerRefiner.
       final words = sentence(36650, 37650, 4);
       final plan = planRefinement(
         spans: alberta,
@@ -380,10 +381,11 @@ void main() {
         assigned: assignSpeakers(words, alberta),
       );
 
-      expect(
-        plan.candidates.any((c) => c.startMs >= 36650 && c.endMs <= 37650),
-        isFalse,
-      );
+      final candidate = plan.candidates
+          .where((c) => c.startMs >= 36650 && c.endMs <= 37650)
+          .firstOrNull;
+      expect(candidate, isNotNull);
+      expect(candidate!.cutMs, 37088);
     });
 
     test('still asks when the change lands right at the edge', () {
@@ -398,9 +400,15 @@ void main() {
         assigned: assignSpeakers(words, alberta),
       );
 
+      final candidate = plan.candidates
+          .where((c) => c.startMs >= 7170 && c.endMs <= 7920)
+          .firstOrNull;
+      expect(candidate, isNotNull);
       expect(
-        plan.candidates.any((c) => c.startMs >= 7170 && c.endMs <= 7920),
-        isTrue,
+        candidate!.cutMs,
+        isNull,
+        reason: 'A cut 9ms from the edge leaves the region effectively pure, '
+            'so there is no boundary worth testing',
       );
     });
 
@@ -415,10 +423,47 @@ void main() {
         assigned: assignSpeakers(words, alberta),
       );
 
+      final candidate = plan.candidates
+          .where((c) => c.startMs >= 38650 && c.endMs <= 39650)
+          .firstOrNull;
+      expect(candidate, isNotNull);
       expect(
-        plan.candidates.any((c) => c.startMs >= 38650 && c.endMs <= 39650),
-        isTrue,
+        candidate!.cutMs,
+        isNull,
+        reason: 'Nothing splits this region, so there is no boundary to test',
       );
+    });
+
+    test('records the cut that segmentation invented, rather than obeying it',
+        () {
+      // two_speakers.wav "That's right." 16910-18460, which the user confirms
+      // is one speaker. Segmentation disagrees, reporting a handover at 17817
+      // between two short spans. The cut is carried forward so the refiner can
+      // listen to both sides -- refusing here would trust segmentation about
+      // exactly the thing it got wrong.
+      final twoSpeakers = [
+        span(31, 2765, 0),
+        span(2765, 7810, 1),
+        span(7844, 11118, 0),
+        span(11287, 13902, 1),
+        span(13953, 16923, 0),
+        span(17159, 17817, 1),
+        span(17817, 18627, 0),
+        span(18374, 21125, 1),
+        span(21125, 27453, 0),
+      ];
+      final words = sentence(16910, 18460, 2);
+      final plan = planRefinement(
+        spans: twoSpeakers,
+        words: words,
+        assigned: assignSpeakers(words, twoSpeakers),
+      );
+
+      final candidate = plan.candidates
+          .where((c) => c.startMs >= 16910 && c.endMs <= 18460)
+          .firstOrNull;
+      expect(candidate, isNotNull);
+      expect(candidate!.cutMs, 17817);
     });
 
     test('SpeakerRefinement.none plans nothing at all', () {

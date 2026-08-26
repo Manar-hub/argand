@@ -230,6 +230,39 @@ List<RefinementDecision> _runRefinement({
 
     final decisions = <RefinementDecision>[];
     for (final candidate in plan.candidates) {
+      // A boundary runs through this region. Ask whether it is real rather than
+      // taking segmentation's word for it: embed each side and compare.
+      //
+      // Disagreement means a genuine handover, so the region's audio is a blend
+      // of two voices and describes neither — refuse, as alberta's two wrong
+      // moves had to be. Agreement means segmentation invented the turn, which
+      // it demonstrably does: "That's right." on two_speakers.wav is one
+      // speaker across a reported change at 17817. Refusing on sight would
+      // trust segmentation about precisely the thing it got wrong.
+      final cut = candidate.cutMs;
+      if (cut != null) {
+        final before = unitVector(embed(candidate.startMs, cut));
+        final after = unitVector(embed(cut, candidate.endMs));
+        if (before == null || after == null) {
+          decisions.add(RefinementDecision(
+            candidate: candidate,
+            similarities: const {},
+            newSpeaker: null,
+            outcome: RefinementOutcome.skippedNoEmbedding,
+          ));
+          continue;
+        }
+        if (cosineSimilarity(before, after) < config.minReferenceCoherence) {
+          decisions.add(RefinementDecision(
+            candidate: candidate,
+            similarities: const {},
+            newSpeaker: null,
+            outcome: RefinementOutcome.skippedRealBoundary,
+          ));
+          continue;
+        }
+      }
+
       final vector = unitVector(embed(candidate.startMs, candidate.endMs));
       if (vector == null) {
         decisions.add(RefinementDecision(

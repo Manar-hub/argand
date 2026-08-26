@@ -144,6 +144,7 @@ class RefinementCandidate {
     required this.currentSpeaker,
     required this.firstWord,
     required this.lastWord,
+    this.cutMs,
   });
 
   final int startMs;
@@ -153,6 +154,20 @@ class RefinementCandidate {
   /// Inclusive word range, into the list handed to [planRefinement].
   final int firstWord;
   final int lastWord;
+
+  /// A span boundary landing inside this region and splitting it substantially,
+  /// or null when nothing cuts it.
+  ///
+  /// **A cut is a question, not a verdict.** Such a region *may* be a blend of
+  /// two voices, in which case it cannot be interpreted — that is why alberta's
+  /// two wrong moves had to be refused. But diarization also invents turns:
+  /// "That's right." on `two_speakers.wav` is one speaker across a reported
+  /// handover at 17817, flanked by two suspiciously short spans. Refusing on
+  /// sight would trust segmentation about exactly the thing it got wrong.
+  ///
+  /// So the position is carried through to [SpeakerRefiner], which listens to
+  /// each side and decides whether the boundary is real.
+  final int? cutMs;
 
   int get durationMs => endMs - startMs;
 }
@@ -185,6 +200,11 @@ enum RefinementOutcome {
   keptNoMargin,
   keptWeakMatch,
   skippedNoEmbedding,
+
+  /// A speaker change really does run through this region, so its audio is a
+  /// blend of two voices and cannot be interpreted. Distinct from
+  /// [skippedNoEmbedding]: the model worked, the region was the problem.
+  skippedRealBoundary,
 }
 
 class RefinementDecision {
@@ -328,20 +348,23 @@ RefinementPlan planRefinement({
     // Only the position matters: a cut 9ms from the edge leaves the region
     // essentially pure, while one near the middle makes it a blend. Measured on
     // the reference clip, correct moves were cut at 1% and wrong ones at 39-43%.
+    // Recorded rather than acted on: whether the cut is real is decided by
+    // listening to it, not by trusting segmentation. The most central cut is
+    // kept, since that is the one splitting the region most evenly and so the
+    // one most likely to make its audio uninterpretable.
     final regionMs = to - from;
-    var straddled = false;
+    int? cutMs;
+    var worstBalance = 0.0;
     for (final span in spans) {
       for (final cut in [span.startMs, span.endMs]) {
         if (cut <= from || cut >= to) continue;
-        final minority = math.min(cut - from, to - cut);
-        if (minority / regionMs > config.maxBoundaryStraddle) {
-          straddled = true;
-          break;
+        final balance = math.min(cut - from, to - cut) / regionMs;
+        if (balance > config.maxBoundaryStraddle && balance > worstBalance) {
+          worstBalance = balance;
+          cutMs = cut;
         }
       }
-      if (straddled) break;
     }
-    if (straddled) continue;
 
     candidates.add(RefinementCandidate(
       startMs: from,
@@ -349,6 +372,7 @@ RefinementPlan planRefinement({
       currentSpeaker: current,
       firstWord: sentence.first,
       lastWord: sentence.last,
+      cutMs: cutMs,
     ));
   }
 

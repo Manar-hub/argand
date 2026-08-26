@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:argand/core/diarization/speaker_assignment.dart';
 import 'package:argand/core/diarization/speaker_diarizer.dart';
+import 'package:argand/core/diarization/speaker_refiner.dart';
 import 'package:argand/core/diarization/speaker_span.dart';
 import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/media/wav_codec.dart';
@@ -10,11 +12,13 @@ import 'package:argand/core/text/sentence_boundaries.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/core/whisper/whisper_model_catalog.dart';
 import 'package:argand/core/whisper/whisper_service.dart';
+import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 /// Diagnostic, not a pass/fail test.
 ///
@@ -429,5 +433,246 @@ void main() {
       }
     },
     timeout: const Timeout(Duration(minutes: 60)),
+  );
+
+  testWidgets(
+    'would CAM++ separate the speakers in the failing regions',
+    (tester) async {
+      final source = File(fixture);
+      expect(await source.exists(), isTrue);
+
+      final media = await converter.importToAppStorage(
+        projectId: 'cam-probe',
+        fileName: 'alberta.mp4',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+      expect(spans, isNotNull);
+
+      await SpeakerDiarizer().ensureModelsReady();
+      final supportDir = await getApplicationSupportDirectory();
+      final embeddingModel = p.join(
+        supportDir.path,
+        SpeakerDiarizer.embeddingModelFile,
+      );
+
+      final bytes = await File(wav.path).readAsBytes();
+      final header = WavHeader.parse(bytes);
+      final bytesPerMs =
+          header.sampleRate * header.channels * (header.bitsPerSample ~/ 8) / 1000;
+
+      /// Float samples for [startMs, endMs), straight out of the WAV.
+      Float32List samplesFor(int startMs, int endMs) {
+        var from = (startMs * bytesPerMs).floor();
+        var to = (endMs * bytesPerMs).ceil();
+        if (from < 0) from = 0;
+        if (to > header.dataBytes) to = header.dataBytes;
+        return pcm16ToFloat32(
+          Uint8List.sublistView(
+            bytes,
+            header.dataOffset + from,
+            header.dataOffset + to,
+          ),
+        );
+      }
+
+      sherpa.initBindings();
+      final extractor = sherpa.SpeakerEmbeddingExtractor(
+        config: sherpa.SpeakerEmbeddingExtractorConfig(
+          model: embeddingModel,
+          numThreads: 1,
+          // Defaults to true and dumps an onnxruntime session log per call.
+          debug: false,
+        ),
+      );
+      debugPrint('CAM dim=${extractor.dim}');
+
+      Float32List? embed(int startMs, int endMs) {
+        final stream = extractor.createStream();
+        try {
+          stream.acceptWaveform(
+            samples: samplesFor(startMs, endMs),
+            sampleRate: header.sampleRate,
+          );
+          stream.inputFinished();
+          if (!extractor.isReady(stream)) return null;
+          final e = extractor.compute(stream);
+          return e.isEmpty ? null : e;
+        } finally {
+          stream.free();
+        }
+      }
+
+      Float32List? unit(Float32List? v) {
+        if (v == null || v.isEmpty) return null;
+        var sum = 0.0;
+        for (final x in v) {
+          sum += x * x;
+        }
+        final n = sum <= 0 ? 0.0 : 1.0 / math.sqrt(sum);
+        if (n == 0) return null;
+        final out = Float32List(v.length);
+        for (var i = 0; i < v.length; i++) {
+          out[i] = v[i] * n;
+        }
+        return out;
+      }
+
+      double cosine(Float32List a, Float32List b) {
+        var dot = 0.0;
+        for (var i = 0; i < a.length; i++) {
+          dot += a[i] * b[i];
+        }
+        return dot;
+      }
+
+      // Regions under test, and controls. Truth from the committed fixture.
+      const candidates = <(String, int, int, int)>[
+        ('Tokens cost money. [FAILING]', 7920, 9400, 1),
+        ('Of course..that makes sense [FAILING]', 38650, 39650, 1),
+        ('Yeah I know tokens cost money [control]', 9400, 12390, 0),
+        ('Okay thats all the tokens [control]', 5120, 7170, 1),
+        ('All that Im using AI for [control]', 17050, 19240, 1),
+        ('Can we just please tone it down [control]', 15380, 17050, 0),
+        // Short regions, to find where CAM++ stops being usable. "What do you
+        // mean?" is the other currently-wrong sentence and is only 750ms.
+        ('What do you mean? [FAILING 750ms]', 7170, 7920, 0),
+        ('Appie? [390ms]', 2390, 2780, 1),
+        ('AI is expensive. [890ms]', 12390, 13280, 1),
+        ('Yeah, I am sure you do. [1000ms]', 37650, 38650, 1),
+      ];
+
+      // Voice prints from spans that overlap no other speaker's span and none
+      // of the regions above. The span enclosing "Tokens cost money." is itself
+      // mixed-speaker, so including it would put the very voice under test into
+      // the reference it is being compared against.
+      final prints = <int, Float32List>{};
+      for (final speaker in spans!.map((s) => s.speaker).toSet()) {
+        final refs = <Float32List>[];
+        for (final span in spans.where((s) => s.speaker == speaker)) {
+          final overlapsOther = spans.any((o) =>
+              o.speaker != speaker && o.overlapWith(span.startMs, span.endMs) > 0);
+          final overlapsCandidate = candidates
+              .any((c) => span.overlapWith(c.$2, c.$3) > 0);
+          if (overlapsOther || overlapsCandidate) continue;
+          if (span.durationMs < 1500) continue;
+          final e = unit(embed(span.startMs, span.endMs));
+          if (e != null) refs.add(e);
+          debugPrint('CAM ref spk$speaker ${span.startMs}-${span.endMs}');
+        }
+        if (refs.isEmpty) {
+          debugPrint('CAM spk$speaker: NO CLEAN REFERENCE');
+          continue;
+        }
+        final mean = Float32List(extractor.dim);
+        for (final r in refs) {
+          for (var i = 0; i < mean.length; i++) {
+            mean[i] += r[i];
+          }
+        }
+        final centroid = unit(mean);
+        if (centroid != null) prints[speaker] = centroid;
+        debugPrint('CAM spk$speaker built from ${refs.length} span(s)');
+      }
+
+      for (final (label, startMs, endMs, want) in candidates) {
+        final e = unit(embed(startMs, endMs));
+        if (e == null) {
+          debugPrint('CAM "$label" ${endMs - startMs}ms: NO EMBEDDING');
+          continue;
+        }
+        final scores = <int, double>{};
+        prints.forEach((spk, c) => scores[spk] = cosine(e, c));
+        final ranked = scores.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        final margin = ranked.length > 1 ? ranked[0].value - ranked[1].value : 0.0;
+        debugPrint('CAM "$label" ${endMs - startMs}ms want=$want '
+            'best=spk${ranked.first.key} '
+            'scores=${ranked.map((r) => "spk${r.key}:${r.value.toStringAsFixed(3)}").join(" ")} '
+            'margin=${margin.toStringAsFixed(3)} '
+            '${ranked.first.key == want ? "CORRECT" : "WRONG"}');
+      }
+
+      extractor.free();
+    },
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
+
+  testWidgets(
+    'refinement end to end: does it fix the failing sentences',
+    (tester) async {
+      final source = File(fixture);
+      expect(await source.exists(), isTrue);
+
+      final media = await converter.importToAppStorage(
+        projectId: 'refine-e2e',
+        fileName: 'alberta.mp4',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+
+      final model = await const WhisperModelCatalog().resolve(null);
+      final result = await WhisperService().transcribeWav(
+        wav.path,
+        model: model!,
+        language: TranscriptionLanguage.auto,
+        skipSilence: true,
+      );
+      final words = wordTimingsOf(result);
+
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+      expect(spans, isNotNull);
+
+      final before = assignSpeakers(words, spans!);
+      final refined = await SpeakerRefiner().refine(
+        wavPath: wav.path,
+        spans: spans,
+        words: words,
+        assigned: before,
+      );
+      final after = assignSpeakers(words, refined.spans);
+
+      debugPrint('E2E embeddings=${refined.embeddedRegions} '
+          'candidates=${refined.decisions.length} '
+          'moved=${refined.movedCount} ${refined.elapsedMs}ms');
+      for (final d in refined.decisions) {
+        final scores = d.similarities.entries
+            .map((e) => 'spk${e.key}:${e.value.toStringAsFixed(3)}')
+            .join(' ');
+        debugPrint('E2E cand ${d.candidate.startMs}-${d.candidate.endMs} '
+            'was=spk${d.candidate.currentSpeaker} $scores '
+            '${d.outcome.name}${d.newSpeaker != null ? " ->spk${d.newSpeaker}" : ""}');
+      }
+
+      // Per-sentence, before and after, so a fix and a regression look
+      // different rather than both being "something changed".
+      var start = 0;
+      var index = 0;
+      for (var i = 0; i < words.length; i++) {
+        final isLast = i == words.length - 1;
+        if (!endsSentence(words[i].text) && !isLast) continue;
+
+        String label(List<int?> a) {
+          final s = <int?>{};
+          for (var j = start; j <= i; j++) {
+            s.add(a[j]);
+          }
+          return s.length == 1 ? '${s.first}' : s.join('/');
+        }
+
+        final b = label(before);
+        final a = label(after);
+        final text = words.sublist(start, i + 1).map((w) => w.text).join(' ');
+        debugPrint('E2E [${index.toString().padLeft(2)}] $b->$a '
+            '${b == a ? "   " : "CHG"} '
+            '${text.length > 56 ? '${text.substring(0, 56)}...' : text}');
+
+        start = i + 1;
+        index++;
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 45)),
   );
 }

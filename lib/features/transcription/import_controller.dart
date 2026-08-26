@@ -6,7 +6,9 @@ import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/diarization/diarization_controller.dart';
+import '../../core/diarization/speaker_assignment.dart';
 import '../../core/diarization/speaker_diarizer.dart';
+import '../../core/diarization/speaker_refiner.dart';
 import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/whisper/transcription_language_controller.dart';
@@ -177,6 +179,30 @@ class ImportController extends _$ImportController {
           // Swallowed on purpose, but never silently: the words still save.
           debugPrint('Diarization failed, saving without speakers: $error');
           debugPrintStack(stackTrace: stackTrace);
+        }
+
+        // Re-checks doubtful attributions against the audio itself, which is
+        // the only thing that can reach a turn segmentation never reported.
+        // Non-fatal for the same reason as diarization, one step weaker: a
+        // failure here costs nothing that was not already in hand, because the
+        // unrefined spans are still good.
+        if (speakerSpans.isNotEmpty) {
+          try {
+            final words = wordTimingsOf(result);
+            final refined = await ref.read(speakerRefinerProvider).refine(
+                  wavPath: wav.path,
+                  spans: speakerSpans,
+                  words: words,
+                  assigned: assignSpeakers(words, speakerSpans),
+                );
+            debugPrint('Refinement: ${refined.movedCount} moved of '
+                '${refined.decisions.length} candidates, '
+                '${refined.embeddedRegions} embeddings, ${refined.elapsedMs}ms');
+            speakerSpans = refined.spans;
+          } catch (error, stackTrace) {
+            debugPrint('Refinement failed, keeping unrefined spans: $error');
+            debugPrintStack(stackTrace: stackTrace);
+          }
         }
       }
 

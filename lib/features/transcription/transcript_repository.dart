@@ -103,17 +103,7 @@ class TranscriptRepository {
 
       // Assigned in one pass over the whole transcript rather than per row,
       // because turn-boundary smoothing needs neighbouring words as context.
-      final speakers = assignSpeakers(
-        [
-          for (final entry in segments)
-            (
-              text: entry.text,
-              startMs: entry.segment.fromTs.inMilliseconds,
-              endMs: entry.segment.toTs.inMilliseconds,
-            ),
-        ],
-        speakerSpans,
-      );
+      final speakers = assignSpeakers(wordTimingsOf(result), speakerSpans);
 
       await _db.batch((batch) {
         batch.insertAll(
@@ -167,3 +157,28 @@ Stream<List<Word>> transcriptWords(Ref ref, String transcriptId) =>
 @riverpod
 Future<Transcript?> projectTranscript(Ref ref, String projectId) =>
     ref.watch(transcriptRepositoryProvider).findTranscriptForProject(projectId);
+
+/// The engine's segments as word timings, filtered exactly as [saveImport]
+/// filters them before writing rows.
+///
+/// Shared so that anything reasoning about words before the save — speaker
+/// refinement, in particular — sees the same list, in the same order, that the
+/// stored rows are built from. If the two ever diverged, a refinement decision
+/// would be recorded against the wrong word range and would land on the wrong
+/// sentence.
+///
+/// With `splitOnWord: true` the engine returns one word per segment as a flat
+/// list. Whitespace-only segments are dropped rather than stored: whisper.cpp
+/// emits them for pauses and around hallucinated output, and an empty word is
+/// not a word.
+List<WordTiming> wordTimingsOf(WhisperTranscribeResponse result) {
+  return [
+    for (final segment in result.segments ?? const <WhisperTranscribeSegment>[])
+      if (segment.text.trim().isNotEmpty)
+        (
+          text: segment.text.trim(),
+          startMs: segment.fromTs.inMilliseconds,
+          endMs: segment.toTs.inMilliseconds,
+        ),
+  ];
+}

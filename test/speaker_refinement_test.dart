@@ -368,6 +368,59 @@ void main() {
       }
     });
 
+    test('refuses a region a speaker change cuts through the middle of', () {
+      // "I like that one." 36650-37650. Span 1:37088-39772 opens 388ms into
+      // the trimmed region, splitting it 43/57 -- so its audio is a blend of
+      // both voices and the embedding describes neither. This is the exact
+      // region that moved to the wrong speaker before this guard existed.
+      final words = sentence(36650, 37650, 4);
+      final plan = planRefinement(
+        spans: alberta,
+        words: words,
+        assigned: assignSpeakers(words, alberta),
+      );
+
+      expect(
+        plan.candidates.any((c) => c.startMs >= 36650 && c.endMs <= 37650),
+        isFalse,
+      );
+    });
+
+    test('still asks when the change lands right at the edge', () {
+      // "What do you mean?" 7170-7920. Span 1:5161-7861 ends 9ms before the
+      // trimmed region does -- a cut, but one leaving the region essentially
+      // pure, so it must still be asked about. This region moved *correctly*,
+      // and a blanket "no cuts" rule would have thrown that fix away.
+      final words = sentence(7170, 7920, 4);
+      final plan = planRefinement(
+        spans: alberta,
+        words: words,
+        assigned: assignSpeakers(words, alberta),
+      );
+
+      expect(
+        plan.candidates.any((c) => c.startMs >= 7170 && c.endMs <= 7920),
+        isTrue,
+      );
+    });
+
+    test('overlapping spans covering the whole region are not a cut', () {
+      // Two speakers both marked active across the entire sentence is the
+      // ambiguity this pass exists for, not a handover inside it. Neither span
+      // has an edge within the region, so nothing is split.
+      final words = sentence(38650, 39650, 6);
+      final plan = planRefinement(
+        spans: alberta,
+        words: words,
+        assigned: assignSpeakers(words, alberta),
+      );
+
+      expect(
+        plan.candidates.any((c) => c.startMs >= 38650 && c.endMs <= 39650),
+        isTrue,
+      );
+    });
+
     test('SpeakerRefinement.none plans nothing at all', () {
       final words = sentence(38650, 39650, 6);
       final plan = planRefinement(

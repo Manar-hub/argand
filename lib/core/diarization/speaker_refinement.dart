@@ -42,6 +42,7 @@ class SpeakerRefinement {
     this.maxCandidates = 40,
     this.edgeTrimMs = 50,
     this.longSpanMedianMultiple = 1.5,
+    this.maxBoundaryStraddle = 0.25,
     this.minReferenceCoherence = 0.5,
   });
 
@@ -91,6 +92,26 @@ class SpeakerRefinement {
   /// to the material, and — unlike counting sentences — never consults whisper,
   /// so the trigger cannot shift when the transcription model changes.
   final double longSpanMedianMultiple;
+
+  /// How much of a candidate may sit on the far side of a speaker change
+  /// before the region is refused outright.
+  ///
+  /// **A region containing a known handover cannot be asked about**, because
+  /// its embedding is a blend of two voices and the model answers honestly
+  /// about the blend — which is neither speaker. Both wrong moves measured on
+  /// the reference clip were exactly this shape, on both whisper models:
+  ///
+  /// | region | split across the boundary | outcome |
+  /// |---|---|---|
+  /// | "Tokens cost money." | no boundary inside it | correct |
+  /// | "What do you mean?" | 99 / 1 | correct |
+  /// | "I like that one." | 57 / 43 | **wrong** |
+  /// | "No, of course… that makes sense." | 61 / 39 | **wrong** |
+  ///
+  /// The good moves are clean or almost clean; the bad ones are genuinely
+  /// mixed. 0.25 sits between the two groups with room on either side, and is
+  /// a statement about acoustics rather than a value fitted to a score.
+  final double maxBoundaryStraddle;
 
   /// How much a reference span's two halves must sound like each other before
   /// that span is trusted to represent one voice.
@@ -292,6 +313,35 @@ RefinementPlan planRefinement({
     final from = sentence.startMs + config.edgeTrimMs;
     final to = sentence.endMs - config.edgeTrimMs;
     if (to - from < config.minRegionMs) continue;
+
+    // Refuse a region that already contains a speaker change. Its embedding
+    // would be a blend of two voices, and the model would answer accurately
+    // about the blend — which is neither of them. Measured: every wrong move
+    // on the reference clip was a region split roughly 60/40 across a
+    // boundary, while every correct one was clean or split 99/1.
+    //
+    // A *cut* is a span edge landing strictly inside the region, which is what
+    // splits the audio in two. Two overlapping spans that both cover the whole
+    // region are a different thing entirely — that is the ambiguity this pass
+    // exists to resolve, and it must still be asked about.
+    //
+    // Only the position matters: a cut 9ms from the edge leaves the region
+    // essentially pure, while one near the middle makes it a blend. Measured on
+    // the reference clip, correct moves were cut at 1% and wrong ones at 39-43%.
+    final regionMs = to - from;
+    var straddled = false;
+    for (final span in spans) {
+      for (final cut in [span.startMs, span.endMs]) {
+        if (cut <= from || cut >= to) continue;
+        final minority = math.min(cut - from, to - cut);
+        if (minority / regionMs > config.maxBoundaryStraddle) {
+          straddled = true;
+          break;
+        }
+      }
+      if (straddled) break;
+    }
+    if (straddled) continue;
 
     candidates.add(RefinementCandidate(
       startMs: from,

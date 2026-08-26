@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:argand/core/diarization/speaker_assignment.dart';
 import 'package:argand/core/diarization/speaker_diarizer.dart';
+import 'package:argand/core/diarization/speaker_refinement.dart';
 import 'package:argand/core/diarization/speaker_refiner.dart';
 import 'package:argand/core/diarization/speaker_span.dart';
 import 'package:argand/core/media/media_converter.dart';
@@ -754,6 +755,78 @@ void main() {
       final refBase = await timelineFor(models[0], refine: true);
       final refSmall = await timelineFor(models[1], refine: true);
       report('refined       ${models[0].id} vs ${models[1].id}', refBase, refSmall);
+    },
+    timeout: const Timeout(Duration(minutes: 60)),
+  );
+
+  testWidgets(
+    'final table: what the app shows now, per model',
+    (tester) async {
+      final source = File(fixture);
+      expect(await source.exists(), isTrue);
+
+      final media = await converter.importToAppStorage(
+        projectId: 'final-table',
+        fileName: 'alberta.mp4',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+      expect(spans, isNotNull);
+
+      for (final model in await const WhisperModelCatalog().available()) {
+        final result = await WhisperService().transcribeWav(
+          wav.path,
+          model: model,
+          language: TranscriptionLanguage.auto,
+          skipSilence: true,
+        );
+        final words = wordTimingsOf(result);
+
+        // Exactly what the import pipeline does, in the same order.
+        final baseline = assignSpeakers(words, spans!);
+        final refined = await SpeakerRefiner().refine(
+          wavPath: wav.path,
+          spans: spans,
+          words: words,
+          assigned: baseline,
+        );
+        final finalAssignment = assignSpeakers(words, refined.spans);
+
+        debugPrint('TABLE ${model.id} candidates=${refined.decisions.length} '
+            'moved=${refined.movedCount} ${refined.elapsedMs}ms');
+        for (final d in refined.decisions.where(
+            (d) => d.outcome == RefinementOutcome.moved)) {
+          debugPrint('TABLE ${model.id} MOVED ${d.candidate.startMs}-'
+              '${d.candidate.endMs} spk${d.candidate.currentSpeaker}'
+              '->spk${d.newSpeaker}');
+        }
+
+        var start = 0;
+        var index = 0;
+        for (var i = 0; i < words.length; i++) {
+          final isLast = i == words.length - 1;
+          if (!endsSentence(words[i].text) && !isLast) continue;
+
+          final speakers = <int?>{};
+          for (var j = start; j <= i; j++) {
+            speakers.add(finalAssignment[j]);
+          }
+          // Display numbering is cluster + 1, as project_screen renders it.
+          final shown = speakers.length == 1 && speakers.first != null
+              ? 'Speaker ${speakers.first! + 1}'
+              : speakers.map((s) => s == null ? '?' : 'S${s + 1}').join('/');
+          final text = words.sublist(start, i + 1).map((w) => w.text).join(' ');
+
+          debugPrint('TABLE ${model.id} [${index.toString().padLeft(2)}] '
+              '$shown | ${words[start].startMs}-${words[i].endMs} | '
+              '${text.length > 62 ? '${text.substring(0, 62)}...' : text}');
+
+          start = i + 1;
+          index++;
+        }
+      }
     },
     timeout: const Timeout(Duration(minutes: 60)),
   );

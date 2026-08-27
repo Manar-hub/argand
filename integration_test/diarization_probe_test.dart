@@ -1024,4 +1024,110 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 30)),
   );
+
+  testWidgets(
+    'window experiment for two_speakers sentence 14',
+    (tester) async {
+      const clip = '/data/local/tmp/two_speakers.wav';
+      final source = File(clip);
+      expect(await source.exists(), isTrue);
+
+      final media = await converter.importToAppStorage(
+        projectId: 'w14',
+        fileName: 'two_speakers.wav',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+      final spans = await SpeakerDiarizer().diarize(wav.path);
+
+      await SpeakerDiarizer().ensureModelsReady();
+      final supportDir = await getApplicationSupportDirectory();
+      final modelPath =
+          p.join(supportDir.path, SpeakerDiarizer.embeddingModelFile);
+
+      final bytes = await File(wav.path).readAsBytes();
+      final header = WavHeader.parse(bytes);
+      final bytesPerMs =
+          header.sampleRate * header.channels * (header.bitsPerSample ~/ 8) / 1000;
+
+      sherpa.initBindings();
+      final extractor = sherpa.SpeakerEmbeddingExtractor(
+        config: sherpa.SpeakerEmbeddingExtractorConfig(
+          model: modelPath,
+          numThreads: 1,
+          debug: false,
+        ),
+      );
+
+      ({Float32List? vec, double rms}) probe(int startMs, int endMs) {
+        var from = (startMs * bytesPerMs).floor();
+        var to = (endMs * bytesPerMs).ceil();
+        if (from < 0) from = 0;
+        if (to > header.dataBytes) to = header.dataBytes;
+        if (to <= from) return (vec: null, rms: 0);
+        final samples = pcm16ToFloat32(Uint8List.sublistView(
+            bytes, header.dataOffset + from, header.dataOffset + to));
+        var sum = 0.0;
+        for (final s in samples) {
+          sum += s * s;
+        }
+        final rms = samples.isEmpty ? 0.0 : math.sqrt(sum / samples.length);
+        final stream = extractor.createStream();
+        try {
+          stream.acceptWaveform(samples: samples, sampleRate: header.sampleRate);
+          stream.inputFinished();
+          if (!extractor.isReady(stream)) return (vec: null, rms: rms);
+          final e = extractor.compute(stream);
+          return (vec: e.isEmpty ? null : unitVector(e), rms: rms);
+        } finally {
+          stream.free();
+        }
+      }
+
+      final prints = <int, Float32List>{};
+      for (final spk in {0, 1}) {
+        final refs = <Float32List>[];
+        for (final s in spans!.where((s) => s.speaker == spk)) {
+          if (s.durationMs < 2000) continue;
+          final shared = spans.any((o) =>
+              o.speaker != spk && o.overlapWith(s.startMs, s.endMs) > 0);
+          if (shared) continue;
+          final r = probe(s.startMs, s.endMs);
+          if (r.vec != null) refs.add(r.vec!);
+        }
+        final c = centroidOf(refs);
+        if (c != null) prints[spk] = c;
+      }
+
+      // Sentence 14 is 26200-26780. Truth is spk1. Neighbours #13 and #15 are
+      // both spk0, so any widening runs into the other speaker -- which the
+      // numbers should show as the answer drifting further toward spk0.
+      const variants = <(String, int, int)>[
+        ('trimmed  480ms', 26250, 26730),
+        ('untrimmed 580ms', 26200, 26780),
+        ('+100 each  780ms', 26100, 26880),
+        ('+200 each  980ms', 26000, 26980),
+        ('+350 each 1280ms', 25850, 27040),
+        ('left-only  780ms', 26000, 26780),
+        ('right-only 780ms', 26200, 26980),
+      ];
+
+      for (final (label, from, to) in variants) {
+        final r = probe(from, to);
+        if (r.vec == null) {
+          debugPrint('W14 $label rms=${r.rms.toStringAsFixed(4)} NO EMBEDDING');
+          continue;
+        }
+        final s0 = cosineSimilarity(r.vec!, prints[0]!);
+        final s1 = cosineSimilarity(r.vec!, prints[1]!);
+        debugPrint('W14 $label rms=${r.rms.toStringAsFixed(4)} '
+            'spk0:${s0.toStringAsFixed(3)} spk1:${s1.toStringAsFixed(3)} '
+            'margin=${(s1 - s0).toStringAsFixed(3)} '
+            '${s1 > s0 ? "CORRECT" : "wrong"}');
+      }
+
+      extractor.free();
+    },
+    timeout: const Timeout(Duration(minutes: 30)),
+  );
 }

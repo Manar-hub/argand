@@ -327,6 +327,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Label who is speaking. Slower, and skipped on very long recordings.'**
   String get diarizationHint;
+
+  /// Tooltip on the app bar control that switches the transcript from playback into editing
+  ///
+  /// In en, this message translates to:
+  /// **'Edit transcript'**
+  String get editModeEnable;
+
+  /// Tooltip on the app bar control that leaves transcript editing
+  ///
+  /// In en, this message translates to:
+  /// **'Done editing'**
+  String get editModeDisable;
+
+  /// Banner shown while the transcript is in edit mode, explaining both gestures
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a word to correct it, or a speaker name to reassign the turn.'**
+  String get editModeHint;
+
+  /// Header of the sheet listing speakers to reassign a turn to
+  ///
+  /// In en, this message translates to:
+  /// **'Who is speaking?'**
+  String get reassignSpeakerTitle;
+
+  /// Header of the field for correcting a single word's text
+  ///
+  /// In en, this message translates to:
+  /// **'Correct this word'**
+  String get editWordTitle;
+
+  /// Reassurance under the word editor that correcting text will not move the word's timestamp
+  ///
+  /// In en, this message translates to:
+  /// **'Timing stays the same, so captions stay in sync.'**
+  String get editWordTimingNote;
+
+  /// Dismisses an edit without applying it
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get editCancel;
+
+  /// Applies an edit
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get editSave;
 }
 
 class _AppLocalizationsDelegate

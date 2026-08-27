@@ -143,4 +143,30 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get diarizationHint =>
       'Label who is speaking. Slower, and skipped on very long recordings.';
+
+  @override
+  String get editModeEnable => 'Edit transcript';
+
+  @override
+  String get editModeDisable => 'Done editing';
+
+  @override
+  String get editModeHint =>
+      'Tap a word to correct it, or a speaker name to reassign the turn.';
+
+  @override
+  String get reassignSpeakerTitle => 'Who is speaking?';
+
+  @override
+  String get editWordTitle => 'Correct this word';
+
+  @override
+  String get editWordTimingNote =>
+      'Timing stays the same, so captions stay in sync.';
+
+  @override
+  String get editCancel => 'Cancel';
+
+  @override
+  String get editSave => 'Save';
 }

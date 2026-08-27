@@ -128,5 +128,29 @@
   "@diarizationTitle": { "description": "Header of the settings section toggling speaker diarization" },
 
   "diarizationHint": "Label who is speaking. Slower, and skipped on very long recordings.",
-  "@diarizationHint": { "description": "Subtitle explaining what the speaker-identification toggle does" }
+  "@diarizationHint": { "description": "Subtitle explaining what the speaker-identification toggle does" },
+
+  "editModeEnable": "Edit transcript",
+  "@editModeEnable": { "description": "Tooltip on the app bar control that switches the transcript from playback into editing" },
+
+  "editModeDisable": "Done editing",
+  "@editModeDisable": { "description": "Tooltip on the app bar control that leaves transcript editing" },
+
+  "editModeHint": "Tap a word to correct it, or a speaker name to reassign the turn.",
+  "@editModeHint": { "description": "Banner shown while the transcript is in edit mode, explaining both gestures" },
+
+  "reassignSpeakerTitle": "Who is speaking?",
+  "@reassignSpeakerTitle": { "description": "Header of the sheet listing speakers to reassign a turn to" },
+
+  "editWordTitle": "Correct this word",
+  "@editWordTitle": { "description": "Header of the field for correcting a single word's text" },
+
+  "editWordTimingNote": "Timing stays the same, so captions stay in sync.",
+  "@editWordTimingNote": { "description": "Reassurance under the word editor that correcting text will not move the word's timestamp" },
+
+  "editCancel": "Cancel",
+  "@editCancel": { "description": "Dismisses an edit without applying it" },
+
+  "editSave": "Save",
+  "@editSave": { "description": "Applies an edit" }
 }

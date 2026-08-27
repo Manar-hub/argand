@@ -198,6 +198,50 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Soft delete, per CLAUDE.md 5 -- never a hard row delete.
+  /// Corrects the text of one word, and nothing else.
+  ///
+  /// **Timings are deliberately untouched.** A correction fixes what the engine
+  /// heard, not when it was said, and `startMs`/`endMs` are what tap-to-seek,
+  /// caption grouping and the playback highlight are all built on. Moving them
+  /// to "fit" a longer or shorter word would desynchronise every one of those
+  /// from the audio, which is why this writes `word` alone.
+  Future<void> updateWordText(String wordId, String text) {
+    return (update(words)..where((t) => t.id.equals(wordId))).write(
+      WordsCompanion(
+        word: Value(text),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Reassigns every word from [fromPosition] to [toPosition] inclusive to
+  /// [speaker].
+  ///
+  /// Addressed by position rather than by id because a turn is a contiguous run
+  /// of words, and the caller is correcting the whole run. One transaction, so
+  /// a partial rewrite cannot leave a turn split across two speakers -- which
+  /// is the very thing being corrected.
+  Future<void> reassignSpeaker({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+    required String speakerId,
+  }) {
+    return transaction(() async {
+      await (update(words)
+            ..where((t) =>
+                t.transcriptId.equals(transcriptId) &
+                t.deletedAt.isNull() &
+                t.position.isBetweenValues(fromPosition, toPosition)))
+          .write(
+        WordsCompanion(
+          speakerId: Value(speakerId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    });
+  }
+
   Future<void> softDeleteProject(String id) {
     return (update(projects)..where((t) => t.id.equals(id))).write(
       ProjectsCompanion(

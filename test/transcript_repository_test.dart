@@ -1,4 +1,5 @@
 import 'package:argand/core/database/database.dart';
+import 'package:argand/core/diarization/speaker_span.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:drift/native.dart';
@@ -122,6 +123,99 @@ void main() {
       expect(await repository.findProject(projectId), isNull);
       // The row itself survives -- CLAUDE.md 5 forbids hard deletes.
       expect(await database.select(database.projects).get(), hasLength(1));
+    });
+
+    test('correcting a word changes its text and nothing else', () async {
+      final repository = TranscriptRepository(database);
+      final projectId = repository.newId();
+
+      await repository.saveImport(
+        projectId: projectId,
+        title: 'edit',
+        mediaPath: '/tmp/edit.wav',
+        duration: null,
+        language: TranscriptionLanguage.english,
+        speakerSpans: const [],
+        result: const WhisperTranscribeResponse(
+          type: 'transcribe',
+          text: ' Appie',
+          segments: [
+            WhisperTranscribeSegment(
+              fromTs: Duration(milliseconds: 2390),
+              toTs: Duration(milliseconds: 2780),
+              text: ' Appie',
+            ),
+          ],
+        ),
+      );
+
+      final transcript = await repository.findTranscriptForProject(projectId);
+      final before = (await repository.watchWords(transcript!.id).first).single;
+
+      await repository.updateWordText(before.id, 'API');
+
+      final after = (await repository.watchWords(transcript.id).first).single;
+      expect(after.word, 'API');
+      // The point of the whole feature: a correction fixes what was heard, not
+      // when it was said. Moving these would desynchronise tap-to-seek, the
+      // playback highlight and every caption boundary from the audio.
+      expect(after.startMs, before.startMs);
+      expect(after.endMs, before.endMs);
+      expect(after.position, before.position);
+    });
+
+    test('reassigning a turn rewrites exactly that range', () async {
+      final repository = TranscriptRepository(database);
+      final projectId = repository.newId();
+
+      await repository.saveImport(
+        projectId: projectId,
+        title: 'turns',
+        mediaPath: '/tmp/turns.wav',
+        duration: null,
+        language: TranscriptionLanguage.english,
+        speakerSpans: const [
+          SpeakerSpan(startMs: 0, endMs: 400, speaker: 0),
+          SpeakerSpan(startMs: 400, endMs: 1200, speaker: 1),
+        ],
+        result: const WhisperTranscribeResponse(
+          type: 'transcribe',
+          text: " That's right. Yes",
+          segments: [
+            WhisperTranscribeSegment(
+              fromTs: Duration.zero,
+              toTs: Duration(milliseconds: 400),
+              text: " That's",
+            ),
+            WhisperTranscribeSegment(
+              fromTs: Duration(milliseconds: 400),
+              toTs: Duration(milliseconds: 800),
+              text: ' right.',
+            ),
+            WhisperTranscribeSegment(
+              fromTs: Duration(milliseconds: 800),
+              toTs: Duration(milliseconds: 1200),
+              text: ' Yes',
+            ),
+          ],
+        ),
+      );
+
+      final transcript = await repository.findTranscriptForProject(projectId);
+
+      // "That's right." arrived split across two speakers -- the reported
+      // failure. Putting both words on one speaker is the correction, and it
+      // must leave the following word alone.
+      await repository.reassignSpeaker(
+        transcriptId: transcript!.id,
+        fromPosition: 0,
+        toPosition: 1,
+        speaker: 1,
+      );
+
+      final after = await repository.watchWords(transcript.id).first;
+      expect(after.map((w) => w.speakerId), ['1', '1', '1']);
+      expect(after.map((w) => w.startMs), [0, 400, 800]);
     });
 
     tearDown(() => database.close());

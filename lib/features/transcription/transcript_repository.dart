@@ -35,6 +35,29 @@ class TranscriptRepository {
 
   Future<void> softDeleteProject(String id) => _db.softDeleteProject(id);
 
+  /// Corrects one word's text, leaving its timing alone. See
+  /// [AppDatabase.updateWordText] for why that separation matters.
+  Future<void> updateWordText(String wordId, String text) =>
+      _db.updateWordText(wordId, text.trim());
+
+  /// Moves a whole turn onto [speaker], correcting a diarization mistake.
+  ///
+  /// Diarization is right most of the time and never right always: the models
+  /// resolve some regions confidently and others not at all, and the person
+  /// listening is the only real authority. This is how they say so.
+  Future<void> reassignSpeaker({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+    required int speaker,
+  }) =>
+      _db.reassignSpeaker(
+        transcriptId: transcriptId,
+        fromPosition: fromPosition,
+        toPosition: toPosition,
+        speakerId: speakerIdFor(speaker),
+      );
+
   /// Persists a finished import: the project row, its transcript, and one
   /// [Word] row per engine segment.
   ///

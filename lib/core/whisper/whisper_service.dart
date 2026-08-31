@@ -99,7 +99,27 @@ class WhisperService {
         // honoured because the vendored fork wires them through to
         // whisper.cpp; upstream silently ignored all but `threads`.
         threads: _lockedThreads,
-        noFallback: true,
+        // Was `true`, which pinned decoding to a single temperature and was the
+        // direct cause of the "ha ha ha" repetition loops.
+        //
+        // whisper.cpp already detects a degenerate decode — an entropy check on
+        // the decoded sequence (whisper.cpp:7541) fires and sets
+        // `decoder.failed`. But the only consumer of that verdict is guarded by
+        // `it != temperatures.size() - 1` (whisper.cpp:7565), and `no_fallback`
+        // collapses the temperature ladder to one entry (whisper.cpp:6868), so
+        // the guard is `0 != 0` and the check is never read. The engine spotted
+        // the loop and threw the finding away.
+        //
+        // Re-decoding only ever touches a window that FAILED its quality gate,
+        // which is why this is safe against the tuned diarization clips rather
+        // than merely lucky: `alberta.mp4` has no failing window and its
+        // transcription is byte-identical, text and timings, so speaker
+        // attribution cannot move. Measured cost is +43% on a file that loops
+        // and 0-6% on one that does not.
+        //
+        // The original justification for `true` was hang risk on weak hardware.
+        // That is now measured rather than assumed; see engineering notes.
+        noFallback: false,
         suppressNst: true,
         samplingStrategy: 'greedy',
         splitOnWord: true,

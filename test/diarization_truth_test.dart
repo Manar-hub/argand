@@ -174,4 +174,169 @@ void main() {
       expect(score.mismatched, [0, 1]);
     });
   });
+
+  group('turnsFromSentences', () {
+    DiarizationTruth truthOf(List<int> speakers) => DiarizationTruth(
+          clip: 'test',
+          sentences: [
+            for (final (i, speaker) in speakers.indexed)
+              TruthSentence(
+                index: i,
+                startMs: i * 1000,
+                endMs: (i + 1) * 1000,
+                speaker: speaker,
+                text: 's$i',
+              ),
+          ],
+          known: const [],
+        );
+
+    test('merges consecutive sentences on the same speaker', () {
+      final turns = truthOf(const [0, 0, 1, 1, 1, 0]).turns;
+      expect(turns.map((t) => t.speaker), [0, 1, 0]);
+      expect(turns.map((t) => t.startMs), [0, 2000, 5000]);
+      expect(turns.map((t) => t.endMs), [2000, 5000, 6000]);
+    });
+
+    test('never merges across a speaker change', () {
+      final turns = truthOf(const [0, 1, 0, 1]).turns;
+      expect(turns, hasLength(4));
+    });
+
+    test('an explicit turns list wins over the derived one', () {
+      const stated = TruthTurn(startMs: 0, endMs: 9000, speaker: 7);
+      final truth = DiarizationTruth(
+        clip: 'test',
+        sentences: truthOf(const [0, 1]).sentences,
+        known: const [],
+        explicitTurns: const [stated],
+      );
+      expect(truth.turns, hasLength(1));
+      expect(truth.turns.single.speaker, 7);
+    });
+
+    test('the committed fixtures both derive usable turns', () {
+      for (final path in const [
+        'test/fixtures/diarization/alberta.truth.json',
+        'test/fixtures/diarization/two_speakers.truth.json',
+      ]) {
+        final truth =
+            parseDiarizationTruth(File(path).readAsStringSync());
+        expect(truth.turns, isNotEmpty, reason: path);
+        // Turns must not overlap or run backwards, or a midpoint lookup would
+        // depend on list order rather than on time.
+        for (var i = 1; i < truth.turns.length; i++) {
+          expect(
+            truth.turns[i].startMs,
+            greaterThanOrEqualTo(truth.turns[i - 1].endMs),
+            reason: '$path turn $i',
+          );
+        }
+      }
+    });
+  });
+
+  group('speakerAtMs', () {
+    const turns = [
+      TruthTurn(startMs: 0, endMs: 1000, speaker: 0),
+      TruthTurn(startMs: 2000, endMs: 3000, speaker: 1),
+    ];
+
+    test('answers inside a turn', () {
+      expect(speakerAtMs(turns, 500), 0);
+      expect(speakerAtMs(turns, 2500), 1);
+    });
+
+    test('falls back to the nearest turn in a gap', () {
+      // Gaps are an artifact of sentence extents not abutting, not a claim that
+      // nobody is speaking; refusing to answer would penalise a run for that.
+      expect(speakerAtMs(turns, 1100), 0);
+      expect(speakerAtMs(turns, 1900), 1);
+    });
+
+    test('answers null only when there is no truth at all', () {
+      expect(speakerAtMs(const [], 500), isNull);
+    });
+  });
+
+  group('scoreWordsAgainstTruth', () {
+    DiarizationTruth twoTurns() => const DiarizationTruth(
+          clip: 'test',
+          sentences: [],
+          known: [],
+          explicitTurns: [
+            TruthTurn(startMs: 0, endMs: 2000, speaker: 0),
+            TruthTurn(startMs: 2000, endMs: 4000, speaker: 1),
+          ],
+        );
+
+    List<TruthWord> wordsEvery(int count, int stepMs) => [
+          for (var i = 0; i < count; i++)
+            (startMs: i * stepMs, endMs: (i + 1) * stepMs),
+        ];
+
+    test('a perfect run has a zero error rate', () {
+      final score = scoreWordsAgainstTruth(
+        words: wordsEvery(4, 1000),
+        assigned: const [0, 0, 1, 1],
+        truth: twoTurns(),
+      );
+      expect(score.matchedWords, 4);
+      expect(score.errorRate, 0.0);
+      expect(score.mismatchedIndices, isEmpty);
+    });
+
+    test('relabelled clusters still score full marks', () {
+      final score = scoreWordsAgainstTruth(
+        words: wordsEvery(4, 1000),
+        assigned: const [9, 9, 3, 3],
+        truth: twoTurns(),
+      );
+      expect(score.errorRate, 0.0);
+      expect(score.mapping, {9: 0, 3: 1});
+    });
+
+    test('a half-split sentence costs half, not all of it', () {
+      // The resolution the sentence scorer lacks. `two_speakers` #8 is one
+      // sentence diarization splits between two speakers; scored per sentence
+      // that is a total loss and a rule that fixes half of it registers as no
+      // change at all.
+      final score = scoreWordsAgainstTruth(
+        words: wordsEvery(4, 1000),
+        assigned: const [0, 0, 1, 0],
+        truth: twoTurns(),
+      );
+      expect(score.matchedWords, 3);
+      expect(score.mismatchedIndices, [3]);
+    });
+
+    test('an unassigned word counts against the run', () {
+      final score = scoreWordsAgainstTruth(
+        words: wordsEvery(4, 1000),
+        assigned: const [0, 0, null, 1],
+        truth: twoTurns(),
+      );
+      expect(score.mismatchedIndices, [2]);
+    });
+
+    test('the same labels score a re-segmented run', () {
+      // The property the whole time-anchored scheme exists for. Nothing about
+      // these labels mentions sentences, so a decoder that emits twice as many
+      // words over the same audio is scored without re-labelling — which is
+      // precisely what `alberta.mp4` needed and could not have.
+      final coarse = scoreWordsAgainstTruth(
+        words: wordsEvery(4, 1000),
+        assigned: const [0, 0, 1, 1],
+        truth: twoTurns(),
+      );
+      final fine = scoreWordsAgainstTruth(
+        words: wordsEvery(8, 500),
+        assigned: const [0, 0, 0, 0, 1, 1, 1, 1],
+        truth: twoTurns(),
+      );
+      expect(coarse.errorRate, 0.0);
+      expect(fine.errorRate, 0.0);
+      expect(fine.totalWords, 8);
+    });
+  });
 }

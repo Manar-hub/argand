@@ -106,7 +106,7 @@ void main() {
   Future<void> run(
     String wavPath,
     String label, {
-    bool noFallback = true,
+    bool noFallback = false,
     bool suppressNst = true,
     String samplingStrategy = 'greedy',
     bool vad = true,
@@ -197,15 +197,21 @@ void main() {
         wav = await slice(source, sliceStartMs, sliceEndMs);
         log('sliced $sliceStartMs-${sliceEndMs}ms -> ${wav.path}');
       }
-
+      // Row A is the configuration the app actually ships, which it had stopped
+      // being: these defaults still carried `noFallback: true` after production
+      // moved to `false`, so every row was measured against a baseline nothing
+      // ran. Flash attention is a context parameter set natively and on in both
+      // the app and `whisper-cli`, so it is not a row here.
       await run(wav.path, 'A shipped');
-      await run(wav.path, 'B fallback', noFallback: false);
+      await run(wav.path, 'B nofallback-on', noFallback: true);
       await run(wav.path, 'C nst-off', suppressNst: false);
       await run(wav.path, 'D beam', samplingStrategy: 'beam');
       await run(wav.path, 'E vad-off', vad: false);
-      await run(wav.path, 'F fallback+nst',
-          noFallback: false, suppressNst: false);
-      await run(wav.path, 'G no-splitword', splitOnWord: false);
+      await run(wav.path, 'F beam+nst-off',
+          samplingStrategy: 'beam', suppressNst: false);
+      await run(wav.path, 'G beam+nst-off+vad-off',
+          samplingStrategy: 'beam', suppressNst: false, vad: false);
+      await run(wav.path, 'H no-splitword', splitOnWord: false);
     },
     timeout: const Timeout(Duration(minutes: 30)),
   );

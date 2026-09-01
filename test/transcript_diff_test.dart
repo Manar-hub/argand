@@ -93,4 +93,124 @@ void main() {
       expect(compareTranscripts(const [], const []).wer, 0.0);
     });
   });
+
+  group('verbatim tokenization', () {
+    test('keeps the case and punctuation the normalized mode discards', () {
+      expect(
+        transcriptWords(
+          'Chlamydia, like.',
+          tokenization: TranscriptTokenization.verbatim,
+        ),
+        ['Chlamydia,', 'like.'],
+      );
+    });
+
+    test('two transcripts can agree normalized and differ word for word', () {
+      // This is the whole reason the second number exists. A configuration was
+      // recorded as reproducing its reference "exactly, 0.0% WER" while a
+      // word-for-word reading plainly disagreed; the rate was not wrong, it was
+      // answering a narrower question than the one being asked.
+      const reference = 'Yes, of course. It was the first one.';
+      const candidate = 'yes of course it was the first one';
+
+      final normalized = compareTranscripts(
+        transcriptWords(reference),
+        transcriptWords(candidate),
+      );
+      final verbatim = compareTranscripts(
+        transcriptWords(
+          reference,
+          tokenization: TranscriptTokenization.verbatim,
+        ),
+        transcriptWords(
+          candidate,
+          tokenization: TranscriptTokenization.verbatim,
+        ),
+      );
+
+      expect(normalized.wer, 0.0);
+      expect(verbatim.wer, greaterThan(0.0));
+    });
+  });
+
+  group('bracketed tags', () {
+    test('a real timestamp is still stripped', () {
+      expect(
+        transcriptWords(
+          '[00:00:01.000 --> 00:00:02.000] Green.',
+          tokenization: TranscriptTokenization.verbatim,
+        ),
+        ['Green.'],
+      );
+    });
+
+    test('a non-speech tag survives when the caller keeps tags', () {
+      // `suppress_nst` decides whether these appear at all. Stripping them
+      // unconditionally, as this file used to, scored that flag with an
+      // instrument blind to its only effect.
+      expect(
+        transcriptWords('[BLANK_AUDIO]', stripBracketedTags: false),
+        ['blankaudio'],
+      );
+    });
+
+    test('and is dropped by default, preserving the recorded numbers', () {
+      expect(transcriptWords('[BLANK_AUDIO] green'), ['green']);
+    });
+
+    test('a tag difference is invisible by default and visible when kept', () {
+      const reference = 'green explosion';
+      const candidate = '[BLANK_AUDIO] green explosion';
+
+      expect(
+        compareTranscripts(
+          transcriptWords(reference),
+          transcriptWords(candidate),
+        ).wer,
+        0.0,
+      );
+      expect(
+        compareTranscripts(
+          transcriptWords(reference, stripBracketedTags: false),
+          transcriptWords(candidate, stripBracketedTags: false),
+        ).wer,
+        greaterThan(0.0),
+      );
+    });
+  });
+
+  group('comparePunctuation', () {
+    test('identical punctuation reports no delta', () {
+      final delta = comparePunctuation('One. Two, three.', 'One. Two, three.');
+      expect(delta.sentenceEndDelta, 0);
+      expect(delta.clauseEndDelta, 0);
+      expect(delta.sentenceCountMatches, isTrue);
+    });
+
+    test('an extra sentence terminator is reported even when words match', () {
+      // The failure this exists to catch: a decoder change that leaves every
+      // word right but splits one sentence into two. WER cannot see it, and it
+      // re-cuts every sentence unit that speaker assignment attributes whole.
+      const reference = 'No of course yeah that makes sense.';
+      const candidate = 'No, of course. Yeah, that makes sense.';
+
+      expect(
+        compareTranscripts(
+          transcriptWords(reference),
+          transcriptWords(candidate),
+        ).wer,
+        0.0,
+      );
+
+      final delta = comparePunctuation(reference, candidate);
+      expect(delta.sentenceEndDelta, 1);
+      expect(delta.sentenceCountMatches, isFalse);
+    });
+
+    test('counts clause terminators separately from sentence ones', () {
+      final delta = comparePunctuation('One two three.', 'One, two, three.');
+      expect(delta.sentenceEndDelta, 0);
+      expect(delta.clauseEndDelta, 2);
+    });
+  });
 }

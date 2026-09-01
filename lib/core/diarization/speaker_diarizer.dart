@@ -78,6 +78,19 @@ class SpeakerDiarizer {
   /// current value.
   static const double defaultClusteringThreshold = 0.75;
 
+  /// How many speakers to find, or -1 to work it out.
+  ///
+  /// -1 is the only honest default for arbitrary imported media: the speaker
+  /// count is exactly what we do not know. It is injectable because it is a
+  /// **real and independent lever** — Phase 3.4 measured every other sherpa
+  /// parameter as inert on `alberta.mp4` while `numClusters` moved the result
+  /// on `syria.mp4`, where the threshold does nothing. Without a way to vary
+  /// it, "is this clip collapsing because segmentation missed the turns, or
+  /// because clustering merged them?" cannot be answered.
+  ///
+  /// Do not ship a fixed value. A wrong count is worse than an inferred one.
+  static const int defaultNumClusters = -1;
+
   /// Shortest turn the engine will keep, in seconds.
   ///
   /// Segments shorter than this are discarded outright
@@ -137,6 +150,7 @@ class SpeakerDiarizer {
     double clusteringThreshold = defaultClusteringThreshold,
     double minDurationOn = defaultMinDurationOn,
     double minDurationOff = defaultMinDurationOff,
+    int numClusters = defaultNumClusters,
   }) async {
     await ensureModelsReady();
     // Resolved here rather than inside the isolate: path_provider is a
@@ -158,6 +172,7 @@ class SpeakerDiarizer {
         clusteringThreshold: clusteringThreshold,
         minDurationOn: minDurationOn,
         minDurationOff: minDurationOff,
+        numClusters: numClusters,
         progress: progress.sendPort,
       );
     } finally {
@@ -186,6 +201,7 @@ class SpeakerDiarizer {
     required double clusteringThreshold,
     required double minDurationOn,
     required double minDurationOff,
+    required int numClusters,
     required SendPort progress,
   }) {
     return Isolate.run(
@@ -196,6 +212,7 @@ class SpeakerDiarizer {
         clusteringThreshold: clusteringThreshold,
         minDurationOn: minDurationOn,
         minDurationOff: minDurationOff,
+        numClusters: numClusters,
         progress: progress,
       ),
     );
@@ -209,6 +226,7 @@ List<SpeakerSpan>? _runDiarization({
   required double clusteringThreshold,
   required double minDurationOn,
   required double minDurationOff,
+  required int numClusters,
   required SendPort progress,
 }) {
   sherpa.initBindings();
@@ -262,11 +280,13 @@ List<SpeakerSpan>? _runDiarization({
         // is the only honest setting for arbitrary imported media -- the count
         // is exactly what we do not know. The threshold then decides how
         // readily two stretches are called the same person: higher merges more,
-        // yielding fewer speakers. 0.5 is sherpa's own default and is
-        // untuned here; tune it against real multi-speaker media before
+        // yielding fewer speakers. sherpa's own default of 0.5 over-split a
+        // real two-speaker clip; 0.75 is measured rather than defaulted, and
+        // sits equidistant from both observed failures. See the sweep in
+        // docs/engineering-notes.md, and re-measure on new material before
         // changing it, because both failure directions are silent.
         clustering: sherpa.FastClusteringConfig(
-          numClusters: -1,
+          numClusters: numClusters,
           threshold: clusteringThreshold,
         ),
         minDurationOn: minDurationOn,

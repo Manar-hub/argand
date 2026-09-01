@@ -44,6 +44,6 @@
     {"i": 23, "startMs": 39650, "endMs": 41850, "speaker": 0, "text": "I don't want any more happy bills coming in my way."}
   ],
   "unreachable": [
-    {"i": 6, "why": "No cluster-1 span touches 7920-9400. The only span covering it is 0:7203-12552, and pyannote reports no second-speaker activity anywhere between 7861 and 12468. No reconciliation rule can attribute a word to a speaker segmentation never reported, so 23/24 is the ceiling until segmentation changes."}
+    {"i": 6, "why": "STALE REASON, ENTRY KEPT PENDING A RUN. The original finding was that no cluster-1 span touches 7920-9400 -- the only span covering it is 0:7203-12552, and pyannote reports no second-speaker activity between 7861 and 12468 -- so span geometry alone could never reach it and 23/24 was the ceiling. Phase 3.5 then reached it acoustically with CAM++, which is a different kind of evidence than the reasoning here considered. The entry is left in place because removing it would weaken the gate on an unverified belief; drop it once a device run confirms #6 passes. See docs/progress.md on why a recorded score is re-derived rather than trusted."}
   ]
 }

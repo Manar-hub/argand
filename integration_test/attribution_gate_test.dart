@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:argand/core/diarization/speaker_assignment.dart';
 import 'package:argand/core/diarization/speaker_diarizer.dart';
 import 'package:argand/core/diarization/speaker_refiner.dart';
+import 'package:argand/core/diarization/speaker_span.dart';
 import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/text/sentence_boundaries.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
@@ -27,17 +28,23 @@ import 'support/diarization_truth.dart';
 /// makes, in the same order — and scores the result against the committed
 /// labels with [scoreAgainstTruth].
 ///
-/// **What a pass means.** Not "the score is high" but "no *new* sentence is
-/// wrong". Both fixtures document their known failures, and re-failing those is
-/// the measured status quo of this toolchain; failing anything else is damage.
+/// **What it scores, and why that changed.** The primary number is now
+/// *word-level*: each word's speaker against the time-anchored turns derived
+/// from the labels. Sentence indices belong to one segmentation — the fixtures
+/// say so themselves — so any decoder change re-cut the transcript and made the
+/// old score unscoreable. Time cannot be re-cut, so beam search, a different
+/// model and a different VAD setting are all measurable against the same
+/// labels, without the re-labelling that had blocked them.
 ///
-/// **What a "not comparable" result means, and why it is not a bug.** Ground
-/// truth belongs to one segmentation. The fixtures say so themselves: sentence
-/// indices are over whisper's output with silence skipping on and the bundled
-/// base model. A configuration that changes how whisper cuts the clip into
-/// sentences cannot be scored against these labels at all, and the scorer says
-/// so rather than inventing a number by mapping sentences on time overlap —
-/// a trap this project already fell into once and recorded.
+/// **What a pass means.** The word error rate is at or under the floor the
+/// fixture records, and — when the sentence counts still line up — no *new*
+/// sentence is wrong. Documented failures are the measured status quo of this
+/// toolchain; failing anything else is damage.
+///
+/// **A gate that cannot fail is not a gate.** This used to return early when
+/// the sentence count disagreed, which meant `alberta.mp4` passed without being
+/// scored at all for as long as its labels had been stale. Now an unmeasured
+/// clip fails and tells you to record its floor.
 ///
 /// Fixtures, all pushed to a world-readable path the app sandbox can open:
 ///
@@ -55,38 +62,41 @@ void main() {
 
   void log(String message) => debugPrint('GATE $message');
 
-  /// Runs the full import pipeline and returns one speaker id per sentence.
+  /// Runs the full import pipeline and returns everything scoring needs.
   ///
   /// Mirrors `import_controller.dart`: diarize, assign, refine, re-assign. The
   /// refinement step is included because it is what actually produces the
   /// committed scores — grading the unrefined spans would measure a pipeline
   /// the app does not run.
-  Future<List<int?>> attributionBySentence(String mediaPath) async {
-    final isWav = mediaPath.toLowerCase().endsWith('.wav');
-    final media = await converter.importToAppStorage(
-      projectId: 'attribution-gate',
-      fileName: mediaPath.split('/').last,
-      bytes: File(mediaPath).openRead(),
-    );
-    final wav = isWav
-        ? media
-        : await converter.extractWavForTranscription(media.path);
-
-    final model = await const WhisperModelCatalog().resolve(null);
-    expect(model, isNotNull, reason: 'no model bundled in this build');
-
+  ///
+  /// Returns words and their per-word assignment alongside the per-sentence
+  /// roll-up, because the two answer different questions: words are scoreable
+  /// against any segmentation, sentences only against the one they were
+  /// labelled on.
+  Future<({
+    List<TruthWord> words,
+    List<int?> assigned,
+    List<int?> perSentence,
+  })> attributionOf(
+    String wavPath,
+    List<SpeakerSpan> baseSpans,
+    WhisperModelDescriptor model,
+  ) async {
     final result = await WhisperService().transcribeWav(
-      wav.path,
-      model: model!,
+      wavPath,
+      model: model,
       language: TranscriptionLanguage.auto,
       skipSilence: true,
     );
     final words = wordTimingsOf(result);
 
-    var spans = await SpeakerDiarizer().diarize(wav.path) ?? const [];
+    // Diarization never sees whisper, so the spans are supplied rather than
+    // recomputed: holding them fixed is what isolates the model's effect, which
+    // is entirely on word timings and therefore on refinement regions.
+    var spans = baseSpans;
     if (spans.isNotEmpty) {
       final refined = await SpeakerRefiner().refine(
-        wavPath: wav.path,
+        wavPath: wavPath,
         spans: spans,
         words: words,
         assigned: assignSpeakers(words, spans),
@@ -122,7 +132,57 @@ void main() {
       perSentence.add(winner);
       start = i + 1;
     }
-    return perSentence;
+
+    return (
+      words: [
+        for (final word in words) (startMs: word.startMs, endMs: word.endMs),
+      ],
+      assigned: assigned,
+      perSentence: perSentence,
+    );
+  }
+
+  /// The gate itself, applied per model.
+  ///
+  /// A word-level floor is checked on every run rather than only when sentence
+  /// counts happen to line up. This previously returned early on an
+  /// incomparable sentence count, so `alberta.mp4` — 25 sentences against 24
+  /// labels since long before this work — passed without being scored at all.
+  /// A gate that cannot fail is not a gate, so an unmeasured case is an
+  /// explicit failure telling you to record a floor.
+  ///
+  /// The floor is per fixture, not per model, and that is deliberate: the
+  /// requirement is that **no** bundled model regresses, so the weakest one has
+  /// to clear the same bar.
+  void checkGate(
+    String tag,
+    DiarizationTruth truth,
+    WordTruthScore words,
+    TruthScore score,
+  ) {
+    final floor = truth.maxWordErrorRate;
+    if (floor == null) {
+      fail('$tag has no maxWordErrorRate in its labels, so nothing here can '
+          'fail. Observed word error rate is '
+          '${(words.errorRate * 100).toStringAsFixed(2)}% -- record it in '
+          "${truth.clip}'s fixture to arm the gate.");
+    }
+
+    expect(
+      words.errorRate,
+      lessThanOrEqualTo(floor),
+      reason: 'word-level speaker attribution regressed against the committed '
+          'floor, on $tag',
+    );
+
+    if (score.comparable) {
+      expect(
+        score.newMismatches,
+        isEmpty,
+        reason: 'new sentences are misattributed on $tag that the committed '
+            'labels do not document as known failures',
+      );
+    }
   }
 
   for (final (clip, truthFile) in const [
@@ -139,35 +199,69 @@ void main() {
             reason: 'adb push $truthFile first');
 
         final truth = parseDiarizationTruth(await labels.readAsString());
-        final observed = await attributionBySentence(media.path);
-        final score = scoreAgainstTruth(observed: observed, truth: truth);
 
-        log('$clip $score');
-        log('$clip clusters=${score.observedClusters} '
-            'mapping=${score.mapping}');
-
-        if (!score.comparable) {
-          log('$clip NOT COMPARABLE -- ${score.incomparableReason}');
-          log('$clip this is a segmentation change, not necessarily a '
-              'regression; the clip needs re-labelling to be scored');
-          return;
-        }
-
-        for (final i in score.mismatched) {
-          final sentence = truth.sentences[i];
-          final tag = score.knownIndices.contains(i) ? 'known' : 'NEW';
-          log('$clip  [$tag] #$i expected spk${sentence.speaker} '
-              'got ${observed[i]}  "${sentence.text}"');
-        }
-
-        // The gate itself. Documented failures are the status quo; anything
-        // else is a regression introduced by whatever changed.
-        expect(
-          score.newMismatches,
-          isEmpty,
-          reason: 'new sentences are misattributed that the committed labels '
-              'do not document as known failures',
+        // Converted and diarized once, then held fixed across models. Spans do
+        // not depend on whisper, so recomputing them per model would only add
+        // cost and noise.
+        final imported = await converter.importToAppStorage(
+          projectId: 'attribution-gate',
+          fileName: clip,
+          bytes: media.openRead(),
         );
+        final wav = clip.toLowerCase().endsWith('.wav')
+            ? imported
+            : await converter.extractWavForTranscription(imported.path);
+        final baseSpans =
+            await SpeakerDiarizer().diarize(wav.path) ?? const <SpeakerSpan>[];
+
+        // **Every bundled model, not just the default.** This gate previously
+        // called `resolve(null)`, which resolves to `base`, and reported its
+        // result as if it were general -- while `small-q5_1` was failing two
+        // sentences on this very clip. A single-model gate manufactures false
+        // passes, because refinement regions are sentence extents and the
+        // models cut sentences differently.
+        final models = await const WhisperModelCatalog().available();
+        expect(models, isNotEmpty, reason: 'no model bundled in this build');
+
+        for (final model in models) {
+          final tag = '$clip/${model.id}';
+          final run = await attributionOf(wav.path, baseSpans, model);
+
+          // The primary number. Anchored to time, so it survives any decoder
+          // change that re-cuts the transcript into different sentences.
+          final words = scoreWordsAgainstTruth(
+            words: run.words,
+            assigned: run.assigned,
+            truth: truth,
+          );
+          log('$tag WORDS $words  mapping=${words.mapping} '
+              'clusters=${words.observedClusters}');
+
+          // The sentence roll-up, kept because every recorded figure in
+          // docs/progress.md is in these units and continuity is worth
+          // something.
+          final score = scoreAgainstTruth(
+            observed: run.perSentence,
+            truth: truth,
+          );
+          log('$tag SENTENCES $score');
+
+          if (score.comparable) {
+            for (final i in score.mismatched) {
+              final sentence = truth.sentences[i];
+              final label = score.knownIndices.contains(i) ? 'known' : 'NEW';
+              log('$tag  [$label] #$i expected spk${sentence.speaker} '
+                  'got ${run.perSentence[i]}  "${sentence.text}"');
+            }
+          } else {
+            log('$tag sentences NOT COMPARABLE -- ${score.incomparableReason}');
+            log('$tag that is a segmentation change; the word score above is '
+                'unaffected and is what this gate now judges');
+          }
+
+          checkGate(tag, truth, words, score);
+        }
+
       },
       timeout: const Timeout(Duration(minutes: 20)),
     );

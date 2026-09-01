@@ -58,16 +58,44 @@ class DiarizationTruth {
     required this.clip,
     required this.sentences,
     required this.known,
+    this.explicitTurns,
+    this.maxWordErrorRate,
   });
 
   final String clip;
   final List<TruthSentence> sentences;
   final List<KnownIssue> known;
 
+  /// The worst word error rate this clip is allowed to score.
+  ///
+  /// Written into the fixture once measured, so the gate has something to fail
+  /// against on every run rather than only when sentence counts happen to line
+  /// up. Null means unmeasured — the gate then says so loudly instead of
+  /// passing, because a gate that cannot fail is not a gate.
+  final double? maxWordErrorRate;
+
+  /// Turns stated outright by the fixture. Null means derive them.
+  final List<TruthTurn>? explicitTurns;
+
+  /// Time-anchored ground truth for this clip.
+  ///
+  /// A fixture may state `turns` directly — which is how a clip labelled from
+  /// scratch should be written, since turns are the honest unit. Older fixtures
+  /// carry only `sentences`, and those are merged into turns on read, so both
+  /// generations score the same way and no file has to be rewritten to gain
+  /// decoder independence.
+  List<TruthTurn> get turns =>
+      explicitTurns ?? turnsFromSentences(sentences);
+
   Set<int> get knownIndices => {for (final issue in known) issue.index};
 
   /// Distinct speakers a human identified in this clip.
-  Set<int> get speakers => {for (final s in sentences) s.speaker};
+  ///
+  /// Read off [turns] rather than [sentences], so a fixture labelled purely as
+  /// turns — the form a newly labelled clip should take — reports its speakers
+  /// like any other. Merging never changes the set, so this is unchanged for
+  /// sentence-labelled fixtures.
+  Set<int> get speakers => {for (final t in turns) t.speaker};
 }
 
 /// Parses a `*.truth.json` fixture.
@@ -100,10 +128,28 @@ DiarizationTruth parseDiarizationTruth(String jsonText) {
     }
   }
 
+  // A fixture may state turns outright. When it does they are authoritative and
+  // sentences become provenance only; when it does not, `DiarizationTruth.turns`
+  // derives them by merging same-speaker runs.
+  final rawTurns = root['turns'] as List<dynamic>?;
+  final turns = rawTurns == null
+      ? null
+      : [
+          for (final entry in rawTurns)
+            if (entry is Map<String, dynamic>)
+              TruthTurn(
+                startMs: entry['startMs'] as int,
+                endMs: entry['endMs'] as int,
+                speaker: entry['speaker'] as int,
+              ),
+        ];
+
   return DiarizationTruth(
     clip: root['clip'] as String? ?? 'unknown',
     sentences: sentences,
     known: known,
+    explicitTurns: turns,
+    maxWordErrorRate: (root['maxWordErrorRate'] as num?)?.toDouble(),
   );
 }
 
@@ -281,5 +327,240 @@ TruthScore scoreAgainstTruth({
     mapping: bestMapping,
     observedClusters: observedIds.length,
     comparable: true,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Time-anchored truth
+// ---------------------------------------------------------------------------
+
+/// A contiguous stretch of one speaker, in milliseconds.
+///
+/// **Why this exists, and why it is the important type here.** Sentence indices
+/// were the original unit of ground truth, and they carry a fatal property:
+/// they belong to one segmentation. Change the decoder — beam search,
+/// `suppress_nst`, a different model — and whisper re-cuts its sentences, so a
+/// fixture labelled `i: 22` no longer refers to the same audio. `44ff53e`
+/// records the consequence in full: a run was scored by mapping one
+/// segmentation's sentences onto another's by time overlap, which averaged a
+/// visibly wrong sentence away, and the conclusion drawn was "a model needs its
+/// own labels".
+///
+/// A turn is anchored to *time*, which no decoder change can move. The same
+/// labels therefore score any segmentation, which is what makes an accuracy
+/// lever like beam search measurable at all rather than permanently blocked
+/// behind a re-labelling nobody can face.
+class TruthTurn {
+  const TruthTurn({
+    required this.startMs,
+    required this.endMs,
+    required this.speaker,
+  });
+
+  final int startMs;
+  final int endMs;
+  final int speaker;
+
+  bool containsMs(int ms) => ms >= startMs && ms < endMs;
+
+  /// Distance from [ms] to this turn, zero when inside it.
+  int gapToMs(int ms) {
+    if (ms < startMs) return startMs - ms;
+    if (ms >= endMs) return ms - endMs + 1;
+    return 0;
+  }
+}
+
+/// Merges runs of consecutive same-speaker sentences into turns.
+///
+/// **This conversion adds no assumptions.** Merging only ever happens *within*
+/// one speaker, so it cannot invent a boundary that the labels did not already
+/// assert; the result is exactly as trustworthy as the sentence labels it came
+/// from. That is what lets existing fixtures become decoder-independent with no
+/// fresh listening — including `alberta.mp4`, whose labels went stale when one
+/// labelled sentence later split in two. Both halves sit inside the same turn
+/// and inherit the same speaker, which is the correct answer precisely because
+/// the original label asserted one speaker across that whole time range.
+List<TruthTurn> turnsFromSentences(List<TruthSentence> sentences) {
+  final turns = <TruthTurn>[];
+  for (final sentence in sentences) {
+    if (turns.isNotEmpty && turns.last.speaker == sentence.speaker) {
+      final open = turns.removeLast();
+      turns.add(TruthTurn(
+        startMs: open.startMs,
+        endMs: sentence.endMs,
+        speaker: open.speaker,
+      ));
+      continue;
+    }
+    turns.add(TruthTurn(
+      startMs: sentence.startMs,
+      endMs: sentence.endMs,
+      speaker: sentence.speaker,
+    ));
+  }
+  return turns;
+}
+
+/// The speaker labelled at [ms], or null when there are no turns at all.
+///
+/// Falls back to the nearest turn when [ms] lands in a gap between them, the
+/// same shape as `speakerForWord`'s nearest-span fallback: gaps are an artifact
+/// of sentence extents not quite abutting, not a claim that nobody is speaking,
+/// and refusing to answer there would penalise a run for a labelling artifact.
+int? speakerAtMs(List<TruthTurn> turns, int ms) {
+  if (turns.isEmpty) return null;
+  for (final turn in turns) {
+    if (turn.containsMs(ms)) return turn.speaker;
+  }
+
+  TruthTurn? nearest;
+  var nearestGap = -1;
+  for (final turn in turns) {
+    final gap = turn.gapToMs(ms);
+    if (nearestGap < 0 || gap < nearestGap) {
+      nearestGap = gap;
+      nearest = turn;
+    }
+  }
+  return nearest?.speaker;
+}
+
+/// A word as scoring needs to see it: when it was said.
+typedef TruthWord = ({int startMs, int endMs});
+
+/// The result of scoring a run's words against time-anchored truth.
+class WordTruthScore {
+  const WordTruthScore({
+    required this.matchedWords,
+    required this.scoredWords,
+    required this.totalWords,
+    required this.mapping,
+    required this.observedClusters,
+    required this.mismatchedIndices,
+  });
+
+  /// Words whose mapped speaker equals the labelled speaker.
+  final int matchedWords;
+
+  /// Words truth had an answer for. Equal to [totalWords] whenever the fixture
+  /// covers the clip, which it should.
+  final int scoredWords;
+
+  final int totalWords;
+  final Map<int, int> mapping;
+  final int observedClusters;
+
+  /// Indices into the word list that were attributed wrongly, in order.
+  final List<int> mismatchedIndices;
+
+  double get accuracy => scoredWords == 0 ? 0 : matchedWords / scoredWords;
+
+  /// The headline number: the fraction of speech attributed to the wrong voice.
+  double get errorRate => 1 - accuracy;
+
+  @override
+  String toString() => '$matchedWords/$scoredWords words '
+      '(${(errorRate * 100).toStringAsFixed(1)}% wrong)'
+      '${scoredWords == totalWords ? '' : ', $totalWords total'}';
+}
+
+/// Scores per-word attribution against time-anchored truth.
+///
+/// **Why words and not sentences.** A sentence score is all-or-nothing, so a
+/// sentence that diarization splits between two speakers costs exactly as much
+/// as one attributed wholly to the wrong person — and, worse, moves in whole
+/// units when a decoder change re-cuts the sentences underneath it. Words are
+/// the finest thing both the pipeline and the labels agree on, so a rule that
+/// fixes half a split sentence shows up as progress rather than as nothing.
+///
+/// Cluster ids from diarization are arbitrary per run (`SpeakerSpan.speaker` is
+/// documented as stable only within one run over one file), so the best
+/// agreeing map from observed ids to truth ids is searched for, exactly as the
+/// sentence scorer does. The mapping is not required to be injective — an
+/// over-segmented run should still score what it got right — but ties prefer a
+/// bijection, since a collapsing map that ties with one describes the run
+/// dishonestly.
+WordTruthScore scoreWordsAgainstTruth({
+  required List<TruthWord> words,
+  required List<int?> assigned,
+  required DiarizationTruth truth,
+}) {
+  final turns = truth.turns;
+
+  // Truth answer per word, by midpoint. The midpoint rather than either edge
+  // because whisper's word times drift at the edges, which is exactly where the
+  // neighbouring speaker is.
+  final expected = <int, int>{};
+  for (var i = 0; i < words.length; i++) {
+    final word = words[i];
+    final mid = word.startMs + (word.endMs - word.startMs) ~/ 2;
+    final speaker = speakerAtMs(turns, mid);
+    if (speaker != null) expected[i] = speaker;
+  }
+
+  final observedIds = <int>{for (final a in assigned) ?a}.toList()..sort();
+  final truthIds = truth.speakers.toList()..sort();
+
+  if (observedIds.isEmpty || truthIds.isEmpty || observedIds.length > 6) {
+    return WordTruthScore(
+      matchedWords: 0,
+      scoredWords: expected.length,
+      totalWords: words.length,
+      mapping: const {},
+      observedClusters: observedIds.length,
+      mismatchedIndices: expected.keys.toList()..sort(),
+    );
+  }
+
+  var bestMatched = -1;
+  var bestInjective = false;
+  var bestMapping = <int, int>{};
+
+  void consider(Map<int, int> mapping) {
+    var matched = 0;
+    for (final entry in expected.entries) {
+      final observed = entry.key < assigned.length ? assigned[entry.key] : null;
+      if (observed != null && mapping[observed] == entry.value) matched++;
+    }
+    final injective = mapping.values.toSet().length == mapping.length;
+    if (matched > bestMatched ||
+        (matched == bestMatched && injective && !bestInjective)) {
+      bestMatched = matched;
+      bestInjective = injective;
+      bestMapping = Map.of(mapping);
+    }
+  }
+
+  void recurse(int at, Map<int, int> current) {
+    if (at == observedIds.length) {
+      consider(current);
+      return;
+    }
+    for (final t in truthIds) {
+      current[observedIds[at]] = t;
+      recurse(at + 1, current);
+      current.remove(observedIds[at]);
+    }
+  }
+
+  recurse(0, {});
+
+  final mismatched = <int>[];
+  for (final entry in expected.entries) {
+    final observed = entry.key < assigned.length ? assigned[entry.key] : null;
+    if (observed == null || bestMapping[observed] != entry.value) {
+      mismatched.add(entry.key);
+    }
+  }
+  mismatched.sort();
+
+  return WordTruthScore(
+    matchedWords: bestMatched < 0 ? 0 : bestMatched,
+    scoredWords: expected.length,
+    totalWords: words.length,
+    mapping: bestMapping,
+    observedClusters: observedIds.length,
+    mismatchedIndices: mismatched,
   );
 }

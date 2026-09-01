@@ -1130,4 +1130,127 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 30)),
   );
+
+  testWidgets(
+    'collapse: why does guess.mp4 lose speakers',
+    (tester) async {
+      // On guess.mp4 -- a group talking fast and interrupting each other --
+      // several speakers collapse onto one. That has two opposite causes and
+      // they need opposite fixes:
+      //
+      //   * segmentation never sees the interruptions, in which case a second
+      //     boundary source (whisper's turn dashes) has something to add; or
+      //   * segmentation finds them and *clustering* merges them, in which case
+      //     the fix is a parameter and a new mechanism would be working around
+      //     a tuning problem.
+      //
+      // This prints the evidence to tell them apart: the raw span boundaries
+      // regardless of label, then what the two clustering levers do to the
+      // speaker count. `numClusters` matters because Phase 3.4 measured every
+      // other sherpa parameter as inert on alberta while this one moved
+      // syria.mp4, where the threshold does nothing.
+      //
+      // For comparison, whisper's turn dashes on this clip were measured
+      // natively at 34 markers (small-q5_1, suppress_nst off, beam or VAD off),
+      // and scored 16/16 recall against alberta's labels but only 1/10 against
+      // two_speakers -- high precision, unreliable recall.
+      const guess = '/data/local/tmp/guess.mp4';
+      final source = File(guess);
+      expect(await source.exists(), isTrue, reason: 'adb push guess.mp4 first');
+
+      final media = await converter.importToAppStorage(
+        projectId: 'collapse-probe',
+        fileName: 'guess.mp4',
+        bytes: source.openRead(),
+      );
+      final wav = await converter.extractWavForTranscription(media.path);
+      debugPrint('COLLAPSE wav=${wav.path}');
+
+      // Where the default configuration reports no speaker change at all, from
+      // the first run of this probe. These are the measurement that matters:
+      // total span count can move while both dead zones stay empty, which would
+      // look like progress and be none.
+      const deadZones = [(31, 14543), (50690, 72357)];
+
+      /// Boundaries regardless of which cluster a span was given. This is the
+      /// half of the question clustering cannot affect: if a turn time is
+      /// absent here, segmentation did not report it at all.
+      Future<void> report(String label, List<SpeakerSpan>? spans) async {
+        if (spans == null) {
+          debugPrint('COLLAPSE $label -> null (over the duration cap)');
+          return;
+        }
+        final speakers = {for (final s in spans) s.speaker};
+        final edges = <int>{};
+        for (final s in spans) {
+          edges..add(s.startMs)..add(s.endMs);
+        }
+        final sorted = edges.toList()..sort();
+
+        final inDead = [
+          for (final (from, to) in deadZones)
+            sorted.where((e) => e > from && e < to).length,
+        ];
+
+        // Overlapped time: where two spans cover the same instant, that is
+        // cross-talk, observable without frame-level posteriors.
+        var overlapMs = 0;
+        for (var i = 0; i < spans.length; i++) {
+          for (var j = i + 1; j < spans.length; j++) {
+            final from =
+                spans[i].startMs > spans[j].startMs ? spans[i].startMs : spans[j].startMs;
+            final to =
+                spans[i].endMs < spans[j].endMs ? spans[i].endMs : spans[j].endMs;
+            if (to > from) overlapMs += to - from;
+          }
+        }
+
+        debugPrint('COLLAPSE $label spans=${spans.length} '
+            'speakers=${speakers.length} boundaries=${sorted.length} '
+            'inDeadZones=${inDead.join("+")} overlapMs=$overlapMs');
+        debugPrint('COLLAPSE $label edges=${sorted.join(",")}');
+      }
+
+      await report('default', await SpeakerDiarizer().diarize(wav.path));
+
+      for (final threshold in const [0.5, 0.6, 0.7, 0.8, 0.9]) {
+        await report(
+          'thr=$threshold',
+          await SpeakerDiarizer()
+              .diarize(wav.path, clusteringThreshold: threshold),
+        );
+      }
+
+      // Forcing the count is the direct test of "did segmentation find them?".
+      // If asking for 4 speakers produces four well-separated clusters, the
+      // turns were there and clustering merged them.
+      for (final n in const [2, 3, 4, 5]) {
+        await report(
+          'n=$n',
+          await SpeakerDiarizer().diarize(wav.path, numClusters: n),
+        );
+      }
+
+      // The duration levers, which act *before* clustering and are the only
+      // ones that can add a boundary rather than relabel one.
+      //
+      // minDurationOn discards any segment shorter than itself outright, so at
+      // the 0.2 default every turn under 200ms is deleted before clustering
+      // ever sees it — exactly the length of an interruption. minDurationOff
+      // bridges gaps below itself, per speaker and without regard for who
+      // spoke in between, so lowering it should *stop* turns being swallowed.
+      //
+      // Judge these by inDeadZones, not by span count.
+      for (final on in const [0.05, 0.1, 0.2]) {
+        for (final off in const [0.0, 0.1, 0.5]) {
+          await report(
+            'on=$on/off=$off',
+            await SpeakerDiarizer()
+                .diarize(wav.path, minDurationOn: on, minDurationOff: off),
+          );
+        }
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 45)),
+  );
 }

@@ -1,4 +1,4 @@
-import '../text/sentence_boundaries.dart';
+import '../text/sentence_units.dart';
 import 'speaker_span.dart';
 
 /// Maps transcribed words onto diarized speaker spans.
@@ -152,13 +152,10 @@ List<int?> assignSpeakers(
 
   if (spans.isEmpty) return assigned;
 
-  var sentenceStart = 0;
-  for (var i = 0; i < words.length; i++) {
-    final isLast = i == words.length - 1;
-    if (!endsSentence(words[i].text) && !isLast) continue;
-
-    _smoothSentence(assigned, sentenceStart, i, smoothing);
-    sentenceStart = i + 1;
+  // Sentences come from the shared cut in `sentence_units.dart`, the same one
+  // refinement uses, so both stages always mean the same thing by "sentence".
+  for (final sentence in sentenceUnitsOf(words)) {
+    _smoothSentence(assigned, sentence.first, sentence.last, smoothing);
   }
 
   return assigned;

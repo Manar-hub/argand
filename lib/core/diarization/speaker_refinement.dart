@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import '../text/sentence_boundaries.dart';
+import '../text/sentence_units.dart';
 import 'speaker_assignment.dart';
 import 'speaker_span.dart';
 
@@ -240,20 +240,11 @@ RefinementPlan planRefinement({
     return const RefinementPlan(references: {}, candidates: []);
   }
 
-  // Sentence extents, and which speaker currently holds each.
-  final sentences = <({int startMs, int endMs, int first, int last})>[];
-  var start = 0;
-  for (var i = 0; i < words.length; i++) {
-    final isLast = i == words.length - 1;
-    if (!endsSentence(words[i].text) && !isLast) continue;
-    sentences.add((
-      startMs: words[start].startMs,
-      endMs: words[i].endMs,
-      first: start,
-      last: i,
-    ));
-    start = i + 1;
-  }
+  // Sentence extents, and which speaker currently holds each. Cut by the shared
+  // rule in `sentence_units.dart` so refinement and assignment cannot disagree
+  // about where a sentence begins — if they did, a decision measured on one
+  // region would be recorded against a different range of words.
+  final sentences = sentenceUnitsOf(words);
 
   // Median rather than mean: diarization emits a few very long spans and many
   // short ones, and a mean would be dragged upward by exactly the spans this
@@ -454,10 +445,13 @@ RefinementOutcome decideOne({
 /// speaker.
 ///
 /// **Inserting a span is not enough, and getting this wrong makes the whole
-/// pass a silent no-op.** [speakerForWord] takes the longest overlap and breaks
-/// ties toward the *longer* span, so a freshly inserted 1.5s span sitting
-/// inside a 5.3s span of the previous speaker loses every word it was created
-/// to claim — indistinguishable from the pass finding nothing.
+/// pass a silent no-op.** [speakerForWord] scores each span by the fraction of
+/// the word it covers, so a word already covered completely by the previous
+/// speaker's span scores 1.0 there — a freshly inserted span covering the same
+/// word only ties, and a tie is decided on span length rather than on the fact
+/// that a decision was just made about this region. The new span can therefore
+/// lose every word it was created to claim, indistinguishable from the pass
+/// finding nothing.
 ///
 /// So the region is first carved out of every span belonging to anyone else: a
 /// span straddling it is split into the part before and the part after, and

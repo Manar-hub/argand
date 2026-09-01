@@ -18,6 +18,7 @@
 library;
 
 import 'repetition.dart' show normalizeForRepetition;
+import 'sentence_boundaries.dart';
 
 /// One aligned difference between a reference and a candidate transcript.
 enum EditKind { substitution, insertion, deletion }
@@ -81,20 +82,62 @@ class TranscriptComparison {
       'over $referenceWords words)';
 }
 
+/// How a transcript is split into comparable tokens.
+///
+/// The distinction is load-bearing, not cosmetic. A normalized comparison
+/// answers "did the engine hear the right word"; a verbatim one also asks
+/// whether it wrote that word the same way. The two can disagree completely —
+/// a run scoring 0.0% normalized can still differ from its reference in case
+/// and punctuation across most sentences, which is how a configuration came to
+/// be recorded as reproducing the reference "exactly" while a word-for-word
+/// reading plainly did not agree.
+enum TranscriptTokenization {
+  /// Case folded, punctuation stripped. `"Chlamydia,"` and `"chlamydia"` are
+  /// the same result; `"Climidial"` is not.
+  normalized,
+
+  /// Exactly as written, split on whitespace only. Case and punctuation count
+  /// as differences.
+  verbatim,
+}
+
 /// Splits a transcript into comparable words.
 ///
-/// Normalises case and punctuation, because the question is whether the engine
-/// heard the right word — `"Chlamydia,"` and `"chlamydia"` are the same result,
-/// while `"Climidial"` is not. Tokens that normalise to nothing (stray `-`, `♪`)
-/// are dropped rather than counted as errors.
-List<String> transcriptWords(String text) => text
-    .replaceAll(_timestamp, ' ')
-    .split(RegExp(r'\s+'))
-    .map(normalizeForRepetition)
-    .where((word) => word.isNotEmpty)
-    .toList(growable: false);
+/// [tokenization] chooses whether case and punctuation are differences.
+///
+/// [stripBracketedTags] removes non-timestamp brackets such as `[BLANK_AUDIO]`
+/// and `[LAUGHTER]`. It defaults to true because that is what this function has
+/// always done and the recorded numbers assume it — but it must be **false**
+/// when measuring `suppress_non_speech_tokens`, whose entire effect is whether
+/// those tags are emitted. Scoring that flag with them stripped measures it
+/// with an instrument that cannot see it.
+List<String> transcriptWords(
+  String text, {
+  TranscriptTokenization tokenization = TranscriptTokenization.normalized,
+  bool stripBracketedTags = true,
+}) {
+  var cleaned = text.replaceAll(_timestamp, ' ');
+  if (stripBracketedTags) {
+    cleaned = cleaned.replaceAll(_bracketedTag, ' ');
+  }
 
-final RegExp _timestamp = RegExp(r'\[[^\]]*\]');
+  final tokens = cleaned.split(RegExp(r'\s+'));
+  final mapped = switch (tokenization) {
+    TranscriptTokenization.normalized => tokens.map(normalizeForRepetition),
+    TranscriptTokenization.verbatim => tokens.map((token) => token.trim()),
+  };
+  return mapped.where((word) => word.isNotEmpty).toList(growable: false);
+}
+
+/// An actual `[hh:mm:ss.mmm --> hh:mm:ss.mmm]` stamp, and only that.
+///
+/// Deliberately narrow. The previous pattern matched *any* bracketed run, so it
+/// silently deleted `[BLANK_AUDIO]` and `[LAUGHTER]` before scoring — removing
+/// the only tokens `suppress_nst` governs from every comparison that judged it.
+final RegExp _timestamp = RegExp(r'\[[\d:.,\s]*-->[\d:.,\s]*\]');
+
+/// Any other bracketed tag, removed only when the caller asks for it.
+final RegExp _bracketedTag = RegExp(r'\[[^\]]*\]');
 
 /// Aligns [candidate] against [reference] and reports every difference.
 ///
@@ -177,5 +220,73 @@ TranscriptComparison compareTranscripts(
     referenceWords: n,
     candidateWords: m,
     edits: edits.reversed.toList(growable: false),
+  );
+}
+
+/// How a candidate's punctuation compares to a reference's.
+///
+/// Reported separately from word error rate because punctuation is not
+/// cosmetic in this app. `sentence_boundaries.dart` turns it into the sentence
+/// units that caption grouping breaks on and that speaker assignment attributes
+/// as a whole — so a decoder change that improves word accuracy while moving
+/// sentence terminators would leave WER looking better and diarization quietly
+/// worse. That failure is invisible to a normalized comparison, and this is the
+/// number that surfaces it.
+///
+/// It is deliberately computed with the *same* `endsSentence`/`endsClause`
+/// predicates the diarization path uses, rather than a private copy: agreement
+/// here therefore means the sentence units themselves agree, which is the
+/// property that actually matters.
+class PunctuationDelta {
+  const PunctuationDelta({
+    required this.referenceSentenceEnds,
+    required this.candidateSentenceEnds,
+    required this.referenceClauseEnds,
+    required this.candidateClauseEnds,
+  });
+
+  final int referenceSentenceEnds;
+  final int candidateSentenceEnds;
+  final int referenceClauseEnds;
+  final int candidateClauseEnds;
+
+  /// Positive when the candidate ends more sentences than the reference.
+  ///
+  /// This is the count that moves diarization: one extra terminator is one more
+  /// sentence unit, which re-cuts every downstream attribution decision.
+  int get sentenceEndDelta => candidateSentenceEnds - referenceSentenceEnds;
+
+  int get clauseEndDelta => candidateClauseEnds - referenceClauseEnds;
+
+  /// Whether the candidate would produce the same number of sentence units.
+  ///
+  /// Not proof the boundaries land in the same places — only that the count
+  /// agrees — but a disagreement here is enough on its own to explain a
+  /// diarization score moving after a decoder change.
+  bool get sentenceCountMatches => sentenceEndDelta == 0;
+
+  @override
+  String toString() => 'sentences $candidateSentenceEnds vs '
+      '$referenceSentenceEnds (${sentenceEndDelta >= 0 ? '+' : ''}'
+      '$sentenceEndDelta), clauses $candidateClauseEnds vs '
+      '$referenceClauseEnds (${clauseEndDelta >= 0 ? '+' : ''}$clauseEndDelta)';
+}
+
+/// Counts sentence and clause terminators in both transcripts.
+PunctuationDelta comparePunctuation(String reference, String candidate) {
+  final referenceWords = transcriptWords(
+    reference,
+    tokenization: TranscriptTokenization.verbatim,
+  );
+  final candidateWords = transcriptWords(
+    candidate,
+    tokenization: TranscriptTokenization.verbatim,
+  );
+
+  return PunctuationDelta(
+    referenceSentenceEnds: referenceWords.where(endsSentence).length,
+    candidateSentenceEnds: candidateWords.where(endsSentence).length,
+    referenceClauseEnds: referenceWords.where(endsClause).length,
+    candidateClauseEnds: candidateWords.where(endsClause).length,
   );
 }

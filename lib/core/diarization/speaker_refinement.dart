@@ -38,7 +38,7 @@ class SpeakerRefinement {
     this.minReferenceMs = 1500,
     this.maxReferences = 4,
     this.minSimilarity = 0.20,
-    this.minMargin = 0.15,
+    this.minMargin = 0.10,
     this.maxCandidates = 40,
     this.edgeTrimMs = 50,
     this.longSpanMedianMultiple = 1.5,
@@ -350,6 +350,23 @@ RefinementPlan planRefinement({
   candidates.sort((a, b) => b.durationMs.compareTo(a.durationMs));
   final capped = candidates.take(config.maxCandidates).toList();
 
+  return RefinementPlan(
+    references: referenceRegionsOf(spans, config: config),
+    candidates: capped,
+  );
+}
+
+/// Stretches of audio to learn each speaker's voice from.
+///
+/// **Spans only — no transcript.** Extracted from [planRefinement] so that
+/// passes which have no words to offer can still build voice prints, and so
+/// that every pass which does learns them from exactly the same audio. Nothing
+/// here consults whisper, which is what lets a caller upstream of
+/// transcription use it.
+Map<int, List<EmbedRegion>> referenceRegionsOf(
+  List<SpeakerSpan> spans, {
+  SpeakerRefinement config = const SpeakerRefinement(),
+}) {
   final references = <int, List<EmbedRegion>>{};
   for (final speaker in spans.map((s) => s.speaker).toSet()) {
     final clean = <SpeakerSpan>[];
@@ -375,8 +392,7 @@ RefinementPlan planRefinement({
         (startMs: span.startMs, endMs: span.endMs),
     ];
   }
-
-  return RefinementPlan(references: references, candidates: capped);
+  return references;
 }
 
 /// Unit-length copy of [embedding], or null if it has no direction.

@@ -1,49 +1,343 @@
 {
   "clip": "alberta.mp4",
+  "maxWordErrorRate": 0.018,
+  "maxWordErrorRateNote": "Worst observed across both bundled models on 2026-09-11: base 0/177 = 0.0%, small-q5_1 3/176 = 1.70%. The three words are sentence 18 'How about that?', which the app attributes exactly as the labels do -- the turn anchor sits at a base-model word edge and small-q5_1 places that sentence slightly later, so its midpoint crosses. Residual anchor precision, not a misattribution.",
   "note": "Ground truth confirmed by the user against the audio. Cluster 0 is the boss, cluster 1 the employee. Sentence indices are over whisper's output with silence skipping ON and the bundled base model -- word timings, and therefore sentence boundaries, shift if either changes.",
+  "turnsNote": "Time anchors for word-level scoring, re-derived from a base-model run on 2026-09-11 by aligning the run's word stream to the labelled word stream with an edit distance. Speakers are exactly the human labels in 'sentences'; only the times are re-measured, and consecutive same-speaker words are merged, so no boundary is asserted that the labels did not already contain. Two reasons this exists. (1) The 'sentences[].startMs/endMs' were captured before noFallback:false and flash attention moved whisper's word timings; on two_speakers sentence 14 had drifted 26200-26780 -> 25680-26320, far enough that its midpoint fell in the previous speaker's turn, so the scorer marked the BASE model wrong on a sentence it attributes exactly as labelled -- reporting base at 5.8% word error against small-q5_1's 2.0% and inverting the two models. (2) Scoring must be agnostic to how whisper segments: alberta produces 25 sentences against 24 labels because the labelled 'Of course, yeah, that makes sense.' now comes back as two sentences, and both are correct transcriptions. Aligning words rather than pairing sentences by position lets both halves inherit the one labelled speaker, so a segmentation difference no longer makes a clip unscoreable. Re-run integration_test/reanchor_truth_probe_test.dart if decoder settings change again.",
+  "turns": [
+    {
+      "startMs": 50,
+      "endMs": 2390,
+      "speaker": 0
+    },
+    {
+      "startMs": 2390,
+      "endMs": 4080,
+      "speaker": 1
+    },
+    {
+      "startMs": 4080,
+      "endMs": 5080,
+      "speaker": 0
+    },
+    {
+      "startMs": 5080,
+      "endMs": 7170,
+      "speaker": 1
+    },
+    {
+      "startMs": 7170,
+      "endMs": 7860,
+      "speaker": 0
+    },
+    {
+      "startMs": 7860,
+      "endMs": 9360,
+      "speaker": 1
+    },
+    {
+      "startMs": 9360,
+      "endMs": 12350,
+      "speaker": 0
+    },
+    {
+      "startMs": 12350,
+      "endMs": 15340,
+      "speaker": 1
+    },
+    {
+      "startMs": 15340,
+      "endMs": 17030,
+      "speaker": 0
+    },
+    {
+      "startMs": 17030,
+      "endMs": 19220,
+      "speaker": 1
+    },
+    {
+      "startMs": 19220,
+      "endMs": 21710,
+      "speaker": 0
+    },
+    {
+      "startMs": 21710,
+      "endMs": 23510,
+      "speaker": 1
+    },
+    {
+      "startMs": 23510,
+      "endMs": 26400,
+      "speaker": 0
+    },
+    {
+      "startMs": 26400,
+      "endMs": 34250,
+      "speaker": 1
+    },
+    {
+      "startMs": 34250,
+      "endMs": 37110,
+      "speaker": 0
+    },
+    {
+      "startMs": 37110,
+      "endMs": 39610,
+      "speaker": 1
+    },
+    {
+      "startMs": 39610,
+      "endMs": 41810,
+      "speaker": 0
+    }
+  ],
   "spans": [
-    {"speaker": 0, "startMs": 31, "endMs": 2444},
-    {"speaker": 1, "startMs": 2444, "endMs": 4368},
-    {"speaker": 0, "startMs": 4115, "endMs": 5195},
-    {"speaker": 1, "startMs": 5161, "endMs": 7861},
-    {"speaker": 0, "startMs": 7203, "endMs": 12552},
-    {"speaker": 1, "startMs": 12468, "endMs": 15472},
-    {"speaker": 0, "startMs": 15472, "endMs": 17142},
-    {"speaker": 1, "startMs": 17142, "endMs": 19319},
-    {"speaker": 0, "startMs": 19319, "endMs": 22762},
-    {"speaker": 1, "startMs": 21833, "endMs": 23504},
-    {"speaker": 0, "startMs": 23555, "endMs": 26356},
-    {"speaker": 1, "startMs": 27571, "endMs": 34186},
-    {"speaker": 0, "startMs": 35452, "endMs": 41965},
-    {"speaker": 1, "startMs": 37088, "endMs": 39772}
+    {
+      "speaker": 0,
+      "startMs": 31,
+      "endMs": 2444
+    },
+    {
+      "speaker": 1,
+      "startMs": 2444,
+      "endMs": 4368
+    },
+    {
+      "speaker": 0,
+      "startMs": 4115,
+      "endMs": 5195
+    },
+    {
+      "speaker": 1,
+      "startMs": 5161,
+      "endMs": 7861
+    },
+    {
+      "speaker": 0,
+      "startMs": 7203,
+      "endMs": 12552
+    },
+    {
+      "speaker": 1,
+      "startMs": 12468,
+      "endMs": 15472
+    },
+    {
+      "speaker": 0,
+      "startMs": 15472,
+      "endMs": 17142
+    },
+    {
+      "speaker": 1,
+      "startMs": 17142,
+      "endMs": 19319
+    },
+    {
+      "speaker": 0,
+      "startMs": 19319,
+      "endMs": 22762
+    },
+    {
+      "speaker": 1,
+      "startMs": 21833,
+      "endMs": 23504
+    },
+    {
+      "speaker": 0,
+      "startMs": 23555,
+      "endMs": 26356
+    },
+    {
+      "speaker": 1,
+      "startMs": 27571,
+      "endMs": 34186
+    },
+    {
+      "speaker": 0,
+      "startMs": 35452,
+      "endMs": 41965
+    },
+    {
+      "speaker": 1,
+      "startMs": 37088,
+      "endMs": 39772
+    }
   ],
   "sentences": [
-    {"i": 0,  "startMs": 60,    "endMs": 2390,  "speaker": 0, "text": "Why did I get a 700K oppie bill from opening I?"},
-    {"i": 1,  "startMs": 2390,  "endMs": 2780,  "speaker": 1, "text": "Appie?"},
-    {"i": 2,  "startMs": 2780,  "endMs": 4120,  "speaker": 1, "text": "You mean like an API bill?"},
-    {"i": 3,  "startMs": 4120,  "endMs": 5120,  "speaker": 0, "text": "Yeah, whatever it is."},
-    {"i": 4,  "startMs": 5120,  "endMs": 7170,  "speaker": 1, "text": "Okay, that's all the tokens you've been having to spend."},
-    {"i": 5,  "startMs": 7170,  "endMs": 7920,  "speaker": 0, "text": "What do you mean?"},
-    {"i": 6,  "startMs": 7920,  "endMs": 9400,  "speaker": 1, "text": "Tokens cost money."},
-    {"i": 7,  "startMs": 9400,  "endMs": 12390, "speaker": 0, "text": "Yeah, I know tokens cost money, but why do they cost more than you?"},
-    {"i": 8,  "startMs": 12390, "endMs": 13280, "speaker": 1, "text": "AI is expensive."},
-    {"i": 9,  "startMs": 13280, "endMs": 15380, "speaker": 1, "text": "Did you not know that when you put me on a token improvement?"},
-    {"i": 10, "startMs": 15380, "endMs": 17050, "speaker": 0, "text": "Can we just please tone it down a bit?"},
-    {"i": 11, "startMs": 17050, "endMs": 19240, "speaker": 1, "text": "All that I'm using AI for now is just coding."},
-    {"i": 12, "startMs": 19240, "endMs": 21670, "speaker": 0, "text": "Well, why don't you write code a little bit manually, too?"},
-    {"i": 13, "startMs": 21670, "endMs": 23470, "speaker": 1, "text": "You want me to write code manually now?"},
-    {"i": 14, "startMs": 23470, "endMs": 25260, "speaker": 0, "text": "We're spending 700K on tokens, okay?"},
-    {"i": 15, "startMs": 25260, "endMs": 27090, "speaker": 0, "text": "What is your salary?"},
-    {"i": 16, "startMs": 27090, "endMs": 28590, "speaker": 1, "text": "150K."},
-    {"i": 17, "startMs": 28630, "endMs": 33590, "speaker": 1, "text": "I'm just saying if we want to reduce the bill, we can get rid of the AI agent"},
-    {"i": 18, "startMs": 33590, "endMs": 35650, "speaker": 1, "text": "How about that?"},
-    {"i": 19, "startMs": 35650, "endMs": 36650, "speaker": 0, "text": "No, I like that."},
-    {"i": 20, "startMs": 36650, "endMs": 37650, "speaker": 0, "text": "I like that one."},
-    {"i": 21, "startMs": 37650, "endMs": 38650, "speaker": 1, "text": "Yeah, I'm sure you do."},
-    {"i": 22, "startMs": 38650, "endMs": 39650, "speaker": 1, "text": "Of course, yeah, that makes sense."},
-    {"i": 23, "startMs": 39650, "endMs": 41850, "speaker": 0, "text": "I don't want any more happy bills coming in my way."}
+    {
+      "i": 0,
+      "startMs": 60,
+      "endMs": 2390,
+      "speaker": 0,
+      "text": "Why did I get a 700K oppie bill from opening I?"
+    },
+    {
+      "i": 1,
+      "startMs": 2390,
+      "endMs": 2780,
+      "speaker": 1,
+      "text": "Appie?"
+    },
+    {
+      "i": 2,
+      "startMs": 2780,
+      "endMs": 4120,
+      "speaker": 1,
+      "text": "You mean like an API bill?"
+    },
+    {
+      "i": 3,
+      "startMs": 4120,
+      "endMs": 5120,
+      "speaker": 0,
+      "text": "Yeah, whatever it is."
+    },
+    {
+      "i": 4,
+      "startMs": 5120,
+      "endMs": 7170,
+      "speaker": 1,
+      "text": "Okay, that's all the tokens you've been having to spend."
+    },
+    {
+      "i": 5,
+      "startMs": 7170,
+      "endMs": 7920,
+      "speaker": 0,
+      "text": "What do you mean?"
+    },
+    {
+      "i": 6,
+      "startMs": 7920,
+      "endMs": 9400,
+      "speaker": 1,
+      "text": "Tokens cost money."
+    },
+    {
+      "i": 7,
+      "startMs": 9400,
+      "endMs": 12390,
+      "speaker": 0,
+      "text": "Yeah, I know tokens cost money, but why do they cost more than you?"
+    },
+    {
+      "i": 8,
+      "startMs": 12390,
+      "endMs": 13280,
+      "speaker": 1,
+      "text": "AI is expensive."
+    },
+    {
+      "i": 9,
+      "startMs": 13280,
+      "endMs": 15380,
+      "speaker": 1,
+      "text": "Did you not know that when you put me on a token improvement?"
+    },
+    {
+      "i": 10,
+      "startMs": 15380,
+      "endMs": 17050,
+      "speaker": 0,
+      "text": "Can we just please tone it down a bit?"
+    },
+    {
+      "i": 11,
+      "startMs": 17050,
+      "endMs": 19240,
+      "speaker": 1,
+      "text": "All that I'm using AI for now is just coding."
+    },
+    {
+      "i": 12,
+      "startMs": 19240,
+      "endMs": 21670,
+      "speaker": 0,
+      "text": "Well, why don't you write code a little bit manually, too?"
+    },
+    {
+      "i": 13,
+      "startMs": 21670,
+      "endMs": 23470,
+      "speaker": 1,
+      "text": "You want me to write code manually now?"
+    },
+    {
+      "i": 14,
+      "startMs": 23470,
+      "endMs": 25260,
+      "speaker": 0,
+      "text": "We're spending 700K on tokens, okay?"
+    },
+    {
+      "i": 15,
+      "startMs": 25260,
+      "endMs": 27090,
+      "speaker": 0,
+      "text": "What is your salary?"
+    },
+    {
+      "i": 16,
+      "startMs": 27090,
+      "endMs": 28590,
+      "speaker": 1,
+      "text": "150K."
+    },
+    {
+      "i": 17,
+      "startMs": 28630,
+      "endMs": 33590,
+      "speaker": 1,
+      "text": "I'm just saying if we want to reduce the bill, we can get rid of the AI agent"
+    },
+    {
+      "i": 18,
+      "startMs": 33590,
+      "endMs": 35650,
+      "speaker": 1,
+      "text": "How about that?"
+    },
+    {
+      "i": 19,
+      "startMs": 35650,
+      "endMs": 36650,
+      "speaker": 0,
+      "text": "No, I like that."
+    },
+    {
+      "i": 20,
+      "startMs": 36650,
+      "endMs": 37650,
+      "speaker": 0,
+      "text": "I like that one."
+    },
+    {
+      "i": 21,
+      "startMs": 37650,
+      "endMs": 38650,
+      "speaker": 1,
+      "text": "Yeah, I'm sure you do."
+    },
+    {
+      "i": 22,
+      "startMs": 38650,
+      "endMs": 39650,
+      "speaker": 1,
+      "text": "Of course, yeah, that makes sense."
+    },
+    {
+      "i": 23,
+      "startMs": 39650,
+      "endMs": 41850,
+      "speaker": 0,
+      "text": "I don't want any more happy bills coming in my way."
+    }
   ],
-  "unreachable": [
-    {"i": 6, "why": "STALE REASON, ENTRY KEPT PENDING A RUN. The original finding was that no cluster-1 span touches 7920-9400 -- the only span covering it is 0:7203-12552, and pyannote reports no second-speaker activity between 7861 and 12468 -- so span geometry alone could never reach it and 23/24 was the ceiling. Phase 3.5 then reached it acoustically with CAM++, which is a different kind of evidence than the reasoning here considered. The entry is left in place because removing it would weaken the gate on an unverified belief; drop it once a device run confirms #6 passes. See docs/progress.md on why a recorded score is re-derived rather than trusted."}
+  "_comment_known": "Documented failures: cases this pipeline is currently known to get wrong, which the gate tolerates instead of treating as new regressions. This key was named 'unreachable' -- renamed because the name asserted a ceiling the evidence never supported, and entry 6 below is the proof: it was declared unreachable and then reached. A documented failure is scoped to the methods tried so far, never to the clip.",
+  "known": [
+    {
+      "i": 6,
+      "why": "STALE REASON, ENTRY KEPT PENDING A RUN. The original finding was that no cluster-1 span touches 7920-9400 -- the only span covering it is 0:7203-12552, and pyannote reports no second-speaker activity between 7861 and 12468 -- so span geometry alone could never reach it and 23/24 was the ceiling. Phase 3.5 then reached it acoustically with CAM++, which is a different kind of evidence than the reasoning here considered. The entry is left in place because removing it would weaken the gate on an unverified belief; drop it once a device run confirms #6 passes. See docs/progress.md on why a recorded score is re-derived rather than trusted."
+    }
   ]
 }

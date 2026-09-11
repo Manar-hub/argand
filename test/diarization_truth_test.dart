@@ -13,7 +13,10 @@ void main() {
       expect(truth.clip, 'alberta.mp4');
       expect(truth.sentences, hasLength(24));
       expect(truth.speakers, {0, 1});
-      // alberta names its documented failure list "unreachable".
+      // Both fixtures now name their documented-failure list "known". The
+      // parser still accepts the retired "unreachable" spelling, so an old
+      // fixture keeps parsing; the name was dropped because it asserted a
+      // ceiling (see the fixture's own note on entry 6).
       expect(truth.knownIndices, {6});
     });
 
@@ -24,14 +27,22 @@ void main() {
       );
       expect(truth.clip, 'two_speakers.wav');
       expect(truth.sentences, hasLength(16));
-      // two_speakers names the same list "known" -- both spellings must parse,
-      // or a regression gate silently treats documented failures as new ones.
-      expect(truth.knownIndices, {8, 14});
+      // Empty on purpose. It held {8, 14} until both were measured correct on
+      // BOTH bundled models; tolerating them now would stop the gate catching
+      // a regression. The fixture's `knownNote` records what they were and what
+      // fixed them, and `knownPrevious` keeps the original entries.
+      expect(truth.knownIndices, isEmpty);
+      // Explicit turns, so scoring no longer depends on sentence times that go
+      // stale whenever a decoder setting moves whisper's word timings.
+      expect(truth.turns, hasLength(11));
     });
 
-    test('the fixtures still hold the documented scores', () {
-      // 24/24 and 14/16 in docs/progress.md. If a fixture is ever relabelled,
-      // this is the test that says so rather than a silently shifted baseline.
+    test('both fixtures are armed with a measured error floor', () {
+      // A fixture without a floor makes the gate fail rather than pass, which
+      // is the honest state for a clip nobody has measured -- but it also means
+      // an unarmed fixture protects nothing. These are the figures observed on
+      // the worst-performing bundled model, so the weakest one has to clear the
+      // same bar.
       final alberta = parseDiarizationTruth(
         File('test/fixtures/diarization/alberta.truth.json').readAsStringSync(),
       );
@@ -39,8 +50,11 @@ void main() {
         File('test/fixtures/diarization/two_speakers.truth.json')
             .readAsStringSync(),
       );
-      expect(alberta.sentences.length, 24);
-      expect(two.sentences.length - two.known.length, 14);
+      expect(alberta.maxWordErrorRate, closeTo(0.018, 1e-9));
+      expect(two.maxWordErrorRate, closeTo(0.02, 1e-9));
+      expect(alberta.sentences, hasLength(24));
+      expect(two.sentences, hasLength(16));
+      expect(alberta.turns, hasLength(17));
     });
   });
 

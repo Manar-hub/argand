@@ -181,6 +181,34 @@ class ImportController extends _$ImportController {
           debugPrintStack(stackTrace: stackTrace);
         }
 
+        // Challenges short spans segmentation appears to have invented, before
+        // anything reads them. This has to come first: a spurious span edge
+        // cannot be repaired downstream, because once it exists whichever side
+        // a word falls on decides that word's speaker -- which is how two
+        // transcription models end up disagreeing about the same audio. Uses no
+        // transcript at all, so the correction is identical for every model.
+        if (speakerSpans.isNotEmpty) {
+          try {
+            final before = speakerSpans;
+            speakerSpans = await ref
+                .read(speakerRefinerProvider)
+                .validateSpans(wavPath: wav.path, spans: speakerSpans);
+            final changed = [
+              for (var i = 0; i < speakerSpans.length; i++)
+                if (speakerSpans[i].speaker != before[i].speaker) i,
+            ];
+            if (changed.isNotEmpty) {
+              debugPrint('Span validation re-labelled ${changed.length} span(s)'
+                  ': $changed');
+            }
+          } catch (error, stackTrace) {
+            // Swallowed like every other diarization stage: the unvalidated
+            // spans are what shipped before this pass existed.
+            debugPrint('Span validation failed, keeping raw spans: $error');
+            debugPrintStack(stackTrace: stackTrace);
+          }
+        }
+
         // Re-checks doubtful attributions against the audio itself, which is
         // the only thing that can reach a turn segmentation never reported.
         // Non-fatal for the same reason as diarization, one step weaker: a

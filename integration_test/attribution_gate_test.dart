@@ -77,6 +77,7 @@ void main() {
     List<TruthWord> words,
     List<int?> assigned,
     List<int?> perSentence,
+    List<({String text, List<int?> speakers})> rendered,
   })> attributionOf(
     String wavPath,
     List<SpeakerSpan> baseSpans,
@@ -95,6 +96,13 @@ void main() {
     // is entirely on word timings and therefore on refinement regions.
     var spans = baseSpans;
     if (spans.isNotEmpty) {
+      // Mirrors `import_controller.dart`: spurious short spans are challenged
+      // before anything reads them, because a bad span edge cannot be repaired
+      // downstream. Takes no transcript, so it runs identically per model.
+      spans = await SpeakerRefiner()
+          .validateSpans(wavPath: wavPath, spans: spans);
+    }
+    if (spans.isNotEmpty) {
       final refined = await SpeakerRefiner().refine(
         wavPath: wavPath,
         spans: spans,
@@ -104,6 +112,18 @@ void main() {
       spans = refined.spans;
       log('refinement moved ${refined.movedCount} of '
           '${refined.decisions.length} candidates');
+      // Why each doubtful region was or was not moved. This is what makes the
+      // per-model divergence readable: a region present under one model and
+      // absent under the other was never planned, i.e. a gate refused it.
+      for (final d in refined.decisions) {
+        final sims = d.similarities.entries
+            .map((e) => 'spk${e.key}:${e.value.toStringAsFixed(3)}')
+            .join(' ');
+        log('  DEC ${d.candidate.startMs}-${d.candidate.endMs} '
+            'was=spk${d.candidate.currentSpeaker} '
+            '${d.outcome.name}${d.newSpeaker == null ? '' : ' ->spk${d.newSpeaker}'}'
+            '${sims.isEmpty ? '' : '  $sims'}');
+      }
     }
     final assigned = assignSpeakers(words, spans);
 
@@ -111,6 +131,11 @@ void main() {
     // same way the caption grouper and speaker smoothing cut them, so the
     // indices line up with how the labels were produced.
     final perSentence = <int?>[];
+    // What the transcript actually renders: a sentence read by a human is
+    // "one speaker" only if EVERY word in it agrees. A majority vote cannot
+    // see a two-word sentence split one word each -- the vote ties and scores
+    // the sentence correct either way, while the screen shows two blocks.
+    final rendered = <({String text, List<int?> speakers})>[];
     var start = 0;
     for (var i = 0; i < words.length; i++) {
       final isLast = i == words.length - 1;
@@ -130,6 +155,10 @@ void main() {
         }
       });
       perSentence.add(winner);
+      rendered.add((
+        text: [for (var j = start; j <= i; j++) words[j].text].join(' '),
+        speakers: [for (var j = start; j <= i; j++) assigned[j]],
+      ));
       start = i + 1;
     }
 
@@ -139,6 +168,7 @@ void main() {
       ],
       assigned: assigned,
       perSentence: perSentence,
+      rendered: rendered,
     );
   }
 
@@ -258,6 +288,20 @@ void main() {
             log('$tag that is a segmentation change; the word score above is '
                 'unaffected and is what this gate now judges');
           }
+
+          // The user-visible score: intact means every word in the sentence
+          // carries one speaker. This is the only metric that can see a split.
+          var intact = 0;
+          for (final sentence in run.rendered) {
+            final distinct = sentence.speakers.toSet();
+            if (distinct.length <= 1) {
+              intact++;
+            } else {
+              log('$tag  SPLIT "${sentence.text}" -> ${sentence.speakers}');
+            }
+          }
+          log('$tag RENDERED intact=$intact split=${run.rendered.length - intact}'
+              ' of ${run.rendered.length} sentences');
 
           checkGate(tag, truth, words, score);
         }

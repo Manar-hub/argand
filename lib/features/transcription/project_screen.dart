@@ -6,6 +6,7 @@ import '../../core/captions/caption_controller.dart';
 import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
+import '../../core/transcript/speaker_turns.dart';
 import '../../l10n/app_localizations.dart';
 import 'media_player_controller.dart';
 import 'transcript_edit_controller.dart';
@@ -350,7 +351,7 @@ class _WordFlowContent extends ConsumerWidget {
     final activeIndex =
         positionMs == null || editing ? -1 : _activeWordIndex(words, positionMs!);
 
-    final turns = _groupIntoTurns(words);
+    final turns = groupIntoSpeakerTurns(words);
 
     // Every speaker this transcript actually contains, in the order they first
     // appear. That is the set a turn can be reassigned to: inventing a speaker
@@ -428,7 +429,7 @@ class _WordFlowContent extends ConsumerWidget {
   Future<void> _reassignTurn(
     BuildContext context,
     WidgetRef ref,
-    _Turn turn,
+    SpeakerTurn turn,
     List<int> speakers,
   ) async {
     final chosen = await showModalBottomSheet<int>(
@@ -673,41 +674,6 @@ class _SpeakerPicker extends StatelessWidget {
       ),
     );
   }
-}
-
-/// A run of consecutive words sharing one speaker.
-class _Turn {
-  _Turn({required this.speaker, required this.startIndex});
-
-  /// Null when the transcript carries no speaker information at all.
-  final int? speaker;
-
-  /// Where this run begins in the flat word list, so the active-word
-  /// highlight keeps working across turns.
-  final int startIndex;
-
-  final List<Word> words = [];
-}
-
-/// Splits [words] wherever the speaker changes.
-///
-/// A transcript with no diarization yields exactly one unlabelled turn, so the
-/// rendering path is shared rather than branched.
-List<_Turn> _groupIntoTurns(List<Word> words) {
-  final turns = <_Turn>[];
-  String? currentId;
-
-  for (final (index, word) in words.indexed) {
-    if (turns.isEmpty || word.speakerId != currentId) {
-      currentId = word.speakerId;
-      turns.add(
-        _Turn(speaker: int.tryParse(word.speakerId ?? ''), startIndex: index),
-      );
-    }
-    turns.last.words.add(word);
-  }
-
-  return turns;
 }
 
 /// Index of the word being spoken at [positionMs], or -1 before the first one.

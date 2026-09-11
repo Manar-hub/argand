@@ -13,6 +13,7 @@ import 'speaker_assignment.dart';
 import 'speaker_diarizer.dart';
 import 'speaker_refinement.dart';
 import 'speaker_span.dart';
+import 'span_validation.dart';
 
 part 'speaker_refiner.g.dart';
 
@@ -105,6 +106,138 @@ class SpeakerRefiner {
     );
   }
 
+  /// Re-labels short spans segmentation appears to have invented.
+  ///
+  /// **Runs before anything reads the spans**, because a spurious span edge
+  /// cannot be repaired downstream: once it exists, whether a word falls left
+  /// or right of it decides that word's speaker, so two transcription models
+  /// that time the same word differently disagree about who said it. Measured
+  /// on `two_speakers.wav`, where an 810ms span in the middle of one speaker's
+  /// sentence split "That's right." one word per speaker under `small-q5_1`
+  /// while `base` was unaffected.
+  ///
+  /// **Takes no transcript.** Suspects come from span geometry and voice prints
+  /// come from [referenceRegionsOf], neither of which consults whisper, so the
+  /// correction is identical for every transcription model by construction
+  /// rather than by tuning.
+  ///
+  /// Non-fatal by contract: returns [spans] unchanged when there is nothing to
+  /// challenge, when fewer than two voices can be learned, or when a region
+  /// yields no embedding. Doing nothing is always a valid outcome here.
+  Future<List<SpeakerSpan>> validateSpans({
+    required String wavPath,
+    required List<SpeakerSpan> spans,
+    SpanValidation config = const SpanValidation(),
+    SpeakerRefinement refinement = const SpeakerRefinement(),
+  }) async {
+    final suspects = suspectSpans(spans, config: config);
+    if (suspects.isEmpty) return spans;
+
+    final references = referenceRegionsOf(spans, config: refinement);
+    if (references.length < 2) return spans;
+
+    // Platform channels only exist on the isolate owning the Flutter engine,
+    // so the model path is resolved here rather than in the worker.
+    final diarizer = SpeakerDiarizer();
+    await diarizer.ensureModelsReady();
+    final supportDir = await getApplicationSupportDirectory();
+    final modelPath =
+        p.join(supportDir.path, SpeakerDiarizer.embeddingModelFile);
+
+    final similarities = await _spawnSimilarities(
+      wavPath: wavPath,
+      embeddingModelPath: modelPath,
+      references: references,
+      regions: [
+        for (final suspect in suspects)
+          suspect.embedRegion(config) ??
+              (startMs: suspect.startMs, endMs: suspect.endMs),
+      ],
+      config: refinement,
+    );
+
+    final reassigned = <SuspectSpan>[
+      for (var i = 0; i < suspects.length; i++)
+        if (challengerWins(suspects[i], similarities[i], config: config))
+          suspects[i],
+    ];
+
+    return applyValidations(spans, reassigned);
+  }
+
+  /// How much each region in [regions] sounds like each speaker.
+  ///
+  /// **This decides nothing.** It answers "who does this stretch sound like",
+  /// and hands the numbers back for a caller to weigh. [refine] uses the same
+  /// voice prints to make a standalone verdict, gated on [SpeakerRefinement
+  /// .minMargin]; this exists because that gate is the wrong shape for evidence
+  /// that only needs to break a tie rather than win outright.
+  ///
+  /// The motivating case: a two-word sentence split across a spurious span
+  /// boundary. Coverage alone puts the words on different speakers, and the
+  /// acoustic margin is far too thin for [refine] to act on alone -- but as one
+  /// term inside a sequence decision it is enough to settle which speaker the
+  /// whole sentence belongs to. [validateSpans] is the consumer: it asks
+  /// whether a short span segmentation reported is really a different voice.
+  ///
+  /// Returns one map per region, speaker to cosine similarity. A region that
+  /// could not be embedded -- too short for CAM++ -- yields an empty map, which
+  /// the sequence decoder treats as "no acoustic opinion" rather than as
+  /// evidence against.
+  Future<List<Map<int, double>>> similaritiesFor({
+    required String wavPath,
+    required List<SpeakerSpan> spans,
+    required List<WordTiming> words,
+    required List<int?> assigned,
+    required List<({int startMs, int endMs})> regions,
+    SpeakerRefinement config = const SpeakerRefinement(),
+  }) async {
+    if (regions.isEmpty) return const [];
+
+    // Reuses refinement's own reference selection so both stages learn a
+    // speaker's voice from exactly the same audio. References come from span
+    // geometry, so they do not move with the transcription model.
+    final plan = planRefinement(
+      spans: spans,
+      words: words,
+      assigned: assigned,
+      config: config,
+    );
+
+    final diarizer = SpeakerDiarizer();
+    await diarizer.ensureModelsReady();
+    final supportDir = await getApplicationSupportDirectory();
+    final modelPath =
+        p.join(supportDir.path, SpeakerDiarizer.embeddingModelFile);
+
+    return _spawnSimilarities(
+      wavPath: wavPath,
+      embeddingModelPath: modelPath,
+      references: plan.references,
+      regions: regions,
+      config: config,
+    );
+  }
+
+  /// Sendable-only parameters, for the reason spelled out on [_spawn].
+  static Future<List<Map<int, double>>> _spawnSimilarities({
+    required String wavPath,
+    required String embeddingModelPath,
+    required Map<int, List<({int startMs, int endMs})>> references,
+    required List<({int startMs, int endMs})> regions,
+    required SpeakerRefinement config,
+  }) {
+    return Isolate.run(
+      () => _runSimilarities(
+        wavPath: wavPath,
+        embeddingModelPath: embeddingModelPath,
+        references: references,
+        regions: regions,
+        config: config,
+      ),
+    );
+  }
+
   /// Spawns the worker.
   ///
   /// Every parameter here is sendable, so the closure below has nothing
@@ -130,83 +263,106 @@ class SpeakerRefiner {
   }
 }
 
-List<RefinementDecision> _runRefinement({
-  required String wavPath,
-  required String embeddingModelPath,
-  required RefinementPlan plan,
-  required SpeakerRefinement config,
-}) {
-  // FFI bindings are per-isolate state, so this is required here even though
-  // diarization already called it on another isolate.
-  sherpa.initBindings();
+/// Everything both isolate entrypoints need: a validated WAV, a live CAM++
+/// extractor, and a region embedder over them.
+///
+/// Both passes previously carried their own copy of this. The duplicate was
+/// deliberate at the time -- the second pass was being measured against the
+/// first, and sharing code would have meant editing the function under test --
+/// but that comparison is finished, so the copy is now just two places to fix
+/// the same bug.
+class _EmbeddingSession {
+  _EmbeddingSession._(this._input, this._extractor, this._header, this._bytesPerMs);
 
-  final input = File(wavPath).openSync();
-  sherpa.SpeakerEmbeddingExtractor? extractor;
+  final RandomAccessFile _input;
+  final sherpa.SpeakerEmbeddingExtractor _extractor;
+  final WavHeader _header;
+  final double _bytesPerMs;
 
-  try {
-    final header = WavHeader.parse(input.readSync(4096));
-    if (header.sampleRate != SpeakerDiarizer.requiredSampleRate ||
-        header.channels != 1 ||
-        header.bitsPerSample != 16) {
-      throw StateError(
-        'Refinement needs 16kHz mono 16-bit audio, got '
-        '${header.sampleRate}Hz ${header.channels}ch ${header.bitsPerSample}bit',
-      );
-    }
+  /// Opens [wavPath] and the embedding model. Throws when the audio is not the
+  /// 16kHz mono 16-bit the extractor requires.
+  static _EmbeddingSession open(String wavPath, String embeddingModelPath) {
+    // FFI bindings are per-isolate state, so this is required here even though
+    // diarization already called it on another isolate.
+    sherpa.initBindings();
 
-    extractor = sherpa.SpeakerEmbeddingExtractor(
-      config: sherpa.SpeakerEmbeddingExtractorConfig(
-        model: embeddingModelPath,
-        numThreads: 1,
-        // Defaults to true and dumps an onnxruntime session log per call.
-        debug: false,
-      ),
-    );
-
-    final bytesPerMs = header.sampleRate * (header.bitsPerSample ~/ 8) / 1000;
-
-    Float32List? embed(int startMs, int endMs) {
-      var from = (startMs * bytesPerMs).floor();
-      var to = (endMs * bytesPerMs).ceil();
-      if (from < 0) from = 0;
-      if (to > header.dataBytes) to = header.dataBytes;
-      if (to <= from) return null;
-
-      // Only the region is read, never the whole file: a 1.5s window is 48KB
-      // of PCM against however many minutes the recording runs to.
-      input.setPositionSync(header.dataOffset + from);
-      final bytes = input.readSync(to - from);
-      if (bytes.isEmpty) return null;
-
-      final stream = extractor!.createStream();
-      try {
-        stream.acceptWaveform(
-          samples: pcm16ToFloat32(bytes),
-          sampleRate: header.sampleRate,
+    final input = File(wavPath).openSync();
+    try {
+      final header = WavHeader.parse(input.readSync(4096));
+      if (header.sampleRate != SpeakerDiarizer.requiredSampleRate ||
+          header.channels != 1 ||
+          header.bitsPerSample != 16) {
+        throw StateError(
+          'Refinement needs 16kHz mono 16-bit audio, got '
+          '${header.sampleRate}Hz ${header.channels}ch ${header.bitsPerSample}bit',
         );
-        stream.inputFinished();
-        // Not enough audio to characterise a voice. Treated the same as a
-        // failed computation: skip the region, change nothing.
-        if (!extractor.isReady(stream)) return null;
-        final embedding = extractor.compute(stream);
-        return embedding.isEmpty ? null : embedding;
-      } finally {
-        stream.free();
       }
+      final extractor = sherpa.SpeakerEmbeddingExtractor(
+        config: sherpa.SpeakerEmbeddingExtractorConfig(
+          model: embeddingModelPath,
+          numThreads: 1,
+          // Defaults to true and dumps an onnxruntime session log per call.
+          debug: false,
+        ),
+      );
+      return _EmbeddingSession._(
+        input,
+        extractor,
+        header,
+        header.sampleRate * (header.bitsPerSample ~/ 8) / 1000,
+      );
+    } catch (_) {
+      input.closeSync();
+      rethrow;
     }
+  }
 
-    // Voice prints first. A speaker without one cannot win a reassignment, and
-    // cannot lose one either.
-    //
-    // Each proposed reference is split in half and both halves embedded. If
-    // they do not sound like each other, the span holds more than one voice --
-    // a turn segmentation never reported -- and learning from it would fold the
-    // wrong person into this speaker's print. Testing that acoustically is what
-    // replaced guessing at it from span length and sentence count, which
-    // depended on how whisper happened to segment and so changed with the
-    // transcription model.
+  /// Unit-length embedding of one region, or null when it cannot be computed.
+  Float32List? embed(int startMs, int endMs) {
+    var from = (startMs * _bytesPerMs).floor();
+    var to = (endMs * _bytesPerMs).ceil();
+    if (from < 0) from = 0;
+    if (to > _header.dataBytes) to = _header.dataBytes;
+    if (to <= from) return null;
+
+    // Only the region is read, never the whole file: a 1.5s window is 48KB of
+    // PCM against however many minutes the recording runs to.
+    _input.setPositionSync(_header.dataOffset + from);
+    final bytes = _input.readSync(to - from);
+    if (bytes.isEmpty) return null;
+
+    final stream = _extractor.createStream();
+    try {
+      stream.acceptWaveform(
+        samples: pcm16ToFloat32(bytes),
+        sampleRate: _header.sampleRate,
+      );
+      stream.inputFinished();
+      // Not enough audio to characterise a voice. Treated the same as a failed
+      // computation: skip the region, change nothing.
+      if (!_extractor.isReady(stream)) return null;
+      final embedding = _extractor.compute(stream);
+      return embedding.isEmpty ? null : embedding;
+    } finally {
+      stream.free();
+    }
+  }
+
+  /// One averaged voice print per speaker.
+  ///
+  /// Each proposed reference is split in half and both halves embedded. If they
+  /// do not sound like each other, the span holds more than one voice -- a turn
+  /// segmentation never reported -- and learning from it would fold the wrong
+  /// person into this speaker's print. Testing that acoustically is what
+  /// replaced guessing at it from span length and sentence count, which
+  /// depended on how whisper happened to segment and so changed with the
+  /// transcription model.
+  Map<int, Float32List> voicePrints(
+    Map<int, List<EmbedRegion>> references,
+    SpeakerRefinement config,
+  ) {
     final prints = <int, Float32List>{};
-    plan.references.forEach((speaker, regions) {
+    references.forEach((speaker, regions) {
       final vectors = <Float32List>[];
       for (final region in regions) {
         final middle = region.startMs + (region.endMs - region.startMs) ~/ 2;
@@ -225,12 +381,32 @@ List<RefinementDecision> _runRefinement({
       final centroid = centroidOf(vectors);
       if (centroid != null) prints[speaker] = centroid;
     });
+    return prints;
+  }
 
+  void close() {
+    _extractor.free();
+    _input.closeSync();
+  }
+}
+
+List<RefinementDecision> _runRefinement({
+  required String wavPath,
+  required String embeddingModelPath,
+  required RefinementPlan plan,
+  required SpeakerRefinement config,
+}) {
+  final session = _EmbeddingSession.open(wavPath, embeddingModelPath);
+
+  try {
+    // Voice prints first. A speaker without one cannot win a reassignment, and
+    // cannot lose one either.
+    final prints = session.voicePrints(plan.references, config);
     if (prints.length < 2) return const [];
 
     final decisions = <RefinementDecision>[];
     for (final candidate in plan.candidates) {
-      final vector = unitVector(embed(candidate.startMs, candidate.endMs));
+      final vector = unitVector(session.embed(candidate.startMs, candidate.endMs));
       if (vector == null) {
         decisions.add(RefinementDecision(
           candidate: candidate,
@@ -275,8 +451,40 @@ List<RefinementDecision> _runRefinement({
 
     return decisions;
   } finally {
-    extractor?.free();
-    input.closeSync();
+    session.close();
+  }
+}
+
+List<Map<int, double>> _runSimilarities({
+  required String wavPath,
+  required String embeddingModelPath,
+  required Map<int, List<({int startMs, int endMs})>> references,
+  required List<({int startMs, int endMs})> regions,
+  required SpeakerRefinement config,
+}) {
+  final session = _EmbeddingSession.open(wavPath, embeddingModelPath);
+
+  try {
+    final prints = session.voicePrints(references, config);
+    // Fewer than two voices to compare against makes every similarity
+    // meaningless rather than merely weak, so say nothing at all.
+    if (prints.length < 2) {
+      return List<Map<int, double>>.filled(regions.length, const {});
+    }
+
+    return [
+      for (final region in regions)
+        () {
+          final vector = unitVector(session.embed(region.startMs, region.endMs));
+          if (vector == null) return const <int, double>{};
+          return <int, double>{
+            for (final entry in prints.entries)
+              entry.key: cosineSimilarity(vector, entry.value),
+          };
+        }(),
+    ];
+  } finally {
+    session.close();
   }
 }
 

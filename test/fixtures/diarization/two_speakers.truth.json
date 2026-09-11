@@ -1,38 +1,238 @@
 {
   "clip": "two_speakers.wav",
+  "maxWordErrorRate": 0.02,
+  "maxWordErrorRateNote": "Worst observed across both bundled models on 2026-09-11: base 0/103 = 0.0%, small-q5_1 2/101 = 1.98%. Recorded per fixture rather than per model -- the requirement is that no bundled model regresses, so the weakest has to clear the same bar. Both remaining words on small-q5_1 sit at turn edges and no sentence is misattributed: every sentence on both models matches the human labels, and nothing renders split across two speakers.",
+  "known": [],
+  "knownNote": "Empty on purpose, and it used to hold sentences 8 and 14. Both are now correct on BOTH bundled models, confirmed by a run on 2026-09-11, so tolerating them would stop the gate catching a regression. What they were, and what fixed them: (8) \"That's right.\" rendered with one word on each speaker under small-q5_1 -- diarization invents an 810ms span at 17817-18627 inside spk1's sentence, and whichever side a word falls on decides its speaker, which is why base was unaffected and small-q5_1 was not. Fixed upstream by span_validation.dart, which re-labels a short span when its challenger is already speaking inside it AND the audio is too weak to answer (0.359 vs 0.273, against 0.7-0.9 for clean regions here). (14) \"It was the first one.\" sat on the wrong speaker under small-q5_1 -- refinement picked the RIGHT speaker (spk1 0.269 vs spk0 0.153) and minMargin 0.15 rejected it by 0.034; lowering the default to 0.10 admits it and costs nothing on either clip. The earlier note here claiming 14 was 'not reachable by threshold changes, since the winner is the wrong speaker' was measured before flash attention and noFallback:false changed the decode, and is wrong on the current engine.",
+  "knownPrevious": [
+    {
+      "i": 8,
+      "why": "Diarization reports a handover at 17817 that is not there, flanked by two short spans (658ms, 810ms). The straddle guard refuses the region because a cut splits it 59/41, so it is never evaluated -- the guard is protecting a spurious boundary."
+    },
+    {
+      "i": 14,
+      "why": "Evaluated and answered wrongly: spk0 0.222 against spk1 0.100, where the truth is spk1. A 480ms fragment between two stretches of the other speaker; both scores sit far below this clip's usual 0.7-0.9. Not reachable by threshold changes, since the winner is the wrong speaker."
+    }
+  ],
   "source": "sherpa-onnx speaker-segmentation-models release, 2-two-speakers-en.wav",
   "note": "Ground truth confirmed by the user against the audio. A 1980s broadcast interview: cluster 0 is the interviewer, cluster 1 the interviewee. Sentence indices are over whisper's output with silence skipping ON and the bundled base model; word timings, and so sentence boundaries, shift if either changes. Labels belong to this segmentation and do not transfer to another model.",
+  "turnsNote": "Time anchors for word-level scoring, re-derived from a base-model run on 2026-09-11 by aligning the run's word stream to the labelled word stream with an edit distance. Speakers are exactly the human labels in 'sentences'; only the times are re-measured, and consecutive same-speaker words are merged, so no boundary is asserted that the labels did not already contain. Two reasons this exists. (1) The 'sentences[].startMs/endMs' were captured before noFallback:false and flash attention moved whisper's word timings; on two_speakers sentence 14 had drifted 26200-26780 -> 25680-26320, far enough that its midpoint fell in the previous speaker's turn, so the scorer marked the BASE model wrong on a sentence it attributes exactly as labelled -- reporting base at 5.8% word error against small-q5_1's 2.0% and inverting the two models. (2) Scoring must be agnostic to how whisper segments: alberta produces 25 sentences against 24 labels because the labelled 'Of course, yeah, that makes sense.' now comes back as two sentences, and both are correct transcriptions. Aligning words rather than pairing sentences by position lets both halves inherit the one labelled speaker, so a segmentation difference no longer makes a clip unscoreable. Re-run integration_test/reanchor_truth_probe_test.dart if decoder settings change again.",
+  "turns": [
+    {
+      "startMs": 30,
+      "endMs": 2690,
+      "speaker": 0
+    },
+    {
+      "startMs": 2690,
+      "endMs": 7730,
+      "speaker": 1
+    },
+    {
+      "startMs": 7730,
+      "endMs": 11230,
+      "speaker": 0
+    },
+    {
+      "startMs": 11230,
+      "endMs": 13970,
+      "speaker": 1
+    },
+    {
+      "startMs": 13970,
+      "endMs": 16910,
+      "speaker": 0
+    },
+    {
+      "startMs": 16910,
+      "endMs": 21000,
+      "speaker": 1
+    },
+    {
+      "startMs": 21000,
+      "endMs": 23900,
+      "speaker": 0
+    },
+    {
+      "startMs": 23900,
+      "endMs": 25010,
+      "speaker": 1
+    },
+    {
+      "startMs": 25010,
+      "endMs": 25680,
+      "speaker": 0
+    },
+    {
+      "startMs": 25680,
+      "endMs": 26320,
+      "speaker": 1
+    },
+    {
+      "startMs": 26320,
+      "endMs": 27320,
+      "speaker": 0
+    }
+  ],
   "spans": [
-    {"speaker": 0, "startMs": 31, "endMs": 2765},
-    {"speaker": 1, "startMs": 2765, "endMs": 7810},
-    {"speaker": 0, "startMs": 7844, "endMs": 11118},
-    {"speaker": 1, "startMs": 11287, "endMs": 13902},
-    {"speaker": 0, "startMs": 13953, "endMs": 16923},
-    {"speaker": 1, "startMs": 17159, "endMs": 17817},
-    {"speaker": 0, "startMs": 17817, "endMs": 18627},
-    {"speaker": 1, "startMs": 18374, "endMs": 21125},
-    {"speaker": 0, "startMs": 21125, "endMs": 27453}
+    {
+      "speaker": 0,
+      "startMs": 31,
+      "endMs": 2765
+    },
+    {
+      "speaker": 1,
+      "startMs": 2765,
+      "endMs": 7810
+    },
+    {
+      "speaker": 0,
+      "startMs": 7844,
+      "endMs": 11118
+    },
+    {
+      "speaker": 1,
+      "startMs": 11287,
+      "endMs": 13902
+    },
+    {
+      "speaker": 0,
+      "startMs": 13953,
+      "endMs": 16923
+    },
+    {
+      "speaker": 1,
+      "startMs": 17159,
+      "endMs": 17817
+    },
+    {
+      "speaker": 0,
+      "startMs": 17817,
+      "endMs": 18627
+    },
+    {
+      "speaker": 1,
+      "startMs": 18374,
+      "endMs": 21125
+    },
+    {
+      "speaker": 0,
+      "startMs": 21125,
+      "endMs": 27453
+    }
   ],
   "sentences": [
-    {"i": 0,  "startMs": 30,    "endMs": 2690,  "speaker": 0, "text": "Yeah, and you worked on the original computer in this country, right?"},
-    {"i": 1,  "startMs": 2690,  "endMs": 6540,  "speaker": 1, "text": "I was very fortunate the Navy ordered me into the first big computer"},
-    {"i": 2,  "startMs": 6540,  "endMs": 7730,  "speaker": 1, "text": "Mark I and Harbin."},
-    {"i": 3,  "startMs": 7730,  "endMs": 9390,  "speaker": 0, "text": "It's called Mark I and Harbin?"},
-    {"i": 4,  "startMs": 9390,  "endMs": 11230, "speaker": 0, "text": "Yeah, in those days the thing was..."},
-    {"i": 5,  "startMs": 11230, "endMs": 13970, "speaker": 1, "text": "51 feet long, 8 feet high, and 8 feet deep."},
-    {"i": 6,  "startMs": 13970, "endMs": 15440, "speaker": 0, "text": "And that was the pocket model."},
-    {"i": 7,  "startMs": 15440, "endMs": 16910, "speaker": 0, "text": "I see."},
-    {"i": 8,  "startMs": 16910, "endMs": 18460, "speaker": 1, "text": "That's right."},
-    {"i": 9,  "startMs": 18460, "endMs": 21000, "speaker": 1, "text": "You could put it on a little tiny corner of a chip now."},
-    {"i": 10, "startMs": 21000, "endMs": 21510, "speaker": 0, "text": "Yeah."},
-    {"i": 11, "startMs": 21510, "endMs": 24160, "speaker": 0, "text": "Now, how did you know so much about computers then?"},
-    {"i": 12, "startMs": 24160, "endMs": 25120, "speaker": 1, "text": "I didn't."},
-    {"i": 13, "startMs": 25120, "endMs": 26200, "speaker": 0, "text": "How did you..."},
-    {"i": 14, "startMs": 26200, "endMs": 26780, "speaker": 1, "text": "It was the first one."},
-    {"i": 15, "startMs": 26780, "endMs": 27040, "speaker": 0, "text": "Yeah."}
-  ],
-  "known": [
-    {"i": 8, "why": "Diarization reports a handover at 17817 that is not there, flanked by two short spans (658ms, 810ms). The straddle guard refuses the region because a cut splits it 59/41, so it is never evaluated -- the guard is protecting a spurious boundary."},
-    {"i": 14, "why": "Evaluated and answered wrongly: spk0 0.222 against spk1 0.100, where the truth is spk1. A 480ms fragment between two stretches of the other speaker; both scores sit far below this clip's usual 0.7-0.9. Not reachable by threshold changes, since the winner is the wrong speaker."}
+    {
+      "i": 0,
+      "startMs": 30,
+      "endMs": 2690,
+      "speaker": 0,
+      "text": "Yeah, and you worked on the original computer in this country, right?"
+    },
+    {
+      "i": 1,
+      "startMs": 2690,
+      "endMs": 6540,
+      "speaker": 1,
+      "text": "I was very fortunate the Navy ordered me into the first big computer"
+    },
+    {
+      "i": 2,
+      "startMs": 6540,
+      "endMs": 7730,
+      "speaker": 1,
+      "text": "Mark I and Harbin."
+    },
+    {
+      "i": 3,
+      "startMs": 7730,
+      "endMs": 9390,
+      "speaker": 0,
+      "text": "It's called Mark I and Harbin?"
+    },
+    {
+      "i": 4,
+      "startMs": 9390,
+      "endMs": 11230,
+      "speaker": 0,
+      "text": "Yeah, in those days the thing was..."
+    },
+    {
+      "i": 5,
+      "startMs": 11230,
+      "endMs": 13970,
+      "speaker": 1,
+      "text": "51 feet long, 8 feet high, and 8 feet deep."
+    },
+    {
+      "i": 6,
+      "startMs": 13970,
+      "endMs": 15440,
+      "speaker": 0,
+      "text": "And that was the pocket model."
+    },
+    {
+      "i": 7,
+      "startMs": 15440,
+      "endMs": 16910,
+      "speaker": 0,
+      "text": "I see."
+    },
+    {
+      "i": 8,
+      "startMs": 16910,
+      "endMs": 18460,
+      "speaker": 1,
+      "text": "That's right."
+    },
+    {
+      "i": 9,
+      "startMs": 18460,
+      "endMs": 21000,
+      "speaker": 1,
+      "text": "You could put it on a little tiny corner of a chip now."
+    },
+    {
+      "i": 10,
+      "startMs": 21000,
+      "endMs": 21510,
+      "speaker": 0,
+      "text": "Yeah."
+    },
+    {
+      "i": 11,
+      "startMs": 21510,
+      "endMs": 24160,
+      "speaker": 0,
+      "text": "Now, how did you know so much about computers then?"
+    },
+    {
+      "i": 12,
+      "startMs": 24160,
+      "endMs": 25120,
+      "speaker": 1,
+      "text": "I didn't."
+    },
+    {
+      "i": 13,
+      "startMs": 25120,
+      "endMs": 26200,
+      "speaker": 0,
+      "text": "How did you..."
+    },
+    {
+      "i": 14,
+      "startMs": 26200,
+      "endMs": 26780,
+      "speaker": 1,
+      "text": "It was the first one."
+    },
+    {
+      "i": 15,
+      "startMs": 26780,
+      "endMs": 27040,
+      "speaker": 0,
+      "text": "Yeah."
+    }
   ]
 }

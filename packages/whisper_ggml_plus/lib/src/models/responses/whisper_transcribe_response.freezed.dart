@@ -20,6 +20,15 @@ mixin _$WhisperTranscribeResponse {
   @JsonKey(name: 'segments')
   List<WhisperTranscribeSegment>? get segments;
 
+  /// FORK: the language whisper actually detected, as an ISO code.
+  ///
+  /// Null when the native layer did not report one -- a pinned language, so
+  /// detection never ran, or a platform whose entrypoint has not been patched
+  /// (iOS carries none of this fork's changes yet). Optional for exactly that
+  /// reason: an unpatched build must still parse.
+  @JsonKey(name: 'detected_language')
+  String? get detectedLanguage;
+
   /// Create a copy of WhisperTranscribeResponse
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -38,17 +47,19 @@ mixin _$WhisperTranscribeResponse {
             other is WhisperTranscribeResponse &&
             (identical(other.type, type) || other.type == type) &&
             (identical(other.text, text) || other.text == text) &&
-            const DeepCollectionEquality().equals(other.segments, segments));
+            const DeepCollectionEquality().equals(other.segments, segments) &&
+            (identical(other.detectedLanguage, detectedLanguage) ||
+                other.detectedLanguage == detectedLanguage));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType, type, text, const DeepCollectionEquality().hash(segments));
+  int get hashCode => Object.hash(runtimeType, type, text,
+      const DeepCollectionEquality().hash(segments), detectedLanguage);
 
   @override
   String toString() {
-    return 'WhisperTranscribeResponse(type: $type, text: $text, segments: $segments)';
+    return 'WhisperTranscribeResponse(type: $type, text: $text, segments: $segments, detectedLanguage: $detectedLanguage)';
   }
 }
 
@@ -61,7 +72,8 @@ abstract mixin class $WhisperTranscribeResponseCopyWith<$Res> {
   $Res call(
       {@JsonKey(name: '@type') String type,
       String text,
-      @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments});
+      @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments,
+      @JsonKey(name: 'detected_language') String? detectedLanguage});
 }
 
 /// @nodoc
@@ -80,6 +92,7 @@ class _$WhisperTranscribeResponseCopyWithImpl<$Res>
     Object? type = null,
     Object? text = null,
     Object? segments = freezed,
+    Object? detectedLanguage = freezed,
   }) {
     return _then(_self.copyWith(
       type: null == type
@@ -94,6 +107,10 @@ class _$WhisperTranscribeResponseCopyWithImpl<$Res>
           ? _self.segments
           : segments // ignore: cast_nullable_to_non_nullable
               as List<WhisperTranscribeSegment>?,
+      detectedLanguage: freezed == detectedLanguage
+          ? _self.detectedLanguage
+          : detectedLanguage // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -194,15 +211,16 @@ extension WhisperTranscribeResponsePatterns on WhisperTranscribeResponse {
     TResult Function(
             @JsonKey(name: '@type') String type,
             String text,
-            @JsonKey(name: 'segments')
-            List<WhisperTranscribeSegment>? segments)?
+            @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments,
+            @JsonKey(name: 'detected_language') String? detectedLanguage)?
         $default, {
     required TResult orElse(),
   }) {
     final _that = this;
     switch (_that) {
       case _WhisperTranscribeResponse() when $default != null:
-        return $default(_that.type, _that.text, _that.segments);
+        return $default(
+            _that.type, _that.text, _that.segments, _that.detectedLanguage);
       case _:
         return orElse();
     }
@@ -223,14 +241,18 @@ extension WhisperTranscribeResponsePatterns on WhisperTranscribeResponse {
 
   @optionalTypeArgs
   TResult when<TResult extends Object?>(
-    TResult Function(@JsonKey(name: '@type') String type, String text,
-            @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments)
+    TResult Function(
+            @JsonKey(name: '@type') String type,
+            String text,
+            @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments,
+            @JsonKey(name: 'detected_language') String? detectedLanguage)
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _WhisperTranscribeResponse():
-        return $default(_that.type, _that.text, _that.segments);
+        return $default(
+            _that.type, _that.text, _that.segments, _that.detectedLanguage);
       case _:
         throw StateError('Unexpected subclass');
     }
@@ -253,14 +275,15 @@ extension WhisperTranscribeResponsePatterns on WhisperTranscribeResponse {
     TResult? Function(
             @JsonKey(name: '@type') String type,
             String text,
-            @JsonKey(name: 'segments')
-            List<WhisperTranscribeSegment>? segments)?
+            @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments,
+            @JsonKey(name: 'detected_language') String? detectedLanguage)?
         $default,
   ) {
     final _that = this;
     switch (_that) {
       case _WhisperTranscribeResponse() when $default != null:
-        return $default(_that.type, _that.text, _that.segments);
+        return $default(
+            _that.type, _that.text, _that.segments, _that.detectedLanguage);
       case _:
         return null;
     }
@@ -274,7 +297,8 @@ class _WhisperTranscribeResponse extends WhisperTranscribeResponse {
       {@JsonKey(name: '@type') required this.type,
       required this.text,
       @JsonKey(name: 'segments')
-      required final List<WhisperTranscribeSegment>? segments})
+      required final List<WhisperTranscribeSegment>? segments,
+      @JsonKey(name: 'detected_language') this.detectedLanguage})
       : _segments = segments,
         super._();
   factory _WhisperTranscribeResponse.fromJson(Map<String, dynamic> json) =>
@@ -295,6 +319,16 @@ class _WhisperTranscribeResponse extends WhisperTranscribeResponse {
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(value);
   }
+
+  /// FORK: the language whisper actually detected, as an ISO code.
+  ///
+  /// Null when the native layer did not report one -- a pinned language, so
+  /// detection never ran, or a platform whose entrypoint has not been patched
+  /// (iOS carries none of this fork's changes yet). Optional for exactly that
+  /// reason: an unpatched build must still parse.
+  @override
+  @JsonKey(name: 'detected_language')
+  final String? detectedLanguage;
 
   /// Create a copy of WhisperTranscribeResponse
   /// with the given fields replaced by the non-null parameter values.
@@ -320,17 +354,19 @@ class _WhisperTranscribeResponse extends WhisperTranscribeResponse {
             other is _WhisperTranscribeResponse &&
             (identical(other.type, type) || other.type == type) &&
             (identical(other.text, text) || other.text == text) &&
-            const DeepCollectionEquality().equals(other._segments, _segments));
+            const DeepCollectionEquality().equals(other._segments, _segments) &&
+            (identical(other.detectedLanguage, detectedLanguage) ||
+                other.detectedLanguage == detectedLanguage));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType, type, text, const DeepCollectionEquality().hash(_segments));
+  int get hashCode => Object.hash(runtimeType, type, text,
+      const DeepCollectionEquality().hash(_segments), detectedLanguage);
 
   @override
   String toString() {
-    return 'WhisperTranscribeResponse(type: $type, text: $text, segments: $segments)';
+    return 'WhisperTranscribeResponse(type: $type, text: $text, segments: $segments, detectedLanguage: $detectedLanguage)';
   }
 }
 
@@ -345,7 +381,8 @@ abstract mixin class _$WhisperTranscribeResponseCopyWith<$Res>
   $Res call(
       {@JsonKey(name: '@type') String type,
       String text,
-      @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments});
+      @JsonKey(name: 'segments') List<WhisperTranscribeSegment>? segments,
+      @JsonKey(name: 'detected_language') String? detectedLanguage});
 }
 
 /// @nodoc
@@ -364,6 +401,7 @@ class __$WhisperTranscribeResponseCopyWithImpl<$Res>
     Object? type = null,
     Object? text = null,
     Object? segments = freezed,
+    Object? detectedLanguage = freezed,
   }) {
     return _then(_WhisperTranscribeResponse(
       type: null == type
@@ -378,6 +416,10 @@ class __$WhisperTranscribeResponseCopyWithImpl<$Res>
           ? _self._segments
           : segments // ignore: cast_nullable_to_non_nullable
               as List<WhisperTranscribeSegment>?,
+      detectedLanguage: freezed == detectedLanguage
+          ? _self.detectedLanguage
+          : detectedLanguage // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }

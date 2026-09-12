@@ -15,6 +15,18 @@ abstract class WhisperTranscribeResponse with _$WhisperTranscribeResponse {
     required String text,
     @JsonKey(name: 'segments')
     required List<WhisperTranscribeSegment>? segments,
+
+    /// FORK: the language whisper used, as an ISO code.
+    ///
+    /// Populated whether the caller pinned a language or asked for `auto` —
+    /// whisper.cpp records the pinned code and the detected one in the same
+    /// place, so this is "what was used" rather than "what was guessed".
+    ///
+    /// Null only when the native layer reported nothing: a platform whose
+    /// entrypoint has not been patched (iOS carries none of this fork's
+    /// changes yet), or a response predating the patch. Optional for exactly
+    /// that reason — an unpatched build must still parse.
+    @JsonKey(name: 'detected_language') String? detectedLanguage,
   }) = _WhisperTranscribeResponse;
 
   const WhisperTranscribeResponse._();

@@ -405,6 +405,35 @@ json transcribe(json jsonBody)
         jsonResult["segments"] = segmentsJson;
     }
     
+    // FORK: report the language whisper actually detected.
+    //
+    // Upstream echoes back only what the caller asked for, so a request of
+    // "auto" -- which is what the app's Auto setting sends -- came back as
+    // "auto" and the detection was thrown away. The transcript then recorded
+    // the *request* rather than the finding, leaving nothing able to label an
+    // exported caption file or branch on language.
+    //
+    // whisper_full_lang_id returns the id for the most recent whisper_full on
+    // this context, so it is read here rather than later.
+    //
+    // It is populated on BOTH paths, which is worth stating because the obvious
+    // guess is wrong: whisper.cpp assigns state->lang_id from the auto-detect
+    // result (whisper.cpp:6834) and, when a language was pinned, from that
+    // language (whisper.cpp:6971). So this field means "the language whisper
+    // used", not "the language whisper guessed" -- and a pinned request simply
+    // gets its own code back. The negative branch is defensive only; it covers
+    // a context that never ran inference.
+    const int detected_lang_id = whisper_full_lang_id(g_ctx);
+    if (detected_lang_id >= 0) {
+        const char *detected = whisper_lang_str(detected_lang_id);
+        if (detected != nullptr) {
+            jsonResult["detected_language"] = std::string(detected);
+            __android_log_print(ANDROID_LOG_DEBUG, "WhisperFlutter",
+                                "[DEBUG] Detected language: %s (id %d)",
+                                detected, detected_lang_id);
+        }
+    }
+
     jsonResult["text"] = text_result;
     return jsonResult;
 }

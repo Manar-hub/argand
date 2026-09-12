@@ -64,13 +64,18 @@ class TranscriptRepository {
   /// Written in a single transaction so a failure part-way through cannot
   /// leave a project with a half-populated transcript.
   ///
-  /// [language] records what the engine was *asked* for, which for
-  /// [TranscriptionLanguage.auto] is not the same as what it detected: the
-  /// package's response carries no detected-language field, so that value is
-  /// currently unrecoverable. Storing the request is still worth doing — it is
-  /// what explains a transcript when someone later asks why it came out in the
-  /// wrong language. Surfacing the detected code needs a change in the
-  /// vendored fork; see docs/progress.md.
+  /// [language] is what the engine was *asked* for. What gets stored is what it
+  /// actually used: `result.detectedLanguage` when the fork reports one, and the
+  /// request otherwise.
+  ///
+  /// The two differ precisely when the request was [TranscriptionLanguage.auto],
+  /// which is the case worth recording — storing the literal string `auto`
+  /// tells nobody what the transcript is in, so an export cannot label it. A
+  /// pinned request gets its own code back, so the value is right either way.
+  ///
+  /// The fallback exists for platforms whose native entrypoint is unpatched —
+  /// iOS today — where the field is absent and the request is the best
+  /// available answer.
   /// [speakerSpans] comes from diarization and may be empty — the setting is
   /// off, the file was too long, or no speech was found. Empty simply leaves
   /// every `speakerId` null, which is the same state every transcript was in
@@ -105,7 +110,7 @@ class TranscriptRepository {
               createdAt: now,
               updatedAt: now,
               projectId: projectId,
-              language: Value(language.code),
+              language: Value(result.detectedLanguage ?? language.code),
               fullText: result.text.trim(),
             ),
           );

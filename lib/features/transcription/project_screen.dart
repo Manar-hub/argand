@@ -7,6 +7,8 @@ import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/captions/subtitle_export.dart';
 import '../../core/database/database.dart';
+import '../../core/text/sentence_units.dart';
+import '../../core/transcript/sentence_edit.dart';
 import '../../core/transcript/speaker_turns.dart';
 import '../../l10n/app_localizations.dart';
 import 'media_player_controller.dart';
@@ -68,7 +70,7 @@ class ProjectScreen extends ConsumerWidget {
               title: project.value?.title ?? '',
             ),
           // The only control the feature adds to the page. Everything else
-          // reuses what is already on screen: a word edits its own text, a
+          // reuses what is already on screen: tapping a line retypes it, and a
           // speaker label reassigns its own turn.
           IconButton(
             icon: Icon(editing ? Icons.done : Icons.edit_outlined),
@@ -217,6 +219,69 @@ class _ExportSheetState extends State<_ExportSheet> {
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Chooses how much of the transcript one tap opens, and explains the gestures.
+///
+/// The banner is where a user already looks to learn what editing does, so the
+/// choice lives here rather than as a third icon in the app bar.
+///
+/// **Word is not a convenience setting.** A retyped run keeps the outer span of
+/// what it replaced and divides the inside between the new words, so a smaller
+/// run means a smaller re-estimate. Editing one word confines any timing change
+/// to that word; editing the line spreads it across the line. The hint says so
+/// in each mode, because a user cannot pick sensibly without knowing it.
+class _EditScopeBanner extends ConsumerWidget {
+  const _EditScopeBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scope = ref.watch(transcriptEditScopeSettingProvider);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Scrolls rather than shrinking: at a large accessibility text scale
+          // two segments plus their labels will not fit a narrow screen, and a
+          // clipped control is worse than one the user pushes sideways.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<TranscriptEditScope>(
+              segments: [
+                ButtonSegment(
+                  value: TranscriptEditScope.line,
+                  icon: const Icon(Icons.notes, size: 18),
+                  label: Text(l10n.editScopeLine),
+                ),
+                ButtonSegment(
+                  value: TranscriptEditScope.word,
+                  icon: const Icon(Icons.text_fields, size: 18),
+                  label: Text(l10n.editScopeWord),
+                ),
+              ],
+              selected: {scope},
+              showSelectedIcon: false,
+              onSelectionChanged: (selection) => ref
+                  .read(transcriptEditScopeSettingProvider.notifier)
+                  .select(selection.first),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            switch (scope) {
+              TranscriptEditScope.line => l10n.editModeHintLine,
+              TranscriptEditScope.word => l10n.editModeHintWord,
+            },
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
@@ -557,7 +622,6 @@ class _WordFlowContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
     final editing = ref.watch(transcriptEditModeProvider);
     final activeIndex =
         positionMs == null || editing ? -1 : _activeWordIndex(words, positionMs!);
@@ -578,14 +642,7 @@ class _WordFlowContent extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (editing)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                l10n.editModeHint,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
+          if (editing) const _EditScopeBanner(),
           for (final turn in turns) ...[
             // Absent on a transcript that was never diarized, in which case
             // this renders as the single uninterrupted run of words it was
@@ -613,7 +670,7 @@ class _WordFlowContent extends ConsumerWidget {
                     active: turn.startIndex + offset == activeIndex,
                     editing: editing,
                     onTap: editing
-                        ? () => _correctWord(context, ref, word)
+                        ? () => _correct(context, ref, turn, offset)
                         : () => ref
                             .read(mediaPlayerProvider(projectId).notifier)
                             .seekToWord(word.startMs),
@@ -627,14 +684,68 @@ class _WordFlowContent extends ConsumerWidget {
     );
   }
 
-  Future<void> _correctWord(
-    BuildContext context, WidgetRef ref, Word word) async {
+  /// Opens the word at [offset] within [turn], or the sentence containing it.
+  ///
+  /// **Which one is the user's choice, and it is a real one.** A retyped run
+  /// keeps the outer span of what it replaced and divides the inside between
+  /// the new words, so the run is exactly the blast radius of any re-estimated
+  /// timing. Line is the default because the corrections people actually make
+  /// often span a word boundary — "brainbeats" for "praying beads" cannot be
+  /// typed one word at a time — and seeing the line gives the context being
+  /// corrected against. Word is there for when the timing matters more, and
+  /// confines the change to that one word's box.
+  ///
+  /// In line mode the unit is the sentence **within this turn**, not across the
+  /// transcript. A turn is one voice by construction, so every word the editor
+  /// can add inherits an unambiguous speaker — a sentence that straddled a
+  /// handover would have no such answer.
+  Future<void> _correct(
+    BuildContext context,
+    WidgetRef ref,
+    SpeakerTurn turn,
+    int offset,
+  ) async {
+    final scope = ref.read(transcriptEditScopeSettingProvider);
+
+    final slice = switch (scope) {
+      TranscriptEditScope.word => [turn.words[offset]],
+      TranscriptEditScope.line => _sentenceAround(turn, offset),
+    };
+
     final text = await showDialog<String>(
       context: context,
-      builder: (context) => _WordEditor(word: word),
+      builder: (context) => _SentenceEditor(words: slice, scope: scope),
     );
-    if (text == null || text.isEmpty || text == word.word) return;
-    await ref.read(transcriptRepositoryProvider).updateWordText(word.id, text);
+    if (text == null) return;
+
+    // The repository decides whether anything actually changed, so a dialog
+    // dismissed with the text untouched costs no undo slot. A single-word range
+    // needs no special case: `replaceSentence` takes `from == to`, and the
+    // planner then divides that one word's span and nothing else.
+    await ref.read(transcriptRepositoryProvider).replaceSentence(
+          transcriptId: slice.first.transcriptId,
+          fromPosition: slice.first.position,
+          toPosition: slice.last.position,
+          text: text,
+        );
+  }
+
+  /// The words of the sentence containing [offset], within [turn].
+  List<Word> _sentenceAround(SpeakerTurn turn, int offset) {
+    final units = sentenceUnitsOf([
+      for (final word in turn.words)
+        (text: word.word, startMs: word.startMs, endMs: word.endMs),
+    ]);
+
+    final unit = units.firstWhere(
+      (candidate) => offset >= candidate.first && offset <= candidate.last,
+      // A turn always produces at least one unit -- `sentenceUnitsOf` closes
+      // the final run even with no terminator -- so this is unreachable rather
+      // than a real fallback, and is here so the lookup cannot throw.
+      orElse: () => units.last,
+    );
+
+    return turn.words.sublist(unit.first, unit.last + 1);
   }
 
   Future<void> _reassignTurn(
@@ -772,25 +883,45 @@ class _SpeakerLabel extends StatelessWidget {
   }
 }
 
-/// Corrects a single word's text.
+/// Retypes a whole sentence.
 ///
-/// Only the text. The word keeps its `startMs`/`endMs`, which is what the
-/// caption boundaries, the playback highlight and tap-to-seek are all built
-/// from — a correction fixes what the engine misheard, not when it was said.
-/// The note under the field says so, because a user retyping a longer word has
-/// every reason to wonder.
-class _WordEditor extends StatefulWidget {
-  const _WordEditor({required this.word});
+/// One free-text field rather than a word in a box, because a correction is
+/// usually a phrase: the engine hears "brainbeats" where the speaker said
+/// "praying beads", and no per-word editor can express that. Seeing the line
+/// whole also shows the context being corrected against.
+///
+/// **The sentence keeps its own span**, however many words come back —
+/// `planSentenceEdit` divides the time between them and leaves the words the
+/// user did not touch on their original timestamps. That is what the note under
+/// the field promises, and a user retyping a longer line has every reason to
+/// wonder, because caption boundaries, the playback highlight and tap-to-seek
+/// are all built on those numbers.
+class _SentenceEditor extends StatefulWidget {
+  const _SentenceEditor({required this.words, required this.scope});
 
-  final Word word;
+  final List<Word> words;
+
+  /// Only changes the wording. Both scopes retype free text and both are
+  /// contained; what differs is how much span the result may redivide, and the
+  /// note under the field is where that gets said.
+  final TranscriptEditScope scope;
 
   @override
-  State<_WordEditor> createState() => _WordEditorState();
+  State<_SentenceEditor> createState() => _SentenceEditorState();
 }
 
-class _WordEditorState extends State<_WordEditor> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.word.word);
+class _SentenceEditorState extends State<_SentenceEditor> {
+  late final TextEditingController _controller = TextEditingController(
+    text: sentenceTextOf([
+      for (final word in widget.words)
+        (
+          id: word.id,
+          text: word.word,
+          startMs: word.startMs,
+          endMs: word.endMs,
+        ),
+    ]),
+  );
 
   @override
   void dispose() {
@@ -803,24 +934,35 @@ class _WordEditorState extends State<_WordEditor> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
+    final word = widget.scope == TranscriptEditScope.word;
+
     return AlertDialog(
-      title: Text(l10n.editWordTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.editWordTimingNote,
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
+      title: Text(word ? l10n.editWordTitle : l10n.editSentenceTitle),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              // Grows with the text instead of scrolling a single line
+              // sideways: the point of editing a sentence is seeing it.
+              maxLines: null,
+              minLines: 2,
+              keyboardType: TextInputType.multiline,
+              // Deliberately not `TextInputAction.done`: a newline in a
+              // sentence is plausible typing, and submitting on the return key
+              // would close the dialog mid-thought. Save is the explicit action.
+              textInputAction: TextInputAction.newline,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              word ? l10n.editWordTimingNote : l10n.editSentenceTimingNote,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -828,8 +970,7 @@ class _WordEditorState extends State<_WordEditor> {
           child: Text(l10n.editCancel),
         ),
         FilledButton(
-          onPressed: () =>
-              Navigator.of(context).pop(_controller.text.trim()),
+          onPressed: () => Navigator.of(context).pop(_controller.text),
           child: Text(l10n.editSave),
         ),
       ],

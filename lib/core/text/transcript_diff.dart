@@ -150,34 +150,7 @@ TranscriptComparison compareTranscripts(
 ) {
   final n = reference.length;
   final m = candidate.length;
-
-  final cost = List.generate(
-    n + 1,
-    (_) => List<int>.filled(m + 1, 0),
-    growable: false,
-  );
-  for (var i = 0; i <= n; i++) {
-    cost[i][0] = i;
-  }
-  for (var j = 0; j <= m; j++) {
-    cost[0][j] = j;
-  }
-
-  for (var i = 1; i <= n; i++) {
-    for (var j = 1; j <= m; j++) {
-      if (reference[i - 1] == candidate[j - 1]) {
-        cost[i][j] = cost[i - 1][j - 1];
-        continue;
-      }
-      final substitute = cost[i - 1][j - 1];
-      final delete = cost[i - 1][j];
-      final insert = cost[i][j - 1];
-      var best = substitute;
-      if (delete < best) best = delete;
-      if (insert < best) best = insert;
-      cost[i][j] = best + 1;
-    }
-  }
+  final cost = _costMatrix(reference, candidate);
 
   // Walk back from the corner. Matches are skipped; every other step is an
   // edit, recorded with the reference position so the list reads in order.
@@ -221,6 +194,99 @@ TranscriptComparison compareTranscripts(
     candidateWords: m,
     edits: edits.reversed.toList(growable: false),
   );
+}
+
+/// The Levenshtein cost table for [reference] against [candidate].
+///
+/// Shared by [compareTranscripts], which scores, and [alignWords], which
+/// retimes. Two copies of an alignment would be one copy too many for the same
+/// reason `sentence_units.dart` exists: if they drifted, a transcript would
+/// score against one pairing and be edited against another.
+///
+/// O(n*m) in memory, which is fine here — the inputs are the words of one
+/// sentence, or of one transcript at a few hundred words, never millions.
+List<List<int>> _costMatrix(List<String> reference, List<String> candidate) {
+  final n = reference.length;
+  final m = candidate.length;
+
+  final cost = List.generate(
+    n + 1,
+    (_) => List<int>.filled(m + 1, 0),
+    growable: false,
+  );
+  for (var i = 0; i <= n; i++) {
+    cost[i][0] = i;
+  }
+  for (var j = 0; j <= m; j++) {
+    cost[0][j] = j;
+  }
+
+  for (var i = 1; i <= n; i++) {
+    for (var j = 1; j <= m; j++) {
+      if (reference[i - 1] == candidate[j - 1]) {
+        cost[i][j] = cost[i - 1][j - 1];
+        continue;
+      }
+      final substitute = cost[i - 1][j - 1];
+      final delete = cost[i - 1][j];
+      final insert = cost[i][j - 1];
+      var best = substitute;
+      if (delete < best) best = delete;
+      if (insert < best) best = insert;
+      cost[i][j] = best + 1;
+    }
+  }
+
+  return cost;
+}
+
+/// One step of an alignment: which index on each side it consumes.
+///
+/// Exactly one of the two is null for an insertion or a deletion; both are set
+/// for a match or a substitution. [matched] separates those last two, which is
+/// the distinction that matters to a retimer — a matched word keeps its
+/// timestamps untouched, a substituted one does not.
+typedef WordAlignment = ({int? reference, int? candidate, bool matched});
+
+/// Pairs [reference] against [candidate] word for word, in order.
+///
+/// [compareTranscripts] answers "how different are these"; this answers "which
+/// word became which", which is what an editor needs in order to keep the
+/// timings of the words the user did not touch.
+///
+/// Comparison is on the raw strings. Callers wanting case- or
+/// punctuation-insensitive pairing normalise first — the editor deliberately
+/// does not, because changing "dont" to "don't" *is* an edit the user made and
+/// should be recorded as one.
+List<WordAlignment> alignWords(
+  List<String> reference,
+  List<String> candidate,
+) {
+  final cost = _costMatrix(reference, candidate);
+  final steps = <WordAlignment>[];
+
+  var i = reference.length;
+  var j = candidate.length;
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && reference[i - 1] == candidate[j - 1]) {
+      steps.add((reference: i - 1, candidate: j - 1, matched: true));
+      i--;
+      j--;
+    } else if (i > 0 && j > 0 && cost[i][j] == cost[i - 1][j - 1] + 1) {
+      steps.add((reference: i - 1, candidate: j - 1, matched: false));
+      i--;
+      j--;
+    } else if (i > 0 && cost[i][j] == cost[i - 1][j] + 1) {
+      steps.add((reference: i - 1, candidate: null, matched: false));
+      i--;
+    } else {
+      steps.add((reference: null, candidate: j - 1, matched: false));
+      j--;
+    }
+  }
+
+  return steps.reversed.toList(growable: false);
 }
 
 /// How a candidate's punctuation compares to a reference's.

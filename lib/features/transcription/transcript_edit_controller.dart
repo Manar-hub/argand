@@ -26,3 +26,40 @@ class TranscriptEditMode extends _$TranscriptEditMode {
 
   void leave() => state = false;
 }
+
+/// How much of the transcript one tap opens for editing.
+///
+/// **This is the accuracy control.** A retyped run keeps the outer span of what
+/// it replaced and divides the inside between the new words, so the smaller the
+/// run, the less any single correction can move. Editing one word confines the
+/// change to that word's own timing; editing the line spreads it across the
+/// line. Measured drift for the wider case is in `docs/engineering-notes.md`,
+/// "Sentence editing".
+///
+/// So the choice is not a preference about typing — it is the user deciding how
+/// much they are willing to have re-estimated, which is something only they can
+/// judge for the correction they are making.
+enum TranscriptEditScope {
+  /// The sentence containing the tapped word, within its speaker turn.
+  line,
+
+  /// The tapped word alone.
+  word,
+}
+
+/// Whether a tap edits a whole line or a single word.
+///
+/// Defaults to [TranscriptEditScope.line] because the common correction is a
+/// phrase — "brainbeats" for "praying beads" spans a word boundary and cannot
+/// be typed one word at a time. Word is the deliberate choice for when the
+/// timing matters more than the convenience.
+///
+/// Not persisted, for the same reason [TranscriptEditMode] is not: it is picked
+/// for a task, and inheriting it on a later launch would surprise.
+@riverpod
+class TranscriptEditScopeSetting extends _$TranscriptEditScopeSetting {
+  @override
+  TranscriptEditScope build() => TranscriptEditScope.line;
+
+  void select(TranscriptEditScope scope) => state = scope;
+}

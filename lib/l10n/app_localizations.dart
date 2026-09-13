@@ -340,11 +340,29 @@ abstract class AppLocalizations {
   /// **'Done editing'**
   String get editModeDisable;
 
-  /// Banner shown while the transcript is in edit mode, explaining both gestures
+  /// Banner shown in edit mode when a tap opens the whole sentence
   ///
   /// In en, this message translates to:
-  /// **'Tap a word to correct it, or a speaker name to reassign the turn.'**
-  String get editModeHint;
+  /// **'Tap a line to retype it, or a speaker name to reassign the turn.'**
+  String get editModeHintLine;
+
+  /// Banner shown in edit mode when a tap opens a single word, noting that this is the more precise option
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a word to retype it. Any change stays inside that word\'s own timing.'**
+  String get editModeHintWord;
+
+  /// Label of the control that makes a tap open the whole sentence
+  ///
+  /// In en, this message translates to:
+  /// **'Line'**
+  String get editScopeLine;
+
+  /// Label of the control that makes a tap open a single word
+  ///
+  /// In en, this message translates to:
+  /// **'Word'**
+  String get editScopeWord;
 
   /// Header of the sheet listing speakers to reassign a turn to
   ///
@@ -352,17 +370,29 @@ abstract class AppLocalizations {
   /// **'Who is speaking?'**
   String get reassignSpeakerTitle;
 
-  /// Header of the field for correcting a single word's text
+  /// Header of the field for retyping a whole sentence
+  ///
+  /// In en, this message translates to:
+  /// **'Correct this line'**
+  String get editSentenceTitle;
+
+  /// Header of the field for retyping a single word
   ///
   /// In en, this message translates to:
   /// **'Correct this word'**
   String get editWordTitle;
 
-  /// Reassurance under the word editor that correcting text will not move the word's timestamp
+  /// Reassurance under the word editor that a change cannot affect neighbouring words' timing, and that the word may become several
   ///
   /// In en, this message translates to:
-  /// **'Timing stays the same, so captions stay in sync.'**
+  /// **'Timing stays inside this word, so nothing around it moves. You can split it into several words.'**
   String get editWordTimingNote;
+
+  /// Reassurance under the sentence editor that retyping will not move the line's timestamps, and that the word count may change
+  ///
+  /// In en, this message translates to:
+  /// **'Timing stays the same, so captions stay in sync. You can add or remove words.'**
+  String get editSentenceTimingNote;
 
   /// Dismisses an edit without applying it
   ///

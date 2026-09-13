@@ -122,3 +122,96 @@ abstract class _$TranscriptEditMode extends $Notifier<bool> {
     return element.handleCreate(ref, build);
   }
 }
+
+/// Whether a tap edits a whole line or a single word.
+///
+/// Defaults to [TranscriptEditScope.line] because the common correction is a
+/// phrase — "brainbeats" for "praying beads" spans a word boundary and cannot
+/// be typed one word at a time. Word is the deliberate choice for when the
+/// timing matters more than the convenience.
+///
+/// Not persisted, for the same reason [TranscriptEditMode] is not: it is picked
+/// for a task, and inheriting it on a later launch would surprise.
+
+@ProviderFor(TranscriptEditScopeSetting)
+final transcriptEditScopeSettingProvider =
+    TranscriptEditScopeSettingProvider._();
+
+/// Whether a tap edits a whole line or a single word.
+///
+/// Defaults to [TranscriptEditScope.line] because the common correction is a
+/// phrase — "brainbeats" for "praying beads" spans a word boundary and cannot
+/// be typed one word at a time. Word is the deliberate choice for when the
+/// timing matters more than the convenience.
+///
+/// Not persisted, for the same reason [TranscriptEditMode] is not: it is picked
+/// for a task, and inheriting it on a later launch would surprise.
+final class TranscriptEditScopeSettingProvider
+    extends $NotifierProvider<TranscriptEditScopeSetting, TranscriptEditScope> {
+  /// Whether a tap edits a whole line or a single word.
+  ///
+  /// Defaults to [TranscriptEditScope.line] because the common correction is a
+  /// phrase — "brainbeats" for "praying beads" spans a word boundary and cannot
+  /// be typed one word at a time. Word is the deliberate choice for when the
+  /// timing matters more than the convenience.
+  ///
+  /// Not persisted, for the same reason [TranscriptEditMode] is not: it is picked
+  /// for a task, and inheriting it on a later launch would surprise.
+  TranscriptEditScopeSettingProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'transcriptEditScopeSettingProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$transcriptEditScopeSettingHash();
+
+  @$internal
+  @override
+  TranscriptEditScopeSetting create() => TranscriptEditScopeSetting();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(TranscriptEditScope value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<TranscriptEditScope>(value),
+    );
+  }
+}
+
+String _$transcriptEditScopeSettingHash() =>
+    r'ea5abcc9ac8b41a94fac9c924cefee08cb379146';
+
+/// Whether a tap edits a whole line or a single word.
+///
+/// Defaults to [TranscriptEditScope.line] because the common correction is a
+/// phrase — "brainbeats" for "praying beads" spans a word boundary and cannot
+/// be typed one word at a time. Word is the deliberate choice for when the
+/// timing matters more than the convenience.
+///
+/// Not persisted, for the same reason [TranscriptEditMode] is not: it is picked
+/// for a task, and inheriting it on a later launch would surprise.
+
+abstract class _$TranscriptEditScopeSetting
+    extends $Notifier<TranscriptEditScope> {
+  TranscriptEditScope build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<TranscriptEditScope, TranscriptEditScope>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<TranscriptEditScope, TranscriptEditScope>,
+              TranscriptEditScope,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

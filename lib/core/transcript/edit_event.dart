@@ -7,7 +7,8 @@ import 'dart:convert';
 /// user's device. Add cases, never rename them.
 enum EditEventKind {
   wordText('wordText'),
-  speaker('speaker');
+  speaker('speaker'),
+  sentence('sentence');
 
   const EditEventKind(this.code);
 
@@ -65,8 +66,124 @@ sealed class EditEventPayload {
     return switch (resolved) {
       EditEventKind.wordText => WordTextEdit.fromJson(raw),
       EditEventKind.speaker => SpeakerEdit.fromJson(raw),
+      EditEventKind.sentence => SentenceEdit.fromJson(raw),
     };
   }
+}
+
+/// One word row, captured whole.
+///
+/// A sentence edit can add and remove words, not just change their text, so its
+/// inverse cannot be described as a field-level delta the way a
+/// [WordTextEdit] can. The whole row goes in, both sides.
+class WordSnapshot {
+  const WordSnapshot({
+    required this.id,
+    required this.text,
+    required this.startMs,
+    required this.endMs,
+    required this.speakerId,
+  });
+
+  static WordSnapshot? fromJson(Object? raw) {
+    if (raw is! Map<String, Object?>) return null;
+    final id = raw['id'];
+    final text = raw['text'];
+    final startMs = raw['startMs'];
+    final endMs = raw['endMs'];
+    final speakerId = raw['speakerId'];
+
+    if (text is! String || startMs is! int || endMs is! int) return null;
+    if (id != null && id is! String) return null;
+    if (speakerId != null && speakerId is! String) return null;
+
+    return WordSnapshot(
+      id: id as String?,
+      text: text,
+      startMs: startMs,
+      endMs: endMs,
+      speakerId: speakerId as String?,
+    );
+  }
+
+  /// Null for a word that did not exist yet when the snapshot was taken.
+  final String? id;
+
+  final String text;
+  final int startMs;
+  final int endMs;
+  final String? speakerId;
+
+  Map<String, Object?> toJson() => {
+        'id': id,
+        'text': text,
+        'startMs': startMs,
+        'endMs': endMs,
+        'speakerId': speakerId,
+      };
+}
+
+/// A whole sentence retyped.
+///
+/// Unlike the other two kinds this can change how many words exist, which is
+/// why both sides are full row snapshots rather than a description of the
+/// difference: applying it in either direction is the same operation with the
+/// two lists swapped.
+///
+/// [fromPosition] is where the run starts. Its end is implied by whichever list
+/// is currently in place, so undo and redo each compute their own — the run
+/// gets longer or shorter as the edit is applied and reversed.
+class SentenceEdit extends EditEventPayload {
+  const SentenceEdit({
+    required this.fromPosition,
+    required this.before,
+    required this.after,
+  });
+
+  static SentenceEdit? fromJson(Map<String, Object?> json) {
+    final from = json['from'];
+    final before = json['before'];
+    final after = json['after'];
+    if (from is! int || before is! List || after is! List) return null;
+
+    final restoredBefore = <WordSnapshot>[];
+    for (final entry in before) {
+      final snapshot = WordSnapshot.fromJson(entry);
+      if (snapshot == null) return null;
+      restoredBefore.add(snapshot);
+    }
+
+    final restoredAfter = <WordSnapshot>[];
+    for (final entry in after) {
+      final snapshot = WordSnapshot.fromJson(entry);
+      if (snapshot == null) return null;
+      restoredAfter.add(snapshot);
+    }
+
+    // A side with no words would mean the sentence vanished, which the planner
+    // refuses to produce. Treated as corruption rather than applied.
+    if (restoredBefore.isEmpty || restoredAfter.isEmpty) return null;
+
+    return SentenceEdit(
+      fromPosition: from,
+      before: restoredBefore,
+      after: restoredAfter,
+    );
+  }
+
+  final int fromPosition;
+  final List<WordSnapshot> before;
+  final List<WordSnapshot> after;
+
+  @override
+  EditEventKind get kind => EditEventKind.sentence;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'from': fromPosition,
+        'before': [for (final word in before) word.toJson()],
+        'after': [for (final word in after) word.toJson()],
+      };
 }
 
 /// A correction to one word's text.

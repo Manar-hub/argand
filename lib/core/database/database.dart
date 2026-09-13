@@ -357,6 +357,128 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Replaces the live words at positions [fromPosition]..[toPosition] with
+  /// [replacements], keeping `position` contiguous across the whole transcript.
+  ///
+  /// This is the only operation that changes how many words a transcript has,
+  /// and it is deliberately one primitive used in both directions: undoing a
+  /// sentence edit is the same call with the two lists swapped.
+  ///
+  /// Entries carrying an `id` **amend that row**, clearing `deletedAt` if it
+  /// was set. That matters for more than tidiness: reusing the row is what
+  /// keeps an older [EditEvents] entry that addresses a word by id resolvable
+  /// after this edit has been undone. Entries without an id are new rows and
+  /// get a fresh UUID (CLAUDE.md 5).
+  ///
+  /// Live rows in the range that no replacement claims are soft-deleted, never
+  /// removed.
+  Future<void> spliceWords({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+    required List<
+            ({
+              String? id,
+              String text,
+              int startMs,
+              int endMs,
+              String? speakerId
+            })>
+        replacements,
+  }) {
+    final now = DateTime.now();
+
+    return transaction(() async {
+      final existing = await wordsInPositionRange(
+        transcriptId: transcriptId,
+        from: fromPosition,
+        to: toPosition,
+      );
+
+      final claimed = {
+        for (final row in replacements)
+          if (row.id != null) row.id!,
+      };
+
+      // Which of those ids are rows that actually exist. An id alone does not
+      // imply one: the caller mints ids for brand-new words so the undo event
+      // can record them, and a row being restored by an undo is soft-deleted
+      // and therefore outside [existing]. Checked against the whole table,
+      // ignoring `deletedAt`, so a restore updates rather than duplicates.
+      final known = claimed.isEmpty
+          ? const <String>{}
+          : (await (select(words)..where((t) => t.id.isIn(claimed))).get())
+              .map((row) => row.id)
+              .toSet();
+
+      for (final row in existing) {
+        if (claimed.contains(row.id)) continue;
+        await (update(words)..where((t) => t.id.equals(row.id))).write(
+          WordsCompanion(
+            deletedAt: Value(now),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+
+      // Shift the tail before writing the new range, so the two never have to
+      // interleave. `position` carries no unique constraint, so a transient
+      // overlap inside the transaction is harmless -- only the committed state
+      // has to be contiguous.
+      final delta = replacements.length - (toPosition - fromPosition + 1);
+      if (delta != 0) {
+        await customUpdate(
+          'UPDATE words SET position = position + ?, updated_at = ? '
+          'WHERE transcript_id = ? AND deleted_at IS NULL AND position > ?',
+          variables: [
+            Variable<int>(delta),
+            Variable<DateTime>(now),
+            Variable<String>(transcriptId),
+            Variable<int>(toPosition),
+          ],
+          updates: {words},
+        );
+      }
+
+      for (final (index, row) in replacements.indexed) {
+        final position = fromPosition + index;
+
+        if (row.id == null || !known.contains(row.id)) {
+          await into(words).insert(
+            WordsCompanion.insert(
+              // Honours an id the caller minted, so the undo event that
+              // recorded it still addresses this row on a later redo.
+              id: row.id ?? _uuid.v4(),
+              createdAt: now,
+              updatedAt: now,
+              transcriptId: transcriptId,
+              position: position,
+              word: row.text,
+              startMs: row.startMs,
+              endMs: row.endMs,
+              speakerId: Value(row.speakerId),
+            ),
+          );
+          continue;
+        }
+
+        await (update(words)..where((t) => t.id.equals(row.id!))).write(
+          WordsCompanion(
+            position: Value(position),
+            word: Value(row.text),
+            startMs: Value(row.startMs),
+            endMs: Value(row.endMs),
+            speakerId: Value(row.speakerId),
+            // Undo restores rows this edit removed, so clearing the flag is
+            // part of the operation rather than an edge case.
+            deletedAt: const Value(null),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
+  }
+
   /// Appends one event to [transcriptId]'s log.
   ///
   /// **Call inside the same transaction as the mutation it records**, so an

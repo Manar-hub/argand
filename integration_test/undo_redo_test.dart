@@ -217,7 +217,7 @@ void main() {
 
     testWidgets('appear only in edit mode, and start disabled', (tester) async {
       final projectId = repository.newId();
-      await seedTranscript(projectId, ['Appie', 'is', 'here']);
+      await seedTranscript(projectId, ['Appie', 'is', 'here.']);
 
       await tester.pumpWidget(host(projectId));
       await settle(tester);
@@ -238,7 +238,7 @@ void main() {
     testWidgets('undo reverts a correction made through the editor',
         (tester) async {
       final projectId = repository.newId();
-      await seedTranscript(projectId, ['Appie', 'is', 'here']);
+      await seedTranscript(projectId, ['Appie', 'is', 'here.']);
 
       await tester.pumpWidget(host(projectId));
       await settle(tester);
@@ -248,7 +248,7 @@ void main() {
       // The real gesture: tap the word, retype it, save.
       await tester.tap(find.text('Appie'));
       await settle(tester);
-      await tester.enterText(find.byType(TextField), 'API');
+      await tester.enterText(find.byType(TextField), 'API is here.');
       await tester.tap(find.text('Save'));
       await settle(tester);
 
@@ -275,10 +275,136 @@ void main() {
       await repository.deleteProject(projectId);
     });
 
+    testWidgets('retyping a line splits one word into two and undoes cleanly',
+        (tester) async {
+      // The reported case, driven through the real dialog: the engine hears
+      // "brainbeats" where the speaker said "praying beads".
+      final projectId = repository.newId();
+      final transcriptId =
+          await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
+      final before = await repository.watchWords(transcriptId).first;
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+
+      // Tapping any word in the line opens the whole line, not that word.
+      await tester.tap(find.text('was'));
+      await settle(tester);
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'It was brainbeats.',
+          reason: 'the editor must be seeded with the whole sentence');
+      log('editor        -> "${field.controller!.text}"');
+
+      await tester.enterText(find.byType(TextField), 'It was praying beads.');
+      await tester.tap(find.text('Save'));
+      await settle(tester);
+
+      final after = await repository.watchWords(transcriptId).first;
+      log('after edit    -> ${after.map((w) => w.word).join(' ')}');
+      expect(after.map((w) => w.word), ['It', 'was', 'praying', 'beads.']);
+
+      // The line still occupies exactly the time it did, and the words nobody
+      // touched are untouched.
+      expect(after.first.startMs, before.first.startMs);
+      expect(after.last.endMs, before.last.endMs);
+      expect(after[1].endMs, before[1].endMs);
+      log('span          -> ${after.first.startMs}..${after.last.endMs} '
+          '(was ${before.first.startMs}..${before.last.endMs})');
+
+      await tester.tap(buttonFor(Icons.undo));
+      await settle(tester);
+
+      final undone = await repository.watchWords(transcriptId).first;
+      log('after undo    -> ${undone.map((w) => w.word).join(' ')}');
+      expect(undone.map((w) => w.word), ['It', 'was', 'brainbeats.']);
+      expect(undone.map((w) => w.position), [0, 1, 2]);
+
+      await repository.deleteProject(projectId);
+    });
+
+    testWidgets('Word scope opens one word and confines the change to it',
+        (tester) async {
+      final projectId = repository.newId();
+      final transcriptId =
+          await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
+      final before = await repository.watchWords(transcriptId).first;
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+
+      // The banner control, not a hidden gesture.
+      await tester.tap(find.text('Word'));
+      await settle(tester);
+
+      await tester.tap(find.text('brainbeats.'));
+      await settle(tester);
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'brainbeats.',
+          reason: 'Word scope must seed the editor with that word alone');
+      log('word editor   -> "${field.controller!.text}"');
+
+      await tester.enterText(find.byType(TextField), 'praying beads.');
+      await tester.tap(find.text('Save'));
+      await settle(tester);
+
+      final after = await repository.watchWords(transcriptId).first;
+      log('after edit    -> ${after.map((w) => w.word).join(' ')}');
+      expect(after.map((w) => w.word), ['It', 'was', 'praying', 'beads.']);
+
+      // The pair sits exactly in the box the one word had, and the two words
+      // before it did not move by a millisecond.
+      expect(after[2].startMs, before[2].startMs);
+      expect(after[3].endMs, before[2].endMs);
+      expect(after[0].endMs, before[0].endMs);
+      expect(after[1].endMs, before[1].endMs);
+      log('word box      -> ${after[2].startMs}..${after[3].endMs} '
+          '(was ${before[2].startMs}..${before[2].endMs})');
+
+      await tester.tap(buttonFor(Icons.undo));
+      await settle(tester);
+      expect(
+        (await repository.watchWords(transcriptId).first).map((w) => w.word),
+        ['It', 'was', 'brainbeats.'],
+      );
+
+      await repository.deleteProject(projectId);
+    });
+
+    testWidgets('Line scope still opens the whole sentence', (tester) async {
+      final projectId = repository.newId();
+      await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+
+      // Line is the default, so this asserts the control did not silently
+      // change what a tap does before the user chose anything.
+      await tester.tap(find.text('was'));
+      await settle(tester);
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'It was brainbeats.',
+      );
+
+      await tester.tap(find.text('Cancel'));
+      await settle(tester);
+
+      await repository.deleteProject(projectId);
+    });
+
     testWidgets('history is still offered after the screen is rebuilt',
         (tester) async {
       final projectId = repository.newId();
-      await seedTranscript(projectId, ['Appie', 'is', 'here']);
+      await seedTranscript(projectId, ['Appie', 'is', 'here.']);
 
       await tester.pumpWidget(host(projectId));
       await settle(tester);
@@ -286,7 +412,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Appie'));
       await settle(tester);
-      await tester.enterText(find.byType(TextField), 'API');
+      await tester.enterText(find.byType(TextField), 'API is here.');
       await tester.tap(find.text('Save'));
       await settle(tester);
 

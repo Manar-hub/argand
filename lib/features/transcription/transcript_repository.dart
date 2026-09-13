@@ -9,6 +9,7 @@ import '../../core/diarization/speaker_assignment.dart';
 import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
+import '../../core/transcript/sentence_edit.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 
 part 'transcript_repository.g.dart';
@@ -154,6 +155,111 @@ class TranscriptRepository {
     });
   }
 
+  /// Applies a retyped sentence to the words at [fromPosition]..[toPosition].
+  ///
+  /// The correction the user actually makes is rarely one word for one word:
+  /// "brainbeats" heard for "praying beads" is a single mishearing that spans a
+  /// word boundary, and there is no way to express it one word at a time. So
+  /// the unit of editing is the sentence, and the word count is allowed to
+  /// change.
+  ///
+  /// [planSentenceEdit] decides the timings — the sentence keeps its own span,
+  /// untouched words keep their exact timestamps, and a changed run divides the
+  /// span it replaces. See that function for why none of that may move.
+  ///
+  /// Returns false when nothing changed, so the caller can tell a real edit
+  /// from a dialog dismissed with the text as it was.
+  Future<bool> replaceSentence({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+    required String text,
+  }) async {
+    var applied = false;
+
+    await _db.transaction(() async {
+      final existing = await _db.wordsInPositionRange(
+        transcriptId: transcriptId,
+        from: fromPosition,
+        to: toPosition,
+      );
+      if (existing.isEmpty) return;
+
+      final plan = planSentenceEdit(
+        original: [
+          for (final word in existing)
+            (
+              id: word.id,
+              text: word.word,
+              startMs: word.startMs,
+              endMs: word.endMs,
+            ),
+        ],
+        text: text,
+      );
+      if (plan == null || !plan.changed) return;
+
+      // Every word in the run already shares a speaker -- the editable unit is
+      // a sentence *within a turn*, and a turn is by definition one voice. New
+      // words therefore inherit it with no ambiguity about whose they are.
+      final speakerId = existing.first.speakerId;
+
+      // Ids for the new words are minted **here**, not left to `spliceWords`.
+      // The event has to record the id a word was actually given, or a redo
+      // would insert a second row for the same word and strand the first as a
+      // soft-deleted orphan.
+      final after = [
+        for (final word in plan.words)
+          (
+            id: word.id ?? newId(),
+            text: word.text,
+            startMs: word.startMs,
+            endMs: word.endMs,
+            speakerId: speakerId,
+          ),
+      ];
+
+      await _db.spliceWords(
+        transcriptId: transcriptId,
+        fromPosition: fromPosition,
+        toPosition: toPosition,
+        replacements: after,
+      );
+
+      await _db.appendEditEvent(
+        transcriptId: transcriptId,
+        kind: EditEventKind.sentence.code,
+        payload: SentenceEdit(
+          fromPosition: fromPosition,
+          before: [
+            for (final word in existing)
+              WordSnapshot(
+                id: word.id,
+                text: word.word,
+                startMs: word.startMs,
+                endMs: word.endMs,
+                speakerId: word.speakerId,
+              ),
+          ],
+          after: [
+            for (final word in after)
+              WordSnapshot(
+                id: word.id,
+                text: word.text,
+                startMs: word.startMs,
+                endMs: word.endMs,
+                speakerId: word.speakerId,
+              ),
+          ],
+        ).encode(),
+      );
+
+      applied = true;
+    });
+
+    return applied;
+  }
+
   /// Whether undo and redo have anything to do on [transcriptId].
   Stream<({bool canUndo, bool canRedo})> watchEditHistory(String transcriptId) =>
       _db.watchEditHistory(transcriptId);
@@ -207,6 +313,29 @@ class TranscriptRepository {
               speakerIds: before,
             );
           }
+        case SentenceEdit(:final fromPosition, :final before, :final after):
+          // The run in place right now is whichever side was last applied, so
+          // each direction computes its own end rather than trusting a stored
+          // one -- the sentence gets longer or shorter as this is applied and
+          // reversed.
+          final current = forward ? before : after;
+          final target = forward ? after : before;
+
+          await _db.spliceWords(
+            transcriptId: transcriptId,
+            fromPosition: fromPosition,
+            toPosition: fromPosition + current.length - 1,
+            replacements: [
+              for (final word in target)
+                (
+                  id: word.id,
+                  text: word.text,
+                  startMs: word.startMs,
+                  endMs: word.endMs,
+                  speakerId: word.speakerId,
+                ),
+            ],
+          );
       }
 
       // Note the database methods above, not the logging ones on this class:

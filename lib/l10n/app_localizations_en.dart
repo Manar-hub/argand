@@ -151,18 +151,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editModeDisable => 'Done editing';
 
   @override
-  String get editModeHint =>
-      'Tap a word to correct it, or a speaker name to reassign the turn.';
+  String get editModeHintLine =>
+      'Tap a line to retype it, or a speaker name to reassign the turn.';
+
+  @override
+  String get editModeHintWord =>
+      'Tap a word to retype it. Any change stays inside that word\'s own timing.';
+
+  @override
+  String get editScopeLine => 'Line';
+
+  @override
+  String get editScopeWord => 'Word';
 
   @override
   String get reassignSpeakerTitle => 'Who is speaking?';
+
+  @override
+  String get editSentenceTitle => 'Correct this line';
 
   @override
   String get editWordTitle => 'Correct this word';
 
   @override
   String get editWordTimingNote =>
-      'Timing stays the same, so captions stay in sync.';
+      'Timing stays inside this word, so nothing around it moves. You can split it into several words.';
+
+  @override
+  String get editSentenceTimingNote =>
+      'Timing stays the same, so captions stay in sync. You can add or remove words.';
 
   @override
   String get editCancel => 'Cancel';

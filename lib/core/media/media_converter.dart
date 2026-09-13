@@ -198,6 +198,31 @@ class MediaConverter {
     if (await dir.exists()) await dir.delete(recursive: true);
   }
 
+  /// Total bytes a project's media directory occupies, or 0 if it has none.
+  ///
+  /// Counts the imported source file and the extracted WAV together, which is
+  /// what the user actually pays for in storage -- the WAV alone runs about
+  /// 1.9 MB per minute of audio at 16kHz mono 16-bit.
+  ///
+  /// Individual files that vanish mid-walk are skipped rather than throwing: a
+  /// size readout is informational, and must not be able to break the library
+  /// list if an import is cleaning up concurrently.
+  Future<int> projectMediaBytes(String projectId) async {
+    final dir = Directory(p.join(await _mediaDirPath(), projectId));
+    if (!await dir.exists()) return 0;
+
+    var total = 0;
+    await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      try {
+        total += await entity.length();
+      } on FileSystemException {
+        continue;
+      }
+    }
+    return total;
+  }
+
   Future<String> _mediaDirPath() async {
     final dir = await getApplicationDocumentsDirectory();
     return p.join(dir.path, 'media');

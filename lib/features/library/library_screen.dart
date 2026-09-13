@@ -106,15 +106,16 @@ class _ProjectTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    // Null while the directory is still being measured, so the subtitle shows
+    // the duration alone rather than flashing a placeholder size.
+    final bytes = ref.watch(projectMediaBytesProvider(project.id)).value;
 
     return ListTile(
       leading: const Icon(Icons.movie_outlined),
       // Imported filenames are arbitrary and often long, so the title is
       // clipped rather than allowed to push the layout sideways.
       title: Text(project.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: project.durationMs == null
-          ? null
-          : Text(_formatDuration(Duration(milliseconds: project.durationMs!))),
+      subtitle: _subtitle(l10n, bytes),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ProjectScreen(projectId: project.id),
@@ -122,22 +123,68 @@ class _ProjectTile extends ConsumerWidget {
       ),
       // Secondary action behind a long-press rather than a row of icons --
       // see the gesture note in docs/build-roadmap.md, Tier 1.
-      onLongPress: () async {
-        final confirmed = await showModalBottomSheet<bool>(
-          context: context,
-          builder: (sheetContext) => SafeArea(
-            child: ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: Text(l10n.deleteAction),
-              onTap: () => Navigator.of(sheetContext).pop(true),
-            ),
-          ),
-        );
-        if (confirmed ?? false) {
-          await ref.read(transcriptRepositoryProvider).softDeleteProject(project.id);
-        }
-      },
+      onLongPress: () => _confirmDelete(context, ref, l10n, bytes),
     );
+  }
+
+  /// Running time and disk footprint, whichever of the two are known.
+  ///
+  /// One line with an ellipsis rather than two chips: the tile already clips a
+  /// long title, and a subtitle that wrapped would make rows different heights.
+  Widget? _subtitle(AppLocalizations l10n, int? bytes) {
+    final duration = project.durationMs == null
+        ? null
+        : _formatDuration(Duration(milliseconds: project.durationMs!));
+    final size = bytes == null ? null : _formatBytes(l10n, bytes);
+
+    final text = switch ((duration, size)) {
+      (final String d, final String s) => l10n.projectSizeOnDisk(d, s),
+      (final String d, null) => d,
+      (null, final String s) => s,
+      _ => null,
+    };
+    if (text == null) return null;
+    return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
+  }
+
+  /// Confirms, then deletes the project and its media for good.
+  ///
+  /// A dialog rather than a snackbar with an undo. Material reserves undo for
+  /// frequent, reversible actions; this one destroys the imported video, so the
+  /// user is told before it happens rather than given seconds to catch it. The
+  /// message names the space recovered, which is the reason most people reach
+  /// for delete in the first place.
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+    int? bytes,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.deleteProjectTitle),
+        content: Text(
+          l10n.deleteProjectMessage(_formatBytes(l10n, bytes ?? 0)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.editCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: Text(l10n.deleteAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) {
+      await ref.read(transcriptRepositoryProvider).deleteProject(project.id);
+    }
   }
 }
 
@@ -264,6 +311,20 @@ String _formatDuration(Duration duration) {
   final minutes = duration.inMinutes.toString().padLeft(2, '0');
   final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
   return '$minutes:$seconds';
+}
+
+/// A byte count at the largest unit that leaves a readable number.
+///
+/// Binary units (1024), because that is what Android's own storage screens
+/// report -- showing 260 MB beside the system's 248 MB for the same file would
+/// read as a bug. Whole numbers below a gigabyte and one decimal above it: at
+/// that scale the tenth is the part people compare.
+String _formatBytes(AppLocalizations l10n, int bytes) {
+  const k = 1024;
+  if (bytes < k) return l10n.sizeBytes(bytes);
+  if (bytes < k * k) return l10n.sizeKilobytes((bytes / k).round());
+  if (bytes < k * k * k) return l10n.sizeMegabytes((bytes / (k * k)).round());
+  return l10n.sizeGigabytes((bytes / (k * k * k)).toStringAsFixed(1));
 }
 
 /// App-bar entry point for the transcription settings sheet.

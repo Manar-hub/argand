@@ -1964,6 +1964,588 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
   }
 }
 
+class $EditEventsTable extends EditEvents
+    with TableInfo<$EditEventsTable, EditEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EditEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transcriptIdMeta = const VerificationMeta(
+    'transcriptId',
+  );
+  @override
+  late final GeneratedColumn<String> transcriptId = GeneratedColumn<String>(
+    'transcript_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES transcripts (id)',
+    ),
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _undoneAtMeta = const VerificationMeta(
+    'undoneAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> undoneAt = GeneratedColumn<DateTime>(
+    'undone_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    transcriptId,
+    sequence,
+    kind,
+    payload,
+    undoneAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'edit_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EditEvent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('transcript_id')) {
+      context.handle(
+        _transcriptIdMeta,
+        transcriptId.isAcceptableOrUnknown(
+          data['transcript_id']!,
+          _transcriptIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_transcriptIdMeta);
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('undone_at')) {
+      context.handle(
+        _undoneAtMeta,
+        undoneAt.isAcceptableOrUnknown(data['undone_at']!, _undoneAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EditEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EditEvent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      transcriptId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transcript_id'],
+      )!,
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      undoneAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}undone_at'],
+      ),
+    );
+  }
+
+  @override
+  $EditEventsTable createAlias(String alias) {
+    return $EditEventsTable(attachedDatabase, alias);
+  }
+}
+
+class EditEvent extends DataClass implements Insertable<EditEvent> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+
+  /// References the transcript so the log inherits its lifecycle -- deleting a
+  /// project takes its edit history with it, with nothing to clean up
+  /// separately.
+  final String transcriptId;
+
+  /// Monotonic within one transcript, assigned at append time.
+  final int sequence;
+
+  /// An `EditEventKind.code`. Stored as text, not an enum index, so inserting a
+  /// case into that enum cannot reinterpret rows already on disk.
+  final String kind;
+
+  /// JSON, carrying both the before and after state. See `edit_event.dart`.
+  final String payload;
+
+  /// Null while the edit is in effect and undoable; set once undone, which
+  /// makes it redoable. Redo is therefore a query, not a second stack.
+  final DateTime? undoneAt;
+  const EditEvent({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.transcriptId,
+    required this.sequence,
+    required this.kind,
+    required this.payload,
+    this.undoneAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['transcript_id'] = Variable<String>(transcriptId);
+    map['sequence'] = Variable<int>(sequence);
+    map['kind'] = Variable<String>(kind);
+    map['payload'] = Variable<String>(payload);
+    if (!nullToAbsent || undoneAt != null) {
+      map['undone_at'] = Variable<DateTime>(undoneAt);
+    }
+    return map;
+  }
+
+  EditEventsCompanion toCompanion(bool nullToAbsent) {
+    return EditEventsCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      transcriptId: Value(transcriptId),
+      sequence: Value(sequence),
+      kind: Value(kind),
+      payload: Value(payload),
+      undoneAt: undoneAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(undoneAt),
+    );
+  }
+
+  factory EditEvent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EditEvent(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      transcriptId: serializer.fromJson<String>(json['transcriptId']),
+      sequence: serializer.fromJson<int>(json['sequence']),
+      kind: serializer.fromJson<String>(json['kind']),
+      payload: serializer.fromJson<String>(json['payload']),
+      undoneAt: serializer.fromJson<DateTime?>(json['undoneAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'transcriptId': serializer.toJson<String>(transcriptId),
+      'sequence': serializer.toJson<int>(sequence),
+      'kind': serializer.toJson<String>(kind),
+      'payload': serializer.toJson<String>(payload),
+      'undoneAt': serializer.toJson<DateTime?>(undoneAt),
+    };
+  }
+
+  EditEvent copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? transcriptId,
+    int? sequence,
+    String? kind,
+    String? payload,
+    Value<DateTime?> undoneAt = const Value.absent(),
+  }) => EditEvent(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    transcriptId: transcriptId ?? this.transcriptId,
+    sequence: sequence ?? this.sequence,
+    kind: kind ?? this.kind,
+    payload: payload ?? this.payload,
+    undoneAt: undoneAt.present ? undoneAt.value : this.undoneAt,
+  );
+  EditEvent copyWithCompanion(EditEventsCompanion data) {
+    return EditEvent(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      transcriptId: data.transcriptId.present
+          ? data.transcriptId.value
+          : this.transcriptId,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      undoneAt: data.undoneAt.present ? data.undoneAt.value : this.undoneAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EditEvent(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('transcriptId: $transcriptId, ')
+          ..write('sequence: $sequence, ')
+          ..write('kind: $kind, ')
+          ..write('payload: $payload, ')
+          ..write('undoneAt: $undoneAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    transcriptId,
+    sequence,
+    kind,
+    payload,
+    undoneAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EditEvent &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.transcriptId == this.transcriptId &&
+          other.sequence == this.sequence &&
+          other.kind == this.kind &&
+          other.payload == this.payload &&
+          other.undoneAt == this.undoneAt);
+}
+
+class EditEventsCompanion extends UpdateCompanion<EditEvent> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> transcriptId;
+  final Value<int> sequence;
+  final Value<String> kind;
+  final Value<String> payload;
+  final Value<DateTime?> undoneAt;
+  final Value<int> rowid;
+  const EditEventsCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.transcriptId = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.undoneAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EditEventsCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String transcriptId,
+    required int sequence,
+    required String kind,
+    required String payload,
+    this.undoneAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       transcriptId = Value(transcriptId),
+       sequence = Value(sequence),
+       kind = Value(kind),
+       payload = Value(payload);
+  static Insertable<EditEvent> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? transcriptId,
+    Expression<int>? sequence,
+    Expression<String>? kind,
+    Expression<String>? payload,
+    Expression<DateTime>? undoneAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (transcriptId != null) 'transcript_id': transcriptId,
+      if (sequence != null) 'sequence': sequence,
+      if (kind != null) 'kind': kind,
+      if (payload != null) 'payload': payload,
+      if (undoneAt != null) 'undone_at': undoneAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EditEventsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? transcriptId,
+    Value<int>? sequence,
+    Value<String>? kind,
+    Value<String>? payload,
+    Value<DateTime?>? undoneAt,
+    Value<int>? rowid,
+  }) {
+    return EditEventsCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      transcriptId: transcriptId ?? this.transcriptId,
+      sequence: sequence ?? this.sequence,
+      kind: kind ?? this.kind,
+      payload: payload ?? this.payload,
+      undoneAt: undoneAt ?? this.undoneAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (transcriptId.present) {
+      map['transcript_id'] = Variable<String>(transcriptId.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (undoneAt.present) {
+      map['undone_at'] = Variable<DateTime>(undoneAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EditEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('transcriptId: $transcriptId, ')
+          ..write('sequence: $sequence, ')
+          ..write('kind: $kind, ')
+          ..write('payload: $payload, ')
+          ..write('undoneAt: $undoneAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1971,6 +2553,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TranscriptsTable transcripts = $TranscriptsTable(this);
   late final $WordsTable words = $WordsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final $EditEventsTable editEvents = $EditEventsTable(this);
   late final Index wordsTranscriptStart = Index(
     'words_transcript_start',
     'CREATE INDEX words_transcript_start ON words (transcript_id, start_ms)',
@@ -1978,6 +2561,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index settingsKey = Index(
     'settings_key',
     'CREATE UNIQUE INDEX settings_key ON settings ("key")',
+  );
+  late final Index editEventsTranscriptSeq = Index(
+    'edit_events_transcript_seq',
+    'CREATE INDEX edit_events_transcript_seq ON edit_events (transcript_id, sequence)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -1988,8 +2575,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transcripts,
     words,
     settings,
+    editEvents,
     wordsTranscriptStart,
     settingsKey,
+    editEventsTranscriptSeq,
   ];
 }
 
@@ -2393,6 +2982,24 @@ final class $$TranscriptsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$EditEventsTable, List<EditEvent>>
+  _editEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.editEvents,
+    aliasName: 'transcripts__id__edit_events__transcript_id',
+  );
+
+  $$EditEventsTableProcessedTableManager get editEventsRefs {
+    final manager = $$EditEventsTableTableManager(
+      $_db,
+      $_db.editEvents,
+    ).filter((f) => f.transcriptId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_editEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TranscriptsTableFilterComposer
@@ -2473,6 +3080,31 @@ class $$TranscriptsTableFilterComposer
           }) => $$WordsTableFilterComposer(
             $db: $db,
             $table: $db.words,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> editEventsRefs(
+    Expression<bool> Function($$EditEventsTableFilterComposer f) f,
+  ) {
+    final $$EditEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.editEvents,
+      getReferencedColumn: (t) => t.transcriptId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EditEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.editEvents,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2620,6 +3252,31 @@ class $$TranscriptsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> editEventsRefs<T extends Object>(
+    Expression<T> Function($$EditEventsTableAnnotationComposer a) f,
+  ) {
+    final $$EditEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.editEvents,
+      getReferencedColumn: (t) => t.transcriptId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EditEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.editEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TranscriptsTableTableManager
@@ -2635,7 +3292,11 @@ class $$TranscriptsTableTableManager
           $$TranscriptsTableUpdateCompanionBuilder,
           (Transcript, $$TranscriptsTableReferences),
           Transcript,
-          PrefetchHooks Function({bool projectId, bool wordsRefs})
+          PrefetchHooks Function({
+            bool projectId,
+            bool wordsRefs,
+            bool editEventsRefs,
+          })
         > {
   $$TranscriptsTableTableManager(_$AppDatabase db, $TranscriptsTable table)
     : super(
@@ -2696,63 +3357,92 @@ class $$TranscriptsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({projectId = false, wordsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (wordsRefs) db.words],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (projectId) {
-                      state = state.withJoin(
-                        currentTable: table,
-                        currentColumn: table.projectId,
-                        referencedTable: $$TranscriptsTableReferences
-                            ._projectIdTable(db),
-                        referencedColumn: $$TranscriptsTableReferences
-                            ._projectIdTable(db)
-                            .id,
-                      ) as T;
-                    }
+          prefetchHooksCallback:
+              ({projectId = false, wordsRefs = false, editEventsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (wordsRefs) db.words,
+                    if (editEventsRefs) db.editEvents,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (projectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.projectId,
+                            referencedTable: $$TranscriptsTableReferences
+                                ._projectIdTable(db),
+                            referencedColumn: $$TranscriptsTableReferences
+                                ._projectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (wordsRefs)
+                        await $_getPrefetchedData<
+                          Transcript,
+                          $TranscriptsTable,
+                          Word
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TranscriptsTableReferences
+                              ._wordsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TranscriptsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).wordsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.transcriptId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (editEventsRefs)
+                        await $_getPrefetchedData<
+                          Transcript,
+                          $TranscriptsTable,
+                          EditEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TranscriptsTableReferences
+                              ._editEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TranscriptsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).editEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.transcriptId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (wordsRefs)
-                    await $_getPrefetchedData<
-                      Transcript,
-                      $TranscriptsTable,
-                      Word
-                    >(
-                      currentTable: table,
-                      referencedTable: $$TranscriptsTableReferences
-                          ._wordsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$TranscriptsTableReferences(db, table, p0).wordsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where(
-                            (e) => e.transcriptId == item.id,
-                          ),
-                      typedResults: items,
-                    ),
-                ];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -2769,7 +3459,11 @@ typedef $$TranscriptsTableProcessedTableManager =
       $$TranscriptsTableUpdateCompanionBuilder,
       (Transcript, $$TranscriptsTableReferences),
       Transcript,
-      PrefetchHooks Function({bool projectId, bool wordsRefs})
+      PrefetchHooks Function({
+        bool projectId,
+        bool wordsRefs,
+        bool editEventsRefs,
+      })
     >;
 typedef $$WordsTableCreateCompanionBuilder = WordsCompanion Function({
   required String id,
@@ -3387,6 +4081,395 @@ typedef $$SettingsTableProcessedTableManager =
       Setting,
       PrefetchHooks Function()
     >;
+typedef $$EditEventsTableCreateCompanionBuilder = EditEventsCompanion Function({
+  required String id,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<DateTime?> deletedAt,
+  required String transcriptId,
+  required int sequence,
+  required String kind,
+  required String payload,
+  Value<DateTime?> undoneAt,
+  Value<int> rowid,
+});
+typedef $$EditEventsTableUpdateCompanionBuilder = EditEventsCompanion Function({
+  Value<String> id,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<String> transcriptId,
+  Value<int> sequence,
+  Value<String> kind,
+  Value<String> payload,
+  Value<DateTime?> undoneAt,
+  Value<int> rowid,
+});
+
+final class $$EditEventsTableReferences
+    extends BaseReferences<_$AppDatabase, $EditEventsTable, EditEvent> {
+  $$EditEventsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $TranscriptsTable _transcriptIdTable(_$AppDatabase db) =>
+      db.transcripts.createAlias('edit_events__transcript_id__transcripts__id');
+
+  $$TranscriptsTableProcessedTableManager get transcriptId {
+    final $_column = $_itemColumn<String>('transcript_id')!;
+
+    final manager = $$TranscriptsTableTableManager(
+      $_db,
+      $_db.transcripts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_transcriptIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EditEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $EditEventsTable> {
+  $$EditEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get undoneAt => $composableBuilder(
+    column: $table.undoneAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$TranscriptsTableFilterComposer get transcriptId {
+    final $$TranscriptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transcriptId,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableFilterComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EditEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $EditEventsTable> {
+  $$EditEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get undoneAt => $composableBuilder(
+    column: $table.undoneAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$TranscriptsTableOrderingComposer get transcriptId {
+    final $$TranscriptsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transcriptId,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableOrderingComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EditEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EditEventsTable> {
+  $$EditEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get undoneAt =>
+      $composableBuilder(column: $table.undoneAt, builder: (column) => column);
+
+  $$TranscriptsTableAnnotationComposer get transcriptId {
+    final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transcriptId,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EditEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EditEventsTable,
+          EditEvent,
+          $$EditEventsTableFilterComposer,
+          $$EditEventsTableOrderingComposer,
+          $$EditEventsTableAnnotationComposer,
+          $$EditEventsTableCreateCompanionBuilder,
+          $$EditEventsTableUpdateCompanionBuilder,
+          (EditEvent, $$EditEventsTableReferences),
+          EditEvent,
+          PrefetchHooks Function({bool transcriptId})
+        > {
+  $$EditEventsTableTableManager(_$AppDatabase db, $EditEventsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EditEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EditEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EditEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> transcriptId = const Value.absent(),
+                Value<int> sequence = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<DateTime?> undoneAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EditEventsCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                transcriptId: transcriptId,
+                sequence: sequence,
+                kind: kind,
+                payload: payload,
+                undoneAt: undoneAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String transcriptId,
+                required int sequence,
+                required String kind,
+                required String payload,
+                Value<DateTime?> undoneAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EditEventsCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                transcriptId: transcriptId,
+                sequence: sequence,
+                kind: kind,
+                payload: payload,
+                undoneAt: undoneAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EditEventsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({transcriptId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (transcriptId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.transcriptId,
+                        referencedTable: $$EditEventsTableReferences
+                            ._transcriptIdTable(db),
+                        referencedColumn: $$EditEventsTableReferences
+                            ._transcriptIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EditEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EditEventsTable,
+      EditEvent,
+      $$EditEventsTableFilterComposer,
+      $$EditEventsTableOrderingComposer,
+      $$EditEventsTableAnnotationComposer,
+      $$EditEventsTableCreateCompanionBuilder,
+      $$EditEventsTableUpdateCompanionBuilder,
+      (EditEvent, $$EditEventsTableReferences),
+      EditEvent,
+      PrefetchHooks Function({bool transcriptId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3399,4 +4482,6 @@ class $AppDatabaseManager {
       $$WordsTableTableManager(_db, _db.words);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
+  $$EditEventsTableTableManager get editEvents =>
+      $$EditEventsTableTableManager(_db, _db.editEvents);
 }

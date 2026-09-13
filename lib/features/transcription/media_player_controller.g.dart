@@ -12,6 +12,11 @@ part of 'media_player_controller.dart';
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
+///
+/// Keyed by project rather than by file path. The path used to be the key, but
+/// every caller had to thread it down purely to look this provider up, and the
+/// resume position belongs to the project rather than to a file on disk. The
+/// provider reads the path itself, so callers pass the id they already hold.
 
 @ProviderFor(MediaPlayer)
 final mediaPlayerProvider = MediaPlayerFamily._();
@@ -20,12 +25,22 @@ final mediaPlayerProvider = MediaPlayerFamily._();
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
+///
+/// Keyed by project rather than by file path. The path used to be the key, but
+/// every caller had to thread it down purely to look this provider up, and the
+/// resume position belongs to the project rather than to a file on disk. The
+/// provider reads the path itself, so callers pass the id they already hold.
 final class MediaPlayerProvider
     extends $AsyncNotifierProvider<MediaPlayer, VideoPlayerController> {
   /// Owns the platform media player for one project.
   ///
   /// Lives in a provider rather than in the screen's state so that tap-to-seek
   /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
+  ///
+  /// Keyed by project rather than by file path. The path used to be the key, but
+  /// every caller had to thread it down purely to look this provider up, and the
+  /// resume position belongs to the project rather than to a file on disk. The
+  /// provider reads the path itself, so callers pass the id they already hold.
   MediaPlayerProvider._({
     required MediaPlayerFamily super.from,
     required String super.argument,
@@ -62,12 +77,17 @@ final class MediaPlayerProvider
   }
 }
 
-String _$mediaPlayerHash() => r'3a29d71a0ef1ade4ad2c1156cfb5ed92ba08f3e2';
+String _$mediaPlayerHash() => r'd894220cdf05ab0352e9c9b78b41ad0052280df6';
 
 /// Owns the platform media player for one project.
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
+///
+/// Keyed by project rather than by file path. The path used to be the key, but
+/// every caller had to thread it down purely to look this provider up, and the
+/// resume position belongs to the project rather than to a file on disk. The
+/// provider reads the path itself, so callers pass the id they already hold.
 
 final class MediaPlayerFamily extends $Family
     with
@@ -91,9 +111,14 @@ final class MediaPlayerFamily extends $Family
   ///
   /// Lives in a provider rather than in the screen's state so that tap-to-seek
   /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
+  ///
+  /// Keyed by project rather than by file path. The path used to be the key, but
+  /// every caller had to thread it down purely to look this provider up, and the
+  /// resume position belongs to the project rather than to a file on disk. The
+  /// provider reads the path itself, so callers pass the id they already hold.
 
-  MediaPlayerProvider call(String mediaPath) =>
-      MediaPlayerProvider._(argument: mediaPath, from: this);
+  MediaPlayerProvider call(String projectId) =>
+      MediaPlayerProvider._(argument: projectId, from: this);
 
   @override
   String toString() => r'mediaPlayerProvider';
@@ -103,12 +128,17 @@ final class MediaPlayerFamily extends $Family
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
+///
+/// Keyed by project rather than by file path. The path used to be the key, but
+/// every caller had to thread it down purely to look this provider up, and the
+/// resume position belongs to the project rather than to a file on disk. The
+/// provider reads the path itself, so callers pass the id they already hold.
 
 abstract class _$MediaPlayer extends $AsyncNotifier<VideoPlayerController> {
   late final _$args = ref.$arg as String;
-  String get mediaPath => _$args;
+  String get projectId => _$args;
 
-  FutureOr<VideoPlayerController> build(String mediaPath);
+  FutureOr<VideoPlayerController> build(String projectId);
   @$mustCallSuper
   @override
   WhenComplete runBuild() {

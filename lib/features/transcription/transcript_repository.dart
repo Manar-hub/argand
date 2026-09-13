@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
@@ -6,18 +7,34 @@ import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 import '../../core/database/database.dart';
 import '../../core/diarization/speaker_assignment.dart';
 import '../../core/diarization/speaker_span.dart';
+import '../../core/media/media_converter.dart';
+import '../../core/transcript/edit_event.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 
 part 'transcript_repository.g.dart';
 
-/// All database access for projects and their transcripts.
+/// The `Settings` key holding where playback last stopped in [projectId].
+///
+/// Namespaced by project because `Settings` is one shared key/value table --
+/// the same reason `whisper_model_controller.dart` namespaces its own key.
+/// Retired by [TranscriptRepository.deleteProject] so a deleted project leaves
+/// no stray row behind.
+String playbackPositionKey(String projectId) => 'project.$projectId.positionMs';
+
+/// All persistence for projects and their transcripts.
 ///
 /// Widgets never touch Drift directly (CLAUDE.md 4) -- they read the streams
 /// and call the methods exposed here through Riverpod.
+///
+/// It also owns the [MediaConverter] for the one operation where the database
+/// and the filesystem have to agree: deleting a project must remove both its
+/// rows and its media, and splitting that across two callers is how one of them
+/// gets forgotten.
 class TranscriptRepository {
-  TranscriptRepository(this._db);
+  TranscriptRepository(this._db, this._media);
 
   final AppDatabase _db;
+  final MediaConverter _media;
   static const _uuid = Uuid();
 
   /// UUIDs are generated on-device, never delegated to the database
@@ -33,12 +50,61 @@ class TranscriptRepository {
 
   Stream<List<Word>> watchWords(String transcriptId) => _db.watchWords(transcriptId);
 
-  Future<void> softDeleteProject(String id) => _db.softDeleteProject(id);
+  /// Removes a project: its row, its per-project settings, and its media.
+  ///
+  /// **The row is soft-deleted and the media is not.** A tombstone row costs a
+  /// few hundred bytes and is what a future sync will need to propagate the
+  /// deletion; the media directory holds the imported video plus the extracted
+  /// WAV, which is hundreds of megabytes that nothing else would ever reclaim.
+  /// It lives in app-internal storage, so the user cannot clear it from the
+  /// Files app either -- only by wiping the whole app's data.
+  ///
+  /// Database first, filesystem second. If the media deletion fails, the
+  /// project is gone from the library and some bytes leak; the other order
+  /// would leave a visible project whose video no longer opens.
+  ///
+  /// The filesystem step is guarded for the same reason the import rollback
+  /// guards it: by the time it runs the deletion has already succeeded from the
+  /// user's point of view, and turning a leaked file into a thrown error would
+  /// report a failure that did not happen.
+  Future<void> deleteProject(String id) async {
+    await _db.softDeleteProject(id);
+    await _db.softDeleteSetting(playbackPositionKey(id));
+
+    try {
+      await _media.discardProjectMedia(id);
+    } catch (error) {
+      debugPrint('Deleted project $id but could not remove its media: $error');
+    }
+  }
 
   /// Corrects one word's text, leaving its timing alone. See
   /// [AppDatabase.updateWordText] for why that separation matters.
-  Future<void> updateWordText(String wordId, String text) =>
-      _db.updateWordText(wordId, text.trim());
+  ///
+  /// Records an undo event in the same transaction as the write, so the two
+  /// cannot come apart.
+  Future<void> updateWordText(String wordId, String text) async {
+    final trimmed = text.trim();
+
+    await _db.transaction(() async {
+      final word = await _db.findWord(wordId);
+      // Nothing to record when the word is gone or the text is unchanged. The
+      // UI guards the second case too, but an event whose before and after
+      // match would spend a slot in the history undoing nothing visible.
+      if (word == null || word.word == trimmed) return;
+
+      await _db.updateWordText(wordId, trimmed);
+      await _db.appendEditEvent(
+        transcriptId: word.transcriptId,
+        kind: EditEventKind.wordText.code,
+        payload: WordTextEdit(
+          wordId: wordId,
+          before: word.word,
+          after: trimmed,
+        ).encode(),
+      );
+    });
+  }
 
   /// Moves a whole turn onto [speaker], correcting a diarization mistake.
   ///
@@ -50,13 +116,104 @@ class TranscriptRepository {
     required int fromPosition,
     required int toPosition,
     required int speaker,
-  }) =>
-      _db.reassignSpeaker(
+  }) async {
+    final speakerId = speakerIdFor(speaker);
+
+    await _db.transaction(() async {
+      final affected = await _db.wordsInPositionRange(
+        transcriptId: transcriptId,
+        from: fromPosition,
+        to: toPosition,
+      );
+      if (affected.isEmpty) return;
+
+      // Captured per position rather than as one value. A turn is uniform
+      // today, but an undiarized run carries nulls, and undo has to put back
+      // exactly what was there.
+      final before = {
+        for (final word in affected) word.position: word.speakerId,
+      };
+      if (before.values.every((id) => id == speakerId)) return;
+
+      await _db.reassignSpeaker(
         transcriptId: transcriptId,
         fromPosition: fromPosition,
         toPosition: toPosition,
-        speakerId: speakerIdFor(speaker),
+        speakerId: speakerId,
       );
+      await _db.appendEditEvent(
+        transcriptId: transcriptId,
+        kind: EditEventKind.speaker.code,
+        payload: SpeakerEdit(
+          fromPosition: fromPosition,
+          toPosition: toPosition,
+          after: speakerId,
+          before: before,
+        ).encode(),
+      );
+    });
+  }
+
+  /// Whether undo and redo have anything to do on [transcriptId].
+  Stream<({bool canUndo, bool canRedo})> watchEditHistory(String transcriptId) =>
+      _db.watchEditHistory(transcriptId);
+
+  /// Reverses the most recent edit that is still in effect.
+  Future<void> undo(String transcriptId) =>
+      _step(transcriptId, forward: false);
+
+  /// Re-applies the oldest edit that has been undone.
+  Future<void> redo(String transcriptId) => _step(transcriptId, forward: true);
+
+  /// One move along the history, in either direction.
+  ///
+  /// Wrapped in a transaction so applying the change and marking the event
+  /// cannot come apart -- a crash between them would leave the log claiming a
+  /// state the transcript is not in, and every later undo would be wrong.
+  Future<void> _step(String transcriptId, {required bool forward}) async {
+    await _db.transaction(() async {
+      final event = forward
+          ? await _db.nextRedoEvent(transcriptId)
+          : await _db.nextUndoEvent(transcriptId);
+      if (event == null) return;
+
+      final payload = EditEventPayload.decode(event.kind, event.payload);
+      if (payload == null) {
+        // Written by a newer build, or corrupt. Drop it rather than letting one
+        // unreadable row wedge the button for good.
+        await _db.discardEditEvent(event.id);
+        return;
+      }
+
+      switch (payload) {
+        case WordTextEdit(:final wordId, :final before, :final after):
+          await _db.updateWordText(wordId, forward ? after : before);
+        case SpeakerEdit(
+            :final fromPosition,
+            :final toPosition,
+            :final after,
+            :final before
+          ):
+          if (forward) {
+            await _db.reassignSpeaker(
+              transcriptId: transcriptId,
+              fromPosition: fromPosition,
+              toPosition: toPosition,
+              speakerId: after,
+            );
+          } else {
+            await _db.restoreSpeakerIds(
+              transcriptId: transcriptId,
+              speakerIds: before,
+            );
+          }
+      }
+
+      // Note the database methods above, not the logging ones on this class:
+      // replaying history must not append to it.
+      await _db.markEditEventUndone(event.id, undone: !forward);
+    });
+  }
 
   /// Persists a finished import: the project row, its transcript, and one
   /// [Word] row per engine segment.
@@ -167,8 +324,28 @@ class TranscriptRepository {
 }
 
 @Riverpod(keepAlive: true)
-TranscriptRepository transcriptRepository(Ref ref) =>
-    TranscriptRepository(ref.watch(appDatabaseProvider));
+TranscriptRepository transcriptRepository(Ref ref) => TranscriptRepository(
+      ref.watch(appDatabaseProvider),
+      ref.watch(mediaConverterProvider),
+    );
+
+/// Whether the undo and redo controls are live for [transcriptId].
+@riverpod
+Stream<({bool canUndo, bool canRedo})> editHistory(
+  Ref ref,
+  String transcriptId,
+) =>
+    ref.watch(transcriptRepositoryProvider).watchEditHistory(transcriptId);
+
+/// Total bytes [projectId] occupies on disk: its imported media plus the
+/// extracted WAV.
+///
+/// Surfaced in the library so consumed space is visible and attributable to a
+/// project, rather than showing up only as an unexplained rise in the app's
+/// size in Android settings.
+@riverpod
+Future<int> projectMediaBytes(Ref ref, String projectId) =>
+    ref.watch(mediaConverterProvider).projectMediaBytes(projectId);
 
 @riverpod
 Stream<List<Project>> projectList(Ref ref) =>

@@ -5,10 +5,12 @@ import 'package:video_player/video_player.dart';
 import '../../core/captions/caption_controller.dart';
 import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
+import '../../core/captions/subtitle_export.dart';
 import '../../core/database/database.dart';
 import '../../core/transcript/speaker_turns.dart';
 import '../../l10n/app_localizations.dart';
 import 'media_player_controller.dart';
+import 'subtitle_export_controller.dart';
 import 'transcript_edit_controller.dart';
 import 'transcript_repository.dart';
 
@@ -24,6 +26,25 @@ class ProjectScreen extends ConsumerWidget {
     final project = ref.watch(projectByIdProvider(projectId));
 
     final editing = ref.watch(transcriptEditModeProvider);
+    final transcript = ref.watch(projectTranscriptProvider(projectId)).value;
+
+    // Export outcomes are transient, so they are acknowledged rather than
+    // rendered -- the same shape the library uses for import results.
+    ref.listen(subtitleExporterProvider, (previous, next) {
+      final message = switch (next) {
+        SubtitleExportSaved(:final fileName) => l10n.exportSaved(fileName),
+        SubtitleExportCancelled() => l10n.exportCancelled,
+        SubtitleExportEmpty() => l10n.exportEmpty,
+        SubtitleExportFailed() => l10n.exportFailed,
+        _ => null,
+      };
+      if (message == null) return;
+
+      ref.read(subtitleExporterProvider.notifier).reset();
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -33,6 +54,19 @@ class ProjectScreen extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          // History belongs to editing, so it appears with it. Showing two
+          // permanently-disabled buttons during playback would add weight to
+          // the bar for a mode in which nothing can be edited or undone.
+          if (editing && transcript != null)
+            _HistoryControls(transcriptId: transcript.id),
+          // Not gated behind edit mode: exporting is something you do to a
+          // finished transcript, and it is free for every container of the
+          // user's own words (CLAUDE.md §2).
+          if (!editing && transcript != null)
+            _ExportButton(
+              transcript: transcript,
+              title: project.value?.title ?? '',
+            ),
           // The only control the feature adds to the page. Everything else
           // reuses what is already on screen: a word edits its own text, a
           // speaker label reassigns its own turn.
@@ -55,6 +89,183 @@ class ProjectScreen extends ConsumerWidget {
   }
 }
 
+/// Opens the caption export options.
+///
+/// Shows a spinner in place of the icon while a file is being written, so a
+/// second tap cannot start an overlapping export and open two save dialogs.
+class _ExportButton extends ConsumerWidget {
+  const _ExportButton({required this.transcript, required this.title});
+
+  final Transcript transcript;
+  final String title;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final running = ref.watch(subtitleExporterProvider) is SubtitleExportRunning;
+
+    if (running) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return IconButton(
+      icon: const Icon(Icons.file_download_outlined),
+      tooltip: l10n.exportAction,
+      onPressed: () => _chooseFormat(context, ref, l10n),
+    );
+  }
+
+  Future<void> _chooseFormat(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    final choice = await showModalBottomSheet<_ExportChoice>(
+      context: context,
+      builder: (_) => const _ExportSheet(),
+    );
+    if (choice == null) return;
+
+    await ref.read(subtitleExporterProvider.notifier).export(
+          transcriptId: transcript.id,
+          title: title,
+          language: transcript.language,
+          format: choice.format,
+          // Built here rather than in the controller: "Speaker 1" is interface
+          // text, and CLAUDE.md 4 keeps those out of the service layer.
+          speakerLabel: choice.includeSpeakers
+              ? (speaker) => l10n.speakerLabel(speaker + 1)
+              : null,
+        );
+  }
+}
+
+/// What the export sheet returns: a format, and whether to attribute lines.
+class _ExportChoice {
+  const _ExportChoice({required this.format, required this.includeSpeakers});
+
+  final SubtitleFormat format;
+  final bool includeSpeakers;
+}
+
+/// Format picker, with the one option that changes the file's content.
+///
+/// Stateful because the speaker toggle has to be settable *before* a format is
+/// chosen -- tapping a format is what closes the sheet, so the switch cannot
+/// come after it.
+class _ExportSheet extends StatefulWidget {
+  const _ExportSheet();
+
+  @override
+  State<_ExportSheet> createState() => _ExportSheetState();
+}
+
+class _ExportSheetState extends State<_ExportSheet> {
+  bool _includeSpeakers = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return SafeArea(
+      // Scrollable so the sheet still reaches its last option on a short screen
+      // or at a large accessibility text scale, rather than overflowing.
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Text(
+                l10n.exportSheetTitle,
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+            SwitchListTile(
+              value: _includeSpeakers,
+              onChanged: (value) => setState(() => _includeSpeakers = value),
+              title: Text(l10n.exportIncludeSpeakers),
+              secondary: const Icon(Icons.record_voice_over_outlined),
+            ),
+            const Divider(height: 1),
+            for (final (format, title, detail) in [
+              (SubtitleFormat.srt, l10n.exportSrt, l10n.exportSrtDetail),
+              (SubtitleFormat.vtt, l10n.exportVtt, l10n.exportVttDetail),
+            ])
+              ListTile(
+                leading: const Icon(Icons.subtitles_outlined),
+                title: Text(title),
+                subtitle: Text(detail),
+                onTap: () => Navigator.of(context).pop(
+                  _ExportChoice(
+                    format: format,
+                    includeSpeakers: _includeSpeakers,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Undo and redo for the transcript's edit history.
+///
+/// The history is a table, not a field on this widget, so it survives leaving
+/// the project and relaunching the app: reopening a transcript a week later
+/// still offers to undo the last correction made to it.
+///
+/// Each button is disabled rather than hidden when it has nothing to do. A
+/// control that vanishes shifts the two beside it, and the app bar would
+/// reshuffle under the user's finger as they worked through a history.
+class _HistoryControls extends ConsumerWidget {
+  const _HistoryControls({required this.transcriptId});
+
+  final String transcriptId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    // Both false until the first frame resolves, which is correct: an empty
+    // history and an unread one offer the same actions.
+    final history = ref.watch(editHistoryProvider(transcriptId)).value ??
+        (canUndo: false, canRedo: false);
+
+    final repository = ref.read(transcriptRepositoryProvider);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.undo),
+          tooltip: l10n.undoAction,
+          onPressed:
+              history.canUndo ? () => repository.undo(transcriptId) : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.redo),
+          tooltip: l10n.redoAction,
+          onPressed:
+              history.canRedo ? () => repository.redo(transcriptId) : null,
+        ),
+      ],
+    );
+  }
+}
+
 class _ProjectBody extends ConsumerWidget {
   const _ProjectBody({required this.project});
 
@@ -71,7 +282,7 @@ class _ProjectBody extends ConsumerWidget {
         // Null until the transcript loads, and null forever for a project that
         // produced no speech -- the overlay simply does not appear.
         _PlayerPane(
-          mediaPath: project.mediaPath,
+          projectId: project.id,
           transcriptId: transcript.value?.id,
         ),
         const Divider(height: 1),
@@ -81,7 +292,7 @@ class _ProjectBody extends ConsumerWidget {
             error: (error, _) => _CenteredMessage(message: '$error'),
             data: (value) => value == null
                 ? _CenteredMessage(message: l10n.transcriptEmpty)
-                : _TranscriptView(mediaPath: project.mediaPath, transcript: value),
+                : _TranscriptView(projectId: project.id, transcript: value),
           ),
         ),
       ],
@@ -90,15 +301,15 @@ class _ProjectBody extends ConsumerWidget {
 }
 
 class _PlayerPane extends ConsumerWidget {
-  const _PlayerPane({required this.mediaPath, required this.transcriptId});
+  const _PlayerPane({required this.projectId, required this.transcriptId});
 
-  final String mediaPath;
+  final String projectId;
   final String? transcriptId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final player = ref.watch(mediaPlayerProvider(mediaPath));
+    final player = ref.watch(mediaPlayerProvider(projectId));
 
     return player.when(
       loading: () => const SizedBox(
@@ -110,7 +321,7 @@ class _PlayerPane extends ConsumerWidget {
         child: _CenteredMessage(message: l10n.playerUnavailable),
       ),
       data: (controller) => _Player(
-        mediaPath: mediaPath,
+        projectId: projectId,
         transcriptId: transcriptId,
         controller: controller,
       ),
@@ -120,12 +331,12 @@ class _PlayerPane extends ConsumerWidget {
 
 class _Player extends ConsumerWidget {
   const _Player({
-    required this.mediaPath,
+    required this.projectId,
     required this.transcriptId,
     required this.controller,
   });
 
-  final String mediaPath;
+  final String projectId;
   final String? transcriptId;
   final VideoPlayerController controller;
 
@@ -186,7 +397,7 @@ class _Player extends ConsumerWidget {
               children: [
                 IconButton(
                   onPressed: () =>
-                      ref.read(mediaPlayerProvider(mediaPath).notifier).togglePlayback(),
+                      ref.read(mediaPlayerProvider(projectId).notifier).togglePlayback(),
                   icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
                   tooltip: value.isPlaying ? l10n.pauseAction : l10n.playAction,
                 ),
@@ -269,9 +480,9 @@ class _CaptionOverlay extends ConsumerWidget {
 }
 
 class _TranscriptView extends ConsumerWidget {
-  const _TranscriptView({required this.mediaPath, required this.transcript});
+  const _TranscriptView({required this.projectId, required this.transcript});
 
-  final String mediaPath;
+  final String projectId;
   final Transcript transcript;
 
   @override
@@ -296,7 +507,7 @@ class _TranscriptView extends ConsumerWidget {
               ),
             ),
             Expanded(
-              child: _WordFlow(mediaPath: mediaPath, words: items),
+              child: _WordFlow(projectId: projectId, words: items),
             ),
           ],
         );
@@ -307,25 +518,25 @@ class _TranscriptView extends ConsumerWidget {
 
 /// The transcript itself: a reflowing run of words, each one a seek target.
 class _WordFlow extends ConsumerWidget {
-  const _WordFlow({required this.mediaPath, required this.words});
+  const _WordFlow({required this.projectId, required this.words});
 
-  final String mediaPath;
+  final String projectId;
   final List<Word> words;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final player = ref.watch(mediaPlayerProvider(mediaPath)).value;
+    final player = ref.watch(mediaPlayerProvider(projectId)).value;
 
     // Without a player there is nothing to highlight against, so the words
     // render as a plain transcript instead of failing.
     if (player == null) {
-      return _WordFlowContent(mediaPath: mediaPath, words: words, positionMs: null);
+      return _WordFlowContent(projectId: projectId, words: words, positionMs: null);
     }
 
     return ValueListenableBuilder<VideoPlayerValue>(
       valueListenable: player,
       builder: (context, value, _) => _WordFlowContent(
-        mediaPath: mediaPath,
+        projectId: projectId,
         words: words,
         positionMs: value.position.inMilliseconds,
       ),
@@ -335,12 +546,12 @@ class _WordFlow extends ConsumerWidget {
 
 class _WordFlowContent extends ConsumerWidget {
   const _WordFlowContent({
-    required this.mediaPath,
+    required this.projectId,
     required this.words,
     required this.positionMs,
   });
 
-  final String mediaPath;
+  final String projectId;
   final List<Word> words;
   final int? positionMs;
 
@@ -404,7 +615,7 @@ class _WordFlowContent extends ConsumerWidget {
                     onTap: editing
                         ? () => _correctWord(context, ref, word)
                         : () => ref
-                            .read(mediaPlayerProvider(mediaPath).notifier)
+                            .read(mediaPlayerProvider(projectId).notifier)
                             .seekToWord(word.startMs),
                   ),
               ],

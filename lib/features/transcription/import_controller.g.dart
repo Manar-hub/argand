@@ -56,7 +56,7 @@ final class ImportControllerProvider
   }
 }
 
-String _$importControllerHash() => r'bf931aee59846aede87ef422e39a8c3b7fbe0c83';
+String _$importControllerHash() => r'5ce2b6d1801a457aa5faddac27bb07d5adf10658';
 
 /// Drives one media file from the picker all the way to persisted words.
 ///

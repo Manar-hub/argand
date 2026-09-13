@@ -169,4 +169,83 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get editSave => 'Save';
+
+  @override
+  String get undoAction => 'Undo';
+
+  @override
+  String get redoAction => 'Redo';
+
+  @override
+  String get deleteProjectTitle => 'Delete this project?';
+
+  @override
+  String deleteProjectMessage(String size) {
+    return 'This removes the video and its transcript from your device and frees $size. It cannot be undone.';
+  }
+
+  @override
+  String projectSizeOnDisk(String duration, String size) {
+    return '$duration · $size';
+  }
+
+  @override
+  String sizeBytes(int count) {
+    return '$count B';
+  }
+
+  @override
+  String sizeKilobytes(int count) {
+    return '$count KB';
+  }
+
+  @override
+  String sizeMegabytes(int count) {
+    return '$count MB';
+  }
+
+  @override
+  String sizeGigabytes(String count) {
+    return '$count GB';
+  }
+
+  @override
+  String get exportAction => 'Export captions';
+
+  @override
+  String get exportSheetTitle => 'Export captions';
+
+  @override
+  String get exportSrt => 'SubRip (.srt)';
+
+  @override
+  String get exportSrtDetail =>
+      'Works almost everywhere — players, editors, video sites';
+
+  @override
+  String get exportVtt => 'WebVTT (.vtt)';
+
+  @override
+  String get exportVttDetail =>
+      'For the web, and keeps speaker names as voice tags';
+
+  @override
+  String get exportIncludeSpeakers => 'Include speaker names';
+
+  @override
+  String get exportRunning => 'Preparing captions…';
+
+  @override
+  String exportSaved(String fileName) {
+    return 'Saved $fileName';
+  }
+
+  @override
+  String get exportCancelled => 'Export cancelled.';
+
+  @override
+  String get exportFailed => 'Could not export captions.';
+
+  @override
+  String get exportEmpty => 'There are no captions to export yet.';
 }

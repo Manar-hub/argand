@@ -68,7 +68,7 @@
   "@playerUnavailable": { "description": "Shown when the media player fails to load the file" },
 
   "deleteAction": "Delete",
-  "@deleteAction": { "description": "Menu entry that soft-deletes a project" },
+  "@deleteAction": { "description": "Menu entry that opens the delete-project confirmation" },
 
   "errorTitle": "Something went wrong",
   "@errorTitle": { "description": "Headline shown when the import pipeline fails" },
@@ -152,5 +152,92 @@
   "@editCancel": { "description": "Dismisses an edit without applying it" },
 
   "editSave": "Save",
-  "@editSave": { "description": "Applies an edit" }
+  "@editSave": { "description": "Applies an edit" },
+
+  "undoAction": "Undo",
+  "@undoAction": { "description": "Tooltip on the app bar control that reverses the last transcript edit" },
+
+  "redoAction": "Redo",
+  "@redoAction": { "description": "Tooltip on the app bar control that re-applies an undone transcript edit" },
+
+  "deleteProjectTitle": "Delete this project?",
+  "@deleteProjectTitle": { "description": "Heading of the dialog confirming permanent deletion of a project" },
+
+  "deleteProjectMessage": "This removes the video and its transcript from your device and frees {size}. It cannot be undone.",
+  "@deleteProjectMessage": {
+    "description": "Body of the delete-project confirmation, stating plainly that deletion is permanent and how much space it recovers",
+    "placeholders": { "size": { "type": "String", "example": "248 MB" } }
+  },
+
+  "projectSizeOnDisk": "{duration} · {size}",
+  "@projectSizeOnDisk": {
+    "description": "Library row subtitle pairing a project's running time with the space it occupies",
+    "placeholders": {
+      "duration": { "type": "String", "example": "12:04" },
+      "size": { "type": "String", "example": "248 MB" }
+    }
+  },
+
+  "sizeBytes": "{count} B",
+  "@sizeBytes": {
+    "description": "A file size below one kilobyte",
+    "placeholders": { "count": { "type": "int", "example": "512" } }
+  },
+
+  "sizeKilobytes": "{count} KB",
+  "@sizeKilobytes": {
+    "description": "A file size in kilobytes",
+    "placeholders": { "count": { "type": "int", "example": "640" } }
+  },
+
+  "sizeMegabytes": "{count} MB",
+  "@sizeMegabytes": {
+    "description": "A file size in megabytes",
+    "placeholders": { "count": { "type": "int", "example": "248" } }
+  },
+
+  "sizeGigabytes": "{count} GB",
+  "@sizeGigabytes": {
+    "description": "A file size in gigabytes, shown with one decimal place",
+    "placeholders": { "count": { "type": "String", "example": "1.4" } }
+  },
+
+  "exportAction": "Export captions",
+  "@exportAction": { "description": "Tooltip on the app bar control that opens the caption export options" },
+
+  "exportSheetTitle": "Export captions",
+  "@exportSheetTitle": { "description": "Header of the sheet listing subtitle formats to export" },
+
+  "exportSrt": "SubRip (.srt)",
+  "@exportSrt": { "description": "Menu entry exporting captions as a SubRip subtitle file" },
+
+  "exportSrtDetail": "Works almost everywhere — players, editors, video sites",
+  "@exportSrtDetail": { "description": "Explains where a SubRip file can be used" },
+
+  "exportVtt": "WebVTT (.vtt)",
+  "@exportVtt": { "description": "Menu entry exporting captions as a WebVTT subtitle file" },
+
+  "exportVttDetail": "For the web, and keeps speaker names as voice tags",
+  "@exportVttDetail": { "description": "Explains where a WebVTT file can be used and what it preserves" },
+
+  "exportIncludeSpeakers": "Include speaker names",
+  "@exportIncludeSpeakers": { "description": "Toggle controlling whether exported captions are attributed to speakers" },
+
+  "exportRunning": "Preparing captions…",
+  "@exportRunning": { "description": "Shown while the caption file is being written" },
+
+  "exportSaved": "Saved {fileName}",
+  "@exportSaved": {
+    "description": "Confirmation after a caption file is written to the location the user chose",
+    "placeholders": { "fileName": { "type": "String", "example": "interview.en.srt" } }
+  },
+
+  "exportCancelled": "Export cancelled.",
+  "@exportCancelled": { "description": "Shown when the user dismisses the system save dialog" },
+
+  "exportFailed": "Could not export captions.",
+  "@exportFailed": { "description": "Shown when writing the caption file failed" },
+
+  "exportEmpty": "There are no captions to export yet.",
+  "@exportEmpty": { "description": "Shown when export is attempted on a transcript with no words" }
 }

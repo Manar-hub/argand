@@ -1,5 +1,6 @@
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/diarization/speaker_span.dart';
+import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:drift/native.dart';
@@ -16,7 +17,7 @@ void main() {
 
   group('TranscriptRepository', () {
     test('saveImport stores words in engine order with their timings', () async {
-      final repository = TranscriptRepository(database);
+      final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
       await repository.saveImport(
@@ -63,7 +64,7 @@ void main() {
     });
 
     test('saveImport drops whitespace-only segments', () async {
-      final repository = TranscriptRepository(database);
+      final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
       await repository.saveImport(
@@ -100,8 +101,8 @@ void main() {
       expect(words.single.position, 0);
     });
 
-    test('softDeleteProject hides the project without removing the row', () async {
-      final repository = TranscriptRepository(database);
+    test('deleteProject hides the project without removing the row', () async {
+      final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
       await repository.saveImport(
@@ -118,7 +119,7 @@ void main() {
         ),
       );
 
-      await repository.softDeleteProject(projectId);
+      await repository.deleteProject(projectId);
 
       expect(await repository.findProject(projectId), isNull);
       // The row itself survives -- CLAUDE.md 5 forbids hard deletes.
@@ -126,7 +127,7 @@ void main() {
     });
 
     test('correcting a word changes its text and nothing else', () async {
-      final repository = TranscriptRepository(database);
+      final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
       await repository.saveImport(
@@ -165,7 +166,7 @@ void main() {
     });
 
     test('reassigning a turn rewrites exactly that range', () async {
-      final repository = TranscriptRepository(database);
+      final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
       await repository.saveImport(

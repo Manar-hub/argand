@@ -208,7 +208,7 @@ abstract class AppLocalizations {
   /// **'This file can\'t be played back.'**
   String get playerUnavailable;
 
-  /// Menu entry that soft-deletes a project
+  /// Menu entry that opens the delete-project confirmation
   ///
   /// In en, this message translates to:
   /// **'Delete'**
@@ -375,6 +375,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save'**
   String get editSave;
+
+  /// Tooltip on the app bar control that reverses the last transcript edit
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get undoAction;
+
+  /// Tooltip on the app bar control that re-applies an undone transcript edit
+  ///
+  /// In en, this message translates to:
+  /// **'Redo'**
+  String get redoAction;
+
+  /// Heading of the dialog confirming permanent deletion of a project
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this project?'**
+  String get deleteProjectTitle;
+
+  /// Body of the delete-project confirmation, stating plainly that deletion is permanent and how much space it recovers
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the video and its transcript from your device and frees {size}. It cannot be undone.'**
+  String deleteProjectMessage(String size);
+
+  /// Library row subtitle pairing a project's running time with the space it occupies
+  ///
+  /// In en, this message translates to:
+  /// **'{duration} · {size}'**
+  String projectSizeOnDisk(String duration, String size);
+
+  /// A file size below one kilobyte
+  ///
+  /// In en, this message translates to:
+  /// **'{count} B'**
+  String sizeBytes(int count);
+
+  /// A file size in kilobytes
+  ///
+  /// In en, this message translates to:
+  /// **'{count} KB'**
+  String sizeKilobytes(int count);
+
+  /// A file size in megabytes
+  ///
+  /// In en, this message translates to:
+  /// **'{count} MB'**
+  String sizeMegabytes(int count);
+
+  /// A file size in gigabytes, shown with one decimal place
+  ///
+  /// In en, this message translates to:
+  /// **'{count} GB'**
+  String sizeGigabytes(String count);
+
+  /// Tooltip on the app bar control that opens the caption export options
+  ///
+  /// In en, this message translates to:
+  /// **'Export captions'**
+  String get exportAction;
+
+  /// Header of the sheet listing subtitle formats to export
+  ///
+  /// In en, this message translates to:
+  /// **'Export captions'**
+  String get exportSheetTitle;
+
+  /// Menu entry exporting captions as a SubRip subtitle file
+  ///
+  /// In en, this message translates to:
+  /// **'SubRip (.srt)'**
+  String get exportSrt;
+
+  /// Explains where a SubRip file can be used
+  ///
+  /// In en, this message translates to:
+  /// **'Works almost everywhere — players, editors, video sites'**
+  String get exportSrtDetail;
+
+  /// Menu entry exporting captions as a WebVTT subtitle file
+  ///
+  /// In en, this message translates to:
+  /// **'WebVTT (.vtt)'**
+  String get exportVtt;
+
+  /// Explains where a WebVTT file can be used and what it preserves
+  ///
+  /// In en, this message translates to:
+  /// **'For the web, and keeps speaker names as voice tags'**
+  String get exportVttDetail;
+
+  /// Toggle controlling whether exported captions are attributed to speakers
+  ///
+  /// In en, this message translates to:
+  /// **'Include speaker names'**
+  String get exportIncludeSpeakers;
+
+  /// Shown while the caption file is being written
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing captions…'**
+  String get exportRunning;
+
+  /// Confirmation after a caption file is written to the location the user chose
+  ///
+  /// In en, this message translates to:
+  /// **'Saved {fileName}'**
+  String exportSaved(String fileName);
+
+  /// Shown when the user dismisses the system save dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Export cancelled.'**
+  String get exportCancelled;
+
+  /// Shown when writing the caption file failed
+  ///
+  /// In en, this message translates to:
+  /// **'Could not export captions.'**
+  String get exportFailed;
+
+  /// Shown when export is attempted on a transcript with no words
+  ///
+  /// In en, this message translates to:
+  /// **'There are no captions to export yet.'**
+  String get exportEmpty;
 }
 
 class _AppLocalizationsDelegate

@@ -55,7 +55,200 @@ final class TranscriptRepositoryProvider
 }
 
 String _$transcriptRepositoryHash() =>
-    r'f4e8001b1d04c002367e6fb48c0baab08457f0c2';
+    r'53371fb431bdeeb8b8955e905662829a4b9e5d79';
+
+/// Whether the undo and redo controls are live for [transcriptId].
+
+@ProviderFor(editHistory)
+final editHistoryProvider = EditHistoryFamily._();
+
+/// Whether the undo and redo controls are live for [transcriptId].
+
+final class EditHistoryProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<({bool canRedo, bool canUndo})>,
+          ({bool canRedo, bool canUndo}),
+          Stream<({bool canRedo, bool canUndo})>
+        >
+    with
+        $FutureModifier<({bool canRedo, bool canUndo})>,
+        $StreamProvider<({bool canRedo, bool canUndo})> {
+  /// Whether the undo and redo controls are live for [transcriptId].
+  EditHistoryProvider._({
+    required EditHistoryFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'editHistoryProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$editHistoryHash();
+
+  @override
+  String toString() {
+    return r'editHistoryProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<({bool canRedo, bool canUndo})> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<({bool canRedo, bool canUndo})> create(Ref ref) {
+    final argument = this.argument as String;
+    return editHistory(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is EditHistoryProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$editHistoryHash() => r'439dea1d8d9b647a6f3a4cb03c6eb01b36567719';
+
+/// Whether the undo and redo controls are live for [transcriptId].
+
+final class EditHistoryFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          Stream<({bool canRedo, bool canUndo})>,
+          String
+        > {
+  EditHistoryFamily._()
+    : super(
+        retry: null,
+        name: r'editHistoryProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Whether the undo and redo controls are live for [transcriptId].
+
+  EditHistoryProvider call(String transcriptId) =>
+      EditHistoryProvider._(argument: transcriptId, from: this);
+
+  @override
+  String toString() => r'editHistoryProvider';
+}
+
+/// Total bytes [projectId] occupies on disk: its imported media plus the
+/// extracted WAV.
+///
+/// Surfaced in the library so consumed space is visible and attributable to a
+/// project, rather than showing up only as an unexplained rise in the app's
+/// size in Android settings.
+
+@ProviderFor(projectMediaBytes)
+final projectMediaBytesProvider = ProjectMediaBytesFamily._();
+
+/// Total bytes [projectId] occupies on disk: its imported media plus the
+/// extracted WAV.
+///
+/// Surfaced in the library so consumed space is visible and attributable to a
+/// project, rather than showing up only as an unexplained rise in the app's
+/// size in Android settings.
+
+final class ProjectMediaBytesProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
+    with $FutureModifier<int>, $FutureProvider<int> {
+  /// Total bytes [projectId] occupies on disk: its imported media plus the
+  /// extracted WAV.
+  ///
+  /// Surfaced in the library so consumed space is visible and attributable to a
+  /// project, rather than showing up only as an unexplained rise in the app's
+  /// size in Android settings.
+  ProjectMediaBytesProvider._({
+    required ProjectMediaBytesFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectMediaBytesProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectMediaBytesHash();
+
+  @override
+  String toString() {
+    return r'projectMediaBytesProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<int> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectMediaBytes(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectMediaBytesProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectMediaBytesHash() => r'9839ea1b0ba9945bae99b57547b97e51e9ddc7a3';
+
+/// Total bytes [projectId] occupies on disk: its imported media plus the
+/// extracted WAV.
+///
+/// Surfaced in the library so consumed space is visible and attributable to a
+/// project, rather than showing up only as an unexplained rise in the app's
+/// size in Android settings.
+
+final class ProjectMediaBytesFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<int>, String> {
+  ProjectMediaBytesFamily._()
+    : super(
+        retry: null,
+        name: r'projectMediaBytesProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Total bytes [projectId] occupies on disk: its imported media plus the
+  /// extracted WAV.
+  ///
+  /// Surfaced in the library so consumed space is visible and attributable to a
+  /// project, rather than showing up only as an unexplained rise in the app's
+  /// size in Android settings.
+
+  ProjectMediaBytesProvider call(String projectId) =>
+      ProjectMediaBytesProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectMediaBytesProvider';
+}
 
 @ProviderFor(projectList)
 final projectListProvider = ProjectListProvider._();

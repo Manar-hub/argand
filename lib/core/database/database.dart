@@ -75,6 +75,37 @@ class Words extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// One reversible edit, appended by `TranscriptRepository` as it mutates a
+/// transcript. Undo and redo walk this log rather than diffing documents.
+///
+/// Rows are ordered by [EditEvents.sequence] rather than `createdAt`: two edits
+/// made in the same millisecond would tie, and undo order has to be total.
+@TableIndex(
+    name: 'edit_events_transcript_seq', columns: {#transcriptId, #sequence})
+class EditEvents extends Table with _RecordColumns {
+  /// References the transcript so the log inherits its lifecycle -- deleting a
+  /// project takes its edit history with it, with nothing to clean up
+  /// separately.
+  TextColumn get transcriptId => text().references(Transcripts, #id)();
+
+  /// Monotonic within one transcript, assigned at append time.
+  IntColumn get sequence => integer()();
+
+  /// An `EditEventKind.code`. Stored as text, not an enum index, so inserting a
+  /// case into that enum cannot reinterpret rows already on disk.
+  TextColumn get kind => text()();
+
+  /// JSON, carrying both the before and after state. See `edit_event.dart`.
+  TextColumn get payload => text()();
+
+  /// Null while the edit is in effect and undoable; set once undone, which
+  /// makes it redoable. Redo is therefore a query, not a second stack.
+  DateTimeColumn get undoneAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Small key/value store for app-level choices that are not domain records --
 /// currently just which transcription model to use.
 ///
@@ -92,15 +123,15 @@ class Settings extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [Projects, Transcripts, Words, Settings])
+@DriftDatabase(tables: [Projects, Transcripts, Words, Settings, EditEvents])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
-  /// First migration in this project.
+  /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -112,6 +143,9 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (migrator, from, to) async {
           if (from < 2) {
             await migrator.createTable(settings);
+          }
+          if (from < 3) {
+            await migrator.createTable(editEvents);
           }
         },
       );
@@ -168,6 +202,21 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Retires [key], for per-project settings whose project is being deleted.
+  ///
+  /// Soft, like every other delete. [writeSetting] already resurrects a
+  /// soft-deleted row rather than colliding with it on the unique index, so a
+  /// key retired here is reusable if the same id ever comes back.
+  Future<void> softDeleteSetting(String key) {
+    final now = DateTime.now();
+    return (update(settings)..where((t) => t.key.equals(key))).write(
+      SettingsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
   /// Projects that have not been soft-deleted, newest first.
   Stream<List<Project>> watchProjects() {
     return (select(projects)
@@ -197,7 +246,6 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  /// Soft delete, per CLAUDE.md 5 -- never a hard row delete.
   /// Corrects the text of one word, and nothing else.
   ///
   /// **Timings are deliberately untouched.** A correction fixes what the engine
@@ -242,6 +290,12 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Soft delete, per CLAUDE.md 5 -- never a hard row delete.
+  ///
+  /// The project's *media* is not soft-deleted: `TranscriptRepository` removes
+  /// that directory outright, because a tombstone row costs a few hundred bytes
+  /// while an orphaned video costs hundreds of megabytes that nothing would
+  /// ever reclaim.
   Future<void> softDeleteProject(String id) {
     return (update(projects)..where((t) => t.id.equals(id))).write(
       ProjectsCompanion(
@@ -249,6 +303,195 @@ class AppDatabase extends _$AppDatabase {
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  /// How many undoable edits one transcript keeps.
+  ///
+  /// Bounded per `docs/engine-architecture.md`, which asks for a window rather
+  /// than unbounded growth. The cost is small either way -- an event is a few
+  /// hundred bytes, so this window is tens of kilobytes -- but a log nobody
+  /// prunes grows for the lifetime of the install.
+  static const int editHistoryLimit = 100;
+
+  Future<Word?> findWord(String id) =>
+      (select(words)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// Words at positions [from]..[to] inclusive, in order.
+  Future<List<Word>> wordsInPositionRange({
+    required String transcriptId,
+    required int from,
+    required int to,
+  }) {
+    return (select(words)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.position.isBetweenValues(from, to))
+          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+        .get();
+  }
+
+  /// Writes a different `speakerId` to each listed position, nulls included.
+  ///
+  /// [reassignSpeaker] writes one value across a whole run, which is what a
+  /// correction does. Undoing one has to put back whatever each word held
+  /// before -- several speakers, or none at all -- so it cannot reuse that path.
+  Future<void> restoreSpeakerIds({
+    required String transcriptId,
+    required Map<int, String?> speakerIds,
+  }) {
+    final now = DateTime.now();
+    return transaction(() async {
+      for (final entry in speakerIds.entries) {
+        await (update(words)
+              ..where((t) =>
+                  t.transcriptId.equals(transcriptId) &
+                  t.position.equals(entry.key)))
+            .write(
+          WordsCompanion(
+            speakerId: Value(entry.value),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Appends one event to [transcriptId]'s log.
+  ///
+  /// **Call inside the same transaction as the mutation it records**, so an
+  /// edit and its log entry commit or fail together. An edit with no event is
+  /// silently un-undoable; an event with no edit undoes something that never
+  /// happened.
+  ///
+  /// Two housekeeping steps run with it. Any *undone* events are discarded
+  /// first -- this is linear undo, so editing after undoing abandons the redo
+  /// branch rather than trying to reconcile it. Then the log is pruned back to
+  /// [editHistoryLimit].
+  Future<void> appendEditEvent({
+    required String transcriptId,
+    required String kind,
+    required String payload,
+  }) async {
+    final now = DateTime.now();
+
+    await (update(editEvents)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.undoneAt.isNotNull()))
+        .write(EditEventsCompanion(
+      deletedAt: Value(now),
+      updatedAt: Value(now),
+    ));
+
+    // Over every row, not just the live ones: a sequence number reused after a
+    // prune would sort a new event underneath an older one.
+    final highest = await (selectOnly(editEvents)
+          ..addColumns([editEvents.sequence.max()])
+          ..where(editEvents.transcriptId.equals(transcriptId)))
+        .getSingle();
+    final next = (highest.read(editEvents.sequence.max()) ?? 0) + 1;
+
+    await into(editEvents).insert(
+      EditEventsCompanion.insert(
+        id: _uuid.v4(),
+        createdAt: now,
+        updatedAt: now,
+        transcriptId: transcriptId,
+        sequence: next,
+        kind: kind,
+        payload: payload,
+      ),
+    );
+
+    final live = await (select(editEvents)
+          ..where(
+              (t) => t.transcriptId.equals(transcriptId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.sequence)]))
+        .get();
+    if (live.length > editHistoryLimit) {
+      final stale = live.skip(editHistoryLimit).map((e) => e.id).toList();
+      await (update(editEvents)..where((t) => t.id.isIn(stale)))
+          .write(EditEventsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ));
+    }
+  }
+
+  /// The next event undo would reverse: the newest one still in effect.
+  Future<EditEvent?> nextUndoEvent(String transcriptId) {
+    return (select(editEvents)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.undoneAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.sequence)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// The next event redo would re-apply: the oldest one already undone.
+  ///
+  /// Oldest rather than newest, so several undos followed by several redos
+  /// retrace the same path in reverse instead of jumping about inside the
+  /// undone run.
+  Future<EditEvent?> nextRedoEvent(String transcriptId) {
+    return (select(editEvents)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.undoneAt.isNotNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.sequence)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<void> markEditEventUndone(String id, {required bool undone}) {
+    final now = DateTime.now();
+    return (update(editEvents)..where((t) => t.id.equals(id))).write(
+      EditEventsCompanion(
+        undoneAt: Value(undone ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Drops an event without applying it -- used when its payload will not
+  /// decode, so one corrupt row cannot wedge the undo button permanently.
+  Future<void> discardEditEvent(String id) {
+    final now = DateTime.now();
+    return (update(editEvents)..where((t) => t.id.equals(id))).write(
+      EditEventsCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Whether undo and redo currently have anything to do.
+  ///
+  /// Reads only `undoneAt`, and is `distinct` so the buttons rebuild when
+  /// availability actually flips rather than on every write to the log.
+  Stream<({bool canUndo, bool canRedo})> watchEditHistory(String transcriptId) {
+    final query = selectOnly(editEvents)
+      ..addColumns([editEvents.undoneAt])
+      ..where(editEvents.transcriptId.equals(transcriptId) &
+          editEvents.deletedAt.isNull());
+
+    return query.watch().map((rows) {
+      var canUndo = false;
+      var canRedo = false;
+      for (final row in rows) {
+        if (row.read(editEvents.undoneAt) == null) {
+          canUndo = true;
+        } else {
+          canRedo = true;
+        }
+      }
+      return (canUndo: canUndo, canRedo: canRedo);
+    }).distinct();
   }
 }
 

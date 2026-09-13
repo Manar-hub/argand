@@ -165,6 +165,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editScopeWord => 'Word';
 
   @override
+  String get editScopeSpeakers => 'Speakers';
+
+  @override
+  String get editModeHintSpeakers =>
+      'Pick a speaker, then tap the first word of the run.';
+
+  @override
+  String get editModeHintSpeakersAnchored =>
+      'Now tap the last word, or the same word again for just that one.';
+
+  @override
+  String get renameSpeakerTitle => 'Name this speaker';
+
+  @override
+  String renameSpeakerHint(int number) {
+    return 'Leave empty to go back to Speaker $number.';
+  }
+
+  @override
+  String get renameSpeakerAction => 'Rename';
+
+  @override
   String get reassignSpeakerTitle => 'Who is speaking?';
 
   @override

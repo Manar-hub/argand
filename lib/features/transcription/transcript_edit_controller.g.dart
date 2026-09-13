@@ -215,3 +215,168 @@ abstract class _$TranscriptEditScopeSetting
     return element.handleCreate(ref, build);
   }
 }
+
+/// Which speaker a tap assigns while [TranscriptEditScope.speakers] is active.
+///
+/// Defaults to speaker 0 rather than to nothing: a palette with no selection
+/// makes the first tap do nothing, which reads as the control being broken.
+
+@ProviderFor(SelectedSpeaker)
+final selectedSpeakerProvider = SelectedSpeakerProvider._();
+
+/// Which speaker a tap assigns while [TranscriptEditScope.speakers] is active.
+///
+/// Defaults to speaker 0 rather than to nothing: a palette with no selection
+/// makes the first tap do nothing, which reads as the control being broken.
+final class SelectedSpeakerProvider
+    extends $NotifierProvider<SelectedSpeaker, int> {
+  /// Which speaker a tap assigns while [TranscriptEditScope.speakers] is active.
+  ///
+  /// Defaults to speaker 0 rather than to nothing: a palette with no selection
+  /// makes the first tap do nothing, which reads as the control being broken.
+  SelectedSpeakerProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'selectedSpeakerProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$selectedSpeakerHash();
+
+  @$internal
+  @override
+  SelectedSpeaker create() => SelectedSpeaker();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int>(value),
+    );
+  }
+}
+
+String _$selectedSpeakerHash() => r'a3097d43b4e999a278a109fdd23a146670b5d765';
+
+/// Which speaker a tap assigns while [TranscriptEditScope.speakers] is active.
+///
+/// Defaults to speaker 0 rather than to nothing: a palette with no selection
+/// makes the first tap do nothing, which reads as the control being broken.
+
+abstract class _$SelectedSpeaker extends $Notifier<int> {
+  int build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<int, int>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int, int>,
+              int,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+/// The first word of a range being picked, as a `Words.position`.
+///
+/// Null when no range is in progress. Two taps rather than a drag because the
+/// transcript scrolls vertically and a paint stroke would fight the scroll
+/// gesture — so this holds the state between them.
+///
+/// **Must be cleared when the mode changes.** A pending anchor that outlived
+/// Speakers scope would silently turn a later, unrelated tap into a range
+/// assignment; `project_screen.dart` clears it on leaving the scope and on
+/// leaving edit mode.
+
+@ProviderFor(SpeakerRangeAnchor)
+final speakerRangeAnchorProvider = SpeakerRangeAnchorProvider._();
+
+/// The first word of a range being picked, as a `Words.position`.
+///
+/// Null when no range is in progress. Two taps rather than a drag because the
+/// transcript scrolls vertically and a paint stroke would fight the scroll
+/// gesture — so this holds the state between them.
+///
+/// **Must be cleared when the mode changes.** A pending anchor that outlived
+/// Speakers scope would silently turn a later, unrelated tap into a range
+/// assignment; `project_screen.dart` clears it on leaving the scope and on
+/// leaving edit mode.
+final class SpeakerRangeAnchorProvider
+    extends $NotifierProvider<SpeakerRangeAnchor, int?> {
+  /// The first word of a range being picked, as a `Words.position`.
+  ///
+  /// Null when no range is in progress. Two taps rather than a drag because the
+  /// transcript scrolls vertically and a paint stroke would fight the scroll
+  /// gesture — so this holds the state between them.
+  ///
+  /// **Must be cleared when the mode changes.** A pending anchor that outlived
+  /// Speakers scope would silently turn a later, unrelated tap into a range
+  /// assignment; `project_screen.dart` clears it on leaving the scope and on
+  /// leaving edit mode.
+  SpeakerRangeAnchorProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'speakerRangeAnchorProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$speakerRangeAnchorHash();
+
+  @$internal
+  @override
+  SpeakerRangeAnchor create() => SpeakerRangeAnchor();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int?>(value),
+    );
+  }
+}
+
+String _$speakerRangeAnchorHash() =>
+    r'beaf5d16fd63c8a17fb87f88af247a61e6c66b0e';
+
+/// The first word of a range being picked, as a `Words.position`.
+///
+/// Null when no range is in progress. Two taps rather than a drag because the
+/// transcript scrolls vertically and a paint stroke would fight the scroll
+/// gesture — so this holds the state between them.
+///
+/// **Must be cleared when the mode changes.** A pending anchor that outlived
+/// Speakers scope would silently turn a later, unrelated tap into a range
+/// assignment; `project_screen.dart` clears it on leaving the scope and on
+/// leaving edit mode.
+
+abstract class _$SpeakerRangeAnchor extends $Notifier<int?> {
+  int? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<int?, int?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int?, int?>,
+              int?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

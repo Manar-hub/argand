@@ -57,6 +57,192 @@ final class TranscriptRepositoryProvider
 String _$transcriptRepositoryHash() =>
     r'53371fb431bdeeb8b8955e905662829a4b9e5d79';
 
+/// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
+///
+/// Keyed by transcript id rather than project so the caption overlay and the
+/// transcript view read the same instance. Synchronous, with an empty map while
+/// the row loads — the fallback `Speaker N` label is correct in that moment
+/// anyway, so there is nothing to wait for and no spinner to show.
+
+@ProviderFor(speakerNames)
+final speakerNamesProvider = SpeakerNamesFamily._();
+
+/// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
+///
+/// Keyed by transcript id rather than project so the caption overlay and the
+/// transcript view read the same instance. Synchronous, with an empty map while
+/// the row loads — the fallback `Speaker N` label is correct in that moment
+/// anyway, so there is nothing to wait for and no spinner to show.
+
+final class SpeakerNamesProvider
+    extends $FunctionalProvider<SpeakerNames, SpeakerNames, SpeakerNames>
+    with $Provider<SpeakerNames> {
+  /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
+  ///
+  /// Keyed by transcript id rather than project so the caption overlay and the
+  /// transcript view read the same instance. Synchronous, with an empty map while
+  /// the row loads — the fallback `Speaker N` label is correct in that moment
+  /// anyway, so there is nothing to wait for and no spinner to show.
+  SpeakerNamesProvider._({
+    required SpeakerNamesFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'speakerNamesProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$speakerNamesHash();
+
+  @override
+  String toString() {
+    return r'speakerNamesProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<SpeakerNames> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  SpeakerNames create(Ref ref) {
+    final argument = this.argument as String;
+    return speakerNames(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(SpeakerNames value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<SpeakerNames>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is SpeakerNamesProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$speakerNamesHash() => r'ca47b053385677699cd0c8be96c37ba3ccfcac9e';
+
+/// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
+///
+/// Keyed by transcript id rather than project so the caption overlay and the
+/// transcript view read the same instance. Synchronous, with an empty map while
+/// the row loads — the fallback `Speaker N` label is correct in that moment
+/// anyway, so there is nothing to wait for and no spinner to show.
+
+final class SpeakerNamesFamily extends $Family
+    with $FunctionalFamilyOverride<SpeakerNames, String> {
+  SpeakerNamesFamily._()
+    : super(
+        retry: null,
+        name: r'speakerNamesProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
+  ///
+  /// Keyed by transcript id rather than project so the caption overlay and the
+  /// transcript view read the same instance. Synchronous, with an empty map while
+  /// the row loads — the fallback `Speaker N` label is correct in that moment
+  /// anyway, so there is nothing to wait for and no spinner to show.
+
+  SpeakerNamesProvider call(String transcriptId) =>
+      SpeakerNamesProvider._(argument: transcriptId, from: this);
+
+  @override
+  String toString() => r'speakerNamesProvider';
+}
+
+@ProviderFor(transcriptById)
+final transcriptByIdProvider = TranscriptByIdFamily._();
+
+final class TranscriptByIdProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Transcript?>,
+          Transcript?,
+          Stream<Transcript?>
+        >
+    with $FutureModifier<Transcript?>, $StreamProvider<Transcript?> {
+  TranscriptByIdProvider._({
+    required TranscriptByIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'transcriptByIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$transcriptByIdHash();
+
+  @override
+  String toString() {
+    return r'transcriptByIdProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<Transcript?> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<Transcript?> create(Ref ref) {
+    final argument = this.argument as String;
+    return transcriptById(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TranscriptByIdProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$transcriptByIdHash() => r'ad64fdc2349b257605c09dc97174709909897302';
+
+final class TranscriptByIdFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<Transcript?>, String> {
+  TranscriptByIdFamily._()
+    : super(
+        retry: null,
+        name: r'transcriptByIdProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  TranscriptByIdProvider call(String transcriptId) =>
+      TranscriptByIdProvider._(argument: transcriptId, from: this);
+
+  @override
+  String toString() => r'transcriptByIdProvider';
+}
+
 /// Whether the undo and redo controls are live for [transcriptId].
 
 @ProviderFor(editHistory)
@@ -433,17 +619,34 @@ final class TranscriptWordsFamily extends $Family
   String toString() => r'transcriptWordsProvider';
 }
 
+/// The project's transcript, watched rather than fetched.
+///
+/// Speaker names live on this row, so a rename has to reach the transcript
+/// view, the caption overlay and the export button with nothing being told to
+/// refresh.
+
 @ProviderFor(projectTranscript)
 final projectTranscriptProvider = ProjectTranscriptFamily._();
+
+/// The project's transcript, watched rather than fetched.
+///
+/// Speaker names live on this row, so a rename has to reach the transcript
+/// view, the caption overlay and the export button with nothing being told to
+/// refresh.
 
 final class ProjectTranscriptProvider
     extends
         $FunctionalProvider<
           AsyncValue<Transcript?>,
           Transcript?,
-          FutureOr<Transcript?>
+          Stream<Transcript?>
         >
-    with $FutureModifier<Transcript?>, $FutureProvider<Transcript?> {
+    with $FutureModifier<Transcript?>, $StreamProvider<Transcript?> {
+  /// The project's transcript, watched rather than fetched.
+  ///
+  /// Speaker names live on this row, so a rename has to reach the transcript
+  /// view, the caption overlay and the export button with nothing being told to
+  /// refresh.
   ProjectTranscriptProvider._({
     required ProjectTranscriptFamily super.from,
     required String super.argument,
@@ -467,12 +670,12 @@ final class ProjectTranscriptProvider
 
   @$internal
   @override
-  $FutureProviderElement<Transcript?> $createElement(
+  $StreamProviderElement<Transcript?> $createElement(
     $ProviderPointer pointer,
-  ) => $FutureProviderElement(pointer);
+  ) => $StreamProviderElement(pointer);
 
   @override
-  FutureOr<Transcript?> create(Ref ref) {
+  Stream<Transcript?> create(Ref ref) {
     final argument = this.argument as String;
     return projectTranscript(ref, argument);
   }
@@ -488,10 +691,16 @@ final class ProjectTranscriptProvider
   }
 }
 
-String _$projectTranscriptHash() => r'f70eaa509715b229420c10feb1e6a0a33105df5c';
+String _$projectTranscriptHash() => r'73f3857248e5d566bbfa84842cbaa59d896ebeae';
+
+/// The project's transcript, watched rather than fetched.
+///
+/// Speaker names live on this row, so a rename has to reach the transcript
+/// view, the caption overlay and the export button with nothing being told to
+/// refresh.
 
 final class ProjectTranscriptFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<Transcript?>, String> {
+    with $FunctionalFamilyOverride<Stream<Transcript?>, String> {
   ProjectTranscriptFamily._()
     : super(
         retry: null,
@@ -500,6 +709,12 @@ final class ProjectTranscriptFamily extends $Family
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
+
+  /// The project's transcript, watched rather than fetched.
+  ///
+  /// Speaker names live on this row, so a rename has to reach the transcript
+  /// view, the caption overlay and the export button with nothing being told to
+  /// refresh.
 
   ProjectTranscriptProvider call(String projectId) =>
       ProjectTranscriptProvider._(argument: projectId, from: this);

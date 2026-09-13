@@ -166,14 +166,14 @@ void main() {
     expect(cleared, isNull);
   });
 
-  testWidgets('the schema opens and reports version 3', (tester) async {
+  testWidgets('the schema opens and reports version 4', (tester) async {
     final version = await database
         .customSelect('PRAGMA user_version')
         .map((row) => row.read<int>('user_version'))
         .getSingle();
 
     log('user_version  -> $version');
-    expect(version, 3);
+    expect(version, 4);
 
     // Read from the open connection rather than by opening a second one --
     // drift warns about that, and rightly: two instances over one file race.
@@ -182,6 +182,38 @@ void main() {
         .map((row) => row.read<String>('file'))
         .getSingle();
     log('db size       -> ${await File(path).length()} bytes at $path');
+  });
+
+  testWidgets('a shared file is adopted by moving, not copied again',
+      (tester) async {
+    // What share-sheet import relies on. The native side has already written
+    // the bytes into the cache directory by this point; copying them again
+    // would mean writing a video twice and holding two copies at once.
+    final projectId = repository.newId();
+    final staging = File(
+      '${Directory.systemTemp.path}/adopt-${DateTime.now().microsecondsSinceEpoch}.mp4',
+    );
+    const payload = 256 * 1024;
+    await staging.writeAsBytes(Uint8List(payload));
+
+    final adopted = await converter.adoptIntoAppStorage(
+      projectId: projectId,
+      fileName: 'holiday clip.mp4',
+      source: staging,
+    );
+
+    log('adopted       -> ${adopted.path}');
+    expect(await adopted.exists(), isTrue);
+    expect(await adopted.length(), payload);
+    // The extension is preserved because the decoders and the player both use
+    // it to choose a container parser.
+    expect(adopted.path, endsWith('.mp4'));
+    // And the source is gone: moved, not duplicated.
+    expect(await staging.exists(), isFalse,
+        reason: 'the staging file must not survive the adoption');
+
+    expect(await converter.projectMediaBytes(projectId), payload);
+    await converter.discardProjectMedia(projectId);
   });
 
   /// The controls themselves, driven by taps.
@@ -397,6 +429,122 @@ void main() {
 
       await tester.tap(find.text('Cancel'));
       await settle(tester);
+
+      await repository.deleteProject(projectId);
+    });
+
+    testWidgets('Speakers scope splits a turn in two taps, and one undo',
+        (tester) async {
+      final projectId = repository.newId();
+      final transcriptId = await seedTranscript(
+        projectId,
+        ['One', 'two', 'three', 'four', 'five', 'six.'],
+      );
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+      await tester.tap(find.text('Speakers'));
+      await settle(tester);
+
+      // The palette offers the transcript's own speaker plus one more, which
+      // is what makes a split possible at all.
+      expect(find.widgetWithText(ChoiceChip, 'Speaker 1'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Speaker 2'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Speaker 2'));
+      await settle(tester);
+
+      // First tap anchors, and must be visible while it waits.
+      await tester.tap(find.text('three'));
+      await settle(tester);
+      expect(find.text('Cancel'), findsOneWidget,
+          reason: 'a pending anchor must be cancellable');
+
+      await tester.tap(find.text('four'));
+      await settle(tester);
+
+      final after = await repository.watchWords(transcriptId).first;
+      log('speakers      -> ${after.map((w) => w.speakerId).join(',')}');
+      expect(after.map((w) => w.speakerId), ['0', '0', '1', '1', '0', '0']);
+      expect(find.text('Cancel'), findsNothing,
+          reason: 'the anchor must clear once the range is applied');
+
+      await tester.tap(buttonFor(Icons.undo));
+      await settle(tester);
+      final undone = await repository.watchWords(transcriptId).first;
+      log('after undo    -> ${undone.map((w) => w.speakerId).join(',')}');
+      expect(undone.map((w) => w.speakerId).toSet(), {'0'});
+
+      await repository.deleteProject(projectId);
+    });
+
+    testWidgets('Cancel clears a pending anchor, and so does leaving the scope',
+        (tester) async {
+      final projectId = repository.newId();
+      final transcriptId =
+          await seedTranscript(projectId, ['One', 'two', 'three.']);
+      final before = await repository.watchWords(transcriptId).first;
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+      await tester.tap(find.text('Speakers'));
+      await settle(tester);
+
+      await tester.tap(find.text('One'));
+      await settle(tester);
+      await tester.tap(find.text('Cancel'));
+      await settle(tester);
+      expect(find.text('Cancel'), findsNothing);
+
+      // Anchor again, then leave the scope. A selection that outlived its mode
+      // would turn the next unrelated tap into a range assignment.
+      await tester.tap(find.text('One'));
+      await settle(tester);
+      await tester.tap(find.text('Line'));
+      await settle(tester);
+      await tester.tap(find.text('Speakers'));
+      await settle(tester);
+      expect(find.text('Cancel'), findsNothing);
+
+      expect(
+        (await repository.watchWords(transcriptId).first)
+            .map((w) => w.speakerId),
+        before.map((w) => w.speakerId),
+        reason: 'nothing should have been assigned by a cancelled selection',
+      );
+
+      await repository.deleteProject(projectId);
+    });
+
+    testWidgets('a renamed speaker shows everywhere the number used to',
+        (tester) async {
+      final projectId = repository.newId();
+      final transcriptId =
+          await seedTranscript(projectId, ['One', 'two', 'three.']);
+
+      await repository.renameSpeaker(
+        transcriptId: transcriptId,
+        speaker: 0,
+        name: 'Ana',
+      );
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+
+      // The turn label, without entering edit mode.
+      expect(find.text('Ana'), findsWidgets);
+      expect(find.text('Speaker 1'), findsNothing);
+      log('renamed       -> label reads "Ana"');
+
+      // And the palette agrees.
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+      await tester.tap(find.text('Speakers'));
+      await settle(tester);
+      expect(find.widgetWithText(ChoiceChip, 'Ana'), findsOneWidget);
 
       await repository.deleteProject(projectId);
     });

@@ -364,6 +364,42 @@ abstract class AppLocalizations {
   /// **'Word'**
   String get editScopeWord;
 
+  /// Label of the control that makes a tap assign a speaker to words instead of editing text
+  ///
+  /// In en, this message translates to:
+  /// **'Speakers'**
+  String get editScopeSpeakers;
+
+  /// Banner shown in speaker-assignment mode before any word has been chosen
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a speaker, then tap the first word of the run.'**
+  String get editModeHintSpeakers;
+
+  /// Banner shown once the first word of a speaker range has been chosen
+  ///
+  /// In en, this message translates to:
+  /// **'Now tap the last word, or the same word again for just that one.'**
+  String get editModeHintSpeakersAnchored;
+
+  /// Header of the field for giving a speaker a custom name
+  ///
+  /// In en, this message translates to:
+  /// **'Name this speaker'**
+  String get renameSpeakerTitle;
+
+  /// Note under the rename field explaining that clearing it restores the numbered default
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to go back to Speaker {number}.'**
+  String renameSpeakerHint(int number);
+
+  /// Tooltip on the control that renames a speaker
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get renameSpeakerAction;
+
   /// Header of the sheet listing speakers to reassign a turn to
   ///
   /// In en, this message translates to:

@@ -10,6 +10,7 @@ import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
+import '../../core/transcript/speaker_names.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 
 part 'transcript_repository.g.dart';
@@ -48,6 +49,9 @@ class TranscriptRepository {
 
   Future<Transcript?> findTranscriptForProject(String projectId) =>
       _db.findTranscriptForProject(projectId);
+
+  Stream<Transcript?> watchTranscriptForProject(String projectId) =>
+      _db.watchTranscriptForProject(projectId);
 
   Stream<List<Word>> watchWords(String transcriptId) => _db.watchWords(transcriptId);
 
@@ -260,6 +264,29 @@ class TranscriptRepository {
     return applied;
   }
 
+  /// Gives [speaker] a custom name, or clears it when [name] is blank.
+  ///
+  /// **Deliberately not in the undo log.** The log is keyed on word rows and
+  /// replays edits to them; a name lives on the transcript and is its own undo
+  /// — retype it. An event kind for this would be machinery for nothing, and it
+  /// would put a rename in the same history as a text correction, where undoing
+  /// a typo would first have to step back through a renaming.
+  Future<void> renameSpeaker({
+    required String transcriptId,
+    required int speaker,
+    required String? name,
+  }) async {
+    await _db.transaction(() async {
+      final transcript = await _db.findTranscript(transcriptId);
+      if (transcript == null) return;
+
+      final names = SpeakerNames.decode(transcript.speakerNames)
+          .withName(speaker, name);
+
+      await _db.writeSpeakerNames(transcriptId, names.encode());
+    });
+  }
+
   /// Whether undo and redo have anything to do on [transcriptId].
   Stream<({bool canUndo, bool canRedo})> watchEditHistory(String transcriptId) =>
       _db.watchEditHistory(transcriptId);
@@ -458,6 +485,22 @@ TranscriptRepository transcriptRepository(Ref ref) => TranscriptRepository(
       ref.watch(mediaConverterProvider),
     );
 
+/// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
+///
+/// Keyed by transcript id rather than project so the caption overlay and the
+/// transcript view read the same instance. Synchronous, with an empty map while
+/// the row loads — the fallback `Speaker N` label is correct in that moment
+/// anyway, so there is nothing to wait for and no spinner to show.
+@riverpod
+SpeakerNames speakerNames(Ref ref, String transcriptId) {
+  final transcript = ref.watch(transcriptByIdProvider(transcriptId)).value;
+  return SpeakerNames.decode(transcript?.speakerNames);
+}
+
+@riverpod
+Stream<Transcript?> transcriptById(Ref ref, String transcriptId) =>
+    ref.watch(appDatabaseProvider).watchTranscript(transcriptId);
+
 /// Whether the undo and redo controls are live for [transcriptId].
 @riverpod
 Stream<({bool canUndo, bool canRedo})> editHistory(
@@ -488,9 +531,14 @@ Future<Project?> projectById(Ref ref, String projectId) =>
 Stream<List<Word>> transcriptWords(Ref ref, String transcriptId) =>
     ref.watch(transcriptRepositoryProvider).watchWords(transcriptId);
 
+/// The project's transcript, watched rather than fetched.
+///
+/// Speaker names live on this row, so a rename has to reach the transcript
+/// view, the caption overlay and the export button with nothing being told to
+/// refresh.
 @riverpod
-Future<Transcript?> projectTranscript(Ref ref, String projectId) =>
-    ref.watch(transcriptRepositoryProvider).findTranscriptForProject(projectId);
+Stream<Transcript?> projectTranscript(Ref ref, String projectId) =>
+    ref.watch(transcriptRepositoryProvider).watchTranscriptForProject(projectId);
 
 /// The engine's segments as word timings, filtered exactly as [saveImport]
 /// filters them before writing rows.

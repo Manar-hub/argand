@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// The schema-2 tables, written by hand so the migration is exercised against a
 /// database this build did not create.
 ///
+/// Left at **2** deliberately as the schema grows: upgrading from the oldest
+/// version anyone can still be running exercises every `if (from < n)` block in
+/// order, which is the case a device that skipped releases actually hits.
+///
 /// Verbose on purpose. `createAll()` would produce schema 3 and the upgrade
 /// path would never run -- which is exactly the path that touches a real user's
 /// transcripts, and the only one that can destroy them.
@@ -98,7 +102,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 3', () {
+  group('schema 2 -> 4', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -150,6 +154,23 @@ void main() {
       expect(await db.nextUndoEvent('t1'), isNotNull);
     });
 
+    test('adds the speaker names column, empty', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      // Present and null: a transcript from before the column existed has
+      // nobody renamed, which is exactly what null means.
+      final transcript = await db.findTranscript('t1');
+      expect(transcript, isNotNull);
+      expect(transcript!.speakerNames, isNull);
+
+      await db.writeSpeakerNames('t1', '{"0":{"name":"Ana"}}');
+      expect(
+        (await db.findTranscript('t1'))!.speakerNames,
+        '{"0":{"name":"Ana"}}',
+      );
+    });
+
     test('reports the new schema version', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -160,7 +181,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 3);
+      expect(row, 4);
     });
   });
 

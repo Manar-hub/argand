@@ -9,6 +9,7 @@ import '../../core/captions/subtitle_export.dart';
 import '../../core/database/database.dart';
 import '../../core/text/sentence_units.dart';
 import '../../core/transcript/sentence_edit.dart';
+import '../../core/transcript/speaker_names.dart';
 import '../../core/transcript/speaker_turns.dart';
 import '../../l10n/app_localizations.dart';
 import 'media_player_controller.dart';
@@ -131,6 +132,8 @@ class _ExportButton extends ConsumerWidget {
     WidgetRef ref,
     AppLocalizations l10n,
   ) async {
+    final names = ref.read(speakerNamesProvider(transcript.id));
+
     final choice = await showModalBottomSheet<_ExportChoice>(
       context: context,
       builder: (_) => const _ExportSheet(),
@@ -145,7 +148,10 @@ class _ExportButton extends ConsumerWidget {
           // Built here rather than in the controller: "Speaker 1" is interface
           // text, and CLAUDE.md 4 keeps those out of the service layer.
           speakerLabel: choice.includeSpeakers
-              ? (speaker) => l10n.speakerLabel(speaker + 1)
+              ? (speaker) => names.labelFor(
+                    speaker,
+                    defaultLabel: l10n.speakerLabel(speaker + 1),
+                  )
               : null,
         );
   }
@@ -235,13 +241,19 @@ class _ExportSheetState extends State<_ExportSheet> {
 /// to that word; editing the line spreads it across the line. The hint says so
 /// in each mode, because a user cannot pick sensibly without knowing it.
 class _EditScopeBanner extends ConsumerWidget {
-  const _EditScopeBanner();
+  const _EditScopeBanner({required this.transcriptId, required this.speakers});
+
+  final String transcriptId;
+
+  /// Speakers the transcript already contains, in first-appearance order.
+  final List<int> speakers;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scope = ref.watch(transcriptEditScopeSettingProvider);
+    final anchor = ref.watch(speakerRangeAnchorProvider);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -249,8 +261,8 @@ class _EditScopeBanner extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Scrolls rather than shrinking: at a large accessibility text scale
-          // two segments plus their labels will not fit a narrow screen, and a
-          // clipped control is worse than one the user pushes sideways.
+          // three segments plus their labels will not fit a narrow screen, and
+          // a clipped control is worse than one the user pushes sideways.
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SegmentedButton<TranscriptEditScope>(
@@ -265,25 +277,118 @@ class _EditScopeBanner extends ConsumerWidget {
                   icon: const Icon(Icons.text_fields, size: 18),
                   label: Text(l10n.editScopeWord),
                 ),
+                ButtonSegment(
+                  value: TranscriptEditScope.speakers,
+                  icon: const Icon(Icons.record_voice_over_outlined, size: 18),
+                  label: Text(l10n.editScopeSpeakers),
+                ),
               ],
               selected: {scope},
               showSelectedIcon: false,
-              onSelectionChanged: (selection) => ref
-                  .read(transcriptEditScopeSettingProvider.notifier)
-                  .select(selection.first),
+              onSelectionChanged: (selection) {
+                // A pending anchor must not survive the mode it was made in,
+                // or the next tap anywhere becomes a range assignment.
+                ref.read(speakerRangeAnchorProvider.notifier).clear();
+                ref
+                    .read(transcriptEditScopeSettingProvider.notifier)
+                    .select(selection.first);
+              },
             ),
           ),
+          if (scope == TranscriptEditScope.speakers) ...[
+            const SizedBox(height: 8),
+            _SpeakerPalette(transcriptId: transcriptId, speakers: speakers),
+          ],
           const SizedBox(height: 8),
-          Text(
-            switch (scope) {
-              TranscriptEditScope.line => l10n.editModeHintLine,
-              TranscriptEditScope.word => l10n.editModeHintWord,
-            },
-            style: theme.textTheme.bodySmall,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  switch (scope) {
+                    TranscriptEditScope.line => l10n.editModeHintLine,
+                    TranscriptEditScope.word => l10n.editModeHintWord,
+                    TranscriptEditScope.speakers => anchor == null
+                        ? l10n.editModeHintSpeakers
+                        : l10n.editModeHintSpeakersAnchored,
+                  },
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              // Only reachable while a half-made selection exists, which is the
+              // only time there is anything to cancel.
+              if (scope == TranscriptEditScope.speakers && anchor != null)
+                TextButton(
+                  onPressed: () =>
+                      ref.read(speakerRangeAnchorProvider.notifier).clear(),
+                  child: Text(l10n.editCancel),
+                ),
+            ],
           ),
         ],
       ),
     );
+  }
+}
+
+/// The speakers a tap can assign, and the one it will.
+///
+/// Offers the transcript's own speakers plus **one more**, up to
+/// `SpeakerPalette.length`. Without that extra slot a block diarization gave
+/// entirely to one person could never be split: the second speaker has no words
+/// yet, so nothing would offer them. A speaker added this way has no acoustic
+/// evidence behind it, which is fine for the same reason reassignment exists at
+/// all — the person listening is the authority.
+class _SpeakerPalette extends ConsumerWidget {
+  const _SpeakerPalette({required this.transcriptId, required this.speakers});
+
+  final String transcriptId;
+  final List<int> speakers;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final selected = ref.watch(selectedSpeakerProvider);
+    final names = ref.watch(speakerNamesProvider(transcriptId));
+
+    final available = [...speakers]..sort();
+    final next = _nextFreeSpeaker(available);
+    final options = [...available, ?next];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final speaker in options) ...[
+            ChoiceChip(
+              selected: speaker == selected,
+              onSelected: (_) =>
+                  ref.read(selectedSpeakerProvider.notifier).select(speaker),
+              avatar: CircleAvatar(
+                radius: 8,
+                backgroundColor: SpeakerPalette.colorFor(
+                  speaker,
+                  fallback: theme.colorScheme.surfaceContainerHighest,
+                ),
+              ),
+              label: Text(
+                names.labelFor(speaker, defaultLabel: l10n.speakerLabel(speaker + 1)),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The lowest index the transcript does not use, or null once the palette's
+  /// distinguishable colours are exhausted.
+  static int? _nextFreeSpeaker(List<int> used) {
+    for (var candidate = 0; candidate < SpeakerPalette.length; candidate++) {
+      if (!used.contains(candidate)) return candidate;
+    }
+    return null;
   }
 }
 
@@ -623,6 +728,13 @@ class _WordFlowContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final editing = ref.watch(transcriptEditModeProvider);
+    // Only meaningful in Speakers scope, and null everywhere else, so a stale
+    // anchor cannot mark a word after the mode has moved on.
+    final anchor = editing &&
+            ref.watch(transcriptEditScopeSettingProvider) ==
+                TranscriptEditScope.speakers
+        ? ref.watch(speakerRangeAnchorProvider)
+        : null;
     final activeIndex =
         positionMs == null || editing ? -1 : _activeWordIndex(words, positionMs!);
 
@@ -642,7 +754,11 @@ class _WordFlowContent extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (editing) const _EditScopeBanner(),
+          if (editing)
+            _EditScopeBanner(
+              transcriptId: words.first.transcriptId,
+              speakers: speakers,
+            ),
           for (final turn in turns) ...[
             // Absent on a transcript that was never diarized, in which case
             // this renders as the single uninterrupted run of words it was
@@ -650,6 +766,7 @@ class _WordFlowContent extends ConsumerWidget {
             if (turn.speaker != null)
               _SpeakerLabel(
                 speaker: turn.speaker!,
+                transcriptId: words.first.transcriptId,
                 // The label is the control. In edit mode tapping it reassigns
                 // the whole turn, which adds no chrome to the page -- the thing
                 // you tap is the thing you are changing.
@@ -669,6 +786,7 @@ class _WordFlowContent extends ConsumerWidget {
                     // rather than restarting the count.
                     active: turn.startIndex + offset == activeIndex,
                     editing: editing,
+                    anchored: word.position == anchor,
                     onTap: editing
                         ? () => _correct(context, ref, turn, offset)
                         : () => ref
@@ -707,10 +825,17 @@ class _WordFlowContent extends ConsumerWidget {
   ) async {
     final scope = ref.read(transcriptEditScopeSettingProvider);
 
+    if (scope == TranscriptEditScope.speakers) {
+      await _assignSpeaker(ref, turn.words[offset]);
+      return;
+    }
+
     final slice = switch (scope) {
       TranscriptEditScope.word => [turn.words[offset]],
       TranscriptEditScope.line => _sentenceAround(turn, offset),
+      TranscriptEditScope.speakers => const <Word>[],
     };
+    if (slice.isEmpty) return;
 
     final text = await showDialog<String>(
       context: context,
@@ -727,6 +852,39 @@ class _WordFlowContent extends ConsumerWidget {
           fromPosition: slice.first.position,
           toPosition: slice.last.position,
           text: text,
+        );
+  }
+
+  /// One half of a two-tap speaker range.
+  ///
+  /// The first tap remembers where the range starts; the second applies it and
+  /// forgets. Tapping the anchor itself assigns that one word, which is the
+  /// common case of moving a single stray word off the wrong speaker.
+  ///
+  /// Two taps rather than a drag because the transcript scrolls vertically and
+  /// a paint stroke would fight the scroll gesture. The range spans the
+  /// transcript rather than being clamped to a turn: splitting means taking
+  /// *part* of a turn, and sweeping across two half-turns to merge them is
+  /// equally legitimate.
+  Future<void> _assignSpeaker(WidgetRef ref, Word word) async {
+    final anchor = ref.read(speakerRangeAnchorProvider);
+    if (anchor == null) {
+      ref.read(speakerRangeAnchorProvider.notifier).set(word.position);
+      return;
+    }
+
+    final from = anchor < word.position ? anchor : word.position;
+    final to = anchor < word.position ? word.position : anchor;
+    ref.read(speakerRangeAnchorProvider.notifier).clear();
+
+    // One call, so one undo step for the whole range. `SpeakerEdit` records the
+    // prior speaker of every position it covers, which is what lets undo put a
+    // split back together even though the range was never uniform.
+    await ref.read(transcriptRepositoryProvider).reassignSpeaker(
+          transcriptId: word.transcriptId,
+          fromPosition: from,
+          toPosition: to,
+          speaker: ref.read(selectedSpeakerProvider),
         );
   }
 
@@ -759,6 +917,7 @@ class _WordFlowContent extends ConsumerWidget {
       builder: (context) => _SpeakerPicker(
         speakers: speakers,
         current: turn.speaker,
+        transcriptId: turn.words.first.transcriptId,
       ),
     );
     if (chosen == null || chosen == turn.speaker) return;
@@ -782,6 +941,7 @@ class _WordChip extends StatelessWidget {
     required this.active,
     required this.onTap,
     this.editing = false,
+    this.anchored = false,
   });
 
   final Word word;
@@ -792,6 +952,13 @@ class _WordChip extends StatelessWidget {
   /// faint outline. Without it there is nothing to say the same tap now does
   /// something different.
   final bool editing;
+
+  /// This word is the start of a speaker range still being picked.
+  ///
+  /// Marked emphatically — a filled outline in the theme's primary colour —
+  /// because a half-made selection that is not visible is a trap: the next tap
+  /// anywhere would assign a range the user has forgotten they started.
+  final bool anchored;
 
   @override
   Widget build(BuildContext context) {
@@ -804,15 +971,22 @@ class _WordChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
-          color: active ? theme.colorScheme.primaryContainer : Colors.transparent,
-          border: editing
-              ? Border.all(color: theme.colorScheme.outlineVariant)
-              : null,
+          color: switch ((anchored, active)) {
+            (true, _) => theme.colorScheme.primary.withValues(alpha: 0.20),
+            (false, true) => theme.colorScheme.primaryContainer,
+            _ => Colors.transparent,
+          },
+          border: anchored
+              ? Border.all(color: theme.colorScheme.primary, width: 2)
+              : editing
+                  ? Border.all(color: theme.colorScheme.outlineVariant)
+                  : null,
         ),
         child: Text(
           word.word,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: active ? theme.colorScheme.onPrimaryContainer : null,
+            fontWeight: anchored ? FontWeight.w600 : null,
           ),
         ),
       ),
@@ -822,24 +996,29 @@ class _WordChip extends StatelessWidget {
 
 /// Who is talking, above the run of words they said.
 ///
-/// Deliberately modest: a name and a colour drawn from the theme, keyed off the
-/// engine's speaker index. Real speaker records — editable names, a stable
-/// colour per person, colours that survive into exported captions — are the
-/// Phase 4 captions data model. This exists so Phase 3's output is visible and
-/// checkable at all, which it was not when diarization first shipped.
-class _SpeakerLabel extends StatelessWidget {
-  const _SpeakerLabel({required this.speaker, this.onTap});
+/// Shows the name the user gave this speaker, falling back to `Speaker N` when
+/// they have not named one — which is the normal state and stores nothing. The
+/// colour is still derived from the index by `SpeakerPalette`, so it matches
+/// the captions whether or not a name exists.
+class _SpeakerLabel extends ConsumerWidget {
+  const _SpeakerLabel({
+    required this.speaker,
+    required this.transcriptId,
+    this.onTap,
+  });
 
   final int speaker;
+  final String transcriptId;
 
   /// Set in edit mode, where the label doubles as the control for reassigning
   /// its turn. Null while reading, so the label stays inert.
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final names = ref.watch(speakerNamesProvider(transcriptId));
 
     // Same palette the captions use, so a speaker is the same colour whether
     // you are reading the transcript or watching the video. That consistency
@@ -865,7 +1044,10 @@ class _SpeakerLabel extends StatelessWidget {
             children: [
               Text(
                 // Engine indices are 0-based; people count from one.
-                l10n.speakerLabel(speaker + 1),
+                names.labelFor(
+                  speaker,
+                  defaultLabel: l10n.speakerLabel(speaker + 1),
+                ),
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: foreground,
                   fontWeight: FontWeight.w600,
@@ -985,16 +1167,22 @@ class _SentenceEditorState extends State<_SentenceEditor> {
 /// colour and a label on screen with nothing behind them. Each entry carries
 /// the same palette colour used by the transcript and the captions, so the
 /// choice looks like what it will produce.
-class _SpeakerPicker extends StatelessWidget {
-  const _SpeakerPicker({required this.speakers, required this.current});
+class _SpeakerPicker extends ConsumerWidget {
+  const _SpeakerPicker({
+    required this.speakers,
+    required this.current,
+    required this.transcriptId,
+  });
 
   final List<int> speakers;
   final int? current;
+  final String transcriptId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final names = ref.watch(speakerNamesProvider(transcriptId));
 
     return SafeArea(
       child: Column(
@@ -1017,13 +1205,127 @@ class _SpeakerPicker extends StatelessWidget {
                   fallback: theme.colorScheme.surfaceContainerHighest,
                 ),
               ),
-              title: Text(l10n.speakerLabel(speaker + 1)),
-              trailing: speaker == current ? const Icon(Icons.check) : null,
+              title: Text(
+                names.labelFor(
+                  speaker,
+                  defaultLabel: l10n.speakerLabel(speaker + 1),
+                ),
+              ),
+              // Two actions on one row: the row assigns, the pencil renames.
+              // Renaming lives here because this sheet is already where a user
+              // comes to think about who is who.
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (speaker == current) const Icon(Icons.check),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: l10n.renameSpeakerAction,
+                    onPressed: () => _rename(context, ref, speaker, names),
+                  ),
+                ],
+              ),
               onTap: () => Navigator.of(context).pop(speaker),
             ),
           const SizedBox(height: 8),
         ],
       ),
+    );
+  }
+
+  /// Gives one speaker a name, or clears it back to the numbered default.
+  ///
+  /// Not routed through the undo log. The log replays edits to word rows; a
+  /// name lives on the transcript, and retyping it is its own undo. Putting it
+  /// in the history would also mean undoing a typo had to step back through a
+  /// renaming first.
+  Future<void> _rename(
+    BuildContext context,
+    WidgetRef ref,
+    int speaker,
+    SpeakerNames names,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => _SpeakerNameEditor(
+        speaker: speaker,
+        initial: names[speaker] ?? '',
+      ),
+    );
+    if (name == null) return;
+
+    await ref.read(transcriptRepositoryProvider).renameSpeaker(
+          transcriptId: transcriptId,
+          speaker: speaker,
+          name: name,
+        );
+    // The label the export and the transcript will now use.
+    debugPrint('Renamed speaker ${speaker + 1} to '
+        '"${name.trim().isEmpty ? l10n.speakerLabel(speaker + 1) : name.trim()}"');
+  }
+}
+
+/// One text field for a speaker's name.
+///
+/// An empty field is meaningful rather than invalid: it clears the name and
+/// restores `Speaker N`, which the note under the field says outright so the
+/// user does not have to discover it.
+class _SpeakerNameEditor extends StatefulWidget {
+  const _SpeakerNameEditor({required this.speaker, required this.initial});
+
+  final int speaker;
+  final String initial;
+
+  @override
+  State<_SpeakerNameEditor> createState() => _SpeakerNameEditorState();
+}
+
+class _SpeakerNameEditorState extends State<_SpeakerNameEditor> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return AlertDialog(
+      title: Text(l10n.renameSpeakerTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (value) => Navigator.of(context).pop(value),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            l10n.renameSpeakerHint(widget.speaker + 1),
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.editCancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: Text(l10n.editSave),
+        ),
+      ],
     );
   }
 }

@@ -46,6 +46,24 @@ class Transcripts extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
   TextColumn get language => text().withDefault(const Constant('en'))();
 
+  /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
+  ///
+  /// A column rather than a `Speakers` table, and the reasoning is recorded so
+  /// it is not re-litigated: a name only has to outlive the transcript it
+  /// belongs to once speaker identity spans *projects* -- cross-project voice
+  /// profiles, which is Tier 3. Until then a table buys a join and a migration
+  /// for nothing.
+  ///
+  /// Shape is `{"0": {"name": "Ana"}}`, an object per speaker rather than a
+  /// bare string, so a future editable colour is a new key instead of a data
+  /// migration. Parsed by `speaker_names.dart`, tolerantly -- a row written by
+  /// a newer build must not break an older one.
+  ///
+  /// Null is the normal state. The derived `Speaker N` label and
+  /// `SpeakerPalette` colour remain the default, so a transcript nobody has
+  /// touched stores nothing and renders exactly as it always did.
+  TextColumn get speakerNames => text().nullable()();
+
   /// Whole-transcript text as the engine returned it. Convenient for search
   /// and export; [Words] remains the source of truth for timing.
   TextColumn get fullText => text()();
@@ -129,9 +147,10 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
-  /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents].
+  /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
+  /// 3 -> 4 added [Transcripts.speakerNames].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -146,6 +165,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 3) {
             await migrator.createTable(editEvents);
+          }
+          if (from < 4) {
+            await migrator.addColumn(transcripts, transcripts.speakerNames);
           }
         },
       );
@@ -202,6 +224,21 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Replaces a transcript's stored speaker labels.
+  ///
+  /// Takes the encoded value, null included: `SpeakerNames.encode` returns null
+  /// once the last name is cleared, which puts the row back to the state an
+  /// untouched transcript is in rather than leaving an empty object behind.
+  Future<void> writeSpeakerNames(String transcriptId, String? encoded) {
+    final now = DateTime.now();
+    return (update(transcripts)..where((t) => t.id.equals(transcriptId))).write(
+      TranscriptsCompanion(
+        speakerNames: Value(encoded),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
   /// Retires [key], for per-project settings whose project is being deleted.
   ///
   /// Soft, like every other delete. [writeSetting] already resurrects a
@@ -237,6 +274,29 @@ class AppDatabase extends _$AppDatabase {
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
           ..limit(1))
         .getSingleOrNull();
+  }
+
+  Future<Transcript?> findTranscript(String id) {
+    return (select(transcripts)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Stream<Transcript?> watchTranscript(String id) {
+    return (select(transcripts)..where((t) => t.id.equals(id)))
+        .watchSingleOrNull();
+  }
+
+  /// A project's transcript, re-emitted whenever it changes.
+  ///
+  /// Watched rather than fetched once because speaker names live on this row:
+  /// a rename has to reach the transcript view, the caption overlay and the
+  /// export button without any of them being told to refresh.
+  Stream<Transcript?> watchTranscriptForProject(String projectId) {
+    return (select(transcripts)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+          ..limit(1))
+        .watchSingleOrNull();
   }
 
   Stream<List<Word>> watchWords(String transcriptId) {

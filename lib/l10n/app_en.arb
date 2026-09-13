@@ -148,6 +148,27 @@
   "editScopeWord": "Word",
   "@editScopeWord": { "description": "Label of the control that makes a tap open a single word" },
 
+  "editScopeSpeakers": "Speakers",
+  "@editScopeSpeakers": { "description": "Label of the control that makes a tap assign a speaker to words instead of editing text" },
+
+  "editModeHintSpeakers": "Pick a speaker, then tap the first word of the run.",
+  "@editModeHintSpeakers": { "description": "Banner shown in speaker-assignment mode before any word has been chosen" },
+
+  "editModeHintSpeakersAnchored": "Now tap the last word, or the same word again for just that one.",
+  "@editModeHintSpeakersAnchored": { "description": "Banner shown once the first word of a speaker range has been chosen" },
+
+  "renameSpeakerTitle": "Name this speaker",
+  "@renameSpeakerTitle": { "description": "Header of the field for giving a speaker a custom name" },
+
+  "renameSpeakerHint": "Leave empty to go back to Speaker {number}.",
+  "@renameSpeakerHint": {
+    "description": "Note under the rename field explaining that clearing it restores the numbered default",
+    "placeholders": { "number": { "type": "int", "example": "1" } }
+  },
+
+  "renameSpeakerAction": "Rename",
+  "@renameSpeakerAction": { "description": "Tooltip on the control that renames a speaker" },
+
   "reassignSpeakerTitle": "Who is speaking?",
   "@reassignSpeakerTitle": { "description": "Header of the sheet listing speakers to reassign a turn to" },
 

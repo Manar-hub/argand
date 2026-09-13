@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
+import '../../core/media/shared_media.dart';
 import '../../core/diarization/diarization_controller.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
@@ -14,11 +17,57 @@ import '../transcription/transcript_repository.dart';
 
 /// Landing screen: every imported project, plus the entry point for a new
 /// import.
-class LibraryScreen extends ConsumerWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  StreamSubscription<SharedMedia>? _shares;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Media sent here from the system Sharesheet, arriving two ways.
+    //
+    // A cold start already has the intent waiting by the time the engine is up,
+    // so it is *taken* on the first frame -- pulled rather than pushed, which
+    // removes the race between the engine starting and a listener attaching.
+    // A share into an already-running app comes through the stream instead.
+    //
+    // Started here rather than in `main.dart` because this screen is what shows
+    // the import's progress and its result; a listener somewhere with no UI
+    // would kick off an import nothing was rendering.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final channel = ref.read(sharedMediaChannelProvider);
+      _shares = channel.shares().listen(_importShared);
+
+      final initial = await channel.initialShare();
+      if (initial != null) _importShared(initial);
+    });
+  }
+
+  @override
+  void dispose() {
+    _shares?.cancel();
+    super.dispose();
+  }
+
+  void _importShared(SharedMedia media) {
+    if (!mounted) return;
+    // A second share arriving mid-import is dropped rather than queued. The
+    // pipeline runs one file at a time, and silently starting a second would
+    // interleave two sets of progress into one status.
+    if (ref.read(importControllerProvider) is ImportRunning) return;
+
+    ref.read(importControllerProvider.notifier).importShared(media);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final projects = ref.watch(projectListProvider);
     final import = ref.watch(importControllerProvider);

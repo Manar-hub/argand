@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
@@ -11,6 +12,7 @@ import '../../core/diarization/speaker_diarizer.dart';
 import '../../core/diarization/speaker_refiner.dart';
 import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
+import '../../core/media/shared_media.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_controller.dart';
@@ -110,13 +112,68 @@ class ImportController extends _$ImportController {
       state = const ImportCancelled();
       return;
     }
-    await _run(picked);
+    await _run(
+      fileName: picked.name,
+      copyIn: (converter, projectId) => converter.importToAppStorage(
+        projectId: projectId,
+        fileName: picked.name,
+        bytes: picked.readAsByteStream(),
+      ),
+    );
+  }
+
+  /// Runs the pipeline on a file handed over by the system share sheet.
+  ///
+  /// The bytes are already out of the content provider by the time this is
+  /// called -- native does that, because a `content://` URI has no filesystem
+  /// path and its read grant is revocable. What is left is a real file in the
+  /// cache directory, which the import **adopts** rather than copies: it is
+  /// about to be moved into the project, and writing a video twice to save a
+  /// rename would be a poor trade on a phone.
+  Future<void> importShared(SharedMedia media) async {
+    state = const ImportRunning(ImportStage.copyingMedia);
+
+    final String? cached;
+    try {
+      cached = await ref.read(sharedMediaChannelProvider).copy(media);
+    } catch (error, stackTrace) {
+      debugPrint('Could not read the shared file: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      state = ImportFailed(error);
+      return;
+    }
+
+    if (cached == null) {
+      // The provider gave us nothing. Treated as a cancellation rather than a
+      // failure: from the user's side nothing happened, and an error banner for
+      // a share they may have dismissed would be noise.
+      state = const ImportCancelled();
+      return;
+    }
+
+    await _run(
+      fileName: media.name,
+      copyIn: (converter, projectId) => converter.adoptIntoAppStorage(
+        projectId: projectId,
+        fileName: media.name,
+        source: File(cached!),
+      ),
+    );
   }
 
   /// Resets a finished or failed run so the UI returns to its resting state.
   void reset() => state = const ImportIdle();
 
-  Future<void> _run(PlatformFile picked) async {
+  /// The pipeline, once the media is identified.
+  ///
+  /// [copyIn] is injected because the two entry points get the bytes into the
+  /// project differently -- the picker streams them out of a URI, a share moves
+  /// a file native has already written -- while everything after that point is
+  /// identical and must stay that way.
+  Future<void> _run({
+    required String fileName,
+    required Future<File> Function(MediaConverter, String projectId) copyIn,
+  }) async {
     final repository = ref.read(transcriptRepositoryProvider);
     final converter = ref.read(mediaConverterProvider);
     final whisper = ref.read(whisperServiceProvider);
@@ -135,11 +192,7 @@ class ImportController extends _$ImportController {
       await whisper.ensureModelReady(model);
 
       state = const ImportRunning(ImportStage.copyingMedia);
-      final media = await converter.importToAppStorage(
-        projectId: projectId,
-        fileName: picked.name,
-        bytes: picked.readAsByteStream(),
-      );
+      final media = await copyIn(converter, projectId);
 
       state = const ImportRunning(ImportStage.extractingAudio);
       final wav = await converter.extractWavForTranscription(media.path);
@@ -237,7 +290,7 @@ class ImportController extends _$ImportController {
       state = const ImportRunning(ImportStage.saving);
       await repository.saveImport(
         projectId: projectId,
-        title: p.basenameWithoutExtension(picked.name),
+        title: p.basenameWithoutExtension(fileName),
         mediaPath: media.path,
         duration: duration,
         language: language,

@@ -71,3 +71,9 @@ packages/**/build/
 # Currently unused -- both models ship in assets/models/. See docs/runbook.md,
 # "Which models are bundled", for when and how to use it.
 /dev-models/
+
+# Agent skills, installed with `npx skills add`. Machine-local: the content is
+# re-downloadable, and `.claude/skills` are symlinks into `.agents`.
+# `skills-lock.json` stays tracked so the set is reproducible elsewhere.
+.agents/
+.claude/

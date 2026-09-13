@@ -70,6 +70,41 @@ class MediaConverter {
     return destination;
   }
 
+  /// Takes ownership of a file already on disk, moving it if it can.
+  ///
+  /// For the share sheet, where the native side has already copied the bytes
+  /// out of a `content://` provider into the cache directory. Copying again
+  /// would mean writing a video twice and holding two copies of it at once,
+  /// which on a phone with a few gigabytes free is a real cost rather than a
+  /// theoretical one.
+  ///
+  /// Cache and documents live on the same filesystem inside the app sandbox, so
+  /// the rename is atomic and instant. The copy is a genuine fallback rather
+  /// than dead code: nothing guarantees that, and a device that partitions them
+  /// differently must still be able to import.
+  Future<File> adoptIntoAppStorage({
+    required String projectId,
+    required String fileName,
+    required File source,
+  }) async {
+    final dir = Directory(p.join(await _mediaDirPath(), projectId));
+    await dir.create(recursive: true);
+
+    final destination = File(p.join(dir.path, 'source${p.extension(fileName)}'));
+
+    try {
+      return await source.rename(destination.path);
+    } on FileSystemException {
+      await source.openRead().pipe(destination.openWrite());
+      // Best-effort: the import has succeeded by this point, and a stranded
+      // cache file is the OS's to reclaim rather than a reason to fail.
+      try {
+        await source.delete();
+      } catch (_) {}
+      return destination;
+    }
+  }
+
   /// Extracts [mediaPath]'s audio track as a 16kHz mono WAV alongside it.
   ///
   /// Works on video containers as well as audio files: the native backends

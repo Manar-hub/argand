@@ -45,6 +45,14 @@ enum TranscriptEditScope {
 
   /// The tapped word alone.
   word,
+
+  /// Not text at all: taps pick a range of words and give them a speaker.
+  ///
+  /// The one correction the other two cannot make. Reassigning by turn can only
+  /// **merge** — a block wrongly given to one person cannot be split when a
+  /// second person's words sit inside it, because nothing can express "these
+  /// words, not the whole turn".
+  speakers,
 }
 
 /// Whether a tap edits a whole line or a single word.
@@ -62,4 +70,36 @@ class TranscriptEditScopeSetting extends _$TranscriptEditScopeSetting {
   TranscriptEditScope build() => TranscriptEditScope.line;
 
   void select(TranscriptEditScope scope) => state = scope;
+}
+
+/// Which speaker a tap assigns while [TranscriptEditScope.speakers] is active.
+///
+/// Defaults to speaker 0 rather than to nothing: a palette with no selection
+/// makes the first tap do nothing, which reads as the control being broken.
+@riverpod
+class SelectedSpeaker extends _$SelectedSpeaker {
+  @override
+  int build() => 0;
+
+  void select(int speaker) => state = speaker;
+}
+
+/// The first word of a range being picked, as a `Words.position`.
+///
+/// Null when no range is in progress. Two taps rather than a drag because the
+/// transcript scrolls vertically and a paint stroke would fight the scroll
+/// gesture — so this holds the state between them.
+///
+/// **Must be cleared when the mode changes.** A pending anchor that outlived
+/// Speakers scope would silently turn a later, unrelated tap into a range
+/// assignment; `project_screen.dart` clears it on leaving the scope and on
+/// leaving edit mode.
+@riverpod
+class SpeakerRangeAnchor extends _$SpeakerRangeAnchor {
+  @override
+  int? build() => null;
+
+  void set(int position) => state = position;
+
+  void clear() => state = null;
 }

@@ -545,6 +545,17 @@ class $TranscriptsTable extends Transcripts
     requiredDuringInsert: false,
     defaultValue: const Constant('en'),
   );
+  static const VerificationMeta _speakerNamesMeta = const VerificationMeta(
+    'speakerNames',
+  );
+  @override
+  late final GeneratedColumn<String> speakerNames = GeneratedColumn<String>(
+    'speaker_names',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _fullTextMeta = const VerificationMeta(
     'fullText',
   );
@@ -564,6 +575,7 @@ class $TranscriptsTable extends Transcripts
     deletedAt,
     projectId,
     language,
+    speakerNames,
     fullText,
   ];
   @override
@@ -619,6 +631,15 @@ class $TranscriptsTable extends Transcripts
         language.isAcceptableOrUnknown(data['language']!, _languageMeta),
       );
     }
+    if (data.containsKey('speaker_names')) {
+      context.handle(
+        _speakerNamesMeta,
+        speakerNames.isAcceptableOrUnknown(
+          data['speaker_names']!,
+          _speakerNamesMeta,
+        ),
+      );
+    }
     if (data.containsKey('full_text')) {
       context.handle(
         _fullTextMeta,
@@ -660,6 +681,10 @@ class $TranscriptsTable extends Transcripts
         DriftSqlType.string,
         data['${effectivePrefix}language'],
       )!,
+      speakerNames: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}speaker_names'],
+      ),
       fullText: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}full_text'],
@@ -681,6 +706,24 @@ class Transcript extends DataClass implements Insertable<Transcript> {
   final String projectId;
   final String language;
 
+  /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
+  ///
+  /// A column rather than a `Speakers` table, and the reasoning is recorded so
+  /// it is not re-litigated: a name only has to outlive the transcript it
+  /// belongs to once speaker identity spans *projects* -- cross-project voice
+  /// profiles, which is Tier 3. Until then a table buys a join and a migration
+  /// for nothing.
+  ///
+  /// Shape is `{"0": {"name": "Ana"}}`, an object per speaker rather than a
+  /// bare string, so a future editable colour is a new key instead of a data
+  /// migration. Parsed by `speaker_names.dart`, tolerantly -- a row written by
+  /// a newer build must not break an older one.
+  ///
+  /// Null is the normal state. The derived `Speaker N` label and
+  /// `SpeakerPalette` colour remain the default, so a transcript nobody has
+  /// touched stores nothing and renders exactly as it always did.
+  final String? speakerNames;
+
   /// Whole-transcript text as the engine returned it. Convenient for search
   /// and export; [Words] remains the source of truth for timing.
   final String fullText;
@@ -691,6 +734,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     this.deletedAt,
     required this.projectId,
     required this.language,
+    this.speakerNames,
     required this.fullText,
   });
   @override
@@ -704,6 +748,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     }
     map['project_id'] = Variable<String>(projectId);
     map['language'] = Variable<String>(language);
+    if (!nullToAbsent || speakerNames != null) {
+      map['speaker_names'] = Variable<String>(speakerNames);
+    }
     map['full_text'] = Variable<String>(fullText);
     return map;
   }
@@ -718,6 +765,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           : Value(deletedAt),
       projectId: Value(projectId),
       language: Value(language),
+      speakerNames: speakerNames == null && nullToAbsent
+          ? const Value.absent()
+          : Value(speakerNames),
       fullText: Value(fullText),
     );
   }
@@ -734,6 +784,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       projectId: serializer.fromJson<String>(json['projectId']),
       language: serializer.fromJson<String>(json['language']),
+      speakerNames: serializer.fromJson<String?>(json['speakerNames']),
       fullText: serializer.fromJson<String>(json['fullText']),
     );
   }
@@ -747,6 +798,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'projectId': serializer.toJson<String>(projectId),
       'language': serializer.toJson<String>(language),
+      'speakerNames': serializer.toJson<String?>(speakerNames),
       'fullText': serializer.toJson<String>(fullText),
     };
   }
@@ -758,6 +810,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     Value<DateTime?> deletedAt = const Value.absent(),
     String? projectId,
     String? language,
+    Value<String?> speakerNames = const Value.absent(),
     String? fullText,
   }) => Transcript(
     id: id ?? this.id,
@@ -766,6 +819,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     projectId: projectId ?? this.projectId,
     language: language ?? this.language,
+    speakerNames: speakerNames.present ? speakerNames.value : this.speakerNames,
     fullText: fullText ?? this.fullText,
   );
   Transcript copyWithCompanion(TranscriptsCompanion data) {
@@ -776,6 +830,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       language: data.language.present ? data.language.value : this.language,
+      speakerNames: data.speakerNames.present
+          ? data.speakerNames.value
+          : this.speakerNames,
       fullText: data.fullText.present ? data.fullText.value : this.fullText,
     );
   }
@@ -789,6 +846,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           ..write('deletedAt: $deletedAt, ')
           ..write('projectId: $projectId, ')
           ..write('language: $language, ')
+          ..write('speakerNames: $speakerNames, ')
           ..write('fullText: $fullText')
           ..write(')'))
         .toString();
@@ -802,6 +860,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     deletedAt,
     projectId,
     language,
+    speakerNames,
     fullText,
   );
   @override
@@ -814,6 +873,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           other.deletedAt == this.deletedAt &&
           other.projectId == this.projectId &&
           other.language == this.language &&
+          other.speakerNames == this.speakerNames &&
           other.fullText == this.fullText);
 }
 
@@ -824,6 +884,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
   final Value<DateTime?> deletedAt;
   final Value<String> projectId;
   final Value<String> language;
+  final Value<String?> speakerNames;
   final Value<String> fullText;
   final Value<int> rowid;
   const TranscriptsCompanion({
@@ -833,6 +894,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     this.deletedAt = const Value.absent(),
     this.projectId = const Value.absent(),
     this.language = const Value.absent(),
+    this.speakerNames = const Value.absent(),
     this.fullText = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -843,6 +905,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     this.deletedAt = const Value.absent(),
     required String projectId,
     this.language = const Value.absent(),
+    this.speakerNames = const Value.absent(),
     required String fullText,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -857,6 +920,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     Expression<DateTime>? deletedAt,
     Expression<String>? projectId,
     Expression<String>? language,
+    Expression<String>? speakerNames,
     Expression<String>? fullText,
     Expression<int>? rowid,
   }) {
@@ -867,6 +931,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (projectId != null) 'project_id': projectId,
       if (language != null) 'language': language,
+      if (speakerNames != null) 'speaker_names': speakerNames,
       if (fullText != null) 'full_text': fullText,
       if (rowid != null) 'rowid': rowid,
     });
@@ -879,6 +944,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     Value<DateTime?>? deletedAt,
     Value<String>? projectId,
     Value<String>? language,
+    Value<String?>? speakerNames,
     Value<String>? fullText,
     Value<int>? rowid,
   }) {
@@ -889,6 +955,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
       deletedAt: deletedAt ?? this.deletedAt,
       projectId: projectId ?? this.projectId,
       language: language ?? this.language,
+      speakerNames: speakerNames ?? this.speakerNames,
       fullText: fullText ?? this.fullText,
       rowid: rowid ?? this.rowid,
     );
@@ -915,6 +982,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     if (language.present) {
       map['language'] = Variable<String>(language.value);
     }
+    if (speakerNames.present) {
+      map['speaker_names'] = Variable<String>(speakerNames.value);
+    }
     if (fullText.present) {
       map['full_text'] = Variable<String>(fullText.value);
     }
@@ -933,6 +1003,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
           ..write('deletedAt: $deletedAt, ')
           ..write('projectId: $projectId, ')
           ..write('language: $language, ')
+          ..write('speakerNames: $speakerNames, ')
           ..write('fullText: $fullText, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2928,6 +2999,7 @@ typedef $$TranscriptsTableCreateCompanionBuilder =
       Value<DateTime?> deletedAt,
       required String projectId,
       Value<String> language,
+      Value<String?> speakerNames,
       required String fullText,
       Value<int> rowid,
     });
@@ -2939,6 +3011,7 @@ typedef $$TranscriptsTableUpdateCompanionBuilder =
       Value<DateTime?> deletedAt,
       Value<String> projectId,
       Value<String> language,
+      Value<String?> speakerNames,
       Value<String> fullText,
       Value<int> rowid,
     });
@@ -3033,6 +3106,11 @@ class $$TranscriptsTableFilterComposer
 
   ColumnFilters<String> get language => $composableBuilder(
     column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get speakerNames => $composableBuilder(
+    column: $table.speakerNames,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3149,6 +3227,11 @@ class $$TranscriptsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get speakerNames => $composableBuilder(
+    column: $table.speakerNames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get fullText => $composableBuilder(
     column: $table.fullText,
     builder: (column) => ColumnOrderings(column),
@@ -3201,6 +3284,11 @@ class $$TranscriptsTableAnnotationComposer
 
   GeneratedColumn<String> get language =>
       $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<String> get speakerNames => $composableBuilder(
+    column: $table.speakerNames,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get fullText =>
       $composableBuilder(column: $table.fullText, builder: (column) => column);
@@ -3317,6 +3405,7 @@ class $$TranscriptsTableTableManager
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> projectId = const Value.absent(),
                 Value<String> language = const Value.absent(),
+                Value<String?> speakerNames = const Value.absent(),
                 Value<String> fullText = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TranscriptsCompanion(
@@ -3326,6 +3415,7 @@ class $$TranscriptsTableTableManager
                 deletedAt: deletedAt,
                 projectId: projectId,
                 language: language,
+                speakerNames: speakerNames,
                 fullText: fullText,
                 rowid: rowid,
               ),
@@ -3337,6 +3427,7 @@ class $$TranscriptsTableTableManager
                 Value<DateTime?> deletedAt = const Value.absent(),
                 required String projectId,
                 Value<String> language = const Value.absent(),
+                Value<String?> speakerNames = const Value.absent(),
                 required String fullText,
                 Value<int> rowid = const Value.absent(),
               }) => TranscriptsCompanion.insert(
@@ -3346,6 +3437,7 @@ class $$TranscriptsTableTableManager
                 deletedAt: deletedAt,
                 projectId: projectId,
                 language: language,
+                speakerNames: speakerNames,
                 fullText: fullText,
                 rowid: rowid,
               ),

@@ -24,6 +24,25 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Puts the app in the system Sharesheet for media, so a video can
+                 be sent here from Photos, Files or a messaging app instead of
+                 being hunted for through the picker.
+
+                 Video and audio only. Declaring a wider type would list the app
+                 as a destination for things it cannot transcribe, which is
+                 worse than not appearing at all. MainActivity is singleTop, so
+                 a share into an already-running app reaches onNewIntent rather
+                 than starting a second copy. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="video/*"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="audio/*"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

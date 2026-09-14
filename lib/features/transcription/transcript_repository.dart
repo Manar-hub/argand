@@ -73,14 +73,48 @@ class TranscriptRepository {
   /// user's point of view, and turning a leaked file into a thrown error would
   /// report a failure that did not happen.
   Future<void> deleteProject(String id) async {
+    final project = await _db.findProject(id);
+
     await _db.softDeleteProject(id);
     await _db.softDeleteSetting(playbackPositionKey(id));
+    if (project == null) return;
+
+    // Duplicates share one file, so the media only goes when nothing can still
+    // open it. Counted *after* the soft delete and excluding this project, so
+    // the answer is exactly "does anyone else still need this".
+    final stillNeeded = await _db.projectsSharingMedia(
+      project.mediaPath,
+      excluding: id,
+    );
+    if (stillNeeded > 0) return;
 
     try {
-      await _media.discardProjectMedia(id);
+      await _media.discardMediaAt(project.mediaPath);
     } catch (error) {
       debugPrint('Deleted project $id but could not remove its media: $error');
     }
+  }
+
+  /// Copies a project so a second edit can diverge from the same source.
+  ///
+  /// **The media is shared, not copied.** A phone cannot afford a second copy
+  /// of a several-hundred-megabyte video, and re-transcribing would cost
+  /// minutes of whisper and diarization to arrive at the same words. What is
+  /// copied is the cheap part -- the transcript rows -- which is what lets each
+  /// duplicate carry its own corrections.
+  ///
+  /// [title] comes from the caller because the "copy" wording is interface text
+  /// (CLAUDE.md 4).
+  Future<String> duplicateProject({
+    required String projectId,
+    required String title,
+  }) {
+    return _db.duplicateProject(
+      sourceProjectId: projectId,
+      newProjectId: newId(),
+      title: title,
+      newId: newId,
+    );
   }
 
   /// Corrects one word's text, leaving its timing alone. See

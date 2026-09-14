@@ -1,5 +1,6 @@
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/media/media_converter.dart';
+import 'package:argand/core/theme/app_theme.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/features/library/library_screen.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
@@ -68,6 +69,9 @@ void main() {
     return ProviderScope(
       overrides: [appDatabaseProvider.overrideWithValue(database)],
       child: MaterialApp(
+        // The real theme, so these tests exercise what ships -- a bare
+        // MaterialApp would miss the AppSurface extension entirely.
+        theme: AppTheme.light(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: MediaQuery(
@@ -110,6 +114,9 @@ void main() {
 
       expect(find.text('clip'), findsOneWidget);
       expect(find.textContaining('01:01'), findsOneWidget);
+      // The created date is on the face of the card too, so two imports of
+      // the same clip can be told apart without opening them.
+      expect(find.textContaining('2026'), findsOneWidget);
     });
 
     uiTest('a long title does not overflow', (tester) async {
@@ -123,7 +130,7 @@ void main() {
       // `takeException` is the assertion. Checked explicitly rather than
       // trusting the test to notice on its own.
       expect(tester.takeException(), isNull);
-      expect(find.byType(ListTile), findsOneWidget);
+      expect(find.textContaining('Interview with the entire'), findsOneWidget);
     });
 
     uiTest('a long title at double text scale does not overflow',
@@ -135,7 +142,7 @@ void main() {
       await settle(tester);
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(ListTile), findsOneWidget);
+      expect(find.textContaining('Interview with the entire'), findsOneWidget);
     });
   });
 
@@ -147,6 +154,12 @@ void main() {
       await settle(tester);
 
       await tester.longPress(find.text('doomed'));
+      await settle(tester);
+
+      // The sheet offers all three actions before anything destructive.
+      expect(find.text('Open'), findsOneWidget);
+      expect(find.text('Duplicate'), findsOneWidget);
+      await tester.tap(find.text('Delete'));
       await settle(tester);
 
       expect(find.byType(AlertDialog), findsOneWidget);
@@ -163,6 +176,8 @@ void main() {
       await settle(tester);
 
       await tester.longPress(find.text('spared'));
+      await settle(tester);
+      await tester.tap(find.text('Delete'));
       await settle(tester);
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
       await settle(tester);
@@ -182,6 +197,8 @@ void main() {
 
       await tester.longPress(find.text('doomed'));
       await settle(tester);
+      await tester.tap(find.text('Delete'));
+      await settle(tester);
       await tester.tap(find.widgetWithText(TextButton, 'Delete'));
       await settle(tester);
 
@@ -199,6 +216,8 @@ void main() {
       await settle(tester);
 
       await tester.longPress(find.text('doomed'));
+      await settle(tester);
+      await tester.tap(find.text('Delete'));
       await settle(tester);
       await tester.tap(find.widgetWithText(TextButton, 'Delete'));
       await settle(tester);

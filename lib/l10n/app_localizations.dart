@@ -490,6 +490,84 @@ abstract class AppLocalizations {
   /// **'{count} MB'**
   String sizeMegabytes(int count);
 
+  /// Heading above the list of imported projects in the library
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get projectsHeading;
+
+  /// Label on the large import panel at the top of the library
+  ///
+  /// In en, this message translates to:
+  /// **'Import media'**
+  String get importHeadline;
+
+  /// Supporting line under the import panel, saying what can be imported and that nothing is uploaded
+  ///
+  /// In en, this message translates to:
+  /// **'Video or audio — transcribed on your device'**
+  String get importSubhead;
+
+  /// When a project was imported, shown in its library row
+  ///
+  /// In en, this message translates to:
+  /// **'{date}'**
+  String projectCreated(DateTime date);
+
+  /// Menu entry that copies a project so a second edit can diverge from it
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate'**
+  String get duplicateAction;
+
+  /// Title given to a duplicated project
+  ///
+  /// In en, this message translates to:
+  /// **'{title} copy'**
+  String duplicateTitle(String title);
+
+  /// Heading of the one-time notice explaining how duplicating works
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicates share one file'**
+  String get duplicateSharesMediaTitle;
+
+  /// Body of the one-time notice explaining that duplicates share media and cost no storage
+  ///
+  /// In en, this message translates to:
+  /// **'A copy reuses the same video and transcription, so it takes almost no extra space. Your edits stay separate. The video is only removed once every copy is deleted.'**
+  String get duplicateSharesMediaBody;
+
+  /// Dismisses an informational notice
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get gotItAction;
+
+  /// Heading of the light/dark theme control in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get themeModeLabel;
+
+  /// Theme option that forces the light theme
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get themeModeLight;
+
+  /// Theme option that forces the dark theme
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get themeModeDark;
+
+  /// Menu entry that opens a project
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get openAction;
+
   /// A file size in gigabytes, shown with one decimal place
   ///
   /// In en, this message translates to:

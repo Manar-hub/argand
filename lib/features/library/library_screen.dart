@@ -5,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/media/shared_media.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_surface.dart';
+import '../../core/theme/theme_mode_controller.dart';
+import '../../core/theme/theme_reveal.dart';
 import '../../core/diarization/diarization_controller.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
@@ -102,51 +106,169 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         // speakers are labelled.
         actions: [_SettingsButton(enabled: import is! ImportRunning)],
       ),
-      body: Column(
-        children: [
-          if (import is ImportRunning) _ImportProgress(status: import),
-          if (import is ImportFailed) _ImportError(error: import.error),
-          Expanded(
-            child: projects.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _ImportError(error: error),
-              data: (items) => items.isEmpty
-                  ? const _EmptyLibrary()
-                  : _ProjectList(projects: items),
+      // One scroll, so the import panel travels with the list rather than
+      // pinning a slab to the top of a screen that is mostly list.
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              AppSpacing.lg,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ImportPanel(busy: busy),
+                  if (import is ImportRunning) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _ImportProgress(status: import),
+                  ],
+                  if (import is ImportFailed) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    _ImportError(error: import.error),
+                  ],
+                ],
+              ),
             ),
           ),
+          projects.when(
+            loading: () => const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) =>
+                SliverToBoxAdapter(child: _ImportError(error: error)),
+            data: (items) => items.isEmpty
+                ? const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _EmptyLibrary(),
+                  )
+                : _ProjectSliver(projects: items),
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: busy
-            ? null
-            : () => ref.read(importControllerProvider.notifier).importFromPicker(),
-        icon: const Icon(Icons.add),
-        label: Text(l10n.importAction),
       ),
     );
   }
 }
 
-class _ProjectList extends ConsumerWidget {
-  const _ProjectList({required this.projects});
+/// The import action, as the largest thing on the page.
+///
+/// A tall panel rather than a floating button. Importing is what an empty
+/// library is *for*, and a corner FAB makes the one action people opened the
+/// app to perform the smallest thing on screen. Filled with the accent and
+/// carrying the outline and offset shadow, so it is unmistakable before there
+/// is anything else to look at.
+class _ImportPanel extends ConsumerWidget {
+  const _ImportPanel({required this.busy});
+
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final surface = context.surface;
+
+    // Dimmed rather than hidden while an import runs: the panel anchors the
+    // page, and removing it would make the whole layout jump.
+    final ink = busy ? theme.colorScheme.onSurface : theme.colorScheme.onPrimary;
+
+    return Semantics(
+      button: true,
+      enabled: !busy,
+      label: l10n.importHeadline,
+      child: InkWell(
+        borderRadius: surface.borderRadius,
+        onTap: busy
+            ? null
+            : () =>
+                ref.read(importControllerProvider.notifier).importFromPicker(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xl,
+          ),
+          decoration: surface.decoration(
+            fill: busy
+                ? theme.colorScheme.surfaceContainerHighest
+                : theme.colorScheme.primary,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.add, size: 34, color: ink),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.importHeadline,
+                      style: theme.textTheme.titleLarge?.copyWith(color: ink),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      l10n.importSubhead,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: ink.withValues(alpha: 0.75)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The project list, with its own heading.
+class _ProjectSliver extends StatelessWidget {
+  const _ProjectSliver({required this.projects});
 
   final List<Project> projects;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ListView.builder(
-      // Clears the floating action button so the last tile is never covered.
-      padding: const EdgeInsets.only(bottom: 88),
-      itemCount: projects.length,
-      itemBuilder: (context, index) {
-        final project = projects[index];
-        return _ProjectTile(project: project);
-      },
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.xxl,
+      ),
+      sliver: SliverList.separated(
+        itemCount: projects.length + 1,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                l10n.projectsHeading,
+                style: theme.textTheme.labelLarge,
+              ),
+            );
+          }
+          return _ProjectTile(project: projects[index - 1]);
+        },
+      ),
     );
   }
 }
 
+/// One project, as a card.
+///
+/// Everything needed to choose between two similar recordings is on the face of
+/// it — when it was imported, how long it runs, what it costs on disk — because
+/// the alternative is opening each one to find out.
 class _ProjectTile extends ConsumerWidget {
   const _ProjectTile({required this.project});
 
@@ -155,45 +277,191 @@ class _ProjectTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    // Null while the directory is still being measured, so the subtitle shows
-    // the duration alone rather than flashing a placeholder size.
+    final theme = Theme.of(context);
+    final surface = context.surface;
+    // Null while the directory is still being measured, so the meta line shows
+    // what it knows rather than flashing a placeholder size.
     final bytes = ref.watch(projectMediaBytesProvider(project.id)).value;
 
-    return ListTile(
-      leading: const Icon(Icons.movie_outlined),
-      // Imported filenames are arbitrary and often long, so the title is
-      // clipped rather than allowed to push the layout sideways.
-      title: Text(project.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: _subtitle(l10n, bytes),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ProjectScreen(projectId: project.id),
+    return InkWell(
+      borderRadius: surface.borderRadius,
+      onTap: () => _open(context),
+      // Long-press still reaches the same menu, so the gesture people learned
+      // before the button existed keeps working.
+      onLongPress: () => _showActions(context, ref, l10n, bytes),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: surface.decoration(
+          fill: theme.colorScheme.surfaceContainerHighest,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: surface.decoration(
+                fill: theme.colorScheme.surface,
+                // Inside an already-raised card. Nesting one offset shadow in
+                // another is what turns this style into noise.
+                raised: false,
+              ),
+              child: const Icon(Icons.movie_outlined, size: 22),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.title,
+                    style: theme.textTheme.titleSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  // One line, ellipsised: three facts of wildly different
+                  // lengths, and a wrap would make neighbouring rows different
+                  // heights for no gain.
+                  Text(
+                    _meta(l10n, bytes),
+                    style: theme.textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert),
+              tooltip: l10n.projectsHeading,
+              onPressed: () => _showActions(context, ref, l10n, bytes),
+            ),
+          ],
         ),
       ),
-      // Secondary action behind a long-press rather than a row of icons --
-      // see the gesture note in docs/build-roadmap.md, Tier 1.
-      onLongPress: () => _confirmDelete(context, ref, l10n, bytes),
     );
   }
 
-  /// Running time and disk footprint, whichever of the two are known.
-  ///
-  /// One line with an ellipsis rather than two chips: the tile already clips a
-  /// long title, and a subtitle that wrapped would make rows different heights.
-  Widget? _subtitle(AppLocalizations l10n, int? bytes) {
-    final duration = project.durationMs == null
-        ? null
-        : _formatDuration(Duration(milliseconds: project.durationMs!));
-    final size = bytes == null ? null : _formatBytes(l10n, bytes);
+  /// Created date, running time and size on disk, in that order — oldest fact
+  /// first, because it is what distinguishes two imports of the same clip.
+  String _meta(AppLocalizations l10n, int? bytes) {
+    return [
+      l10n.projectCreated(project.createdAt),
+      if (project.durationMs case final int ms)
+        _formatDuration(Duration(milliseconds: ms)),
+      if (bytes != null) _formatBytes(l10n, bytes),
+    ].join('  \u00b7  ');
+  }
 
-    final text = switch ((duration, size)) {
-      (final String d, final String s) => l10n.projectSizeOnDisk(d, s),
-      (final String d, null) => d,
-      (null, final String s) => s,
-      _ => null,
-    };
-    if (text == null) return null;
-    return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
+  void _open(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectScreen(projectId: project.id),
+      ),
+    );
+  }
+
+  Future<void> _showActions(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+    int? bytes,
+  ) async {
+    final action = await showModalBottomSheet<_ProjectAction>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  project.title,
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.play_arrow_outlined),
+              title: Text(l10n.openAction),
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(_ProjectAction.open),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: Text(l10n.duplicateAction),
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(_ProjectAction.duplicate),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.delete_outline,
+                color: Theme.of(sheetContext).colorScheme.error,
+              ),
+              title: Text(l10n.deleteAction),
+              onTap: () =>
+                  Navigator.of(sheetContext).pop(_ProjectAction.delete),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+
+    switch (action) {
+      case _ProjectAction.open:
+        _open(context);
+      case _ProjectAction.duplicate:
+        await _duplicate(context, ref, l10n);
+      case _ProjectAction.delete:
+        await _confirmDelete(context, ref, l10n, bytes);
+    }
+  }
+
+  /// Copies the project, explaining once what a copy actually costs.
+  ///
+  /// The notice is shown a single time and remembered in `Settings`, because
+  /// "duplicating is free" is surprising and worth saying — and saying every
+  /// time would be nagging.
+  Future<void> _duplicate(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) async {
+    final repository = ref.read(transcriptRepositoryProvider);
+    final seen = await ref.read(appDatabaseProvider).readSetting(_sharedMediaHintKey);
+
+    if (seen == null && context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.duplicateSharesMediaTitle),
+          content: Text(l10n.duplicateSharesMediaBody),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.gotItAction),
+            ),
+          ],
+        ),
+      );
+      await ref.read(appDatabaseProvider).writeSetting(_sharedMediaHintKey, 'seen');
+    }
+
+    await repository.duplicateProject(
+      projectId: project.id,
+      title: l10n.duplicateTitle(project.title),
+    );
   }
 
   /// Confirms, then deletes the project and its media for good.
@@ -237,6 +505,11 @@ class _ProjectTile extends ConsumerWidget {
   }
 }
 
+enum _ProjectAction { open, duplicate, delete }
+
+/// Remembers that the shared-media explanation has been shown.
+const _sharedMediaHintKey = 'hint.duplicateSharesMedia';
+
 class _EmptyLibrary extends StatelessWidget {
   const _EmptyLibrary();
 
@@ -248,18 +521,21 @@ class _EmptyLibrary extends StatelessWidget {
     // Scrollable so the copy still reaches the user on a short screen or at a
     // large accessibility text scale instead of overflowing.
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xxl,
+        vertical: AppSpacing.xxl,
+      ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.graphic_eq, size: 64, color: theme.colorScheme.outline),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
           Text(
             l10n.libraryEmptyTitle,
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           Text(
             l10n.libraryEmptyBody,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -296,12 +572,17 @@ class _ImportProgress extends StatelessWidget {
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           LinearProgressIndicator(
             // Transcription and diarization both report real progress; the
             // remaining stages animate indeterminately rather than faking a
@@ -327,7 +608,7 @@ class _ImportError extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -335,14 +616,14 @@ class _ImportError extends ConsumerWidget {
             l10n.errorTitle,
             style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.error),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xs),
           Text(
             '$error',
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
@@ -413,6 +694,90 @@ class _SettingsButton extends StatelessWidget {
 /// independent settings, and it cannot host a switch at all. The sheet also
 /// makes the confirmation snackbars redundant — each row shows its own state,
 /// so the change is visible where it was made.
+/// Light, dark, or whatever the device is doing.
+///
+/// Lives in settings rather than in the app bar: it is a standing preference,
+/// not something toggled while working. It exists at all because without it
+/// there is no way to look at the theme the device is not currently in.
+class _ThemeModeControl extends ConsumerStatefulWidget {
+  const _ThemeModeControl();
+
+  @override
+  ConsumerState<_ThemeModeControl> createState() => _ThemeModeControlState();
+}
+
+class _ThemeModeControlState extends ConsumerState<_ThemeModeControl> {
+  /// Where the finger went down, so the reveal starts under it rather than
+  /// from an arbitrary point. `SegmentedButton` does not report a position, so
+  /// it is caught on the way past.
+  Offset? _tap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final mode = ref.watch(themeModeSettingProvider).value ?? ThemeMode.light;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.themeModeLabel, style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: AppSpacing.sm),
+          // Scrolls rather than shrinking: three segments plus labels will not
+          // fit a narrow screen at a large accessibility text scale.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Listener(
+              onPointerDown: (event) => _tap = event.position,
+              child: SegmentedButton<ThemeMode>(
+                segments: [
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    icon: const Icon(Icons.light_mode_outlined, size: 18),
+                    label: Text(l10n.themeModeLight),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    icon: const Icon(Icons.dark_mode_outlined, size: 18),
+                    label: Text(l10n.themeModeDark),
+                  ),
+                ],
+                selected: {mode},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) => _switch(selection.first),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _switch(ThemeMode next) {
+    void apply() =>
+        ref.read(themeModeSettingProvider.notifier).select(next);
+
+    final reveal = ThemeReveal.of(context);
+    if (reveal == null) {
+      apply();
+      return;
+    }
+
+    reveal.reveal(
+      // Falls back to the middle of the screen if the pointer position was
+      // never seen -- a keyboard or accessibility activation, for instance.
+      center: _tap ?? (Offset.zero & MediaQuery.sizeOf(context)).center,
+      change: apply,
+    );
+  }
+}
+
 class _SettingsSheet extends ConsumerWidget {
   const _SettingsSheet();
 
@@ -432,8 +797,13 @@ class _SettingsSheet extends ConsumerWidget {
         ),
         child: ListView(
           shrinkWrap: true,
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
           children: [
+            // First, because it is the only entry here that changes the app
+            // rather than the next import -- and because it is what lets the
+            // dark theme be seen at all on a device set to light.
+            const _ThemeModeControl(),
+            const Divider(),
             // A picker over fewer than two models is just clutter; the rest of
             // the sheet still earns its place.
             if (models.length >= 2) ...[
@@ -500,12 +870,18 @@ class _SectionHeader extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xs,
+      ),
       child: Text(
         label,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.primary,
-        ),
+        // Plain ink, not the accent. The accent is a *fill* colour: yellow
+        // text on a cream page is close to unreadable, which is exactly what
+        // this looked like before.
+        style: theme.textTheme.labelLarge,
       ),
     );
   }
@@ -531,11 +907,24 @@ class _ChoiceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // `ListTile.selected` tints the whole row with the primary colour, which
+    // for a fill colour like yellow means unreadable text. Selection is shown
+    // by the check mark and the weight instead, with the colour carried by the
+    // icon where it sits on the page rather than behind letterforms.
     return ListTile(
-      leading: Icon(selected ? Icons.check : Icons.radio_button_unchecked),
-      title: Text(title),
+      leading: Icon(
+        selected ? Icons.check : Icons.radio_button_unchecked,
+        color: selected ? theme.colorScheme.secondary : null,
+      ),
+      title: Text(
+        title,
+        style: selected
+            ? theme.textTheme.titleSmall
+            : theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500),
+      ),
       subtitle: Text(subtitle),
-      selected: selected,
       onTap: onTap,
     );
   }

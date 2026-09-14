@@ -8,6 +8,8 @@ import '../../core/captions/speaker_palette.dart';
 import '../../core/captions/subtitle_export.dart';
 import '../../core/database/database.dart';
 import '../../core/text/sentence_units.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_surface.dart';
 import '../../core/transcript/sentence_edit.dart';
 import '../../core/transcript/speaker_names.dart';
 import '../../core/transcript/speaker_turns.dart';
@@ -194,7 +196,12 @@ class _ExportSheetState extends State<_ExportSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.xl,
+                AppSpacing.lg,
+                AppSpacing.sm,
+              ),
               child: Text(
                 l10n.exportSheetTitle,
                 style: theme.textTheme.titleMedium,
@@ -750,7 +757,12 @@ class _WordFlowContent extends ConsumerWidget {
     }.toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.xs,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -949,8 +961,9 @@ class _WordChip extends StatelessWidget {
   final VoidCallback onTap;
 
   /// In edit mode a word is a target rather than a seek point, so it carries a
-  /// faint outline. Without it there is nothing to say the same tap now does
-  /// something different.
+  /// faint tint. Without it there is nothing to say the same tap now does
+  /// something different -- and a *border* per word, which is what this drew
+  /// before, turns the transcript into a page of boxes.
   final bool editing;
 
   /// This word is the start of a speaker range still being picked.
@@ -968,19 +981,32 @@ class _WordChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(4),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs,
+          vertical: AppSpacing.xxs,
+        ),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4),
-          color: switch ((anchored, active)) {
-            (true, _) => theme.colorScheme.primary.withValues(alpha: 0.20),
-            (false, true) => theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(AppSpacing.xs),
+          color: switch ((anchored, active, editing)) {
+            // Selection, so it uses the selection colour rather than the
+            // call-to-action fill -- the same coral the segmented control uses.
+            (true, _, _) =>
+              theme.colorScheme.secondary.withValues(alpha: 0.22),
+            (false, true, _) => theme.colorScheme.primaryContainer,
+            // Edit mode used to say "this word is a target" with a border.
+            // Under an outlined style that is three hundred boxes on one page —
+            // the exact blob-around-everything failure this design exists to
+            // avoid. A tint carries the same meaning and lets the page read as
+            // prose.
+            (false, false, true) =>
+              theme.colorScheme.outlineVariant.withValues(alpha: 0.30),
             _ => Colors.transparent,
           },
+          // The one word that still earns a border: the anchor of a half-made
+          // speaker range, which has to be impossible to miss.
           border: anchored
-              ? Border.all(color: theme.colorScheme.primary, width: 2)
-              : editing
-                  ? Border.all(color: theme.colorScheme.outlineVariant)
-                  : null,
+              ? Border.all(color: theme.colorScheme.secondary, width: 2)
+              : null,
         ),
         child: Text(
           word.word,
@@ -1028,17 +1054,23 @@ class _SpeakerLabel extends ConsumerWidget {
     final foreground =
         SpeakerPalette.onColorFor(speaker, fallback: theme.colorScheme.onSurface);
 
+    // Outlined, and not only for style. Amber on a warm off-white ground is
+    // 1.2:1 -- the chip would wash into the page. The outline is what separates
+    // it, which is exactly the job an outline does in this design and the
+    // reason the fills themselves are free to be whatever reads best on video.
+    final surface = context.surface;
+
     return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      padding: const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.sm),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: surface.borderRadius,
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xxs,
           ),
+          decoration: surface.decoration(fill: background, raised: false),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1190,7 +1222,12 @@ class _SpeakerPicker extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.sm,
+            ),
             child: Text(
               l10n.reassignSpeakerTitle,
               style: theme.textTheme.titleMedium,

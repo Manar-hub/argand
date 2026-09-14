@@ -232,6 +232,51 @@
     "placeholders": { "count": { "type": "int", "example": "248" } }
   },
 
+  "projectsHeading": "Projects",
+  "@projectsHeading": { "description": "Heading above the list of imported projects in the library" },
+
+  "importHeadline": "Import media",
+  "@importHeadline": { "description": "Label on the large import panel at the top of the library" },
+
+  "importSubhead": "Video or audio — transcribed on your device",
+  "@importSubhead": { "description": "Supporting line under the import panel, saying what can be imported and that nothing is uploaded" },
+
+  "projectCreated": "{date}",
+  "@projectCreated": {
+    "description": "When a project was imported, shown in its library row",
+    "placeholders": { "date": { "type": "DateTime", "format": "yMMMd" } }
+  },
+
+  "duplicateAction": "Duplicate",
+  "@duplicateAction": { "description": "Menu entry that copies a project so a second edit can diverge from it" },
+
+  "duplicateTitle": "{title} copy",
+  "@duplicateTitle": {
+    "description": "Title given to a duplicated project",
+    "placeholders": { "title": { "type": "String", "example": "interview" } }
+  },
+
+  "duplicateSharesMediaTitle": "Duplicates share one file",
+  "@duplicateSharesMediaTitle": { "description": "Heading of the one-time notice explaining how duplicating works" },
+
+  "duplicateSharesMediaBody": "A copy reuses the same video and transcription, so it takes almost no extra space. Your edits stay separate. The video is only removed once every copy is deleted.",
+  "@duplicateSharesMediaBody": { "description": "Body of the one-time notice explaining that duplicates share media and cost no storage" },
+
+  "gotItAction": "Got it",
+  "@gotItAction": { "description": "Dismisses an informational notice" },
+
+  "themeModeLabel": "Appearance",
+  "@themeModeLabel": { "description": "Heading of the light/dark theme control in settings" },
+
+  "themeModeLight": "Light",
+  "@themeModeLight": { "description": "Theme option that forces the light theme" },
+
+  "themeModeDark": "Dark",
+  "@themeModeDark": { "description": "Theme option that forces the dark theme" },
+
+  "openAction": "Open",
+  "@openAction": { "description": "Menu entry that opens a project" },
+
   "sizeGigabytes": "{count} GB",
   "@sizeGigabytes": {
     "description": "A file size in gigabytes, shown with one decimal place",

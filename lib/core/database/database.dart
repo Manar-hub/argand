@@ -239,6 +239,102 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// How many *live* projects other than [excluding] point at [mediaPath].
+  ///
+  /// The whole of media refcounting. Duplicated projects share one file rather
+  /// than copying hundreds of megabytes, so the directory can only be removed
+  /// once nothing still needs it — and "nothing" means no project a user can
+  /// still open, which is why soft-deleted rows do not count.
+  Future<int> projectsSharingMedia(String mediaPath, {required String excluding}) async {
+    final rows = await (select(projects)
+          ..where((t) =>
+              t.mediaPath.equals(mediaPath) &
+              t.deletedAt.isNull() &
+              t.id.equals(excluding).not()))
+        .get();
+    return rows.length;
+  }
+
+  /// Copies a project, its transcript and every word, sharing the media file.
+  ///
+  /// The rows are cheap — a word is about a hundred bytes, so an hour of speech
+  /// is roughly a megabyte — and copying them is what lets each duplicate carry
+  /// its own edits. The alternative, one canonical transcript with per-project
+  /// overlays, would turn every read into a merge to save that megabyte.
+  ///
+  /// The **edit history is deliberately not copied.** A duplicate starts with a
+  /// clean slate: replaying the original's undo log against new rows would let
+  /// an undo reach back past the moment the copy was made, which is not
+  /// something the user could reason about.
+  Future<String> duplicateProject({
+    required String sourceProjectId,
+    required String newProjectId,
+    required String title,
+    required String Function() newId,
+  }) async {
+    final now = DateTime.now();
+
+    return transaction(() async {
+      final source = await findProject(sourceProjectId);
+      if (source == null) {
+        throw StateError('No project $sourceProjectId to duplicate');
+      }
+
+      await into(projects).insert(
+        ProjectsCompanion.insert(
+          id: newProjectId,
+          createdAt: now,
+          updatedAt: now,
+          title: title,
+          // The same file. Not a copy -- see `projectsSharingMedia`.
+          mediaPath: source.mediaPath,
+          durationMs: Value(source.durationMs),
+        ),
+      );
+
+      final transcript = await findTranscriptForProject(sourceProjectId);
+      if (transcript == null) return newProjectId;
+
+      final newTranscriptId = newId();
+      await into(transcripts).insert(
+        TranscriptsCompanion.insert(
+          id: newTranscriptId,
+          createdAt: now,
+          updatedAt: now,
+          projectId: newProjectId,
+          language: Value(transcript.language),
+          speakerNames: Value(transcript.speakerNames),
+          fullText: transcript.fullText,
+        ),
+      );
+
+      final words = await (select(this.words)
+            ..where((t) =>
+                t.transcriptId.equals(transcript.id) & t.deletedAt.isNull())
+            ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+          .get();
+
+      await batch((batch) {
+        batch.insertAll(this.words, [
+          for (final word in words)
+            WordsCompanion.insert(
+              id: newId(),
+              createdAt: now,
+              updatedAt: now,
+              transcriptId: newTranscriptId,
+              position: word.position,
+              word: word.word,
+              startMs: word.startMs,
+              endMs: word.endMs,
+              speakerId: Value(word.speakerId),
+            ),
+        ]);
+      });
+
+      return newProjectId;
+    });
+  }
+
   /// Retires [key], for per-project settings whose project is being deleted.
   ///
   /// Soft, like every other delete. [writeSetting] already resurrects a

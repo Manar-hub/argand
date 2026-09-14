@@ -244,6 +244,53 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get projectsHeading => 'Projects';
+
+  @override
+  String get importHeadline => 'Import media';
+
+  @override
+  String get importSubhead => 'Video or audio — transcribed on your device';
+
+  @override
+  String projectCreated(DateTime date) {
+    final intl.DateFormat dateDateFormat = intl.DateFormat.yMMMd(localeName);
+    final String dateString = dateDateFormat.format(date);
+
+    return '$dateString';
+  }
+
+  @override
+  String get duplicateAction => 'Duplicate';
+
+  @override
+  String duplicateTitle(String title) {
+    return '$title copy';
+  }
+
+  @override
+  String get duplicateSharesMediaTitle => 'Duplicates share one file';
+
+  @override
+  String get duplicateSharesMediaBody =>
+      'A copy reuses the same video and transcription, so it takes almost no extra space. Your edits stay separate. The video is only removed once every copy is deleted.';
+
+  @override
+  String get gotItAction => 'Got it';
+
+  @override
+  String get themeModeLabel => 'Appearance';
+
+  @override
+  String get themeModeLight => 'Light';
+
+  @override
+  String get themeModeDark => 'Dark';
+
+  @override
+  String get openAction => 'Open';
+
+  @override
   String sizeGigabytes(String count) {
     return '$count GB';
   }

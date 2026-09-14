@@ -233,6 +233,16 @@ class MediaConverter {
     if (await dir.exists()) await dir.delete(recursive: true);
   }
 
+  /// Removes the directory a media file lives in.
+  ///
+  /// Addressed by *path* rather than by project id, because duplicated projects
+  /// share one file: the directory belongs to whichever project first imported
+  /// it, and the last project to be deleted is rarely that one.
+  Future<void> discardMediaAt(String mediaPath) async {
+    final dir = Directory(p.dirname(mediaPath));
+    if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
   /// Total bytes a project's media directory occupies, or 0 if it has none.
   ///
   /// Counts the imported source file and the extracted WAV together, which is

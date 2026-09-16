@@ -619,73 +619,73 @@ final class TranscriptWordsFamily extends $Family
   String toString() => r'transcriptWordsProvider';
 }
 
-/// One clip's transcript, watched rather than fetched, or null when it has not
-/// been transcribed yet.
+/// Every transcript covering one clip, earliest range first. Empty when
+/// nothing on the clip has been transcribed yet.
 ///
-/// Speaker names live on this row, so a rename has to reach the transcript
+/// Speaker names live on these rows, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 
-@ProviderFor(clipTranscript)
-final clipTranscriptProvider = ClipTranscriptFamily._();
+@ProviderFor(clipTranscripts)
+final clipTranscriptsProvider = ClipTranscriptsFamily._();
 
-/// One clip's transcript, watched rather than fetched, or null when it has not
-/// been transcribed yet.
+/// Every transcript covering one clip, earliest range first. Empty when
+/// nothing on the clip has been transcribed yet.
 ///
-/// Speaker names live on this row, so a rename has to reach the transcript
+/// Speaker names live on these rows, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 
-final class ClipTranscriptProvider
+final class ClipTranscriptsProvider
     extends
         $FunctionalProvider<
-          AsyncValue<Transcript?>,
-          Transcript?,
-          Stream<Transcript?>
+          AsyncValue<List<Transcript>>,
+          List<Transcript>,
+          Stream<List<Transcript>>
         >
-    with $FutureModifier<Transcript?>, $StreamProvider<Transcript?> {
-  /// One clip's transcript, watched rather than fetched, or null when it has not
-  /// been transcribed yet.
+    with $FutureModifier<List<Transcript>>, $StreamProvider<List<Transcript>> {
+  /// Every transcript covering one clip, earliest range first. Empty when
+  /// nothing on the clip has been transcribed yet.
   ///
-  /// Speaker names live on this row, so a rename has to reach the transcript
+  /// Speaker names live on these rows, so a rename has to reach the transcript
   /// view, the caption overlay and the export button with nothing being told to
   /// refresh.
-  ClipTranscriptProvider._({
-    required ClipTranscriptFamily super.from,
+  ClipTranscriptsProvider._({
+    required ClipTranscriptsFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'clipTranscriptProvider',
+         name: r'clipTranscriptsProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
 
   @override
-  String debugGetCreateSourceHash() => _$clipTranscriptHash();
+  String debugGetCreateSourceHash() => _$clipTranscriptsHash();
 
   @override
   String toString() {
-    return r'clipTranscriptProvider'
+    return r'clipTranscriptsProvider'
         ''
         '($argument)';
   }
 
   @$internal
   @override
-  $StreamProviderElement<Transcript?> $createElement(
+  $StreamProviderElement<List<Transcript>> $createElement(
     $ProviderPointer pointer,
   ) => $StreamProviderElement(pointer);
 
   @override
-  Stream<Transcript?> create(Ref ref) {
+  Stream<List<Transcript>> create(Ref ref) {
     final argument = this.argument as String;
-    return clipTranscript(ref, argument);
+    return clipTranscripts(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is ClipTranscriptProvider && other.argument == argument;
+    return other is ClipTranscriptsProvider && other.argument == argument;
   }
 
   @override
@@ -694,38 +694,124 @@ final class ClipTranscriptProvider
   }
 }
 
-String _$clipTranscriptHash() => r'dbb62793737613497f77caad89e7dcecebbc2021';
+String _$clipTranscriptsHash() => r'13bbc2d0a7abeb98e132100afbe33016ad34efa0';
 
-/// One clip's transcript, watched rather than fetched, or null when it has not
-/// been transcribed yet.
+/// Every transcript covering one clip, earliest range first. Empty when
+/// nothing on the clip has been transcribed yet.
 ///
-/// Speaker names live on this row, so a rename has to reach the transcript
+/// Speaker names live on these rows, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 
-final class ClipTranscriptFamily extends $Family
-    with $FunctionalFamilyOverride<Stream<Transcript?>, String> {
-  ClipTranscriptFamily._()
+final class ClipTranscriptsFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<Transcript>>, String> {
+  ClipTranscriptsFamily._()
     : super(
         retry: null,
-        name: r'clipTranscriptProvider',
+        name: r'clipTranscriptsProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
 
-  /// One clip's transcript, watched rather than fetched, or null when it has not
-  /// been transcribed yet.
+  /// Every transcript covering one clip, earliest range first. Empty when
+  /// nothing on the clip has been transcribed yet.
   ///
-  /// Speaker names live on this row, so a rename has to reach the transcript
+  /// Speaker names live on these rows, so a rename has to reach the transcript
   /// view, the caption overlay and the export button with nothing being told to
   /// refresh.
 
-  ClipTranscriptProvider call(String clipId) =>
-      ClipTranscriptProvider._(argument: clipId, from: this);
+  ClipTranscriptsProvider call(String clipId) =>
+      ClipTranscriptsProvider._(argument: clipId, from: this);
 
   @override
-  String toString() => r'clipTranscriptProvider';
+  String toString() => r'clipTranscriptsProvider';
+}
+
+/// A project's transcribe layers, in timeline order.
+
+@ProviderFor(projectLayers)
+final projectLayersProvider = ProjectLayersFamily._();
+
+/// A project's transcribe layers, in timeline order.
+
+final class ProjectLayersProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<TranscribeLayer>>,
+          List<TranscribeLayer>,
+          Stream<List<TranscribeLayer>>
+        >
+    with
+        $FutureModifier<List<TranscribeLayer>>,
+        $StreamProvider<List<TranscribeLayer>> {
+  /// A project's transcribe layers, in timeline order.
+  ProjectLayersProvider._({
+    required ProjectLayersFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectLayersProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectLayersHash();
+
+  @override
+  String toString() {
+    return r'projectLayersProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<TranscribeLayer>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<TranscribeLayer>> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectLayers(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectLayersProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectLayersHash() => r'719b43f6e6934d8d6d6c559aa3c7c011835bfdaa';
+
+/// A project's transcribe layers, in timeline order.
+
+final class ProjectLayersFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<TranscribeLayer>>, String> {
+  ProjectLayersFamily._()
+    : super(
+        retry: null,
+        name: r'projectLayersProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's transcribe layers, in timeline order.
+
+  ProjectLayersProvider call(String projectId) =>
+      ProjectLayersProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectLayersProvider';
 }
 
 /// A project's clips in timeline order. Empty for a project nobody has added

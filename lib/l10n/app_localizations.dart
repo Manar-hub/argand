@@ -831,6 +831,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Untitled project'**
   String get createProjectDefaultName;
+
+  /// Button that draws a new transcribe layer on the timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Add layer'**
+  String get layerAdd;
+
+  /// Button that removes the selected transcribe layer and anything it transcribed
+  ///
+  /// In en, this message translates to:
+  /// **'Remove layer'**
+  String get layerRemove;
+
+  /// Shown beside the transcribe track when no layer is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Add a layer to mark what to transcribe.'**
+  String get layerHint;
+
+  /// Shown beside the transcribe track when a layer is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Layer selected.'**
+  String get layerSelected;
+
+  /// Shown when a new transcribe layer would not fit without overlapping an existing one
+  ///
+  /// In en, this message translates to:
+  /// **'No room for another layer here.'**
+  String get layerNoRoom;
+
+  /// Tooltip on the gutter control that reveals a hidden timeline track
+  ///
+  /// In en, this message translates to:
+  /// **'Show track'**
+  String get trackShow;
+
+  /// Tooltip on the gutter control that hides a timeline track
+  ///
+  /// In en, this message translates to:
+  /// **'Hide track'**
+  String get trackHide;
+
+  /// Tooltip on the gutter handle that swaps the vertical order of the timeline tracks
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder tracks'**
+  String get trackReorder;
 }
 
 class _AppLocalizationsDelegate

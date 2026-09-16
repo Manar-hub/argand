@@ -56,11 +56,97 @@ class TranscriptRepository {
 
   Future<Project?> findProject(String id) => _db.findProject(id);
 
-  Future<Transcript?> findTranscriptForClip(String clipId) =>
-      _db.findTranscriptForClip(clipId);
+  Future<List<Transcript>> transcriptsForClip(String clipId) =>
+      _db.transcriptsForClip(clipId);
 
-  Stream<Transcript?> watchTranscriptForClip(String clipId) =>
-      _db.watchTranscriptForClip(clipId);
+  Stream<List<Transcript>> watchTranscriptsForClip(String clipId) =>
+      _db.watchTranscriptsForClip(clipId);
+
+  Stream<List<TranscribeLayer>> watchLayers(String projectId) =>
+      _db.watchLayers(projectId);
+
+  Future<List<TranscribeLayer>> layersForProject(String projectId) =>
+      _db.layersForProject(projectId);
+
+  Future<TranscribeLayer?> findLayer(String layerId) => _db.findLayer(layerId);
+
+  Future<List<Transcript>> transcriptsForLayer(String layerId) =>
+      _db.transcriptsForLayer(layerId);
+
+  /// Adds a layer covering [startMs]–[endMs] on the project timeline.
+  ///
+  /// Returns null when the range would overlap a layer already on that track.
+  /// **Layers on one track may not overlap**, which is what makes "which layer
+  /// owns this audio" a question with one answer — and the check lives here so
+  /// both drawing a new layer and dragging an existing one are held to it.
+  Future<String?> addLayer({
+    required String projectId,
+    required int startMs,
+    required int endMs,
+    int trackIndex = 0,
+  }) async {
+    if (endMs <= startMs) return null;
+
+    final existing = await _db.layersForProject(projectId);
+    if (_overlaps(existing, startMs: startMs, endMs: endMs, trackIndex: trackIndex)) {
+      return null;
+    }
+
+    final layerId = newId();
+    await _db.insertLayer(
+      layerId: layerId,
+      projectId: projectId,
+      startMs: startMs,
+      endMs: endMs,
+      trackIndex: trackIndex,
+    );
+    return layerId;
+  }
+
+  /// Moves or resizes a layer, refusing a range that would overlap another.
+  Future<bool> moveLayer({
+    required String layerId,
+    required int startMs,
+    required int endMs,
+  }) async {
+    if (endMs <= startMs) return false;
+
+    final layer = await _db.findLayer(layerId);
+    if (layer == null) return false;
+
+    final existing = await _db.layersForProject(layer.projectId);
+    if (_overlaps(
+      existing,
+      startMs: startMs,
+      endMs: endMs,
+      trackIndex: layer.trackIndex,
+      ignoring: layerId,
+    )) {
+      return false;
+    }
+
+    await _db.moveLayer(layerId: layerId, startMs: startMs, endMs: endMs);
+    return true;
+  }
+
+  Future<void> removeLayer(String layerId) => _db.softDeleteLayer(layerId);
+
+  /// Half-open overlap, matching [ProjectTimeline]'s convention: two layers
+  /// meeting exactly at a boundary are adjacent, not overlapping.
+  bool _overlaps(
+    List<TranscribeLayer> layers, {
+    required int startMs,
+    required int endMs,
+    required int trackIndex,
+    String? ignoring,
+  }) {
+    for (final layer in layers) {
+      if (layer.id == ignoring) continue;
+      if (layer.trackIndex != trackIndex) continue;
+      if (startMs < layer.endMs && layer.startMs < endMs) return true;
+    }
+    return false;
+  }
 
   Stream<List<Word>> watchWords(String transcriptId) => _db.watchWords(transcriptId);
 
@@ -615,6 +701,21 @@ class TranscriptRepository {
             ),
           );
 
+      // Import transcribes the whole clip, so it gets a layer spanning it --
+      // the same shape the schema-6 migration gave every older transcript, so
+      // an imported project and an upgraded one are indistinguishable.
+      final layerId = newId();
+      await _db.into(_db.transcribeLayers).insert(
+            TranscribeLayersCompanion.insert(
+              id: layerId,
+              createdAt: now,
+              updatedAt: now,
+              projectId: projectId,
+              startMs: 0,
+              endMs: duration?.inMilliseconds ?? 0,
+            ),
+          );
+
       await _writeTranscript(
         projectId: projectId,
         clipId: clipId,
@@ -622,6 +723,8 @@ class TranscriptRepository {
         speakerSpans: speakerSpans,
         result: result,
         now: now,
+        layerId: layerId,
+        rangeEndMs: duration?.inMilliseconds,
       );
     });
   }
@@ -641,6 +744,9 @@ class TranscriptRepository {
     required TranscriptionLanguage language,
     required List<SpeakerSpan> speakerSpans,
     required WhisperTranscribeResponse result,
+    String? layerId,
+    int offsetMs = 0,
+    int? rangeEndMs,
   }) async {
     final now = DateTime.now();
     await _db.transaction(() async {
@@ -651,11 +757,20 @@ class TranscriptRepository {
         speakerSpans: speakerSpans,
         result: result,
         now: now,
+        layerId: layerId,
+        offsetMs: offsetMs,
+        rangeEndMs: rangeEndMs,
       );
     });
   }
 
   /// Writes one transcript and its words. **Caller supplies the transaction.**
+  ///
+  /// [offsetMs] is where in the clip the audio the engine saw began. Whisper
+  /// reports times relative to whatever WAV it was handed, so a range starting
+  /// ten seconds into a clip comes back starting at zero — **this is the one
+  /// place that offset is applied.** Putting it anywhere else as well is how a
+  /// double-offset bug appears only for ranges that do not start at zero.
   Future<void> _writeTranscript({
     required String projectId,
     required String clipId,
@@ -663,6 +778,9 @@ class TranscriptRepository {
     required List<SpeakerSpan> speakerSpans,
     required WhisperTranscribeResponse result,
     required DateTime now,
+    String? layerId,
+    int offsetMs = 0,
+    int? rangeEndMs,
   }) async {
     final transcriptId = newId();
 
@@ -674,6 +792,9 @@ class TranscriptRepository {
               updatedAt: now,
               projectId: projectId,
               clipId: Value(clipId),
+              layerId: Value(layerId),
+              clipStartMs: Value(offsetMs),
+              clipEndMs: Value(rangeEndMs),
               language: Value(result.detectedLanguage ?? language.code),
               fullText: result.text.trim(),
             ),
@@ -712,8 +833,11 @@ class TranscriptRepository {
                 // rendering detail, and keeping it would break word matching
                 // for the editor and export phases.
                 word: entry.text,
-                startMs: entry.segment.fromTs.inMilliseconds,
-                endMs: entry.segment.toTs.inMilliseconds,
+                // Shifted back into clip time. Speaker assignment above ran in
+                // the engine's own space, where the spans already agree with
+                // these times, so it needs no offsetting of its own.
+                startMs: entry.segment.fromTs.inMilliseconds + offsetMs,
+                endMs: entry.segment.toTs.inMilliseconds + offsetMs,
                 // Diarization's boundaries are independent of whisper's; see
                 // speaker_assignment.dart for how disagreements are settled.
                 speakerId: Value(
@@ -782,15 +906,20 @@ Future<Project?> projectById(Ref ref, String projectId) =>
 Stream<List<Word>> transcriptWords(Ref ref, String transcriptId) =>
     ref.watch(transcriptRepositoryProvider).watchWords(transcriptId);
 
-/// One clip's transcript, watched rather than fetched, or null when it has not
-/// been transcribed yet.
+/// Every transcript covering one clip, earliest range first. Empty when
+/// nothing on the clip has been transcribed yet.
 ///
-/// Speaker names live on this row, so a rename has to reach the transcript
+/// Speaker names live on these rows, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 @riverpod
-Stream<Transcript?> clipTranscript(Ref ref, String clipId) =>
-    ref.watch(transcriptRepositoryProvider).watchTranscriptForClip(clipId);
+Stream<List<Transcript>> clipTranscripts(Ref ref, String clipId) =>
+    ref.watch(transcriptRepositoryProvider).watchTranscriptsForClip(clipId);
+
+/// A project's transcribe layers, in timeline order.
+@riverpod
+Stream<List<TranscribeLayer>> projectLayers(Ref ref, String projectId) =>
+    ref.watch(transcriptRepositoryProvider).watchLayers(projectId);
 
 /// A project's clips in timeline order. Empty for a project nobody has added
 /// media to yet, which is the state "Create project" leaves behind.

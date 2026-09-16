@@ -102,7 +102,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 5', () {
+  group('schema 2 -> 6', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -181,7 +181,33 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 5);
+      expect(row, 6);
+    });
+
+    test('gives the existing transcript the layer its clip always implied',
+        () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clip = (await db.clipsForProject('p1')).single;
+
+      // Without this an already-transcribed project opens showing an empty
+      // layer track beside a full transcript, and the obvious response is to
+      // draw a layer over the whole thing and transcribe it a second time.
+      final layers = await db.layersForProject('p1');
+      expect(layers, hasLength(1));
+      expect(layers.single.startMs, 0);
+      expect(layers.single.endMs, 61000,
+          reason: 'the layer spans the clip it covers');
+      expect(layers.single.trackIndex, 0);
+
+      final transcript = await db.findTranscript('t1');
+      expect(transcript!.layerId, layers.single.id);
+      // The range is recorded as a fact about audio, so a later reorder cannot
+      // relabel words the user has already corrected.
+      expect(transcript.clipStartMs, 0);
+      expect(transcript.clipEndMs, 61000);
+      expect(transcript.clipId, clip.id);
     });
 
     test('gives the project the clip its media always implied', () async {
@@ -211,8 +237,8 @@ void main() {
       final transcript = await db.findTranscript('t1');
       expect(transcript!.clipId, clip.id);
 
-      expect((await db.findTranscriptForClip(clip.id))!.id, 't1');
-      expect((await db.watchTranscriptForClip(clip.id).first)!.id, 't1');
+      expect((await db.transcriptsForClip(clip.id)).first.id, 't1');
+      expect((await db.watchTranscriptsForClip(clip.id).first).first.id, 't1');
     });
 
     test('media refcounting still sees the migrated file', () async {
@@ -243,7 +269,7 @@ void main() {
       // And the copy carries the clip and its words, not just the row.
       final copied = await db.clipsForProject('p2');
       expect(copied.single.mediaPath, '/media/p1/clip.mp4');
-      final copiedTranscript = await db.findTranscriptForClip(copied.single.id);
+      final copiedTranscript = (await db.transcriptsForClip(copied.single.id)).firstOrNull;
       expect(copiedTranscript, isNotNull);
       expect(await db.watchWords(copiedTranscript!.id).first, hasLength(1));
     });
@@ -255,13 +281,18 @@ void main() {
     addTearDown(upgraded.close);
     addTearDown(fresh.close);
 
-    Future<List<String>> tablesOf(AppDatabase db) async {
+    // Indexes as well as tables. `createTable` emits a table's declared
+    // indexes on the upgrade path too, so an index that exists on only one
+    // route is real drift -- and an index is exactly the kind of thing that
+    // goes missing silently, costing query speed rather than correctness.
+    Future<List<String>> schemaOf(AppDatabase db) async {
       final rows = await db
           .customSelect(
-            "SELECT name FROM sqlite_master WHERE type = 'table' "
-            "AND name NOT LIKE 'sqlite_%' ORDER BY name",
+            "SELECT type || ':' || name AS entry FROM sqlite_master "
+            "WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' "
+            'ORDER BY entry',
           )
-          .map((r) => r.read<String>('name'))
+          .map((r) => r.read<String>('entry'))
           .get();
       return rows;
     }
@@ -269,6 +300,6 @@ void main() {
     // `onCreate` runs `createAll()` and does not replay `onUpgrade`, so the two
     // routes can silently drift apart. This is the assertion that catches it.
     await upgraded.findProject('p1');
-    expect(await tablesOf(upgraded), await tablesOf(fresh));
+    expect(await schemaOf(upgraded), await schemaOf(fresh));
   });
 }

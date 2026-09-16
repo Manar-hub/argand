@@ -98,7 +98,7 @@ final class MediaPlayerProvider
   }
 }
 
-String _$mediaPlayerHash() => r'0e63dce5c70c19e48771f9148bfc0a3ddbd555e0';
+String _$mediaPlayerHash() => r'4bc5ddb31d5b2846c25033b3b48e3c60e3ccc8ba';
 
 /// Owns the platform media player for one clip.
 ///

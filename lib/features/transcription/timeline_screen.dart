@@ -71,6 +71,14 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
   /// new editing capability -- see the Captions case in [_BottomToolbar].
   bool _showCaptions = false;
 
+  /// Track view state: whether the transcribe lane is drawn, and whether it
+  /// sits above the clips. Neither is a property of the data -- hiding a track
+  /// removes nothing -- so both live here rather than in the database.
+  bool _showLayers = true;
+  bool _layersFirst = false;
+
+  String? _selectedLayerId;
+
   void _placeholder(String feature) {
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context)
@@ -97,9 +105,13 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
     final projectId = widget.project.id;
     final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
     final selectedId = ref.watch(resolvedSelectedClipProvider(projectId));
+    // The first range on the clip, for the caption strip and the "is this
+    // transcribed" state. Script mode is where a clip's several ranges are
+    // chosen between; the timeline only needs to know whether any exist.
     final transcript = selectedId == null
         ? null
-        : ref.watch(clipTranscriptProvider(selectedId)).value;
+        : (ref.watch(clipTranscriptsProvider(selectedId)).value ?? const [])
+            .firstOrNull;
 
     return Column(
       children: [
@@ -112,14 +124,43 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _TimelineTrack(
-                  projectId: projectId,
-                  clips: clips,
-                  selectedId: selectedId,
-                  onAddClip: _addClip,
-                  onAddAudio: () => _placeholder(
-                      AppLocalizations.of(context).timelineAddAudio),
+                Padding(
+                  padding: const EdgeInsets.only(left: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      _TrackGutter(
+                        layersVisible: _showLayers,
+                        onToggleLayers: () =>
+                            setState(() => _showLayers = !_showLayers),
+                        layersFirst: _layersFirst,
+                        onReorder: () =>
+                            setState(() => _layersFirst = !_layersFirst),
+                      ),
+                      Expanded(
+                        child: _TimelineTrack(
+                          projectId: projectId,
+                          clips: clips,
+                          selectedId: selectedId,
+                          onAddClip: _addClip,
+                          onAddAudio: () => _placeholder(
+                              AppLocalizations.of(context).timelineAddAudio),
+                          showLayers: _showLayers,
+                          layersFirst: _layersFirst,
+                          selectedLayerId: _selectedLayerId,
+                          onSelectLayer: (id) =>
+                              setState(() => _selectedLayerId = id),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                if (_showLayers)
+                  _LayerStrip(
+                    projectId: projectId,
+                    selectedLayerId: _selectedLayerId,
+                    onCreated: (id) => setState(() => _selectedLayerId = id),
+                    onRemoved: () => setState(() => _selectedLayerId = null),
+                  ),
                 if (selectedId != null)
                   _SelectedClipStrip(
                     projectId: projectId,
@@ -391,6 +432,10 @@ class _TimelineTrack extends ConsumerStatefulWidget {
     required this.selectedId,
     required this.onAddClip,
     required this.onAddAudio,
+    required this.showLayers,
+    required this.layersFirst,
+    required this.selectedLayerId,
+    required this.onSelectLayer,
   });
 
   final String projectId;
@@ -398,6 +443,15 @@ class _TimelineTrack extends ConsumerStatefulWidget {
   final String? selectedId;
   final VoidCallback onAddClip;
   final VoidCallback onAddAudio;
+
+  /// Whether the transcribe track is visible. Its eye toggle lives in the
+  /// gutter beside the tracks.
+  final bool showLayers;
+
+  /// Whether the transcribe track is drawn above the clips.
+  final bool layersFirst;
+  final String? selectedLayerId;
+  final ValueChanged<String?> onSelectLayer;
 
   @override
   ConsumerState<_TimelineTrack> createState() => _TimelineTrackState();
@@ -507,6 +561,50 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   double _widthOf(MediaClip clip) =>
       (clip.durationMs ?? 0) / 1000 * _pixelsPerSecond;
 
+  /// The stacked tracks, in the order the gutter handle has put them.
+  List<Widget> _tracks(double trackWidth, ProjectTimeline timeline) {
+    final clipRow = SizedBox(
+      key: const ValueKey('clips'),
+      height: _trackHeight,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (index, clip) in widget.clips.indexed)
+            _ClipTile(
+              clip: clip,
+              width: _widthOf(clip),
+              selected: clip.id == widget.selectedId,
+              onTap: () => ref
+                  .read(selectedClipProvider(widget.projectId).notifier)
+                  .select(clip.id),
+              onLongPress: () => _showActions(clip, index),
+            ),
+          _AddClipTile(
+            busy: ref.watch(addClipControllerProvider(widget.projectId))
+                is AddClipCopying,
+            onTap: widget.onAddClip,
+          ),
+        ],
+      ),
+    );
+
+    if (!widget.showLayers) return [clipRow];
+
+    final layerRow = _LayerTrack(
+      key: const ValueKey('layers'),
+      projectId: widget.projectId,
+      width: trackWidth,
+      totalMs: timeline.totalMs,
+      selectedLayerId: widget.selectedLayerId,
+      onSelect: widget.onSelectLayer,
+    );
+
+    const gap = SizedBox(height: AppSpacing.xs);
+    return widget.layersFirst
+        ? [layerRow, gap, clipRow]
+        : [clipRow, gap, layerRow];
+  }
+
   Future<void> _showActions(MediaClip clip, int index) async {
     final l10n = AppLocalizations.of(context);
     final editor = ref.read(clipEditorProvider);
@@ -602,8 +700,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final adding =
-        ref.watch(addClipControllerProvider(widget.projectId)) is AddClipCopying;
     final timeline = ref.watch(projectTimelineProvider(widget.projectId));
 
     // Follow playback: the player reports a position inside the selected clip,
@@ -653,36 +749,26 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                     children: [
                       _TimeRuler(totalMs: timeline.totalMs, width: trackWidth),
                       const SizedBox(height: AppSpacing.xs),
-                      SizedBox(
-                        height: _trackHeight,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final (index, clip) in widget.clips.indexed)
-                              _ClipTile(
-                                clip: clip,
-                                width: _widthOf(clip),
-                                selected: clip.id == widget.selectedId,
-                                onTap: () => ref
-                                    .read(selectedClipProvider(widget.projectId)
-                                        .notifier)
-                                    .select(clip.id),
-                                onLongPress: () => _showActions(clip, index),
-                              ),
-                            _AddClipTile(busy: adding, onTap: widget.onAddClip),
-                          ],
-                        ),
-                      ),
+                      // Track order is the user's, through the gutter handle.
+                      for (final track in _tracks(trackWidth, timeline)) track,
                     ],
                   ),
                 ),
               ),
                   // Drawn over the tracks rather than scrolling with them: it
                   // marks a place on the screen, not a place in the media.
+                  // Runs the full height of the stack so a layer and the clip
+                  // beneath it are cut by the same line -- which is the whole
+                  // claim that they share one axis.
                   IgnorePointer(
                     child: Container(
                       width: _playheadWidth,
-                      height: _rulerHeight + AppSpacing.xs + _trackHeight,
+                      height: _rulerHeight +
+                          AppSpacing.xs +
+                          _trackHeight +
+                          (widget.showLayers
+                              ? AppSpacing.xs + _layerTrackHeight
+                              : 0),
                       color: theme.colorScheme.primary,
                     ),
                   ),
@@ -707,6 +793,260 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 }
 
 enum _ClipAction { earlier, later, remove }
+
+/// Height of the transcribe-layer lane.
+const double _layerTrackHeight = 34;
+
+/// How long a freshly drawn layer covers, before the user resizes it.
+///
+/// Never zero: a zero-width layer would be invisible and untappable, so there
+/// would be no way to fix it.
+const int _defaultLayerMs = 10000;
+
+/// Adding a layer, and acting on the selected one.
+///
+/// **Transcribing what a layer spans is Stage C** — the audio slicing it needs
+/// does not exist yet — so the action here is deliberately absent rather than
+/// present and inert. A button that looked ready and did nothing would be
+/// worse than no button.
+class _LayerStrip extends ConsumerWidget {
+  const _LayerStrip({
+    required this.projectId,
+    required this.selectedLayerId,
+    required this.onCreated,
+    required this.onRemoved,
+  });
+
+  final String projectId;
+  final String? selectedLayerId;
+  final ValueChanged<String> onCreated;
+  final VoidCallback onRemoved;
+
+  Future<void> _add(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context);
+    final repository = ref.read(transcriptRepositoryProvider);
+    final timeline = ref.read(projectTimelineProvider(projectId));
+    final layers = ref.read(projectLayersProvider(projectId)).value ?? const [];
+
+    // Dropped into the first gap that fits rather than always at zero, so
+    // adding a second layer does not silently fail against the overlap rule.
+    var start = 0;
+    for (final layer in [...layers]..sort((a, b) => a.startMs - b.startMs)) {
+      if (layer.startMs - start >= _defaultLayerMs) break;
+      if (layer.endMs > start) start = layer.endMs;
+    }
+
+    final end = start + _defaultLayerMs;
+    if (timeline.totalMs > 0 && start >= timeline.totalMs) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(l10n.layerNoRoom)));
+      return;
+    }
+
+    final id = await repository.addLayer(
+      projectId: projectId,
+      startMs: start,
+      endMs: end,
+    );
+    if (id != null) onCreated(id);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final selected = selectedLayerId;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        0,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              selected == null ? l10n.layerHint : l10n.layerSelected,
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          if (selected != null)
+            TextButton(
+              onPressed: () async {
+                await ref
+                    .read(transcriptRepositoryProvider)
+                    .removeLayer(selected);
+                onRemoved();
+              },
+              child: Text(l10n.layerRemove),
+            ),
+          TextButton.icon(
+            onPressed: () => _add(context, ref),
+            icon: const Icon(Icons.add, size: 18),
+            label: Text(l10n.layerAdd),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The transcribe track: one rectangle per layer, laid out on the same axis
+/// as the clips above it.
+///
+/// A layer is a *request* — it exists before anything has run, and running it
+/// is what produces words. Its rectangle is positioned from project-timeline
+/// milliseconds, which is only meaningful because the clip row is a true time
+/// axis; if clips were still clamped and spaced, a layer could not sit over
+/// the media it describes.
+class _LayerTrack extends ConsumerWidget {
+  const _LayerTrack({
+    super.key,
+    required this.projectId,
+    required this.width,
+    required this.totalMs,
+    required this.selectedLayerId,
+    required this.onSelect,
+  });
+
+  final String projectId;
+  final double width;
+  final int totalMs;
+  final String? selectedLayerId;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final surface = context.surface;
+    final layers = ref.watch(projectLayersProvider(projectId)).value ?? const [];
+
+    return SizedBox(
+      height: _layerTrackHeight,
+      width: width <= 0 ? 1 : width,
+      child: Stack(
+        children: [
+          // The empty lane, so its extent reads even with no layers on it.
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          for (final layer in layers)
+            Positioned(
+              left: layer.startMs / 1000 * _pixelsPerSecond,
+              width: (layer.endMs - layer.startMs) / 1000 * _pixelsPerSecond,
+              top: 0,
+              bottom: 0,
+              child: GestureDetector(
+                onTap: () => onSelect(layer.id),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: layer.id == selectedLayerId
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.secondary.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: surface.outline,
+                      width: layer.id == selectedLayerId
+                          ? surface.borderWidth
+                          : 1,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                  ),
+                  child: Icon(
+                    Icons.subtitles_outlined,
+                    size: 16,
+                    color: layer.id == selectedLayerId
+                        ? theme.colorScheme.onPrimary
+                        : theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The left gutter: one control per track, aligned with the track it governs.
+///
+/// Visibility here is *view* state, not a property of the data — hiding the
+/// transcribe track does not remove a layer, it only stops drawing it.
+class _TrackGutter extends StatelessWidget {
+  const _TrackGutter({
+    required this.layersVisible,
+    required this.onToggleLayers,
+    required this.layersFirst,
+    required this.onReorder,
+  });
+
+  final bool layersVisible;
+  final VoidCallback onToggleLayers;
+
+  /// Whether the transcribe track is drawn above the clips.
+  final bool layersFirst;
+  final VoidCallback onReorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    // A narrow column, not a row. Every point this takes is a point the time
+    // axis does not get, and on a phone the axis is the scarce thing.
+    return SizedBox(
+      width: 32,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkResponse(
+            radius: 18,
+            onTap: onToggleLayers,
+            child: Tooltip(
+              message: layersVisible ? l10n.trackHide : l10n.trackShow,
+              child: Icon(
+                layersVisible
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                size: 18,
+                color: theme.colorScheme.onSurface
+                    .withValues(alpha: layersVisible ? 0.9 : 0.4),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          InkResponse(
+            radius: 18,
+            onTap: onReorder,
+            child: Tooltip(
+              message: l10n.trackReorder,
+              child: Icon(
+                Icons.drag_handle,
+                size: 18,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Height the ruler occupies: ticks plus the labels beneath them.
 const double _rulerHeight = 28;

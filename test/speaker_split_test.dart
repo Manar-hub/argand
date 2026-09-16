@@ -55,7 +55,7 @@ void main() {
         ],
       ),
     );
-    return (await repository.findTranscriptForClip(clipId))!.id;
+    return (await repository.transcriptsForClip(clipId)).first.id;
   }
 
   Future<List<Word>> wordsOf(String id) => repository.watchWords(id).first;

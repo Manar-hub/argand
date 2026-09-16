@@ -416,5 +416,29 @@
   "@createProjectAction": { "description": "Button that confirms creating the named project" },
 
   "createProjectDefaultName": "Untitled project",
-  "@createProjectDefaultName": { "description": "The name a project gets when the user confirms without typing one" }
+  "@createProjectDefaultName": { "description": "The name a project gets when the user confirms without typing one" },
+
+  "layerAdd": "Add layer",
+  "@layerAdd": { "description": "Button that draws a new transcribe layer on the timeline" },
+
+  "layerRemove": "Remove layer",
+  "@layerRemove": { "description": "Button that removes the selected transcribe layer and anything it transcribed" },
+
+  "layerHint": "Add a layer to mark what to transcribe.",
+  "@layerHint": { "description": "Shown beside the transcribe track when no layer is selected" },
+
+  "layerSelected": "Layer selected.",
+  "@layerSelected": { "description": "Shown beside the transcribe track when a layer is selected" },
+
+  "layerNoRoom": "No room for another layer here.",
+  "@layerNoRoom": { "description": "Shown when a new transcribe layer would not fit without overlapping an existing one" },
+
+  "trackShow": "Show track",
+  "@trackShow": { "description": "Tooltip on the gutter control that reveals a hidden timeline track" },
+
+  "trackHide": "Hide track",
+  "@trackHide": { "description": "Tooltip on the gutter control that hides a timeline track" },
+
+  "trackReorder": "Reorder tracks",
+  "@trackReorder": { "description": "Tooltip on the gutter handle that swaps the vertical order of the timeline tracks" }
 }

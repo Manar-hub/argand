@@ -1065,6 +1065,528 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
   }
 }
 
+class $TranscribeLayersTable extends TranscribeLayers
+    with TableInfo<$TranscribeLayersTable, TranscribeLayer> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranscribeLayersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _trackIndexMeta = const VerificationMeta(
+    'trackIndex',
+  );
+  @override
+  late final GeneratedColumn<int> trackIndex = GeneratedColumn<int>(
+    'track_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    startMs,
+    endMs,
+    trackIndex,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'transcribe_layers';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TranscribeLayer> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMsMeta);
+    }
+    if (data.containsKey('track_index')) {
+      context.handle(
+        _trackIndexMeta,
+        trackIndex.isAcceptableOrUnknown(data['track_index']!, _trackIndexMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TranscribeLayer map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TranscribeLayer(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      trackIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track_index'],
+      )!,
+    );
+  }
+
+  @override
+  $TranscribeLayersTable createAlias(String alias) {
+    return $TranscribeLayersTable(attachedDatabase, alias);
+  }
+}
+
+class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String projectId;
+  final int startMs;
+  final int endMs;
+
+  /// Which stacked track the layer sits on. Always 0 today.
+  ///
+  /// One column of insurance: a second track of layers is otherwise a
+  /// migration rather than a UI change, and it costs nothing to carry now.
+  /// Layers on the same track may not overlap, which is what makes "what
+  /// happens when two layers claim the same audio" a question nobody has to
+  /// answer.
+  final int trackIndex;
+  const TranscribeLayer({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.projectId,
+    required this.startMs,
+    required this.endMs,
+    required this.trackIndex,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['project_id'] = Variable<String>(projectId);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    map['track_index'] = Variable<int>(trackIndex);
+    return map;
+  }
+
+  TranscribeLayersCompanion toCompanion(bool nullToAbsent) {
+    return TranscribeLayersCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      projectId: Value(projectId),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      trackIndex: Value(trackIndex),
+    );
+  }
+
+  factory TranscribeLayer.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TranscribeLayer(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      trackIndex: serializer.fromJson<int>(json['trackIndex']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'projectId': serializer.toJson<String>(projectId),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'trackIndex': serializer.toJson<int>(trackIndex),
+    };
+  }
+
+  TranscribeLayer copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? projectId,
+    int? startMs,
+    int? endMs,
+    int? trackIndex,
+  }) => TranscribeLayer(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    projectId: projectId ?? this.projectId,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    trackIndex: trackIndex ?? this.trackIndex,
+  );
+  TranscribeLayer copyWithCompanion(TranscribeLayersCompanion data) {
+    return TranscribeLayer(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      trackIndex: data.trackIndex.present
+          ? data.trackIndex.value
+          : this.trackIndex,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranscribeLayer(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('trackIndex: $trackIndex')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    startMs,
+    endMs,
+    trackIndex,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TranscribeLayer &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.projectId == this.projectId &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.trackIndex == this.trackIndex);
+}
+
+class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> projectId;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<int> trackIndex;
+  final Value<int> rowid;
+  const TranscribeLayersCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.trackIndex = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TranscribeLayersCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String projectId,
+    required int startMs,
+    required int endMs,
+    this.trackIndex = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       projectId = Value(projectId),
+       startMs = Value(startMs),
+       endMs = Value(endMs);
+  static Insertable<TranscribeLayer> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? projectId,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<int>? trackIndex,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (projectId != null) 'project_id': projectId,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (trackIndex != null) 'track_index': trackIndex,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TranscribeLayersCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? projectId,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<int>? trackIndex,
+    Value<int>? rowid,
+  }) {
+    return TranscribeLayersCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      projectId: projectId ?? this.projectId,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      trackIndex: trackIndex ?? this.trackIndex,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (trackIndex.present) {
+      map['track_index'] = Variable<int>(trackIndex.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranscribeLayersCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('trackIndex: $trackIndex, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TranscriptsTable extends Transcripts
     with TableInfo<$TranscriptsTable, Transcript> {
   @override
@@ -1139,6 +1661,42 @@ class $TranscriptsTable extends Transcripts
       'REFERENCES media_clips (id)',
     ),
   );
+  static const VerificationMeta _layerIdMeta = const VerificationMeta(
+    'layerId',
+  );
+  @override
+  late final GeneratedColumn<String> layerId = GeneratedColumn<String>(
+    'layer_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES transcribe_layers (id)',
+    ),
+  );
+  static const VerificationMeta _clipStartMsMeta = const VerificationMeta(
+    'clipStartMs',
+  );
+  @override
+  late final GeneratedColumn<int> clipStartMs = GeneratedColumn<int>(
+    'clip_start_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _clipEndMsMeta = const VerificationMeta(
+    'clipEndMs',
+  );
+  @override
+  late final GeneratedColumn<int> clipEndMs = GeneratedColumn<int>(
+    'clip_end_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _languageMeta = const VerificationMeta(
     'language',
   );
@@ -1181,6 +1739,9 @@ class $TranscriptsTable extends Transcripts
     deletedAt,
     projectId,
     clipId,
+    layerId,
+    clipStartMs,
+    clipEndMs,
     language,
     speakerNames,
     fullText,
@@ -1236,6 +1797,27 @@ class $TranscriptsTable extends Transcripts
       context.handle(
         _clipIdMeta,
         clipId.isAcceptableOrUnknown(data['clip_id']!, _clipIdMeta),
+      );
+    }
+    if (data.containsKey('layer_id')) {
+      context.handle(
+        _layerIdMeta,
+        layerId.isAcceptableOrUnknown(data['layer_id']!, _layerIdMeta),
+      );
+    }
+    if (data.containsKey('clip_start_ms')) {
+      context.handle(
+        _clipStartMsMeta,
+        clipStartMs.isAcceptableOrUnknown(
+          data['clip_start_ms']!,
+          _clipStartMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('clip_end_ms')) {
+      context.handle(
+        _clipEndMsMeta,
+        clipEndMs.isAcceptableOrUnknown(data['clip_end_ms']!, _clipEndMsMeta),
       );
     }
     if (data.containsKey('language')) {
@@ -1294,6 +1876,18 @@ class $TranscriptsTable extends Transcripts
         DriftSqlType.string,
         data['${effectivePrefix}clip_id'],
       ),
+      layerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}layer_id'],
+      ),
+      clipStartMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}clip_start_ms'],
+      ),
+      clipEndMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}clip_end_ms'],
+      ),
       language: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}language'],
@@ -1329,9 +1923,29 @@ class Transcript extends DataClass implements Insertable<Transcript> {
   /// back-filled every existing transcript, and everything written since sets
   /// it. Treat a null here as a row from a database that has not been migrated.
   ///
-  /// Word timings are relative to the clip's own media, not to any project-wide
-  /// timeline -- there is no compositor to define one.
+  /// Word timings are relative to the clip's own media. A project-wide axis
+  /// does exist now (`ProjectTimeline`), but it describes the *arrangement* of
+  /// clips rather than a single continuous recording, so it is derived from
+  /// clip durations and never stored on a word.
   final String? clipId;
+
+  /// The layer whose run produced this transcript, or null for one written
+  /// before layers existed and back-filled by the schema-6 migration.
+  final String? layerId;
+
+  /// The clip-relative range these words actually cover.
+  ///
+  /// **Stored rather than derived from the layer.** A layer's position is a
+  /// fact about arrangement and moves whenever clips are reordered; this is a
+  /// fact about audio — the range that was fed to the engine at the moment it
+  /// ran — and must not move with it. Deriving it would silently relabel words
+  /// the user has already corrected.
+  ///
+  /// Null means "the whole clip", which is exactly what a pre-schema-6
+  /// transcript is, so legacy rows need no special case: read them as
+  /// `clipStartMs ?? 0` and `clipEndMs ?? clip.durationMs`.
+  final int? clipStartMs;
+  final int? clipEndMs;
   final String language;
 
   /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
@@ -1362,6 +1976,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     this.deletedAt,
     required this.projectId,
     this.clipId,
+    this.layerId,
+    this.clipStartMs,
+    this.clipEndMs,
     required this.language,
     this.speakerNames,
     required this.fullText,
@@ -1378,6 +1995,15 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     map['project_id'] = Variable<String>(projectId);
     if (!nullToAbsent || clipId != null) {
       map['clip_id'] = Variable<String>(clipId);
+    }
+    if (!nullToAbsent || layerId != null) {
+      map['layer_id'] = Variable<String>(layerId);
+    }
+    if (!nullToAbsent || clipStartMs != null) {
+      map['clip_start_ms'] = Variable<int>(clipStartMs);
+    }
+    if (!nullToAbsent || clipEndMs != null) {
+      map['clip_end_ms'] = Variable<int>(clipEndMs);
     }
     map['language'] = Variable<String>(language);
     if (!nullToAbsent || speakerNames != null) {
@@ -1399,6 +2025,15 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       clipId: clipId == null && nullToAbsent
           ? const Value.absent()
           : Value(clipId),
+      layerId: layerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(layerId),
+      clipStartMs: clipStartMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clipStartMs),
+      clipEndMs: clipEndMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clipEndMs),
       language: Value(language),
       speakerNames: speakerNames == null && nullToAbsent
           ? const Value.absent()
@@ -1419,6 +2054,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       projectId: serializer.fromJson<String>(json['projectId']),
       clipId: serializer.fromJson<String?>(json['clipId']),
+      layerId: serializer.fromJson<String?>(json['layerId']),
+      clipStartMs: serializer.fromJson<int?>(json['clipStartMs']),
+      clipEndMs: serializer.fromJson<int?>(json['clipEndMs']),
       language: serializer.fromJson<String>(json['language']),
       speakerNames: serializer.fromJson<String?>(json['speakerNames']),
       fullText: serializer.fromJson<String>(json['fullText']),
@@ -1434,6 +2072,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'projectId': serializer.toJson<String>(projectId),
       'clipId': serializer.toJson<String?>(clipId),
+      'layerId': serializer.toJson<String?>(layerId),
+      'clipStartMs': serializer.toJson<int?>(clipStartMs),
+      'clipEndMs': serializer.toJson<int?>(clipEndMs),
       'language': serializer.toJson<String>(language),
       'speakerNames': serializer.toJson<String?>(speakerNames),
       'fullText': serializer.toJson<String>(fullText),
@@ -1447,6 +2088,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     Value<DateTime?> deletedAt = const Value.absent(),
     String? projectId,
     Value<String?> clipId = const Value.absent(),
+    Value<String?> layerId = const Value.absent(),
+    Value<int?> clipStartMs = const Value.absent(),
+    Value<int?> clipEndMs = const Value.absent(),
     String? language,
     Value<String?> speakerNames = const Value.absent(),
     String? fullText,
@@ -1457,6 +2101,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     projectId: projectId ?? this.projectId,
     clipId: clipId.present ? clipId.value : this.clipId,
+    layerId: layerId.present ? layerId.value : this.layerId,
+    clipStartMs: clipStartMs.present ? clipStartMs.value : this.clipStartMs,
+    clipEndMs: clipEndMs.present ? clipEndMs.value : this.clipEndMs,
     language: language ?? this.language,
     speakerNames: speakerNames.present ? speakerNames.value : this.speakerNames,
     fullText: fullText ?? this.fullText,
@@ -1469,6 +2116,11 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       clipId: data.clipId.present ? data.clipId.value : this.clipId,
+      layerId: data.layerId.present ? data.layerId.value : this.layerId,
+      clipStartMs: data.clipStartMs.present
+          ? data.clipStartMs.value
+          : this.clipStartMs,
+      clipEndMs: data.clipEndMs.present ? data.clipEndMs.value : this.clipEndMs,
       language: data.language.present ? data.language.value : this.language,
       speakerNames: data.speakerNames.present
           ? data.speakerNames.value
@@ -1486,6 +2138,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           ..write('deletedAt: $deletedAt, ')
           ..write('projectId: $projectId, ')
           ..write('clipId: $clipId, ')
+          ..write('layerId: $layerId, ')
+          ..write('clipStartMs: $clipStartMs, ')
+          ..write('clipEndMs: $clipEndMs, ')
           ..write('language: $language, ')
           ..write('speakerNames: $speakerNames, ')
           ..write('fullText: $fullText')
@@ -1501,6 +2156,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     deletedAt,
     projectId,
     clipId,
+    layerId,
+    clipStartMs,
+    clipEndMs,
     language,
     speakerNames,
     fullText,
@@ -1515,6 +2173,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           other.deletedAt == this.deletedAt &&
           other.projectId == this.projectId &&
           other.clipId == this.clipId &&
+          other.layerId == this.layerId &&
+          other.clipStartMs == this.clipStartMs &&
+          other.clipEndMs == this.clipEndMs &&
           other.language == this.language &&
           other.speakerNames == this.speakerNames &&
           other.fullText == this.fullText);
@@ -1527,6 +2188,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
   final Value<DateTime?> deletedAt;
   final Value<String> projectId;
   final Value<String?> clipId;
+  final Value<String?> layerId;
+  final Value<int?> clipStartMs;
+  final Value<int?> clipEndMs;
   final Value<String> language;
   final Value<String?> speakerNames;
   final Value<String> fullText;
@@ -1538,6 +2202,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     this.deletedAt = const Value.absent(),
     this.projectId = const Value.absent(),
     this.clipId = const Value.absent(),
+    this.layerId = const Value.absent(),
+    this.clipStartMs = const Value.absent(),
+    this.clipEndMs = const Value.absent(),
     this.language = const Value.absent(),
     this.speakerNames = const Value.absent(),
     this.fullText = const Value.absent(),
@@ -1550,6 +2217,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     this.deletedAt = const Value.absent(),
     required String projectId,
     this.clipId = const Value.absent(),
+    this.layerId = const Value.absent(),
+    this.clipStartMs = const Value.absent(),
+    this.clipEndMs = const Value.absent(),
     this.language = const Value.absent(),
     this.speakerNames = const Value.absent(),
     required String fullText,
@@ -1566,6 +2236,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     Expression<DateTime>? deletedAt,
     Expression<String>? projectId,
     Expression<String>? clipId,
+    Expression<String>? layerId,
+    Expression<int>? clipStartMs,
+    Expression<int>? clipEndMs,
     Expression<String>? language,
     Expression<String>? speakerNames,
     Expression<String>? fullText,
@@ -1578,6 +2251,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (projectId != null) 'project_id': projectId,
       if (clipId != null) 'clip_id': clipId,
+      if (layerId != null) 'layer_id': layerId,
+      if (clipStartMs != null) 'clip_start_ms': clipStartMs,
+      if (clipEndMs != null) 'clip_end_ms': clipEndMs,
       if (language != null) 'language': language,
       if (speakerNames != null) 'speaker_names': speakerNames,
       if (fullText != null) 'full_text': fullText,
@@ -1592,6 +2268,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     Value<DateTime?>? deletedAt,
     Value<String>? projectId,
     Value<String?>? clipId,
+    Value<String?>? layerId,
+    Value<int?>? clipStartMs,
+    Value<int?>? clipEndMs,
     Value<String>? language,
     Value<String?>? speakerNames,
     Value<String>? fullText,
@@ -1604,6 +2283,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
       deletedAt: deletedAt ?? this.deletedAt,
       projectId: projectId ?? this.projectId,
       clipId: clipId ?? this.clipId,
+      layerId: layerId ?? this.layerId,
+      clipStartMs: clipStartMs ?? this.clipStartMs,
+      clipEndMs: clipEndMs ?? this.clipEndMs,
       language: language ?? this.language,
       speakerNames: speakerNames ?? this.speakerNames,
       fullText: fullText ?? this.fullText,
@@ -1632,6 +2314,15 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     if (clipId.present) {
       map['clip_id'] = Variable<String>(clipId.value);
     }
+    if (layerId.present) {
+      map['layer_id'] = Variable<String>(layerId.value);
+    }
+    if (clipStartMs.present) {
+      map['clip_start_ms'] = Variable<int>(clipStartMs.value);
+    }
+    if (clipEndMs.present) {
+      map['clip_end_ms'] = Variable<int>(clipEndMs.value);
+    }
     if (language.present) {
       map['language'] = Variable<String>(language.value);
     }
@@ -1656,6 +2347,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
           ..write('deletedAt: $deletedAt, ')
           ..write('projectId: $projectId, ')
           ..write('clipId: $clipId, ')
+          ..write('layerId: $layerId, ')
+          ..write('clipStartMs: $clipStartMs, ')
+          ..write('clipEndMs: $clipEndMs, ')
           ..write('language: $language, ')
           ..write('speakerNames: $speakerNames, ')
           ..write('fullText: $fullText, ')
@@ -3276,6 +3970,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProjectsTable projects = $ProjectsTable(this);
   late final $MediaClipsTable mediaClips = $MediaClipsTable(this);
+  late final $TranscribeLayersTable transcribeLayers = $TranscribeLayersTable(
+    this,
+  );
   late final $TranscriptsTable transcripts = $TranscriptsTable(this);
   late final $WordsTable words = $WordsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
@@ -3283,6 +3980,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index mediaClipsProjectPosition = Index(
     'media_clips_project_position',
     'CREATE INDEX media_clips_project_position ON media_clips (project_id, position)',
+  );
+  late final Index transcribeLayersProjectStart = Index(
+    'transcribe_layers_project_start',
+    'CREATE INDEX transcribe_layers_project_start ON transcribe_layers (project_id, start_ms)',
   );
   late final Index wordsTranscriptStart = Index(
     'words_transcript_start',
@@ -3303,11 +4004,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     projects,
     mediaClips,
+    transcribeLayers,
     transcripts,
     words,
     settings,
     editEvents,
     mediaClipsProjectPosition,
+    transcribeLayersProjectStart,
     wordsTranscriptStart,
     settingsKey,
     editEventsTranscriptSeq,
@@ -3352,6 +4055,26 @@ final class $$ProjectsTableReferences
     ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_mediaClipsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TranscribeLayersTable, List<TranscribeLayer>>
+  _transcribeLayersRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.transcribeLayers,
+    aliasName: 'projects__id__transcribe_layers__project_id',
+  );
+
+  $$TranscribeLayersTableProcessedTableManager get transcribeLayersRefs {
+    final manager = $$TranscribeLayersTableTableManager(
+      $_db,
+      $_db.transcribeLayers,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _transcribeLayersRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -3436,6 +4159,31 @@ class $$ProjectsTableFilterComposer
           }) => $$MediaClipsTableFilterComposer(
             $db: $db,
             $table: $db.mediaClips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> transcribeLayersRefs(
+    Expression<bool> Function($$TranscribeLayersTableFilterComposer f) f,
+  ) {
+    final $$TranscribeLayersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcribeLayers,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscribeLayersTableFilterComposer(
+            $db: $db,
+            $table: $db.transcribeLayers,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3573,6 +4321,31 @@ class $$ProjectsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> transcribeLayersRefs<T extends Object>(
+    Expression<T> Function($$TranscribeLayersTableAnnotationComposer a) f,
+  ) {
+    final $$TranscribeLayersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcribeLayers,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscribeLayersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcribeLayers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> transcriptsRefs<T extends Object>(
     Expression<T> Function($$TranscriptsTableAnnotationComposer a) f,
   ) {
@@ -3612,7 +4385,11 @@ class $$ProjectsTableTableManager
           $$ProjectsTableUpdateCompanionBuilder,
           (Project, $$ProjectsTableReferences),
           Project,
-          PrefetchHooks Function({bool mediaClipsRefs, bool transcriptsRefs})
+          PrefetchHooks Function({
+            bool mediaClipsRefs,
+            bool transcribeLayersRefs,
+            bool transcriptsRefs,
+          })
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
     : super(
@@ -3674,11 +4451,16 @@ class $$ProjectsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({mediaClipsRefs = false, transcriptsRefs = false}) {
+              ({
+                mediaClipsRefs = false,
+                transcribeLayersRefs = false,
+                transcriptsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (mediaClipsRefs) db.mediaClips,
+                    if (transcribeLayersRefs) db.transcribeLayers,
                     if (transcriptsRefs) db.transcripts,
                   ],
                   addJoins: null,
@@ -3699,6 +4481,27 @@ class $$ProjectsTableTableManager
                                 table,
                                 p0,
                               ).mediaClipsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (transcribeLayersRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          TranscribeLayer
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._transcribeLayersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).transcribeLayersRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.projectId == item.id,
@@ -3746,7 +4549,11 @@ typedef $$ProjectsTableProcessedTableManager =
       $$ProjectsTableUpdateCompanionBuilder,
       (Project, $$ProjectsTableReferences),
       Project,
-      PrefetchHooks Function({bool mediaClipsRefs, bool transcriptsRefs})
+      PrefetchHooks Function({
+        bool mediaClipsRefs,
+        bool transcribeLayersRefs,
+        bool transcriptsRefs,
+      })
     >;
 typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
   required String id,
@@ -4232,6 +5039,480 @@ typedef $$MediaClipsTableProcessedTableManager =
       MediaClip,
       PrefetchHooks Function({bool projectId, bool transcriptsRefs})
     >;
+typedef $$TranscribeLayersTableCreateCompanionBuilder =
+    TranscribeLayersCompanion Function({
+      required String id,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      required String projectId,
+      required int startMs,
+      required int endMs,
+      Value<int> trackIndex,
+      Value<int> rowid,
+    });
+typedef $$TranscribeLayersTableUpdateCompanionBuilder =
+    TranscribeLayersCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> projectId,
+      Value<int> startMs,
+      Value<int> endMs,
+      Value<int> trackIndex,
+      Value<int> rowid,
+    });
+
+final class $$TranscribeLayersTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $TranscribeLayersTable, TranscribeLayer> {
+  $$TranscribeLayersTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('transcribe_layers__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$TranscriptsTable, List<Transcript>>
+  _transcriptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.transcripts,
+    aliasName: 'transcribe_layers__id__transcripts__layer_id',
+  );
+
+  $$TranscriptsTableProcessedTableManager get transcriptsRefs {
+    final manager = $$TranscriptsTableTableManager(
+      $_db,
+      $_db.transcripts,
+    ).filter((f) => f.layerId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_transcriptsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$TranscribeLayersTableFilterComposer
+    extends Composer<_$AppDatabase, $TranscribeLayersTable> {
+  $$TranscribeLayersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trackIndex => $composableBuilder(
+    column: $table.trackIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> transcriptsRefs(
+    Expression<bool> Function($$TranscriptsTableFilterComposer f) f,
+  ) {
+    final $$TranscriptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.layerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableFilterComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$TranscribeLayersTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranscribeLayersTable> {
+  $$TranscribeLayersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get trackIndex => $composableBuilder(
+    column: $table.trackIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranscribeLayersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranscribeLayersTable> {
+  $$TranscribeLayersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<int> get trackIndex => $composableBuilder(
+    column: $table.trackIndex,
+    builder: (column) => column,
+  );
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> transcriptsRefs<T extends Object>(
+    Expression<T> Function($$TranscriptsTableAnnotationComposer a) f,
+  ) {
+    final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.layerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$TranscribeLayersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranscribeLayersTable,
+          TranscribeLayer,
+          $$TranscribeLayersTableFilterComposer,
+          $$TranscribeLayersTableOrderingComposer,
+          $$TranscribeLayersTableAnnotationComposer,
+          $$TranscribeLayersTableCreateCompanionBuilder,
+          $$TranscribeLayersTableUpdateCompanionBuilder,
+          (TranscribeLayer, $$TranscribeLayersTableReferences),
+          TranscribeLayer,
+          PrefetchHooks Function({bool projectId, bool transcriptsRefs})
+        > {
+  $$TranscribeLayersTableTableManager(
+    _$AppDatabase db,
+    $TranscribeLayersTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranscribeLayersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranscribeLayersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TranscribeLayersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<int> trackIndex = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranscribeLayersCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                startMs: startMs,
+                endMs: endMs,
+                trackIndex: trackIndex,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String projectId,
+                required int startMs,
+                required int endMs,
+                Value<int> trackIndex = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranscribeLayersCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                startMs: startMs,
+                endMs: endMs,
+                trackIndex: trackIndex,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TranscribeLayersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({projectId = false, transcriptsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (transcriptsRefs) db.transcripts,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (projectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.projectId,
+                            referencedTable: $$TranscribeLayersTableReferences
+                                ._projectIdTable(db),
+                            referencedColumn: $$TranscribeLayersTableReferences
+                                ._projectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (transcriptsRefs)
+                        await $_getPrefetchedData<
+                          TranscribeLayer,
+                          $TranscribeLayersTable,
+                          Transcript
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TranscribeLayersTableReferences
+                              ._transcriptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TranscribeLayersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).transcriptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.layerId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$TranscribeLayersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranscribeLayersTable,
+      TranscribeLayer,
+      $$TranscribeLayersTableFilterComposer,
+      $$TranscribeLayersTableOrderingComposer,
+      $$TranscribeLayersTableAnnotationComposer,
+      $$TranscribeLayersTableCreateCompanionBuilder,
+      $$TranscribeLayersTableUpdateCompanionBuilder,
+      (TranscribeLayer, $$TranscribeLayersTableReferences),
+      TranscribeLayer,
+      PrefetchHooks Function({bool projectId, bool transcriptsRefs})
+    >;
 typedef $$TranscriptsTableCreateCompanionBuilder =
     TranscriptsCompanion Function({
       required String id,
@@ -4240,6 +5521,9 @@ typedef $$TranscriptsTableCreateCompanionBuilder =
       Value<DateTime?> deletedAt,
       required String projectId,
       Value<String?> clipId,
+      Value<String?> layerId,
+      Value<int?> clipStartMs,
+      Value<int?> clipEndMs,
       Value<String> language,
       Value<String?> speakerNames,
       required String fullText,
@@ -4253,6 +5537,9 @@ typedef $$TranscriptsTableUpdateCompanionBuilder =
       Value<DateTime?> deletedAt,
       Value<String> projectId,
       Value<String?> clipId,
+      Value<String?> layerId,
+      Value<int?> clipStartMs,
+      Value<int?> clipEndMs,
       Value<String> language,
       Value<String?> speakerNames,
       Value<String> fullText,
@@ -4291,6 +5578,24 @@ final class $$TranscriptsTableReferences
       $_db.mediaClips,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_clipIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $TranscribeLayersTable _layerIdTable(_$AppDatabase db) => db
+      .transcribeLayers
+      .createAlias('transcripts__layer_id__transcribe_layers__id');
+
+  $$TranscribeLayersTableProcessedTableManager? get layerId {
+    final $_column = $_itemColumn<String>('layer_id');
+    if ($_column == null) return null;
+    final manager = $$TranscribeLayersTableTableManager(
+      $_db,
+      $_db.transcribeLayers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_layerIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -4364,6 +5669,16 @@ class $$TranscriptsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get clipStartMs => $composableBuilder(
+    column: $table.clipStartMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get clipEndMs => $composableBuilder(
+    column: $table.clipEndMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get language => $composableBuilder(
     column: $table.language,
     builder: (column) => ColumnFilters(column),
@@ -4416,6 +5731,29 @@ class $$TranscriptsTableFilterComposer
           }) => $$MediaClipsTableFilterComposer(
             $db: $db,
             $table: $db.mediaClips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TranscribeLayersTableFilterComposer get layerId {
+    final $$TranscribeLayersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.layerId,
+      referencedTable: $db.transcribeLayers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscribeLayersTableFilterComposer(
+            $db: $db,
+            $table: $db.transcribeLayers,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4505,6 +5843,16 @@ class $$TranscriptsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get clipStartMs => $composableBuilder(
+    column: $table.clipStartMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get clipEndMs => $composableBuilder(
+    column: $table.clipEndMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get language => $composableBuilder(
     column: $table.language,
     builder: (column) => ColumnOrderings(column),
@@ -4565,6 +5913,29 @@ class $$TranscriptsTableOrderingComposer
     );
     return composer;
   }
+
+  $$TranscribeLayersTableOrderingComposer get layerId {
+    final $$TranscribeLayersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.layerId,
+      referencedTable: $db.transcribeLayers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscribeLayersTableOrderingComposer(
+            $db: $db,
+            $table: $db.transcribeLayers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TranscriptsTableAnnotationComposer
@@ -4587,6 +5958,14 @@ class $$TranscriptsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get clipStartMs => $composableBuilder(
+    column: $table.clipStartMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get clipEndMs =>
+      $composableBuilder(column: $table.clipEndMs, builder: (column) => column);
 
   GeneratedColumn<String> get language =>
       $composableBuilder(column: $table.language, builder: (column) => column);
@@ -4636,6 +6015,29 @@ class $$TranscriptsTableAnnotationComposer
           }) => $$MediaClipsTableAnnotationComposer(
             $db: $db,
             $table: $db.mediaClips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$TranscribeLayersTableAnnotationComposer get layerId {
+    final $$TranscribeLayersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.layerId,
+      referencedTable: $db.transcribeLayers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscribeLayersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcribeLayers,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4712,6 +6114,7 @@ class $$TranscriptsTableTableManager
           PrefetchHooks Function({
             bool projectId,
             bool clipId,
+            bool layerId,
             bool wordsRefs,
             bool editEventsRefs,
           })
@@ -4735,6 +6138,9 @@ class $$TranscriptsTableTableManager
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> projectId = const Value.absent(),
                 Value<String?> clipId = const Value.absent(),
+                Value<String?> layerId = const Value.absent(),
+                Value<int?> clipStartMs = const Value.absent(),
+                Value<int?> clipEndMs = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<String?> speakerNames = const Value.absent(),
                 Value<String> fullText = const Value.absent(),
@@ -4746,6 +6152,9 @@ class $$TranscriptsTableTableManager
                 deletedAt: deletedAt,
                 projectId: projectId,
                 clipId: clipId,
+                layerId: layerId,
+                clipStartMs: clipStartMs,
+                clipEndMs: clipEndMs,
                 language: language,
                 speakerNames: speakerNames,
                 fullText: fullText,
@@ -4759,6 +6168,9 @@ class $$TranscriptsTableTableManager
                 Value<DateTime?> deletedAt = const Value.absent(),
                 required String projectId,
                 Value<String?> clipId = const Value.absent(),
+                Value<String?> layerId = const Value.absent(),
+                Value<int?> clipStartMs = const Value.absent(),
+                Value<int?> clipEndMs = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<String?> speakerNames = const Value.absent(),
                 required String fullText,
@@ -4770,6 +6182,9 @@ class $$TranscriptsTableTableManager
                 deletedAt: deletedAt,
                 projectId: projectId,
                 clipId: clipId,
+                layerId: layerId,
+                clipStartMs: clipStartMs,
+                clipEndMs: clipEndMs,
                 language: language,
                 speakerNames: speakerNames,
                 fullText: fullText,
@@ -4787,6 +6202,7 @@ class $$TranscriptsTableTableManager
               ({
                 projectId = false,
                 clipId = false,
+                layerId = false,
                 wordsRefs = false,
                 editEventsRefs = false,
               }) {
@@ -4831,6 +6247,17 @@ class $$TranscriptsTableTableManager
                                 ._clipIdTable(db),
                             referencedColumn: $$TranscriptsTableReferences
                                 ._clipIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (layerId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.layerId,
+                            referencedTable: $$TranscriptsTableReferences
+                                ._layerIdTable(db),
+                            referencedColumn: $$TranscriptsTableReferences
+                                ._layerIdTable(db)
                                 .id,
                           ) as T;
                         }
@@ -4904,6 +6331,7 @@ typedef $$TranscriptsTableProcessedTableManager =
       PrefetchHooks Function({
         bool projectId,
         bool clipId,
+        bool layerId,
         bool wordsRefs,
         bool editEventsRefs,
       })
@@ -5921,6 +7349,8 @@ class $AppDatabaseManager {
       $$ProjectsTableTableManager(_db, _db.projects);
   $$MediaClipsTableTableManager get mediaClips =>
       $$MediaClipsTableTableManager(_db, _db.mediaClips);
+  $$TranscribeLayersTableTableManager get transcribeLayers =>
+      $$TranscribeLayersTableTableManager(_db, _db.transcribeLayers);
   $$TranscriptsTableTableManager get transcripts =>
       $$TranscriptsTableTableManager(_db, _db.transcripts);
   $$WordsTableTableManager get words =>

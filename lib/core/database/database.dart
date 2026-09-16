@@ -91,6 +91,45 @@ class MediaClips extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// A stretch of the project timeline the user has asked to have transcribed.
+///
+/// **A layer is a request, not a result.** It exists as soon as the user draws
+/// it and before anything has run; transcribing it produces [Transcripts], one
+/// per clip it overlaps, and those point back here through
+/// [Transcripts.layerId]. A layer with no transcripts has simply not been run
+/// yet.
+///
+/// [startMs] and [endMs] are **project-timeline** milliseconds, not clip
+/// offsets, because a layer may span several clips — which is also why it is
+/// anchored to project time rather than to a clip. Reordering or deleting a
+/// clip underneath a layer therefore changes the audio it covers without moving
+/// the rectangle; the layer stops describing its transcripts, which is
+/// detectable by comparing the two, and is a far more explicable outcome than a
+/// rectangle silently jumping or vanishing.
+///
+/// Half-open, `[startMs, endMs)`, so two adjacent layers tile without both
+/// claiming the same millisecond.
+@TableIndex(
+    name: 'transcribe_layers_project_start', columns: {#projectId, #startMs})
+class TranscribeLayers extends Table with _RecordColumns {
+  TextColumn get projectId => text().references(Projects, #id)();
+
+  IntColumn get startMs => integer()();
+  IntColumn get endMs => integer()();
+
+  /// Which stacked track the layer sits on. Always 0 today.
+  ///
+  /// One column of insurance: a second track of layers is otherwise a
+  /// migration rather than a UI change, and it costs nothing to carry now.
+  /// Layers on the same track may not overlap, which is what makes "what
+  /// happens when two layers claim the same audio" a question nobody has to
+  /// answer.
+  IntColumn get trackIndex => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class Transcripts extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
 
@@ -101,9 +140,30 @@ class Transcripts extends Table with _RecordColumns {
   /// back-filled every existing transcript, and everything written since sets
   /// it. Treat a null here as a row from a database that has not been migrated.
   ///
-  /// Word timings are relative to the clip's own media, not to any project-wide
-  /// timeline -- there is no compositor to define one.
+  /// Word timings are relative to the clip's own media. A project-wide axis
+  /// does exist now (`ProjectTimeline`), but it describes the *arrangement* of
+  /// clips rather than a single continuous recording, so it is derived from
+  /// clip durations and never stored on a word.
   TextColumn get clipId => text().nullable().references(MediaClips, #id)();
+
+  /// The layer whose run produced this transcript, or null for one written
+  /// before layers existed and back-filled by the schema-6 migration.
+  TextColumn get layerId => text().nullable().references(TranscribeLayers, #id)();
+
+  /// The clip-relative range these words actually cover.
+  ///
+  /// **Stored rather than derived from the layer.** A layer's position is a
+  /// fact about arrangement and moves whenever clips are reordered; this is a
+  /// fact about audio — the range that was fed to the engine at the moment it
+  /// ran — and must not move with it. Deriving it would silently relabel words
+  /// the user has already corrected.
+  ///
+  /// Null means "the whole clip", which is exactly what a pre-schema-6
+  /// transcript is, so legacy rows need no special case: read them as
+  /// `clipStartMs ?? 0` and `clipEndMs ?? clip.durationMs`.
+  IntColumn get clipStartMs => integer().nullable()();
+  IntColumn get clipEndMs => integer().nullable()();
+
   TextColumn get language => text().withDefault(const Constant('en'))();
 
   /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
@@ -201,18 +261,26 @@ class Settings extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DriftDatabase(
-    tables: [Projects, MediaClips, Transcripts, Words, Settings, EditEvents])
+@DriftDatabase(tables: [
+  Projects,
+  MediaClips,
+  TranscribeLayers,
+  Transcripts,
+  Words,
+  Settings,
+  EditEvents,
+])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
-  /// [Transcripts.clipId], moving media off the project row.
+  /// [Transcripts.clipId], moving media off the project row, 5 -> 6 added
+  /// [TranscribeLayers] and the range columns on [Transcripts].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -236,8 +304,115 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(transcripts, transcripts.clipId);
             await _backfillClips();
           }
+          if (from < 6) {
+            await migrator.createTable(transcribeLayers);
+            await migrator.addColumn(transcripts, transcripts.layerId);
+            await migrator.addColumn(transcripts, transcripts.clipStartMs);
+            await migrator.addColumn(transcripts, transcripts.clipEndMs);
+            await _backfillLayers();
+          }
+
+          // **`createTable` does not create a table's declared indexes.**
+          // `createAll()` does, so a fresh install had them and every upgraded
+          // one silently did not -- `edit_events_transcript_seq` has been
+          // missing on upgraded installs since schema 3, and
+          // `media_clips_project_position` since schema 5. Nothing was
+          // incorrect, queries were just walking tables that should have been
+          // indexed, which is exactly the kind of drift that never announces
+          // itself.
+          //
+          // Run unconditionally rather than inside a version guard, because
+          // this has to repair databases already upgraded past the version
+          // that should have created them — there is no `from` that identifies
+          // "was missing an index it should have had".
+          //
+          // `createIndex` is not idempotent, so the statement each index
+          // carries is rewritten to `IF NOT EXISTS` rather than being
+          // hand-copied here; duplicating the definitions is how they drift
+          // from the annotations they came from.
+          for (final index in [
+            mediaClipsProjectPosition,
+            transcribeLayersProjectStart,
+            wordsTranscriptStart,
+            settingsKey,
+            editEventsTranscriptSeq,
+          ]) {
+            final sql = index.createStatementsByDialect[SqlDialect.sqlite];
+            if (sql == null) continue;
+            await customStatement(
+              sql.replaceFirstMapped(
+                RegExp('^CREATE (UNIQUE )?INDEX '),
+                (m) => '${m.group(0)}IF NOT EXISTS ',
+              ),
+            );
+          }
         },
       );
+
+  /// Gives every existing transcript the layer its clip always implied.
+  ///
+  /// Runs inside the 5 -> 6 step. Each transcript covered a whole clip, so each
+  /// gets a layer spanning that clip's stretch of the project timeline, and
+  /// records the clip-relative range it covers as the whole clip.
+  ///
+  /// **Without this an already-transcribed project would open showing an empty
+  /// layer track beside a full transcript**, and the obvious response is to
+  /// draw a layer over the whole thing and transcribe it a second time. The
+  /// back-fill is what makes "the track shows what has been transcribed" true
+  /// on the first launch after upgrading.
+  ///
+  /// A transcript whose clip cannot be resolved keeps a null [Transcripts.layerId]
+  /// rather than being given an invented rectangle over media nobody can find.
+  Future<void> _backfillLayers() async {
+    final projectRows = await select(projects).get();
+    final now = DateTime.now();
+
+    for (final project in projectRows) {
+      // Soft-deleted clips included: the offsets have to match the arrangement
+      // the transcripts were made against, and a tombstoned project's rows
+      // should stay internally consistent.
+      final clips = await (select(mediaClips)
+            ..where((t) => t.projectId.equals(project.id))
+            ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+          .get();
+
+      var offset = 0;
+      for (final clip in clips) {
+        final duration = clip.durationMs ?? 0;
+        final span = duration < 0 ? 0 : duration;
+
+        final covering = await (select(transcripts)
+              ..where((t) => t.clipId.equals(clip.id) & t.deletedAt.isNull()))
+            .get();
+
+        for (final transcript in covering) {
+          final layerId = _uuid.v4();
+          await into(transcribeLayers).insert(
+            TranscribeLayersCompanion.insert(
+              id: layerId,
+              createdAt: transcript.createdAt,
+              updatedAt: now,
+              projectId: project.id,
+              startMs: offset,
+              endMs: offset + span,
+              deletedAt: Value(clip.deletedAt),
+            ),
+          );
+
+          await (update(transcripts)..where((t) => t.id.equals(transcript.id)))
+              .write(
+            TranscriptsCompanion(
+              layerId: Value(layerId),
+              clipStartMs: const Value(0),
+              clipEndMs: Value(span),
+            ),
+          );
+        }
+
+        offset += span;
+      }
+    }
+  }
 
   /// Gives every pre-schema-5 project the clip its media already implied.
   ///
@@ -521,26 +696,133 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// The transcript belonging to one clip, or null when it has none yet.
+  /// Every transcript covering one clip, earliest range first.
   ///
-  /// Watched rather than fetched once for the same reason
-  /// [watchTranscriptForProject] was: speaker names live on this row, so a
-  /// rename has to reach the transcript view, the caption overlay and the
+  /// **Plural since schema 6**, having been a single row with
+  /// `ORDER BY createdAt DESC LIMIT 1` before that. Once a clip can be covered
+  /// by two layers — 0–10s and 40–60s, say — the old shape did not merely lose
+  /// precision, it returned whichever ran most recently and gave no sign the
+  /// other existed.
+  ///
+  /// Watched rather than fetched once because speaker names live on these rows,
+  /// so a rename has to reach the transcript view, the caption overlay and the
   /// export button without any of them being told to refresh.
-  Stream<Transcript?> watchTranscriptForClip(String clipId) {
+  ///
+  /// Ordered by [Transcripts.clipStartMs], which sorts nulls first in SQLite —
+  /// exactly where a legacy whole-clip transcript belongs.
+  Stream<List<Transcript>> watchTranscriptsForClip(String clipId) {
     return (select(transcripts)
           ..where((t) => t.clipId.equals(clipId) & t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-          ..limit(1))
-        .watchSingleOrNull();
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.clipStartMs),
+            (t) => OrderingTerm.asc(t.createdAt),
+          ]))
+        .watch();
   }
 
-  Future<Transcript?> findTranscriptForClip(String clipId) {
+  Future<List<Transcript>> transcriptsForClip(String clipId) {
     return (select(transcripts)
           ..where((t) => t.clipId.equals(clipId) & t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-          ..limit(1))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.clipStartMs),
+            (t) => OrderingTerm.asc(t.createdAt),
+          ]))
+        .get();
+  }
+
+  /// A project's layers in timeline order.
+  Stream<List<TranscribeLayer>> watchLayers(String projectId) {
+    return (select(transcribeLayers)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.startMs)]))
+        .watch();
+  }
+
+  Future<List<TranscribeLayer>> layersForProject(String projectId) {
+    return (select(transcribeLayers)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.startMs)]))
+        .get();
+  }
+
+  Future<TranscribeLayer?> findLayer(String layerId) {
+    return (select(transcribeLayers)
+          ..where((t) => t.id.equals(layerId) & t.deletedAt.isNull()))
         .getSingleOrNull();
+  }
+
+  /// Every transcript a layer's run produced.
+  Future<List<Transcript>> transcriptsForLayer(String layerId) {
+    return (select(transcripts)
+          ..where((t) => t.layerId.equals(layerId) & t.deletedAt.isNull()))
+        .get();
+  }
+
+  Future<void> insertLayer({
+    required String layerId,
+    required String projectId,
+    required int startMs,
+    required int endMs,
+    int trackIndex = 0,
+  }) {
+    final now = DateTime.now();
+    return into(transcribeLayers).insert(
+      TranscribeLayersCompanion.insert(
+        id: layerId,
+        createdAt: now,
+        updatedAt: now,
+        projectId: projectId,
+        startMs: startMs,
+        endMs: endMs,
+        trackIndex: Value(trackIndex),
+      ),
+    );
+  }
+
+  Future<void> moveLayer({
+    required String layerId,
+    required int startMs,
+    required int endMs,
+  }) {
+    final now = DateTime.now();
+    return (update(transcribeLayers)..where((t) => t.id.equals(layerId))).write(
+      TranscribeLayersCompanion(
+        startMs: Value(startMs),
+        endMs: Value(endMs),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Removes a layer, and with it the transcripts its run produced.
+  ///
+  /// The words are left live but unreachable, the same bargain
+  /// [softDeleteClip] makes: every read path starts from the transcript, and a
+  /// future sync wants the tombstone rather than a hole.
+  Future<void> softDeleteLayer(String layerId) {
+    final now = DateTime.now();
+    return transaction(() async {
+      await (update(transcripts)..where((t) => t.layerId.equals(layerId)))
+          .write(
+        TranscriptsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+      );
+      await (update(transcribeLayers)..where((t) => t.id.equals(layerId)))
+          .write(
+        TranscribeLayersCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+    });
+  }
+
+  /// Discards a layer's transcripts while keeping the layer itself, so it can
+  /// be run again.
+  Future<void> softDeleteTranscriptsForLayer(String layerId) {
+    final now = DateTime.now();
+    return (update(transcripts)..where((t) => t.layerId.equals(layerId))).write(
+      TranscriptsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+    );
   }
 
   /// Copies a project, its transcript and every word, sharing the media file.
@@ -579,6 +861,25 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
+      // Layers first, so each copied transcript can point at the copy of the
+      // layer that produced it rather than at the original's.
+      final layerIds = <String, String>{};
+      for (final layer in await layersForProject(sourceProjectId)) {
+        final newLayerId = newId();
+        layerIds[layer.id] = newLayerId;
+        await into(transcribeLayers).insert(
+          TranscribeLayersCompanion.insert(
+            id: newLayerId,
+            createdAt: now,
+            updatedAt: now,
+            projectId: newProjectId,
+            startMs: layer.startMs,
+            endMs: layer.endMs,
+            trackIndex: Value(layer.trackIndex),
+          ),
+        );
+      }
+
       // Every clip, in order, each reusing the source's file. Not a copy --
       // see `projectsSharingMedia`.
       for (final clip in await clipsForProject(sourceProjectId)) {
@@ -596,46 +897,51 @@ class AppDatabase extends _$AppDatabase {
           ),
         );
 
-        // A clip nobody has transcribed yet copies as an untranscribed clip.
-        final transcript = await findTranscriptForClip(clip.id);
-        if (transcript == null) continue;
+        // **Every** transcript on the clip, not just one. A clip covered by
+        // two layers would otherwise lose all but the newest, and the
+        // duplicate would show a timeline of layers with no words under most
+        // of them.
+        for (final transcript in await transcriptsForClip(clip.id)) {
+          final newTranscriptId = newId();
+          await into(transcripts).insert(
+            TranscriptsCompanion.insert(
+              id: newTranscriptId,
+              createdAt: now,
+              updatedAt: now,
+              projectId: newProjectId,
+              clipId: Value(newClipId),
+              layerId: Value(layerIds[transcript.layerId]),
+              clipStartMs: Value(transcript.clipStartMs),
+              clipEndMs: Value(transcript.clipEndMs),
+              language: Value(transcript.language),
+              speakerNames: Value(transcript.speakerNames),
+              fullText: transcript.fullText,
+            ),
+          );
 
-        final newTranscriptId = newId();
-        await into(transcripts).insert(
-          TranscriptsCompanion.insert(
-            id: newTranscriptId,
-            createdAt: now,
-            updatedAt: now,
-            projectId: newProjectId,
-            clipId: Value(newClipId),
-            language: Value(transcript.language),
-            speakerNames: Value(transcript.speakerNames),
-            fullText: transcript.fullText,
-          ),
-        );
+          final words = await (select(this.words)
+                ..where((t) =>
+                    t.transcriptId.equals(transcript.id) & t.deletedAt.isNull())
+                ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+              .get();
 
-        final words = await (select(this.words)
-              ..where((t) =>
-                  t.transcriptId.equals(transcript.id) & t.deletedAt.isNull())
-              ..orderBy([(t) => OrderingTerm.asc(t.position)]))
-            .get();
-
-        await batch((batch) {
-          batch.insertAll(this.words, [
-            for (final word in words)
-              WordsCompanion.insert(
-                id: newId(),
-                createdAt: now,
-                updatedAt: now,
-                transcriptId: newTranscriptId,
-                position: word.position,
-                word: word.word,
-                startMs: word.startMs,
-                endMs: word.endMs,
-                speakerId: Value(word.speakerId),
-              ),
-          ]);
-        });
+          await batch((batch) {
+            batch.insertAll(this.words, [
+              for (final word in words)
+                WordsCompanion.insert(
+                  id: newId(),
+                  createdAt: now,
+                  updatedAt: now,
+                  transcriptId: newTranscriptId,
+                  position: word.position,
+                  word: word.word,
+                  startMs: word.startMs,
+                  endMs: word.endMs,
+                  speakerId: Value(word.speakerId),
+                ),
+            ]);
+          });
+        }
       }
 
       return newProjectId;
@@ -767,6 +1073,13 @@ class AppDatabase extends _$AppDatabase {
       // project, so nothing can still find them.
       await (update(mediaClips)..where((t) => t.projectId.equals(id))).write(
         MediaClipsCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+      await (update(transcribeLayers)..where((t) => t.projectId.equals(id)))
+          .write(
+        TranscribeLayersCompanion(
           deletedAt: Value(now),
           updatedAt: Value(now),
         ),

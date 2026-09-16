@@ -430,4 +430,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get createProjectDefaultName => 'Untitled project';
+
+  @override
+  String get layerAdd => 'Add layer';
+
+  @override
+  String get layerRemove => 'Remove layer';
+
+  @override
+  String get layerHint => 'Add a layer to mark what to transcribe.';
+
+  @override
+  String get layerSelected => 'Layer selected.';
+
+  @override
+  String get layerNoRoom => 'No room for another layer here.';
+
+  @override
+  String get trackShow => 'Show track';
+
+  @override
+  String get trackHide => 'Hide track';
+
+  @override
+  String get trackReorder => 'Reorder tracks';
 }

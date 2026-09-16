@@ -54,7 +54,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForClip(clipId);
+      final transcript = (await repository.transcriptsForClip(clipId)).firstOrNull;
       expect(transcript, isNotNull);
       expect(transcript!.fullText, 'Hello there world');
 
@@ -96,7 +96,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForClip(clipId);
+      final transcript = (await repository.transcriptsForClip(clipId)).firstOrNull;
       final words = await repository.watchWords(transcript!.id).first;
 
       // The blank segment must not survive as an empty, invisible word, and
@@ -158,7 +158,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForClip(clipId);
+      final transcript = (await repository.transcriptsForClip(clipId)).firstOrNull;
       final before = (await repository.watchWords(transcript!.id).first).single;
 
       await repository.updateWordText(before.id, 'API');
@@ -212,7 +212,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForClip(clipId);
+      final transcript = (await repository.transcriptsForClip(clipId)).firstOrNull;
 
       // "That's right." arrived split across two speakers -- the reported
       // failure. Putting both words on one speaker is the correction, and it

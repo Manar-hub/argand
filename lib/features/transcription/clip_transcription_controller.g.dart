@@ -104,7 +104,7 @@ final class ClipTranscriptionControllerProvider
 }
 
 String _$clipTranscriptionControllerHash() =>
-    r'd387e8a3c8df8f7e73b4e4b4d1fca2ad559360af';
+    r'923054b3084095f46ad055659f68661b2d121243';
 
 /// Transcribes one clip, on request.
 ///

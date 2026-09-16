@@ -66,7 +66,7 @@ void main() {
         ],
       ),
     );
-    return (await repository.findTranscriptForClip(clipId))!.id;
+    return (await repository.transcriptsForClip(clipId)).first.id;
   }
 
   testWidgets('the edit log survives on Android SQLite', (tester) async {

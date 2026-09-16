@@ -55,12 +55,17 @@ class ClipTranscriptionController extends _$ClipTranscriptionController {
   ClipTranscriptionStatus build(String clipId) =>
       const ClipTranscriptionIdle();
 
-  /// Runs the engine over this clip and saves the words.
+  /// Runs the engine over the whole of this clip and saves the words.
   ///
-  /// Refuses to run twice over the same clip: a second transcript would win the
-  /// clip-transcript lookup and silently strand every correction made against
-  /// the first. Re-transcribing is a destructive act and needs its own
-  /// confirmed path, not an accidental second tap.
+  /// **A shortcut for drawing a layer over the clip and running it**, so that
+  /// layers stay the single mechanism rather than this being a second one.
+  /// The layer it creates is what makes the result show on the timeline track
+  /// and what a later re-run would replace.
+  ///
+  /// Refuses to run twice over the same clip: a second transcript covering the
+  /// same range would sit beside the first with no way to tell which the user
+  /// meant. Re-transcribing is destructive and needs its own confirmed path,
+  /// not an accidental second tap.
   Future<void> transcribe() async {
     if (state is ClipTranscriptionRunning) return;
 
@@ -68,10 +73,15 @@ class ClipTranscriptionController extends _$ClipTranscriptionController {
     final clip = await repository.findClip(clipId);
     if (clip == null) return;
 
-    if (await repository.findTranscriptForClip(clipId) != null) {
+    if ((await repository.transcriptsForClip(clipId)).isNotEmpty) {
       state = const ClipTranscriptionIdle();
       return;
     }
+
+    // Where this clip sits on the project timeline, so the layer lands over
+    // the clip it describes rather than at the project's start.
+    final timeline = ref.read(projectTimelineProvider(clip.projectId));
+    final placement = timeline.placementOf(clipId);
 
     try {
       final outcome = await TranscriptionRunner(ref).run(
@@ -82,12 +92,23 @@ class ClipTranscriptionController extends _$ClipTranscriptionController {
       );
 
       state = const ClipTranscriptionRunning(ImportStage.saving);
+
+      final layerId = placement == null
+          ? null
+          : await repository.addLayer(
+              projectId: clip.projectId,
+              startMs: placement.startMs,
+              endMs: placement.startMs + placement.durationMs,
+            );
+
       await repository.saveClipTranscript(
         projectId: clip.projectId,
         clipId: clipId,
         language: outcome.language,
         speakerSpans: outcome.speakerSpans,
         result: outcome.result,
+        layerId: layerId,
+        rangeEndMs: clip.durationMs,
       );
 
       state = const ClipTranscriptionIdle();

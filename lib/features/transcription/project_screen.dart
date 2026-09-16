@@ -89,9 +89,12 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     // history controls act on exactly what is on screen.
     final selectedClip =
         ref.watch(resolvedSelectedClipProvider(widget.projectId));
+    // The app bar acts on whichever range is in front of the user. With one
+    // transcript on the clip -- the ordinary case -- that is simply it.
     final transcript = selectedClip == null
         ? null
-        : ref.watch(clipTranscriptProvider(selectedClip)).value;
+        : (ref.watch(clipTranscriptsProvider(selectedClip)).value ?? const [])
+            .firstOrNull;
     final mode = ref.watch(sessionEditorModeProvider(widget.projectId));
 
     // Export outcomes are transient, so they are acknowledged rather than
@@ -771,13 +774,26 @@ class HistoryControls extends ConsumerWidget {
   }
 }
 
-class _ProjectBody extends ConsumerWidget {
+class _ProjectBody extends ConsumerStatefulWidget {
   const _ProjectBody({required this.project});
 
   final Project project;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProjectBody> createState() => _ProjectBodyState();
+}
+
+class _ProjectBodyState extends ConsumerState<_ProjectBody> {
+  /// Which of the clip's transcribed ranges is showing, when it has several.
+  ///
+  /// Null, or an id no longer present, both fall back to the first range —
+  /// which is what keeps this sane when the selected range is re-transcribed
+  /// or its layer removed out from under the screen.
+  String? _selectedRangeId;
+
+  @override
+  Widget build(BuildContext context) {
+    final project = widget.project;
     final l10n = AppLocalizations.of(context);
     // Script mode shows the clip the timeline has selected. A project with no
     // clips has nothing to show and nothing to play.
@@ -786,17 +802,51 @@ class _ProjectBody extends ConsumerWidget {
       return _CenteredMessage(message: l10n.timelineNoClips);
     }
 
-    final transcript = ref.watch(clipTranscriptProvider(clipId));
+    final transcripts = ref.watch(clipTranscriptsProvider(clipId));
+    final ranges = transcripts.value ?? const <Transcript>[];
+    // Which range is showing. Kept as plain widget state rather than a
+    // provider: it is a cursor within one screen, and there is nothing else
+    // that needs to read it.
+    final selected = ranges.isEmpty
+        ? null
+        : ranges.firstWhere(
+            (t) => t.id == _selectedRangeId,
+            orElse: () => ranges.first,
+          );
 
     return Column(
       children: [
         // The player needs the transcript id to draw captions over the video.
         // Null until the transcript loads, and null forever for a clip nobody
         // has transcribed -- the overlay simply does not appear.
+        //
+        // Deliberately the *selected* range rather than all of them merged:
+        // each range is its own diarization run, so a merged overlay would
+        // show one person in two colours and two names as the playhead crossed
+        // a boundary.
         _PlayerPane(
           clipId: clipId,
-          transcriptId: transcript.value?.id,
+          transcriptId: selected?.id,
         ),
+        // Only when there is a choice to make. A clip with one transcript --
+        // every clip until layers are used -- looks exactly as it did before.
+        if (ranges.length > 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              0,
+            ),
+            child: _SegmentRow<String>(
+              selected: selected!.id,
+              items: {
+                for (final range in ranges)
+                  range.id: _rangeLabel(range),
+              },
+              onSelected: (id) => setState(() => _selectedRangeId = id),
+            ),
+          ),
         // The player casts no shadow of its own — the transcript draws it,
         // from inside its own stack. Two reasons. A column sibling paints
         // before the one that follows it, so anything cast here would be
@@ -806,20 +856,32 @@ class _ProjectBody extends ConsumerWidget {
         // exactly that line, so the two become one instead of stacking into a
         // double rule.
         Expanded(
-          child: transcript.when(
+          child: transcripts.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => _CenteredMessage(message: '$error'),
             // A clip nobody has asked to transcribe yet. Says so plainly and
             // points at where the action lives, rather than implying the
             // engine found no speech -- which is a different outcome entirely.
-            data: (value) => value == null
+            data: (_) => selected == null
                 ? _CenteredMessage(message: l10n.clipNotTranscribedScript)
-                : _TranscriptView(clipId: clipId, transcript: value),
+                : _TranscriptView(clipId: clipId, transcript: selected),
           ),
         ),
       ],
     );
   }
+}
+
+/// A transcript's clip-relative range, for the range selector.
+///
+/// A null range means the whole clip — what a transcript written before layers
+/// existed carries — so it gets the plain label rather than a fabricated span.
+String _rangeLabel(Transcript transcript) {
+  final start = transcript.clipStartMs;
+  final end = transcript.clipEndMs;
+  if (start == null || end == null) return _formatPosition(Duration.zero);
+  return '${_formatPosition(Duration(milliseconds: start))}'
+      '–${_formatPosition(Duration(milliseconds: end))}';
 }
 
 class _PlayerPane extends ConsumerWidget {

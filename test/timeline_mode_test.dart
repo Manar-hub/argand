@@ -235,6 +235,157 @@ void main() {
       expect([for (final clip in reordered) clip.position], [0, 1, 2]);
     });
 
+    test('layers on a track may not overlap', () async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'trip');
+
+      final first =
+          await repository.addLayer(projectId: projectId, startMs: 0, endMs: 5000);
+      expect(first, isNotNull);
+
+      // Overlapping at the front, inside, and around: all refused, so "which
+      // layer owns this audio" never becomes a question anyone has to answer.
+      expect(
+        await repository.addLayer(projectId: projectId, startMs: 4000, endMs: 9000),
+        isNull,
+      );
+      expect(
+        await repository.addLayer(projectId: projectId, startMs: 1000, endMs: 2000),
+        isNull,
+      );
+      expect(
+        await repository.addLayer(projectId: projectId, startMs: 0, endMs: 9000),
+        isNull,
+      );
+
+      // Meeting exactly at the boundary is adjacency, not overlap -- the same
+      // half-open rule ProjectTimeline splits ranges with.
+      expect(
+        await repository.addLayer(projectId: projectId, startMs: 5000, endMs: 9000),
+        isNotNull,
+      );
+      expect(await repository.layersForProject(projectId), hasLength(2));
+    });
+
+    test('moving a layer is held to the same overlap rule', () async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'trip');
+
+      final a = (await repository.addLayer(
+          projectId: projectId, startMs: 0, endMs: 5000))!;
+      final b = (await repository.addLayer(
+          projectId: projectId, startMs: 6000, endMs: 9000))!;
+
+      expect(
+        await repository.moveLayer(layerId: b, startMs: 4000, endMs: 7000),
+        isFalse,
+        reason: 'it would run into the layer before it',
+      );
+      // A layer never collides with itself.
+      expect(
+        await repository.moveLayer(layerId: b, startMs: 5000, endMs: 8000),
+        isTrue,
+      );
+
+      final moved = await repository.findLayer(b);
+      expect(moved!.startMs, 5000);
+      expect((await repository.findLayer(a))!.startMs, 0);
+    });
+
+    test('removing a layer takes its transcripts with it', () async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'trip');
+      final clipId = repository.newId();
+      await database.appendClip(
+        clipId: clipId,
+        projectId: projectId,
+        mediaPath: '/media/$projectId/a.mp4',
+        duration: const Duration(seconds: 5),
+        title: 'a',
+      );
+
+      final layerId = (await repository.addLayer(
+          projectId: projectId, startMs: 0, endMs: 5000))!;
+      await repository.saveClipTranscript(
+        projectId: projectId,
+        clipId: clipId,
+        language: TranscriptionLanguage.english,
+        speakerSpans: const [],
+        result: const WhisperTranscribeResponse(
+          type: 'transcribe',
+          text: 'hello',
+          segments: [
+            WhisperTranscribeSegment(
+              fromTs: Duration.zero,
+              toTs: Duration(milliseconds: 400),
+              text: ' hello',
+            ),
+          ],
+        ),
+        layerId: layerId,
+        rangeEndMs: 5000,
+      );
+
+      expect(await repository.transcriptsForClip(clipId), hasLength(1));
+
+      await repository.removeLayer(layerId);
+
+      // The layer was the reason those words existed, so they go with it.
+      expect(await repository.layersForProject(projectId), isEmpty);
+      expect(await repository.transcriptsForClip(clipId), isEmpty);
+    });
+
+    test('a range transcribed at an offset lands in clip time', () async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'trip');
+      final clipId = repository.newId();
+      await database.appendClip(
+        clipId: clipId,
+        projectId: projectId,
+        mediaPath: '/media/$projectId/a.mp4',
+        duration: const Duration(seconds: 30),
+        title: 'a',
+      );
+
+      // Whisper reports times relative to whatever audio it was handed, so a
+      // range starting ten seconds in comes back starting at zero.
+      await repository.saveClipTranscript(
+        projectId: projectId,
+        clipId: clipId,
+        language: TranscriptionLanguage.english,
+        speakerSpans: const [],
+        result: const WhisperTranscribeResponse(
+          type: 'transcribe',
+          text: 'hello there',
+          segments: [
+            WhisperTranscribeSegment(
+              fromTs: Duration.zero,
+              toTs: Duration(milliseconds: 400),
+              text: ' hello',
+            ),
+            WhisperTranscribeSegment(
+              fromTs: Duration(milliseconds: 400),
+              toTs: Duration(milliseconds: 900),
+              text: ' there',
+            ),
+          ],
+        ),
+        offsetMs: 10000,
+        rangeEndMs: 20000,
+      );
+
+      final transcript = (await repository.transcriptsForClip(clipId)).single;
+      expect(transcript.clipStartMs, 10000);
+      expect(transcript.clipEndMs, 20000);
+
+      final words = await database.watchWords(transcript.id).first;
+      // Shifted into clip time...
+      expect([for (final w in words) w.startMs], [10000, 10400]);
+      expect([for (final w in words) w.endMs], [10400, 10900]);
+      // ...while positions stay a contiguous run from zero within the range.
+      expect([for (final w in words) w.position], [0, 1]);
+    });
+
     test('a clip carries its own transcript, independent of its siblings',
         () async {
       final repository = TranscriptRepository(database, MediaConverter());
@@ -273,10 +424,10 @@ void main() {
       // Transcribing one clip says nothing about the other -- which is what
       // makes "transcribe only the clips worth the minutes" real rather than
       // an all-or-nothing choice dressed up per clip.
-      final transcribed = await repository.findTranscriptForClip(first);
+      final transcribed = (await repository.transcriptsForClip(first)).firstOrNull;
       expect(transcribed, isNotNull);
       expect(transcribed!.fullText, 'hello');
-      expect(await repository.findTranscriptForClip(second), isNull);
+      expect((await repository.transcriptsForClip(second)).firstOrNull, isNull);
     });
   });
 }

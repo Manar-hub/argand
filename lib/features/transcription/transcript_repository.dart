@@ -13,6 +13,7 @@ import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
+import '../../core/timeline/project_timeline.dart';
 import '../../core/transcript/speaker_names.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import 'editor_mode_controller.dart';
@@ -797,20 +798,28 @@ Stream<Transcript?> clipTranscript(Ref ref, String clipId) =>
 Stream<List<MediaClip>> projectClips(Ref ref, String projectId) =>
     ref.watch(transcriptRepositoryProvider).watchClips(projectId);
 
-/// A project's running time: the sum of its clips' durations.
+/// Where each of a project's clips falls on one shared time axis.
+///
+/// The single copy of the running sum. The ruler, the track, the playhead and
+/// anything turning a drawn range back into per-clip work all measure with
+/// this — an earlier pass had the ruler and the track folding their own totals
+/// and they drifted apart, which is the bug this exists to make impossible.
+@riverpod
+ProjectTimeline projectTimeline(Ref ref, String projectId) {
+  final clips = ref.watch(projectClipsProvider(projectId)).value;
+  if (clips == null) return ProjectTimeline.empty;
+  return ProjectTimeline.fromClips(clips);
+}
+
+/// A project's running time, for the library row.
 ///
 /// Clips whose duration could not be probed contribute nothing rather than
 /// making the whole total unknown — a slightly short number reads better in the
 /// library than a blank one.
 @riverpod
-Duration projectDuration(Ref ref, String projectId) {
-  final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
-  var total = 0;
-  for (final clip in clips) {
-    total += clip.durationMs ?? 0;
-  }
-  return Duration(milliseconds: total);
-}
+Duration projectDuration(Ref ref, String projectId) => Duration(
+      milliseconds: ref.watch(projectTimelineProvider(projectId)).totalMs,
+    );
 
 /// The engine's segments as word timings, filtered exactly as [saveImport]
 /// filters them before writing rows.

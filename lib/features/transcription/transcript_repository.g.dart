@@ -817,7 +817,119 @@ final class ProjectClipsFamily extends $Family
   String toString() => r'projectClipsProvider';
 }
 
-/// A project's running time: the sum of its clips' durations.
+/// Where each of a project's clips falls on one shared time axis.
+///
+/// The single copy of the running sum. The ruler, the track, the playhead and
+/// anything turning a drawn range back into per-clip work all measure with
+/// this — an earlier pass had the ruler and the track folding their own totals
+/// and they drifted apart, which is the bug this exists to make impossible.
+
+@ProviderFor(projectTimeline)
+final projectTimelineProvider = ProjectTimelineFamily._();
+
+/// Where each of a project's clips falls on one shared time axis.
+///
+/// The single copy of the running sum. The ruler, the track, the playhead and
+/// anything turning a drawn range back into per-clip work all measure with
+/// this — an earlier pass had the ruler and the track folding their own totals
+/// and they drifted apart, which is the bug this exists to make impossible.
+
+final class ProjectTimelineProvider
+    extends
+        $FunctionalProvider<ProjectTimeline, ProjectTimeline, ProjectTimeline>
+    with $Provider<ProjectTimeline> {
+  /// Where each of a project's clips falls on one shared time axis.
+  ///
+  /// The single copy of the running sum. The ruler, the track, the playhead and
+  /// anything turning a drawn range back into per-clip work all measure with
+  /// this — an earlier pass had the ruler and the track folding their own totals
+  /// and they drifted apart, which is the bug this exists to make impossible.
+  ProjectTimelineProvider._({
+    required ProjectTimelineFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectTimelineProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectTimelineHash();
+
+  @override
+  String toString() {
+    return r'projectTimelineProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<ProjectTimeline> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  ProjectTimeline create(Ref ref) {
+    final argument = this.argument as String;
+    return projectTimeline(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ProjectTimeline value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ProjectTimeline>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectTimelineProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectTimelineHash() => r'3e8346dd248f27d44a2a8f6b18c7ceea074b9371';
+
+/// Where each of a project's clips falls on one shared time axis.
+///
+/// The single copy of the running sum. The ruler, the track, the playhead and
+/// anything turning a drawn range back into per-clip work all measure with
+/// this — an earlier pass had the ruler and the track folding their own totals
+/// and they drifted apart, which is the bug this exists to make impossible.
+
+final class ProjectTimelineFamily extends $Family
+    with $FunctionalFamilyOverride<ProjectTimeline, String> {
+  ProjectTimelineFamily._()
+    : super(
+        retry: null,
+        name: r'projectTimelineProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Where each of a project's clips falls on one shared time axis.
+  ///
+  /// The single copy of the running sum. The ruler, the track, the playhead and
+  /// anything turning a drawn range back into per-clip work all measure with
+  /// this — an earlier pass had the ruler and the track folding their own totals
+  /// and they drifted apart, which is the bug this exists to make impossible.
+
+  ProjectTimelineProvider call(String projectId) =>
+      ProjectTimelineProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectTimelineProvider';
+}
+
+/// A project's running time, for the library row.
 ///
 /// Clips whose duration could not be probed contribute nothing rather than
 /// making the whole total unknown — a slightly short number reads better in the
@@ -826,7 +938,7 @@ final class ProjectClipsFamily extends $Family
 @ProviderFor(projectDuration)
 final projectDurationProvider = ProjectDurationFamily._();
 
-/// A project's running time: the sum of its clips' durations.
+/// A project's running time, for the library row.
 ///
 /// Clips whose duration could not be probed contribute nothing rather than
 /// making the whole total unknown — a slightly short number reads better in the
@@ -835,7 +947,7 @@ final projectDurationProvider = ProjectDurationFamily._();
 final class ProjectDurationProvider
     extends $FunctionalProvider<Duration, Duration, Duration>
     with $Provider<Duration> {
-  /// A project's running time: the sum of its clips' durations.
+  /// A project's running time, for the library row.
   ///
   /// Clips whose duration could not be probed contribute nothing rather than
   /// making the whole total unknown — a slightly short number reads better in the
@@ -891,9 +1003,9 @@ final class ProjectDurationProvider
   }
 }
 
-String _$projectDurationHash() => r'9c9074daa6c0dd6d69e46f12b9446a750a3037c6';
+String _$projectDurationHash() => r'5bb4128b1561a87e7024ee107d3f390e000e1315';
 
-/// A project's running time: the sum of its clips' durations.
+/// A project's running time, for the library row.
 ///
 /// Clips whose duration could not be probed contribute nothing rather than
 /// making the whole total unknown — a slightly short number reads better in the
@@ -910,7 +1022,7 @@ final class ProjectDurationFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// A project's running time: the sum of its clips' durations.
+  /// A project's running time, for the library row.
   ///
   /// Clips whose duration could not be probed contribute nothing rather than
   /// making the whole total unknown — a slightly short number reads better in the

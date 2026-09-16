@@ -112,6 +112,25 @@ class MediaPlayer extends _$MediaPlayer {
     await controller.seekTo(target < Duration.zero ? Duration.zero : target);
   }
 
+  /// Seeks to an exact position in this clip, with no lead-in.
+  ///
+  /// Distinct from [seekToWord], which deliberately lands slightly *before* its
+  /// target to absorb DTW timestamp drift. Scrubbing has no such drift to
+  /// absorb: the user is pointing at a place on a ruler and expects that place,
+  /// and a 60ms lead-in would make the playhead disagree with the frame under
+  /// it by a visible margin.
+  Future<void> seekTo(int positionMs) async {
+    final controller = state.value;
+    if (controller == null) return;
+
+    final duration = controller.value.duration;
+    var target = Duration(milliseconds: positionMs);
+    if (target < Duration.zero) target = Duration.zero;
+    if (duration > Duration.zero && target > duration) target = duration;
+
+    await controller.seekTo(target);
+  }
+
   Future<void> togglePlayback() async {
     final controller = state.value;
     if (controller == null) return;

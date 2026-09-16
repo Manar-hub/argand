@@ -10,6 +10,7 @@ import '../../core/media/media_converter.dart';
 import '../../core/media/thumbnail_service.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
+import '../../core/timeline/project_timeline.dart';
 import '../../l10n/app_localizations.dart';
 import 'clip_controller.dart';
 import 'clip_transcription_controller.dart';
@@ -18,26 +19,40 @@ import 'media_player_controller.dart';
 import 'project_screen.dart' show HistoryControls;
 import 'transcript_repository.dart';
 
-/// How wide one second of a clip is drawn.
+/// How wide one second is drawn.
 ///
-/// The single scale the ruler and the track both measure with — that is what
-/// makes a tick line up with the clip boundary beneath it, instead of the two
-/// rows being unrelated decorations. Chosen so one filmstrip frame, sampled
-/// roughly every two seconds, lands at a comfortable ~48pt.
+/// **The one scale everything on this screen measures with.** The ruler's
+/// ticks, each clip's width and the playhead's position all derive from it, so
+/// a tick sits over the moment it names rather than near it.
 const double _pixelsPerSecond = 24;
 
-/// Enough width that a one-second clip is still a tappable target.
-const double _minClipWidth = 56;
-
+/// Height of one track row.
 const double _trackHeight = 64;
 
+/// Width of the fixed playhead line.
+const double _playheadWidth = 2;
+
 /// Timeline mode: the clip/track view of the editing screen.
+///
+/// **The track is a true time axis.** A clip's width is exactly its duration
+/// times [_pixelsPerSecond] — no minimum width, no gaps between tiles. An
+/// earlier pass clamped short clips and spaced them apart, which meant the
+/// ruler and the tiles disagreed by a little more with every clip, and nothing
+/// drawn at a given millisecond could be trusted to land over the media playing
+/// at that millisecond. Clips are separated by a hairline drawn *inside* their
+/// own width instead. A very short clip therefore draws very narrow, which is
+/// honest: it is short.
+///
+/// **The playhead is fixed at the centre and the content moves under it.**
+/// Leading and trailing padding of half the viewport is what lets both the
+/// first and last frame reach it, and scrolling is the scrub gesture — so there
+/// is no second scrubber in the player, which would be a different scale
+/// claiming to mean the same thing.
 ///
 /// **A project is a list of clips here, not a single file.** The preview and
 /// Script mode both follow whichever clip is selected; each carries its own
 /// transcript, its own speakers and its own undo history, because word timings
-/// are relative to a clip's own media and there is no compositor to define a
-/// project-wide timebase (`docs/progress.md`, Phase 9).
+/// are relative to a clip's own media.
 ///
 /// **Adding a clip never transcribes it.** "+" copies a file in and nothing
 /// more; transcription is minutes of CPU and runs only when the user asks for
@@ -262,14 +277,31 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
                 ),
               ),
             ),
+            // Play sits in the middle with the utilities pushed to the edges,
+            // so the one control used constantly is the one under the thumb.
+            // A `Stack` rather than spacers because centring by flex would
+            // drift as the right-hand group changes width with undo/redo.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-              child: Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.fullscreen),
-                    tooltip: l10n.timelineFullscreen,
-                    onPressed: _openFullscreen,
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.fullscreen),
+                        tooltip: l10n.timelineFullscreen,
+                        onPressed: _openFullscreen,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.aspect_ratio),
+                        tooltip: l10n.timelineAspectToggle,
+                        onPressed: hasVideo ? _toggleFit : null,
+                      ),
+                      if (transcriptId != null)
+                        HistoryControls(transcriptId: transcriptId),
+                    ],
                   ),
                   IconButton(
                     onPressed: () => ref
@@ -277,38 +309,30 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
                         .togglePlayback(),
                     icon:
                         Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
+                    iconSize: 32,
                     tooltip:
                         value.isPlaying ? l10n.pauseAction : l10n.playAction,
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.aspect_ratio),
-                    tooltip: l10n.timelineAspectToggle,
-                    onPressed: hasVideo ? _toggleFit : null,
-                  ),
-                  const Spacer(),
-                  if (transcriptId != null)
-                    HistoryControls(transcriptId: transcriptId),
                 ],
               ),
             ),
+            // Position only. **No progress bar**: the timeline below is the
+            // scrubber now, and a second one at a different scale would be two
+            // controls claiming to mean the same thing.
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xxs,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.xxs,
               ),
-              child: Row(
-                children: [
-                  Text(
-                    '${_formatPosition(value.position)} / '
-                    '${_formatPosition(value.duration)}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: VideoProgressIndicator(widget.controller,
-                        allowScrubbing: true),
-                  ),
-                ],
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_formatPosition(value.position)} / '
+                  '${_formatPosition(value.duration)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
           ],
@@ -381,35 +405,107 @@ class _TimelineTrack extends ConsumerStatefulWidget {
 
 class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   final _scroll = ScrollController();
-  final _rulerScroll = ScrollController();
+
+  /// True while the *user* is dragging the track.
+  ///
+  /// The playhead is driven from two directions — dragging scrubs the player,
+  /// and playback scrolls the track — so without a flag each would hear its own
+  /// echo and fight the other. Whoever moved last wins, and this says which
+  /// that was.
+  bool _scrubbing = false;
+
+  /// The position playback last reported, so an unchanged frame does not
+  /// re-issue a scroll.
+  int _followedMs = -1;
+
+  /// The controller currently being followed.
+  ///
+  /// Held so the listener can be moved when the selection changes. Following
+  /// playback has to be a *listener* rather than a `ref.watch`: watching the
+  /// provider yields the controller, and a controller is not rebuilt when its
+  /// position advances — only its own `ValueListenable` reports that. Rebuilding
+  /// the track on every tick would also mean re-laying out every filmstrip
+  /// image sixty times a second, so this deliberately scrolls without setState.
+  VideoPlayerController? _followed;
 
   @override
   void initState() {
     super.initState();
-    // Driven rather than shared: two viewports cannot attach to one
-    // ScrollController, so the ruler mirrors the track's offset instead.
-    _scroll.addListener(() {
-      if (!_rulerScroll.hasClients) return;
-      if (_rulerScroll.offset == _scroll.offset) return;
-      _rulerScroll.jumpTo(_scroll.offset.clamp(
-        0,
-        _rulerScroll.position.maxScrollExtent,
-      ));
-    });
+    _scroll.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    _followed?.removeListener(_onPlaybackTick);
+    _scroll.removeListener(_onScroll);
     _scroll.dispose();
-    _rulerScroll.dispose();
     super.dispose();
   }
 
-  double _widthOf(MediaClip clip) {
-    final seconds = (clip.durationMs ?? 0) / 1000;
-    final width = seconds * _pixelsPerSecond;
-    return width < _minClipWidth ? _minClipWidth : width;
+  /// Points the playback listener at [controller], detaching from the previous.
+  void _follow(VideoPlayerController? controller) {
+    if (identical(controller, _followed)) return;
+    _followed?.removeListener(_onPlaybackTick);
+    _followed = controller;
+    _followed?.addListener(_onPlaybackTick);
   }
+
+  void _onPlaybackTick() {
+    final controller = _followed;
+    final clipId = widget.selectedId;
+    if (controller == null || clipId == null || !mounted) return;
+
+    final timeline = ref.read(projectTimelineProvider(widget.projectId));
+    final projectMs = timeline.projectMsOf(
+      clipId: clipId,
+      clipMs: controller.value.position.inMilliseconds,
+    );
+    if (projectMs != null) _followPlayback(projectMs);
+  }
+
+  /// Turns a scroll offset into a seek.
+  ///
+  /// The offset *is* the playhead: content is padded by half the viewport, so
+  /// the pixel under the centre line is `offset` pixels into the project. Which
+  /// clip that lands in, and how far into it, is [ProjectTimeline]'s to answer —
+  /// this only has to notice when the answer changes clip, because that is a
+  /// selection change as well as a seek.
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+
+    final timeline = ref.read(projectTimelineProvider(widget.projectId));
+    if (timeline.isEmpty) return;
+
+    final projectMs = (_scroll.offset / _pixelsPerSecond * 1000).round();
+    final at = timeline.clipAt(projectMs);
+    if (at == null) return;
+
+    // Only a real drag scrubs. A scroll this widget issued itself while
+    // following playback must not be fed back as a seek.
+    if (!_scrubbing) return;
+
+    if (at.clipId != widget.selectedId) {
+      ref.read(selectedClipProvider(widget.projectId).notifier).select(at.clipId);
+    }
+    ref.read(mediaPlayerProvider(at.clipId).notifier).seekTo(at.clipMs);
+  }
+
+  /// Scrolls the track so [projectMs] sits under the playhead.
+  void _followPlayback(int projectMs) {
+    if (_scrubbing || !_scroll.hasClients) return;
+    if (projectMs == _followedMs) return;
+    _followedMs = projectMs;
+
+    final target = (projectMs / 1000 * _pixelsPerSecond)
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    if ((target - _scroll.offset).abs() < 0.5) return;
+    _scroll.jumpTo(target);
+  }
+
+  /// A clip's width *is* its duration. See the class doc on [TimelineBody] for
+  /// why there is no minimum and no gap.
+  double _widthOf(MediaClip clip) =>
+      (clip.durationMs ?? 0) / 1000 * _pixelsPerSecond;
 
   Future<void> _showActions(MediaClip clip, int index) async {
     final l10n = AppLocalizations.of(context);
@@ -505,119 +601,227 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final adding =
         ref.watch(addClipControllerProvider(widget.projectId)) is AddClipCopying;
+    final timeline = ref.watch(projectTimelineProvider(widget.projectId));
 
-    final totalMs = widget.clips
-        .fold<int>(0, (sum, clip) => sum + (clip.durationMs ?? 0));
-    final trackWidth = widget.clips
-        .fold<double>(0, (sum, clip) => sum + _widthOf(clip) + AppSpacing.xxs);
+    // Follow playback: the player reports a position inside the selected clip,
+    // which the timeline turns into a position on the shared axis. Watched
+    // here only to learn *which* controller to listen to -- the position
+    // itself arrives through the listener, not through a rebuild.
+    final selected = widget.selectedId;
+    _follow(selected == null
+        ? null
+        : ref.watch(mediaPlayerProvider(selected)).value);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            height: 20,
-            child: SingleChildScrollView(
-              controller: _rulerScroll,
-              scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: _TimeRuler(totalMs: totalMs, width: trackWidth),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          SizedBox(
-            height: _trackHeight,
-            child: SingleChildScrollView(
-              controller: _scroll,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    final trackWidth = timeline.totalMs / 1000 * _pixelsPerSecond;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Half the viewport at each end, which is what lets the very first and
+        // very last frame reach a playhead pinned to the centre.
+        final lead = constraints.maxWidth / 2;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Stack(
+                alignment: Alignment.topCenter,
                 children: [
-                  for (final (index, clip) in widget.clips.indexed) ...[
-                    _ClipTile(
-                      clip: clip,
-                      width: _widthOf(clip),
-                      selected: clip.id == widget.selectedId,
-                      onTap: () => ref
-                          .read(selectedClipProvider(widget.projectId).notifier)
-                          .select(clip.id),
-                      onLongPress: () => _showActions(clip, index),
+              NotificationListener<ScrollNotification>(
+                // Only a drag counts as scrubbing. `jumpTo` while following
+                // playback emits no start/end notification, so the flag stays
+                // false and the seek loop never closes.
+                onNotification: (notification) {
+                  if (notification is ScrollStartNotification &&
+                      notification.dragDetails != null) {
+                    _scrubbing = true;
+                  } else if (notification is ScrollEndNotification) {
+                    _scrubbing = false;
+                  }
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: lead),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _TimeRuler(totalMs: timeline.totalMs, width: trackWidth),
+                      const SizedBox(height: AppSpacing.xs),
+                      SizedBox(
+                        height: _trackHeight,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final (index, clip) in widget.clips.indexed)
+                              _ClipTile(
+                                clip: clip,
+                                width: _widthOf(clip),
+                                selected: clip.id == widget.selectedId,
+                                onTap: () => ref
+                                    .read(selectedClipProvider(widget.projectId)
+                                        .notifier)
+                                    .select(clip.id),
+                                onLongPress: () => _showActions(clip, index),
+                              ),
+                            _AddClipTile(busy: adding, onTap: widget.onAddClip),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+                  // Drawn over the tracks rather than scrolling with them: it
+                  // marks a place on the screen, not a place in the media.
+                  IgnorePointer(
+                    child: Container(
+                      width: _playheadWidth,
+                      height: _rulerHeight + AppSpacing.xs + _trackHeight,
+                      color: theme.colorScheme.primary,
                     ),
-                    const SizedBox(width: AppSpacing.xxs),
-                  ],
-                  _AddClipTile(busy: adding, onTap: widget.onAddClip),
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              // Outside the scroll: this adds a track, it is not one, so it
+              // stays put while the timeline moves beneath the playhead.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: _AddAudioRow(
+                  label: l10n.timelineAddAudio,
+                  onTap: widget.onAddAudio,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            child: _AddAudioRow(
-              label: l10n.timelineAddAudio,
-              onTap: widget.onAddAudio,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 enum _ClipAction { earlier, later, remove }
 
-/// MM:SS ticks across the project's whole running time.
+/// Height the ruler occupies: ticks plus the labels beneath them.
+const double _rulerHeight = 28;
+
+/// A measuring rule: a long tick for each labelled value, short ticks between.
 ///
-/// Spaced by [_pixelsPerSecond] like everything else on the track, with the
-/// interval widened until labels stop colliding — so zooming later changes one
-/// constant rather than this widget.
+/// **The label is centred on its tick**, which an earlier pass got wrong by
+/// positioning text from its left edge — the glyphs then sat beside the moment
+/// they named rather than on it, and at a glance the whole ruler read as
+/// shifted.
+///
+/// The labelled interval widens until labels cannot collide, so changing
+/// [_pixelsPerSecond] (or adding zoom later) needs no change here. Minor ticks
+/// subdivide that interval into five.
 class _TimeRuler extends StatelessWidget {
   const _TimeRuler({required this.totalMs, required this.width});
 
   final int totalMs;
   final double width;
 
-  /// Narrowest gap between two labels before they read as one smear.
-  static const double _minLabelGap = 64;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (totalMs <= 0 || width <= 0) {
-      return SizedBox(
-        width: width <= 0 ? 1 : width,
-        child: Text('00:00', style: theme.textTheme.labelSmall),
-      );
-    }
-
-    var step = 1;
-    while (step * _pixelsPerSecond < _minLabelGap) {
-      step = step < 5 ? 5 : step + 5;
-    }
-
-    final totalSeconds = totalMs / 1000;
     return SizedBox(
-      width: width,
-      child: Stack(
-        children: [
-          for (var second = 0; second <= totalSeconds; second += step)
-            Positioned(
-              left: second * _pixelsPerSecond,
-              top: 0,
-              child: Text(
-                _formatPosition(Duration(seconds: second)),
-                style: theme.textTheme.labelSmall,
-              ),
-            ),
-        ],
+      height: _rulerHeight,
+      width: width <= 0 ? 1 : width,
+      child: CustomPaint(
+        painter: _RulerPainter(
+          totalMs: totalMs,
+          ink: theme.colorScheme.onSurface,
+          textStyle: theme.textTheme.labelSmall ?? const TextStyle(fontSize: 11),
+        ),
       ),
     );
   }
+}
+
+class _RulerPainter extends CustomPainter {
+  _RulerPainter({
+    required this.totalMs,
+    required this.ink,
+    required this.textStyle,
+  });
+
+  final int totalMs;
+  final Color ink;
+  final TextStyle textStyle;
+
+  /// Narrowest gap between two labels before they read as one smear.
+  static const double _minLabelGap = 64;
+
+  /// Minor ticks per labelled interval.
+  static const int _subdivisions = 5;
+
+  static const double _majorTick = 10;
+  static const double _minorTick = 5;
+
+  /// Seconds between labelled ticks at the current scale.
+  static int stepFor(double pixelsPerSecond) {
+    var step = 1;
+    while (step * pixelsPerSecond < _minLabelGap) {
+      step = step < 5 ? 5 : step + 5;
+    }
+    return step;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final step = stepFor(_pixelsPerSecond);
+    final minorStep = step / _subdivisions;
+    final totalSeconds = totalMs / 1000;
+
+    final major = Paint()
+      ..color = ink.withValues(alpha: 0.7)
+      ..strokeWidth = 1;
+    final minor = Paint()
+      ..color = ink.withValues(alpha: 0.3)
+      ..strokeWidth = 1;
+
+    // Minor ticks first so a major tick is never half-covered by one landing
+    // on the same pixel at the interval boundary.
+    for (var second = 0.0; second <= totalSeconds; second += minorStep) {
+      final x = second * _pixelsPerSecond;
+      if (x > size.width) break;
+      final isMajor = (second / step - (second / step).round()).abs() < 0.001;
+      if (isMajor) continue;
+      canvas.drawLine(Offset(x, 0), Offset(x, _minorTick), minor);
+    }
+
+    for (var second = 0; second <= totalSeconds; second += step) {
+      final x = second * _pixelsPerSecond;
+      if (x > size.width) break;
+      canvas.drawLine(Offset(x, 0), Offset(x, _majorTick), major);
+
+      final label = TextPainter(
+        text: TextSpan(
+          text: _formatPosition(Duration(seconds: second)),
+          style: textStyle.copyWith(color: ink.withValues(alpha: 0.7)),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      // Centred on the tick, and nudged inward at the very start so the first
+      // label is not half cut off by the padding edge.
+      var left = x - label.width / 2;
+      if (left < 0) left = 0;
+      label.paint(canvas, Offset(left, _majorTick + 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RulerPainter oldDelegate) =>
+      totalMs != oldDelegate.totalMs ||
+      ink != oldDelegate.ink ||
+      textStyle != oldDelegate.textStyle;
 }
 
 /// One clip on the track, filled with frames sampled from its own media.
@@ -663,6 +867,10 @@ class _ClipTile extends ConsumerWidget {
         onLongPress: onLongPress,
         child: Container(
           width: width,
+          // The border is drawn *inside* the tile's width rather than as a gap
+          // beside it. A gap would add pixels the timeline does not have time
+          // for, and every clip boundary after the first would sit later than
+          // the moment it represents.
           decoration: BoxDecoration(
             borderRadius: radius,
             color: theme.colorScheme.surfaceContainerHighest,

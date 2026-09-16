@@ -172,18 +172,6 @@
   "reassignSpeakerTitle": "Who is speaking?",
   "@reassignSpeakerTitle": { "description": "Header of the sheet listing speakers to reassign a turn to" },
 
-  "editSentenceTitle": "Correct this line",
-  "@editSentenceTitle": { "description": "Header of the field for retyping a whole sentence" },
-
-  "editWordTitle": "Correct this word",
-  "@editWordTitle": { "description": "Header of the field for retyping a single word" },
-
-  "editWordTimingNote": "Timing stays inside this word, so nothing around it moves. You can split it into several words.",
-  "@editWordTimingNote": { "description": "Reassurance under the word editor that a change cannot affect neighbouring words' timing, and that the word may become several" },
-
-  "editSentenceTimingNote": "Timing stays the same, so captions stay in sync. You can add or remove words.",
-  "@editSentenceTimingNote": { "description": "Reassurance under the sentence editor that retyping will not move the line's timestamps, and that the word count may change" },
-
   "editCancel": "Cancel",
   "@editCancel": { "description": "Dismisses an edit without applying it" },
 
@@ -235,11 +223,17 @@
   "projectsHeading": "Projects",
   "@projectsHeading": { "description": "Heading above the list of imported projects in the library" },
 
-  "importHeadline": "Import media",
-  "@importHeadline": { "description": "Label on the large import panel at the top of the library" },
+  "importHeadline": "Transcribe",
+  "@importHeadline": { "description": "Label on the library's transcribe-only entry panel; opens the resulting project in Script mode" },
 
   "importSubhead": "Video or audio — transcribed on your device",
-  "@importSubhead": { "description": "Supporting line under the import panel, saying what can be imported and that nothing is uploaded" },
+  "@importSubhead": { "description": "Supporting line under the transcribe entry panel, saying what can be imported and that nothing is uploaded" },
+
+  "importEditHeadline": "Import & edit",
+  "@importEditHeadline": { "description": "Label on the library's import-and-edit entry panel; opens the resulting project in Timeline mode" },
+
+  "importEditSubhead": "Transcribed automatically, then opens on the timeline",
+  "@importEditSubhead": { "description": "Supporting line under the import-and-edit entry panel" },
 
   "projectCreated": "{date}",
   "@projectCreated": {
@@ -320,5 +314,107 @@
   "@exportFailed": { "description": "Shown when writing the caption file failed" },
 
   "exportEmpty": "There are no captions to export yet.",
-  "@exportEmpty": { "description": "Shown when export is attempted on a transcript with no words" }
+  "@exportEmpty": { "description": "Shown when export is attempted on a transcript with no words" },
+
+  "editorModeScript": "Script",
+  "@editorModeScript": { "description": "Label of the mode switch segment that shows the transcript-first editing view" },
+
+  "editorModeTimeline": "Timeline",
+  "@editorModeTimeline": { "description": "Label of the mode switch segment that shows the clip/track editing view" },
+
+  "timelineFullscreen": "Fullscreen",
+  "@timelineFullscreen": { "description": "Tooltip on the button that opens the video preview full screen" },
+
+  "timelineAspectToggle": "Toggle fit",
+  "@timelineAspectToggle": { "description": "Tooltip on the button that switches the preview between fitted and filled framing" },
+
+  "timelineMuteClip": "Mute clip",
+  "@timelineMuteClip": { "description": "Label under the track icon that mutes the video's own audio" },
+
+  "timelineCover": "Cover",
+  "@timelineCover": { "description": "Label under the track icon that sets the project's cover frame" },
+
+  "timelineAddAudio": "Add audio",
+  "@timelineAddAudio": { "description": "Label on the row that adds an audio track below the filmstrip" },
+
+  "timelineCaptionsLabel": "Captions",
+  "@timelineCaptionsLabel": { "description": "Heading above the caption list shown when the Captions toolbar button is toggled on" },
+
+  "timelineToolEdit": "Edit",
+  "@timelineToolEdit": { "description": "Bottom toolbar button: cut/trim/split (not yet built)" },
+
+  "timelineToolAudio": "Audio",
+  "@timelineToolAudio": { "description": "Bottom toolbar button: audio tools (not yet built)" },
+
+  "timelineToolText": "Text",
+  "@timelineToolText": { "description": "Bottom toolbar button: text overlays (not yet built)" },
+
+  "timelineToolEffects": "Effects",
+  "@timelineToolEffects": { "description": "Bottom toolbar button: visual effects (not yet built)" },
+
+  "timelineToolOverlay": "Overlay",
+  "@timelineToolOverlay": { "description": "Bottom toolbar button: image/video overlays (not yet built)" },
+
+  "timelineToolCaptions": "Captions",
+  "@timelineToolCaptions": { "description": "Bottom toolbar button: toggles the caption list under the track area" },
+
+  "timelineToolFilter": "Filter",
+  "@timelineToolFilter": { "description": "Bottom toolbar button: colour filters (not yet built)" },
+
+  "timelineComingSoon": "{feature} is coming soon.",
+  "@timelineComingSoon": {
+    "description": "Acknowledgement shown when a Timeline mode tool without a real implementation yet is tapped",
+    "placeholders": { "feature": { "type": "String", "example": "Effects" } }
+  },
+
+  "timelineNoClips": "No media yet. Tap + to add a clip.",
+  "@timelineNoClips": { "description": "Shown on an empty project's timeline and in Script mode when the project has no clips" },
+
+  "clipAdd": "Add a clip",
+  "@clipAdd": { "description": "Accessibility label of the + button that adds media to a project" },
+
+  "clipRemove": "Remove",
+  "@clipRemove": { "description": "Menu entry that removes a clip from the project" },
+
+  "clipRemoveTitle": "Remove this clip?",
+  "@clipRemoveTitle": { "description": "Heading of the dialog confirming a clip's removal" },
+
+  "clipRemoveMessage": "This deletes the clip's media from your device, along with anything transcribed from it. It cannot be undone.",
+  "@clipRemoveMessage": { "description": "Body of the clip-removal confirmation, stating that the media is permanently deleted" },
+
+  "clipMoveEarlier": "Move earlier",
+  "@clipMoveEarlier": { "description": "Menu entry that moves a clip one place towards the start of the timeline" },
+
+  "clipMoveLater": "Move later",
+  "@clipMoveLater": { "description": "Menu entry that moves a clip one place towards the end of the timeline" },
+
+  "clipTranscribe": "Transcribe",
+  "@clipTranscribe": { "description": "Button that starts transcribing the selected clip" },
+
+  "clipNotTranscribed": "Not transcribed yet.",
+  "@clipNotTranscribed": { "description": "Shown beside the Transcribe button when the selected clip has no transcript" },
+
+  "clipNotTranscribedScript": "This clip hasn't been transcribed yet. Switch to Timeline and tap Transcribe to start.",
+  "@clipNotTranscribedScript": { "description": "Shown in Script mode when the selected clip has no transcript, pointing at where the action lives" },
+
+  "clipTranscribed": "Transcribed.",
+  "@clipTranscribed": { "description": "Shown beside the selected clip once it has a transcript" },
+
+  "clipTranscribeFailed": "Couldn't transcribe this clip.",
+  "@clipTranscribeFailed": { "description": "Shown when transcribing a clip failed; the clip itself is unaffected and the action can be retried" },
+
+  "createProjectHeadline": "Create project",
+  "@createProjectHeadline": { "description": "Label on the library panel that creates an empty project and opens it on the timeline" },
+
+  "createProjectSubhead": "Name it, then add clips on the timeline",
+  "@createProjectSubhead": { "description": "Supporting line under the create-project panel" },
+
+  "createProjectTitle": "Name this project",
+  "@createProjectTitle": { "description": "Heading of the dialog asking for a new project's name" },
+
+  "createProjectAction": "Create",
+  "@createProjectAction": { "description": "Button that confirms creating the named project" },
+
+  "createProjectDefaultName": "Untitled project",
+  "@createProjectDefaultName": { "description": "The name a project gets when the user confirms without typing one" }
 }

@@ -109,6 +109,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'slice-probe',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -137,6 +138,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'sweep-probe',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -247,6 +249,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'truth-probe',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -330,6 +333,7 @@ void main() {
       for (final attempt in [1, 2]) {
         final media = await converter.importToAppStorage(
           projectId: 'determinism-$attempt',
+          clipId: 'clip',
           fileName: 'alberta.mp4',
           bytes: source.openRead(),
         );
@@ -374,6 +378,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'model-probe',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -444,6 +449,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'cam-probe',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -609,6 +615,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'refine-e2e',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -685,6 +692,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'agreement',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -767,6 +775,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'final-table',
+        clipId: 'clip',
         fileName: 'alberta.mp4',
         bytes: source.openRead(),
       );
@@ -840,6 +849,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'two-spk',
+        clipId: 'clip',
         fileName: 'two_speakers.wav',
         bytes: source.openRead(),
       );
@@ -922,6 +932,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'diag8',
+        clipId: 'clip',
         fileName: 'two_speakers.wav',
         bytes: source.openRead(),
       );
@@ -1034,6 +1045,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'w14',
+        clipId: 'clip',
         fileName: 'two_speakers.wav',
         bytes: source.openRead(),
       );
@@ -1160,6 +1172,7 @@ void main() {
 
       final media = await converter.importToAppStorage(
         projectId: 'collapse-probe',
+        clipId: 'clip',
         fileName: 'guess.mp4',
         bytes: source.openRead(),
       );

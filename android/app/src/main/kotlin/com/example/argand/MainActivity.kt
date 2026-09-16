@@ -1,6 +1,8 @@
 package com.example.argand
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -9,6 +11,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.Executors
 
 /**
@@ -37,12 +40,22 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val CHANNEL = "argand/shared_media"
 
+        /** Frame extraction for the timeline's filmstrip. See [extractFrames]. */
+        const val THUMBNAIL_CHANNEL = "argand/thumbnails"
+
         /** Where copies land. Cleared by the OS under storage pressure, and by
          *  Dart as soon as the import has adopted the file. */
         const val CACHE_DIR = "shared"
+
+        /** Filmstrip frames are rendered a few dozen pixels wide, so anything
+         *  larger is decoded and scaled for nothing. */
+        const val THUMBNAIL_WIDTH = 160
+
+        const val THUMBNAIL_QUALITY = 70
     }
 
     private var channel: MethodChannel? = null
+    private var thumbnails: MethodChannel? = null
 
     /** A share that arrived before Dart was listening, handed over on request. */
     private var pending: Map<String, String>? = null
@@ -54,6 +67,9 @@ class MainActivity : FlutterActivity() {
 
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .also { it.setMethodCallHandler(::onMethodCall) }
+
+        thumbnails = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, THUMBNAIL_CHANNEL)
+            .also { it.setMethodCallHandler(::onThumbnailCall) }
 
         // Read at configure time rather than in onCreate: a cold start launched
         // by a share has the intent waiting, and Dart asks for it once it is
@@ -147,6 +163,102 @@ class MainActivity : FlutterActivity() {
             // A provider that refuses to be queried still hands over bytes.
         }
         return uri.lastPathSegment?.takeIf { it.isNotBlank() } ?: "shared"
+    }
+
+    private fun onThumbnailCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method != "extractFrames") {
+            result.notImplemented()
+            return
+        }
+
+        val mediaPath = call.argument<String>("mediaPath")
+        val outputDir = call.argument<String>("outputDir")
+        val count = call.argument<Int>("count") ?: 0
+        if (mediaPath == null || outputDir == null || count <= 0) {
+            result.error("bad_args", "extractFrames needs mediaPath, outputDir and count", null)
+            return
+        }
+
+        extractFramesAsync(mediaPath, outputDir, count, result)
+    }
+
+    /**
+     * Samples [count] frames evenly across a media file and writes them as JPEGs.
+     *
+     * Uses [MediaMetadataRetriever], the platform's own decoder — the same
+     * no-FFmpeg rule the audio pipeline follows (docs/engine-architecture.md).
+     *
+     * `getFrameAtTime` rather than `getScaledFrameAtTime`, which would hand back
+     * an already-downscaled bitmap but needs API 27; scaling here instead keeps
+     * the app's `minSdk` free to stay where Flutter puts it.
+     *
+     * Runs on the same background executor the share-sheet copy uses. Decoding
+     * a dozen frames out of a long video is far too slow for the main thread,
+     * and an audio-only file simply yields nothing rather than failing — a clip
+     * with no video track has no frames to show, which is not an error.
+     */
+    private fun extractFramesAsync(
+        mediaPath: String,
+        outputDir: String,
+        count: Int,
+        result: MethodChannel.Result,
+    ) {
+        io.execute {
+            val outcome = runCatching {
+                val dir = File(outputDir).apply { mkdirs() }
+                val retriever = MediaMetadataRetriever()
+                val paths = mutableListOf<String>()
+
+                try {
+                    retriever.setDataSource(mediaPath)
+                    val durationMs = retriever
+                        .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        ?.toLongOrNull() ?: 0L
+
+                    for (index in 0 until count) {
+                        // Sampled at the midpoint of each slice rather than its
+                        // edge: the first frame of a video is often a black or
+                        // faded-in frame, which would make the strip open on
+                        // nothing.
+                        val atMs = if (durationMs <= 0) 0L
+                        else durationMs * (2 * index + 1) / (2 * count)
+
+                        val frame = retriever.getFrameAtTime(
+                            atMs * 1000,
+                            MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        ) ?: continue
+
+                        val height = (frame.height * THUMBNAIL_WIDTH / frame.width.toFloat()).toInt()
+                        val scaled = Bitmap.createScaledBitmap(
+                            frame,
+                            THUMBNAIL_WIDTH,
+                            height.coerceAtLeast(1),
+                            true,
+                        )
+
+                        val file = File(dir, "$index.jpg")
+                        FileOutputStream(file).use {
+                            scaled.compress(Bitmap.CompressFormat.JPEG, THUMBNAIL_QUALITY, it)
+                        }
+                        if (scaled != frame) scaled.recycle()
+                        frame.recycle()
+
+                        paths.add(file.absolutePath)
+                    }
+                } finally {
+                    retriever.release()
+                }
+
+                paths
+            }
+
+            runOnUiThread {
+                outcome.fold(
+                    onSuccess = result::success,
+                    onFailure = { result.error("frames_failed", it.message, null) },
+                )
+            }
+        }
     }
 
     private fun copyAsync(uri: Uri, name: String, result: MethodChannel.Result) {

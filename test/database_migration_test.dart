@@ -102,7 +102,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 4', () {
+  group('schema 2 -> 5', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -181,7 +181,71 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 4);
+      expect(row, 5);
+    });
+
+    test('gives the project the clip its media always implied', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clips = await db.clipsForProject('p1');
+      expect(clips, hasLength(1),
+          reason: 'a project that held one file becomes a project of one clip');
+
+      final clip = clips.single;
+      expect(clip.mediaPath, '/media/p1/clip.mp4',
+          reason: 'the path moves to the clip verbatim -- no file is relocated');
+      expect(clip.durationMs, 61000);
+      expect(clip.position, 0);
+      expect(clip.projectId, 'p1');
+    });
+
+    test('points the existing transcript at the back-filled clip', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clip = (await db.clipsForProject('p1')).single;
+
+      // The link the whole multi-clip model hangs on. Without it the words a
+      // user has already corrected would belong to no clip and show nowhere.
+      final transcript = await db.findTranscript('t1');
+      expect(transcript!.clipId, clip.id);
+
+      expect((await db.findTranscriptForClip(clip.id))!.id, 't1');
+      expect((await db.watchTranscriptForClip(clip.id).first)!.id, 't1');
+    });
+
+    test('media refcounting still sees the migrated file', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      await db.findProject('p1');
+
+      // Nothing else points at it, so deleting p1 may reclaim the bytes.
+      expect(
+        await db.projectsSharingMedia('/media/p1/clip.mp4', excluding: 'p1'),
+        0,
+      );
+
+      // A duplicate shares the file, and the count has to notice -- this is
+      // what stops one project's deletion destroying the other's video.
+      await db.duplicateProject(
+        sourceProjectId: 'p1',
+        newProjectId: 'p2',
+        title: 'interview copy',
+        newId: () => 'copy-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      expect(
+        await db.projectsSharingMedia('/media/p1/clip.mp4', excluding: 'p1'),
+        1,
+      );
+
+      // And the copy carries the clip and its words, not just the row.
+      final copied = await db.clipsForProject('p2');
+      expect(copied.single.mediaPath, '/media/p1/clip.mp4');
+      final copiedTranscript = await db.findTranscriptForClip(copied.single.id);
+      expect(copiedTranscript, isNotNull);
+      expect(await db.watchWords(copiedTranscript!.id).first, hasLength(1));
     });
   });
 

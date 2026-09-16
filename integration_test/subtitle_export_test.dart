@@ -57,8 +57,10 @@ void main() {
       );
 
   Future<String> seed(String projectId, List<String> texts) async {
+    final clipId = repository.newId();
     await repository.saveImport(
       projectId: projectId,
+      clipId: clipId,
       title: 'export fixture',
       mediaPath: '/dev/null',
       duration: null,
@@ -81,7 +83,7 @@ void main() {
         ],
       ),
     );
-    return (await repository.findTranscriptForProject(projectId))!.id;
+    return (await repository.findTranscriptForClip(clipId))!.id;
   }
 
   testWidgets('the control appears in playback and hides while editing',

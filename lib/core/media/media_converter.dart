@@ -37,7 +37,7 @@ class MediaConverter {
   static const int _targetChannels = 1;
   static const int _targetBitDepth = 16;
 
-  /// Writes [bytes] into app-owned storage under [projectId], preserving
+  /// Writes [bytes] into app-owned storage for one clip, preserving
   /// [fileName]'s extension, and returns the new file.
   ///
   /// Takes a stream rather than a source path on purpose. On Android the
@@ -52,11 +52,11 @@ class MediaConverter {
   /// player both use it to pick a container parser.
   Future<File> importToAppStorage({
     required String projectId,
+    required String clipId,
     required String fileName,
     required Stream<List<int>> bytes,
   }) async {
-    final dir = Directory(p.join(await _mediaDirPath(), projectId));
-    await dir.create(recursive: true);
+    final dir = await _clipDir(projectId, clipId);
 
     final destination = File(p.join(dir.path, 'source${p.extension(fileName)}'));
     // Streamed rather than buffered: video files routinely run to hundreds of
@@ -84,11 +84,11 @@ class MediaConverter {
   /// differently must still be able to import.
   Future<File> adoptIntoAppStorage({
     required String projectId,
+    required String clipId,
     required String fileName,
     required File source,
   }) async {
-    final dir = Directory(p.join(await _mediaDirPath(), projectId));
-    await dir.create(recursive: true);
+    final dir = await _clipDir(projectId, clipId);
 
     final destination = File(p.join(dir.path, 'source${p.extension(fileName)}'));
 
@@ -241,6 +241,76 @@ class MediaConverter {
   Future<void> discardMediaAt(String mediaPath) async {
     final dir = Directory(p.dirname(mediaPath));
     if (await dir.exists()) await dir.delete(recursive: true);
+  }
+
+  /// Removes one clip's media without touching its siblings.
+  ///
+  /// **Two layouts have to be told apart here, and getting it wrong destroys a
+  /// project's other clips.** A clip added since schema 5 owns its directory
+  /// (`media/<projectId>/<clipId>/`), so removing that directory takes its
+  /// source, its extracted WAV and its thumbnails in one step. A clip carried
+  /// over by the schema-5 migration still sits directly in the *project*
+  /// directory (`media/<projectId>/source.mp4`), which it shares with every
+  /// clip added afterwards -- deleting that directory would take them all.
+  ///
+  /// So the parent directory is only removed when it is genuinely the clip's
+  /// own, which is exactly the case where its name is the clip id. Otherwise
+  /// the source file and its derived WAV go individually and the directory
+  /// stays.
+  Future<void> discardClipMedia({
+    required String clipId,
+    required String mediaPath,
+  }) async {
+    final parent = Directory(p.dirname(mediaPath));
+
+    if (p.basename(parent.path) == clipId) {
+      if (await parent.exists()) await parent.delete(recursive: true);
+      return;
+    }
+
+    for (final entity in <FileSystemEntity>[
+      File(mediaPath),
+      File(p.setExtension(mediaPath, '.16k.wav')),
+      Directory(thumbnailDirFor(clipId: clipId, mediaPath: mediaPath)),
+    ]) {
+      // Best-effort per entry: the row is already gone by the time this runs,
+      // so a stranded byte is a leak to report, never a failure to raise.
+      try {
+        if (await entity.exists()) await entity.delete(recursive: true);
+      } on FileSystemException {
+        continue;
+      }
+    }
+  }
+
+  /// Where one clip's source, extracted WAV and thumbnails live.
+  ///
+  /// A directory per clip rather than per project, because a project holds
+  /// several and the source filename is a fixed `source.<ext>` -- two clips in
+  /// one directory would overwrite each other, and their derived
+  /// `source.16k.wav` would collide even when the extensions differed.
+  Future<Directory> _clipDir(String projectId, String clipId) async {
+    final dir = Directory(p.join(await _mediaDirPath(), projectId, clipId));
+    await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// The directory holding every clip of [projectId].
+  Future<String> projectMediaDir(String projectId) async =>
+      p.join(await _mediaDirPath(), projectId);
+
+  /// Where one clip's filmstrip frames are cached.
+  ///
+  /// Derived from the media path rather than from ids, so it lands beside the
+  /// source for both layouts -- inside the clip's own directory for a clip
+  /// added since schema 5, and beside `source.<ext>` for one the migration
+  /// carried over. Named per clip in the second case, since those share the
+  /// project directory and would otherwise collide.
+  String thumbnailDirFor({required String clipId, required String mediaPath}) {
+    final parent = p.dirname(mediaPath);
+    return p.basename(parent) == clipId
+        ? p.join(parent, 'thumbs')
+        : p.join(parent, 'thumbs-$clipId');
   }
 
   /// Total bytes a project's media directory occupies, or 0 if it has none.

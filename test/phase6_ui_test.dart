@@ -84,8 +84,10 @@ void main() {
 
   Future<String> seedProject(String title) async {
     final projectId = repository.newId();
+    final clipId = repository.newId();
     await repository.saveImport(
       projectId: projectId,
+      clipId: clipId,
       title: title,
       mediaPath: '/tmp/$projectId.mp4',
       duration: const Duration(seconds: 61),

@@ -8,15 +8,22 @@ import 'transcript_repository.dart';
 
 part 'media_player_controller.g.dart';
 
-/// Owns the platform media player for one project.
+/// Owns the platform media player for one clip.
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
 ///
-/// Keyed by project rather than by file path. The path used to be the key, but
-/// every caller had to thread it down purely to look this provider up, and the
-/// resume position belongs to the project rather than to a file on disk. The
-/// provider reads the path itself, so callers pass the id they already hold.
+/// **Keyed by clip since schema 5**, having been keyed by project before that
+/// (and by file path before *that*, which was dropped because every caller had
+/// to thread the path down purely to look this provider up). A project now
+/// holds several clips and the preview plays whichever is selected, so one
+/// player per project would have to be torn down and rebuilt on every
+/// selection anyway — the key simply says so. The resume position follows the
+/// same move, since where you were in one clip says nothing about another.
+///
+/// Selecting a different clip disposes this provider and builds the next one,
+/// which is what releases the platform decoder: two initialised video decoders
+/// on a phone is a real cost, not a theoretical one.
 @riverpod
 class MediaPlayer extends _$MediaPlayer {
   /// Word-level timestamps come from whisper.cpp's DTW alignment, which is
@@ -37,18 +44,18 @@ class MediaPlayer extends _$MediaPlayer {
   late final AppDatabase _db;
 
   @override
-  Future<VideoPlayerController> build(String projectId) async {
+  Future<VideoPlayerController> build(String clipId) async {
     _db = ref.read(appDatabaseProvider);
 
-    final project = await _db.findProject(projectId);
+    final clip = await _db.findClip(clipId);
     // Surfaces through the screen's existing `error` branch as "player
     // unavailable", which is the honest outcome: the row is gone, so there is
     // no media to play.
-    if (project == null) {
-      throw StateError('No project $projectId to play');
+    if (clip == null) {
+      throw StateError('No clip $clipId to play');
     }
 
-    final controller = VideoPlayerController.file(File(project.mediaPath));
+    final controller = VideoPlayerController.file(File(clip.mediaPath));
     // Disposal is tied to the provider, so leaving the screen releases the
     // platform decoder even if playback was still running -- and saves the
     // position on the way out, which is what makes navigating away remember
@@ -63,12 +70,21 @@ class MediaPlayer extends _$MediaPlayer {
     });
 
     await controller.initialize();
+
+    // The platform player is the most authoritative thing that will ever read
+    // this file, so it is what repairs a clip whose duration was never probed
+    // successfully -- including every clip the schema-5 migration inherited
+    // from a project row that had none.
+    if ((clip.durationMs ?? 0) <= 0) {
+      await _db.fillMissingClipDuration(clipId, controller.value.duration);
+    }
+
     await _restore(controller);
     return controller;
   }
 
   Future<void> _restore(VideoPlayerController controller) async {
-    final stored = await _db.readSetting(playbackPositionKey(projectId));
+    final stored = await _db.readSetting(playbackPositionKey(clipId));
     final ms = int.tryParse(stored ?? '');
     if (ms == null || ms <= 0) return;
 
@@ -83,7 +99,7 @@ class MediaPlayer extends _$MediaPlayer {
   void _write(VideoPlayerController controller) {
     if (!controller.value.isInitialized) return;
     _db.writeSetting(
-      playbackPositionKey(projectId),
+      playbackPositionKey(clipId),
       '${controller.value.position.inMilliseconds}',
     );
   }

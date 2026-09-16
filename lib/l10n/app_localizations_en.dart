@@ -190,20 +190,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reassignSpeakerTitle => 'Who is speaking?';
 
   @override
-  String get editSentenceTitle => 'Correct this line';
-
-  @override
-  String get editWordTitle => 'Correct this word';
-
-  @override
-  String get editWordTimingNote =>
-      'Timing stays inside this word, so nothing around it moves. You can split it into several words.';
-
-  @override
-  String get editSentenceTimingNote =>
-      'Timing stays the same, so captions stay in sync. You can add or remove words.';
-
-  @override
   String get editCancel => 'Cancel';
 
   @override
@@ -247,10 +233,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsHeading => 'Projects';
 
   @override
-  String get importHeadline => 'Import media';
+  String get importHeadline => 'Transcribe';
 
   @override
   String get importSubhead => 'Video or audio — transcribed on your device';
+
+  @override
+  String get importEditHeadline => 'Import & edit';
+
+  @override
+  String get importEditSubhead =>
+      'Transcribed automatically, then opens on the timeline';
 
   @override
   String projectCreated(DateTime date) {
@@ -334,4 +327,107 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportEmpty => 'There are no captions to export yet.';
+
+  @override
+  String get editorModeScript => 'Script';
+
+  @override
+  String get editorModeTimeline => 'Timeline';
+
+  @override
+  String get timelineFullscreen => 'Fullscreen';
+
+  @override
+  String get timelineAspectToggle => 'Toggle fit';
+
+  @override
+  String get timelineMuteClip => 'Mute clip';
+
+  @override
+  String get timelineCover => 'Cover';
+
+  @override
+  String get timelineAddAudio => 'Add audio';
+
+  @override
+  String get timelineCaptionsLabel => 'Captions';
+
+  @override
+  String get timelineToolEdit => 'Edit';
+
+  @override
+  String get timelineToolAudio => 'Audio';
+
+  @override
+  String get timelineToolText => 'Text';
+
+  @override
+  String get timelineToolEffects => 'Effects';
+
+  @override
+  String get timelineToolOverlay => 'Overlay';
+
+  @override
+  String get timelineToolCaptions => 'Captions';
+
+  @override
+  String get timelineToolFilter => 'Filter';
+
+  @override
+  String timelineComingSoon(String feature) {
+    return '$feature is coming soon.';
+  }
+
+  @override
+  String get timelineNoClips => 'No media yet. Tap + to add a clip.';
+
+  @override
+  String get clipAdd => 'Add a clip';
+
+  @override
+  String get clipRemove => 'Remove';
+
+  @override
+  String get clipRemoveTitle => 'Remove this clip?';
+
+  @override
+  String get clipRemoveMessage =>
+      'This deletes the clip\'s media from your device, along with anything transcribed from it. It cannot be undone.';
+
+  @override
+  String get clipMoveEarlier => 'Move earlier';
+
+  @override
+  String get clipMoveLater => 'Move later';
+
+  @override
+  String get clipTranscribe => 'Transcribe';
+
+  @override
+  String get clipNotTranscribed => 'Not transcribed yet.';
+
+  @override
+  String get clipNotTranscribedScript =>
+      'This clip hasn\'t been transcribed yet. Switch to Timeline and tap Transcribe to start.';
+
+  @override
+  String get clipTranscribed => 'Transcribed.';
+
+  @override
+  String get clipTranscribeFailed => 'Couldn\'t transcribe this clip.';
+
+  @override
+  String get createProjectHeadline => 'Create project';
+
+  @override
+  String get createProjectSubhead => 'Name it, then add clips on the timeline';
+
+  @override
+  String get createProjectTitle => 'Name this project';
+
+  @override
+  String get createProjectAction => 'Create';
+
+  @override
+  String get createProjectDefaultName => 'Untitled project';
 }

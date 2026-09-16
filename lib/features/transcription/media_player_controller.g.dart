@@ -8,39 +8,60 @@ part of 'media_player_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Owns the platform media player for one project.
+/// Owns the platform media player for one clip.
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
 ///
-/// Keyed by project rather than by file path. The path used to be the key, but
-/// every caller had to thread it down purely to look this provider up, and the
-/// resume position belongs to the project rather than to a file on disk. The
-/// provider reads the path itself, so callers pass the id they already hold.
+/// **Keyed by clip since schema 5**, having been keyed by project before that
+/// (and by file path before *that*, which was dropped because every caller had
+/// to thread the path down purely to look this provider up). A project now
+/// holds several clips and the preview plays whichever is selected, so one
+/// player per project would have to be torn down and rebuilt on every
+/// selection anyway — the key simply says so. The resume position follows the
+/// same move, since where you were in one clip says nothing about another.
+///
+/// Selecting a different clip disposes this provider and builds the next one,
+/// which is what releases the platform decoder: two initialised video decoders
+/// on a phone is a real cost, not a theoretical one.
 
 @ProviderFor(MediaPlayer)
 final mediaPlayerProvider = MediaPlayerFamily._();
 
-/// Owns the platform media player for one project.
+/// Owns the platform media player for one clip.
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
 ///
-/// Keyed by project rather than by file path. The path used to be the key, but
-/// every caller had to thread it down purely to look this provider up, and the
-/// resume position belongs to the project rather than to a file on disk. The
-/// provider reads the path itself, so callers pass the id they already hold.
+/// **Keyed by clip since schema 5**, having been keyed by project before that
+/// (and by file path before *that*, which was dropped because every caller had
+/// to thread the path down purely to look this provider up). A project now
+/// holds several clips and the preview plays whichever is selected, so one
+/// player per project would have to be torn down and rebuilt on every
+/// selection anyway — the key simply says so. The resume position follows the
+/// same move, since where you were in one clip says nothing about another.
+///
+/// Selecting a different clip disposes this provider and builds the next one,
+/// which is what releases the platform decoder: two initialised video decoders
+/// on a phone is a real cost, not a theoretical one.
 final class MediaPlayerProvider
     extends $AsyncNotifierProvider<MediaPlayer, VideoPlayerController> {
-  /// Owns the platform media player for one project.
+  /// Owns the platform media player for one clip.
   ///
   /// Lives in a provider rather than in the screen's state so that tap-to-seek
   /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
   ///
-  /// Keyed by project rather than by file path. The path used to be the key, but
-  /// every caller had to thread it down purely to look this provider up, and the
-  /// resume position belongs to the project rather than to a file on disk. The
-  /// provider reads the path itself, so callers pass the id they already hold.
+  /// **Keyed by clip since schema 5**, having been keyed by project before that
+  /// (and by file path before *that*, which was dropped because every caller had
+  /// to thread the path down purely to look this provider up). A project now
+  /// holds several clips and the preview plays whichever is selected, so one
+  /// player per project would have to be torn down and rebuilt on every
+  /// selection anyway — the key simply says so. The resume position follows the
+  /// same move, since where you were in one clip says nothing about another.
+  ///
+  /// Selecting a different clip disposes this provider and builds the next one,
+  /// which is what releases the platform decoder: two initialised video decoders
+  /// on a phone is a real cost, not a theoretical one.
   MediaPlayerProvider._({
     required MediaPlayerFamily super.from,
     required String super.argument,
@@ -77,17 +98,24 @@ final class MediaPlayerProvider
   }
 }
 
-String _$mediaPlayerHash() => r'd894220cdf05ab0352e9c9b78b41ad0052280df6';
+String _$mediaPlayerHash() => r'0e63dce5c70c19e48771f9148bfc0a3ddbd555e0';
 
-/// Owns the platform media player for one project.
+/// Owns the platform media player for one clip.
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
 ///
-/// Keyed by project rather than by file path. The path used to be the key, but
-/// every caller had to thread it down purely to look this provider up, and the
-/// resume position belongs to the project rather than to a file on disk. The
-/// provider reads the path itself, so callers pass the id they already hold.
+/// **Keyed by clip since schema 5**, having been keyed by project before that
+/// (and by file path before *that*, which was dropped because every caller had
+/// to thread the path down purely to look this provider up). A project now
+/// holds several clips and the preview plays whichever is selected, so one
+/// player per project would have to be torn down and rebuilt on every
+/// selection anyway — the key simply says so. The resume position follows the
+/// same move, since where you were in one clip says nothing about another.
+///
+/// Selecting a different clip disposes this provider and builds the next one,
+/// which is what releases the platform decoder: two initialised video decoders
+/// on a phone is a real cost, not a theoretical one.
 
 final class MediaPlayerFamily extends $Family
     with
@@ -107,38 +135,52 @@ final class MediaPlayerFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Owns the platform media player for one project.
+  /// Owns the platform media player for one clip.
   ///
   /// Lives in a provider rather than in the screen's state so that tap-to-seek
   /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
   ///
-  /// Keyed by project rather than by file path. The path used to be the key, but
-  /// every caller had to thread it down purely to look this provider up, and the
-  /// resume position belongs to the project rather than to a file on disk. The
-  /// provider reads the path itself, so callers pass the id they already hold.
+  /// **Keyed by clip since schema 5**, having been keyed by project before that
+  /// (and by file path before *that*, which was dropped because every caller had
+  /// to thread the path down purely to look this provider up). A project now
+  /// holds several clips and the preview plays whichever is selected, so one
+  /// player per project would have to be torn down and rebuilt on every
+  /// selection anyway — the key simply says so. The resume position follows the
+  /// same move, since where you were in one clip says nothing about another.
+  ///
+  /// Selecting a different clip disposes this provider and builds the next one,
+  /// which is what releases the platform decoder: two initialised video decoders
+  /// on a phone is a real cost, not a theoretical one.
 
-  MediaPlayerProvider call(String projectId) =>
-      MediaPlayerProvider._(argument: projectId, from: this);
+  MediaPlayerProvider call(String clipId) =>
+      MediaPlayerProvider._(argument: clipId, from: this);
 
   @override
   String toString() => r'mediaPlayerProvider';
 }
 
-/// Owns the platform media player for one project.
+/// Owns the platform media player for one clip.
 ///
 /// Lives in a provider rather than in the screen's state so that tap-to-seek
 /// is a call into a service, not logic embedded in a widget (CLAUDE.md 4).
 ///
-/// Keyed by project rather than by file path. The path used to be the key, but
-/// every caller had to thread it down purely to look this provider up, and the
-/// resume position belongs to the project rather than to a file on disk. The
-/// provider reads the path itself, so callers pass the id they already hold.
+/// **Keyed by clip since schema 5**, having been keyed by project before that
+/// (and by file path before *that*, which was dropped because every caller had
+/// to thread the path down purely to look this provider up). A project now
+/// holds several clips and the preview plays whichever is selected, so one
+/// player per project would have to be torn down and rebuilt on every
+/// selection anyway — the key simply says so. The resume position follows the
+/// same move, since where you were in one clip says nothing about another.
+///
+/// Selecting a different clip disposes this provider and builds the next one,
+/// which is what releases the platform decoder: two initialised video decoders
+/// on a phone is a real cost, not a theoretical one.
 
 abstract class _$MediaPlayer extends $AsyncNotifier<VideoPlayerController> {
   late final _$args = ref.$arg as String;
-  String get projectId => _$args;
+  String get clipId => _$args;
 
-  FutureOr<VideoPlayerController> build(String projectId);
+  FutureOr<VideoPlayerController> build(String clipId);
   @$mustCallSuper
   @override
   WhenComplete runBuild() {

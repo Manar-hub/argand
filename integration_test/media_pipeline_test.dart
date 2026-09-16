@@ -41,6 +41,7 @@ void main() {
     );
     return converter.importToAppStorage(
       projectId: projectId,
+      clipId: 'clip',
       fileName: fixture.split('/').last,
       bytes: source.openRead(),
     );

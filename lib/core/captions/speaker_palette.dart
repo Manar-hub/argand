@@ -41,6 +41,60 @@ abstract final class SpeakerPalette {
     return _colors[speaker.abs() % _colors.length];
   }
 
+  /// The same six speakers, as colours that can be **set in type** on a light
+  /// ground.
+  ///
+  /// [_colors] are fills. They are bright by design — they sit behind caption
+  /// text over video, and they read at 7.5:1 to 12.8:1 against a near-black
+  /// page. Used as *text* on the warm off-white ground they collapse: amber
+  /// measures 1.28:1, cyan 1.66:1. So the light theme needs its own set, and
+  /// this is it.
+  ///
+  /// Every entry is **full saturation at the lightest tone that still clears
+  /// 4.5:1**, the WCAG AA bar for body text. Lightest matters as much as the
+  /// bar does: an earlier attempt blended each hue toward black until it
+  /// passed, which desaturates, and it came out muddy. Darkening in HSL while
+  /// pinning saturation keeps the colour vivid.
+  ///
+  /// Five keep their own hue. **Orange moves, and has to.** The amber fill sits
+  /// at 46° and the orange fill at 36° — ten degrees apart. Bright and pale
+  /// they are easy to tell apart; darkened they converge on the same brown and
+  /// the two speakers become one colour. Orange is pushed to 14° (vermilion) so
+  /// six hues stay distinct, the smallest pair now separated by 125 of a
+  /// possible 765.
+  ///
+  /// **Amber is the known weak point, and it is a fact about yellow rather
+  /// than a tuning failure.** Yellow reaches maximum chroma at high lightness,
+  /// so *every* dark yellow is an olive-gold. `#8E6A00` is the most vivid
+  /// yellow that clears the bar; there is no brighter one.
+  static const List<Color> _inkOnLight = [
+    Color(0xFF8E6A00), // amber      4.51:1
+    Color(0xFF007A93), // cyan       4.52:1
+    Color(0xFF1A8100), // green      4.54:1
+    Color(0xFFDB005B), // pink       4.56:1
+    Color(0xFFD23100), // orange     4.55:1
+    Color(0xFF6A00FF), // lavender   6.22:1
+  ];
+
+  /// [speaker]'s colour, for drawing text on a page of [brightness].
+  ///
+  /// Dark returns the fill unchanged, which already reads at 7.5:1 or better
+  /// on the near-black ground and is the same colour the captions use. Light
+  /// returns the tuned ink above.
+  ///
+  /// The two are the same hue, not the same value, which is what keeps a
+  /// speaker recognisable: a reader only ever sees one theme at a time, and
+  /// within that theme the stamp and the caption chip agree.
+  static Color textColorFor(
+    int? speaker, {
+    required Brightness brightness,
+    required Color fallback,
+  }) {
+    if (speaker == null) return fallback;
+    final index = speaker.abs() % _colors.length;
+    return brightness == Brightness.dark ? _colors[index] : _inkOnLight[index];
+  }
+
   /// Text colour that stays legible on top of [colorFor].
   ///
   /// Computed from luminance rather than hardcoded, so adding a darker hue to

@@ -8,6 +8,7 @@ import 'package:argand/features/transcription/project_screen.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:argand/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -43,8 +44,10 @@ void main() {
   tearDown(() => database.close());
 
   Future<String> seedTranscript(String projectId, List<String> texts) async {
+    final clipId = repository.newId();
     await repository.saveImport(
       projectId: projectId,
+      clipId: clipId,
       title: 'undo-fixture',
       mediaPath: '/dev/null',
       duration: null,
@@ -63,7 +66,7 @@ void main() {
         ],
       ),
     );
-    return (await repository.findTranscriptForProject(projectId))!.id;
+    return (await repository.findTranscriptForClip(clipId))!.id;
   }
 
   testWidgets('the edit log survives on Android SQLite', (tester) async {
@@ -120,11 +123,13 @@ void main() {
     const payload = 512 * 1024;
     await converter.importToAppStorage(
       projectId: projectId,
+      clipId: 'clip',
       fileName: 'clip.mp4',
       bytes: Stream.value(Uint8List(payload)),
     );
     await converter.importToAppStorage(
       projectId: projectId,
+      clipId: 'clip',
       fileName: 'clip.wav',
       bytes: Stream.value(Uint8List(payload)),
     );
@@ -198,6 +203,7 @@ void main() {
 
     final adopted = await converter.adoptIntoAppStorage(
       projectId: projectId,
+      clipId: 'clip',
       fileName: 'holiday clip.mp4',
       source: staging,
     );
@@ -247,6 +253,38 @@ void main() {
           matching: find.byType(IconButton),
         );
 
+    /// Taps a transcript word by invoking its own `TapGestureRecognizer`
+    /// directly, rather than `tester.tap(find.text(word))`.
+    ///
+    /// A cue line is one merged `RichText` with a `TextSpan` per word
+    /// (`_CueLine._spans`), not one widget per word, so `find.text` can't
+    /// address a single word -- it only matches a widget's *entire* rendered
+    /// text, which for a multi-word line is the whole line. Finding the exact
+    /// span and firing its recognizer reaches the same `onWordTap` callback a
+    /// real tap would, without depending on where the word happens to sit on
+    /// screen.
+    Future<void> tapWord(WidgetTester tester, String text) async {
+      final matches = <TapGestureRecognizer>[];
+      void visit(InlineSpan span) {
+        if (span is TextSpan) {
+          final recognizer = span.recognizer;
+          if (span.text == text && recognizer is TapGestureRecognizer) {
+            matches.add(recognizer);
+          }
+          span.children?.forEach(visit);
+        }
+      }
+
+      for (final element in find.byType(RichText).evaluate()) {
+        visit((element.widget as RichText).text);
+      }
+
+      expect(matches, hasLength(1),
+          reason: 'expected exactly one tappable "$text", '
+              'found ${matches.length}');
+      matches.single.onTap!();
+    }
+
     testWidgets('appear only in edit mode, and start disabled', (tester) async {
       final projectId = repository.newId();
       await seedTranscript(projectId, ['Appie', 'is', 'here.']);
@@ -277,14 +315,15 @@ void main() {
       await tester.tap(find.byIcon(Icons.edit_outlined));
       await settle(tester);
 
-      // The real gesture: tap the word, retype it, save.
-      await tester.tap(find.text('Appie'));
+      // The real gesture: tap the word, retype it, submit via the keyboard's
+      // done action -- there is no Save button, commit is on submit or blur.
+      await tapWord(tester, 'Appie');
       await settle(tester);
       await tester.enterText(find.byType(TextField), 'API is here.');
-      await tester.tap(find.text('Save'));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
 
-      expect(find.text('API'), findsOneWidget);
+      expect(find.textContaining('API'), findsOneWidget);
       log('typed         -> API');
 
       expect(
@@ -295,13 +334,13 @@ void main() {
 
       await tester.tap(buttonFor(Icons.undo));
       await settle(tester);
-      expect(find.text('Appie'), findsOneWidget);
-      expect(find.text('API'), findsNothing);
+      expect(find.textContaining('Appie'), findsOneWidget);
+      expect(find.textContaining('API'), findsNothing);
       log('tapped undo   -> Appie');
 
       await tester.tap(buttonFor(Icons.redo));
       await settle(tester);
-      expect(find.text('API'), findsOneWidget);
+      expect(find.textContaining('API'), findsOneWidget);
       log('tapped redo   -> API');
 
       await repository.deleteProject(projectId);
@@ -309,8 +348,8 @@ void main() {
 
     testWidgets('retyping a line splits one word into two and undoes cleanly',
         (tester) async {
-      // The reported case, driven through the real dialog: the engine hears
-      // "brainbeats" where the speaker said "praying beads".
+      // The reported case, driven through the real inline field: the engine
+      // hears "brainbeats" where the speaker said "praying beads".
       final projectId = repository.newId();
       final transcriptId =
           await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
@@ -322,7 +361,7 @@ void main() {
       await settle(tester);
 
       // Tapping any word in the line opens the whole line, not that word.
-      await tester.tap(find.text('was'));
+      await tapWord(tester, 'was');
       await settle(tester);
 
       final field = tester.widget<TextField>(find.byType(TextField));
@@ -331,7 +370,7 @@ void main() {
       log('editor        -> "${field.controller!.text}"');
 
       await tester.enterText(find.byType(TextField), 'It was praying beads.');
-      await tester.tap(find.text('Save'));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
 
       final after = await repository.watchWords(transcriptId).first;
@@ -373,7 +412,7 @@ void main() {
       await tester.tap(find.text('Word'));
       await settle(tester);
 
-      await tester.tap(find.text('brainbeats.'));
+      await tapWord(tester, 'brainbeats.');
       await settle(tester);
 
       final field = tester.widget<TextField>(find.byType(TextField));
@@ -382,7 +421,7 @@ void main() {
       log('word editor   -> "${field.controller!.text}"');
 
       await tester.enterText(find.byType(TextField), 'praying beads.');
-      await tester.tap(find.text('Save'));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
 
       final after = await repository.watchWords(transcriptId).first;
@@ -408,9 +447,59 @@ void main() {
       await repository.deleteProject(projectId);
     });
 
+    testWidgets(
+        'tapping straight to another word commits the first edit instead of '
+        'losing it', (tester) async {
+      // The inline field has no Save button and no explicit "leaving" event of
+      // its own -- tapping a different word opens a new span directly over
+      // the old one, without the old field ever losing focus first. Confirms
+      // that edit survives instead of being silently dropped by `dispose()`.
+      final projectId = repository.newId();
+      final transcriptId =
+          await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
+
+      await tester.pumpWidget(host(projectId));
+      await settle(tester);
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await settle(tester);
+      await tester.tap(find.text('Word'));
+      await settle(tester);
+
+      await tapWord(tester, 'was');
+      await settle(tester);
+      await tester.enterText(find.byType(TextField), 'were');
+
+      // Straight to a different word, with the keyboard still up and the
+      // first field never explicitly submitted or blurred.
+      await tapWord(tester, 'brainbeats.');
+      await settle(tester);
+
+      final after = await repository.watchWords(transcriptId).first;
+      log('after tap-away -> ${after.map((w) => w.word).join(' ')}');
+      expect(after.map((w) => w.word), ['It', 'were', 'brainbeats.'],
+          reason: 'the first edit must commit, not be discarded');
+
+      // The second field is genuinely open now, seeded with its own word --
+      // not left showing the first field's stale text.
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'brainbeats.',
+      );
+
+      await tester.tap(buttonFor(Icons.undo));
+      await settle(tester);
+      expect(
+        (await repository.watchWords(transcriptId).first).map((w) => w.word),
+        ['It', 'was', 'brainbeats.'],
+      );
+
+      await repository.deleteProject(projectId);
+    });
+
     testWidgets('Line scope still opens the whole sentence', (tester) async {
       final projectId = repository.newId();
-      await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
+      final transcriptId =
+          await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
 
       await tester.pumpWidget(host(projectId));
       await settle(tester);
@@ -419,7 +508,7 @@ void main() {
 
       // Line is the default, so this asserts the control did not silently
       // change what a tap does before the user chose anything.
-      await tester.tap(find.text('was'));
+      await tapWord(tester, 'was');
       await settle(tester);
 
       expect(
@@ -427,8 +516,17 @@ void main() {
         'It was brainbeats.',
       );
 
-      await tester.tap(find.text('Cancel'));
+      // No Save/Cancel affordance to walk away from -- leave edit mode
+      // without having typed anything, which closes the field. The
+      // repository no-ops on unchanged text, so nothing should be written.
+      // The app-bar icon swaps to `Icons.done` while editing.
+      await tester.tap(find.byIcon(Icons.done));
       await settle(tester);
+
+      expect(
+        (await repository.watchWords(transcriptId).first).map((w) => w.word),
+        ['It', 'was', 'brainbeats.'],
+      );
 
       await repository.deleteProject(projectId);
     });
@@ -449,19 +547,20 @@ void main() {
       await settle(tester);
 
       // The palette offers the transcript's own speaker plus one more, which
-      // is what makes a split possible at all.
-      expect(find.widgetWithText(ChoiceChip, 'Speaker 1'), findsOneWidget);
-      expect(find.widgetWithText(ChoiceChip, 'Speaker 2'), findsOneWidget);
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Speaker 2'));
+      // is what makes a split possible at all. `_SpeakerChip` is private, so
+      // the label text is the handle rather than the widget type.
+      expect(find.text('Speaker 1'), findsOneWidget);
+      expect(find.text('Speaker 2'), findsOneWidget);
+      await tester.tap(find.text('Speaker 2'));
       await settle(tester);
 
       // First tap anchors, and must be visible while it waits.
-      await tester.tap(find.text('three'));
+      await tapWord(tester, 'three');
       await settle(tester);
       expect(find.text('Cancel'), findsOneWidget,
           reason: 'a pending anchor must be cancellable');
 
-      await tester.tap(find.text('four'));
+      await tapWord(tester, 'four');
       await settle(tester);
 
       final after = await repository.watchWords(transcriptId).first;
@@ -493,7 +592,7 @@ void main() {
       await tester.tap(find.text('Speakers'));
       await settle(tester);
 
-      await tester.tap(find.text('One'));
+      await tapWord(tester, 'One');
       await settle(tester);
       await tester.tap(find.text('Cancel'));
       await settle(tester);
@@ -501,7 +600,7 @@ void main() {
 
       // Anchor again, then leave the scope. A selection that outlived its mode
       // would turn the next unrelated tap into a range assignment.
-      await tester.tap(find.text('One'));
+      await tapWord(tester, 'One');
       await settle(tester);
       await tester.tap(find.text('Line'));
       await settle(tester);
@@ -519,8 +618,19 @@ void main() {
       await repository.deleteProject(projectId);
     });
 
-    testWidgets('a renamed speaker shows everywhere the number used to',
+    testWidgets('a renamed speaker shows in the speaker picker',
         (tester) async {
+      // This test used to also assert the name appeared as a turn heading in
+      // the transcript body -- true of the pre-redesign screen (Phase 3.1's
+      // "Speaker N" heading), but the Script-mode rebuild deliberately
+      // dropped that heading: `project_screen.dart` now marks a turn's
+      // speaker only through the timestamp's colour ("the timestamp is the
+      // speaker signal", `_buildRows`'s `onStampTap` comment). That means a
+      // renamed speaker is currently distinguishable from "Speaker 1" only
+      // through the picker/export, not by reading the transcript -- flagging
+      // this rather than asserting it, since it's not clear it was a
+      // deliberate trade against progress.md Phase 5.8's "the name reaches
+      // the turn label ... free" or a side effect of the rebuild.
       final projectId = repository.newId();
       final transcriptId =
           await seedTranscript(projectId, ['One', 'two', 'three.']);
@@ -534,17 +644,12 @@ void main() {
       await tester.pumpWidget(host(projectId));
       await settle(tester);
 
-      // The turn label, without entering edit mode.
-      expect(find.text('Ana'), findsWidgets);
-      expect(find.text('Speaker 1'), findsNothing);
-      log('renamed       -> label reads "Ana"');
-
-      // And the palette agrees.
       await tester.tap(find.byIcon(Icons.edit_outlined));
       await settle(tester);
       await tester.tap(find.text('Speakers'));
       await settle(tester);
-      expect(find.widgetWithText(ChoiceChip, 'Ana'), findsOneWidget);
+      expect(find.text('Ana'), findsOneWidget);
+      log('renamed       -> picker reads "Ana"');
 
       await repository.deleteProject(projectId);
     });
@@ -558,10 +663,10 @@ void main() {
       await settle(tester);
       await tester.tap(find.byIcon(Icons.edit_outlined));
       await settle(tester);
-      await tester.tap(find.text('Appie'));
+      await tapWord(tester, 'Appie');
       await settle(tester);
       await tester.enterText(find.byType(TextField), 'API is here.');
-      await tester.tap(find.text('Save'));
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
 
       // Tear the screen down completely, which is what closing a project does.
@@ -581,7 +686,7 @@ void main() {
 
       await tester.tap(buttonFor(Icons.undo));
       await settle(tester);
-      expect(find.text('Appie'), findsOneWidget);
+      expect(find.textContaining('Appie'), findsOneWidget);
       log('after rebuild -> undo still worked');
 
       await repository.deleteProject(projectId);

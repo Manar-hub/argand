@@ -406,30 +406,6 @@ abstract class AppLocalizations {
   /// **'Who is speaking?'**
   String get reassignSpeakerTitle;
 
-  /// Header of the field for retyping a whole sentence
-  ///
-  /// In en, this message translates to:
-  /// **'Correct this line'**
-  String get editSentenceTitle;
-
-  /// Header of the field for retyping a single word
-  ///
-  /// In en, this message translates to:
-  /// **'Correct this word'**
-  String get editWordTitle;
-
-  /// Reassurance under the word editor that a change cannot affect neighbouring words' timing, and that the word may become several
-  ///
-  /// In en, this message translates to:
-  /// **'Timing stays inside this word, so nothing around it moves. You can split it into several words.'**
-  String get editWordTimingNote;
-
-  /// Reassurance under the sentence editor that retyping will not move the line's timestamps, and that the word count may change
-  ///
-  /// In en, this message translates to:
-  /// **'Timing stays the same, so captions stay in sync. You can add or remove words.'**
-  String get editSentenceTimingNote;
-
   /// Dismisses an edit without applying it
   ///
   /// In en, this message translates to:
@@ -496,17 +472,29 @@ abstract class AppLocalizations {
   /// **'Projects'**
   String get projectsHeading;
 
-  /// Label on the large import panel at the top of the library
+  /// Label on the library's transcribe-only entry panel; opens the resulting project in Script mode
   ///
   /// In en, this message translates to:
-  /// **'Import media'**
+  /// **'Transcribe'**
   String get importHeadline;
 
-  /// Supporting line under the import panel, saying what can be imported and that nothing is uploaded
+  /// Supporting line under the transcribe entry panel, saying what can be imported and that nothing is uploaded
   ///
   /// In en, this message translates to:
   /// **'Video or audio — transcribed on your device'**
   String get importSubhead;
+
+  /// Label on the library's import-and-edit entry panel; opens the resulting project in Timeline mode
+  ///
+  /// In en, this message translates to:
+  /// **'Import & edit'**
+  String get importEditHeadline;
+
+  /// Supporting line under the import-and-edit entry panel
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribed automatically, then opens on the timeline'**
+  String get importEditSubhead;
 
   /// When a project was imported, shown in its library row
   ///
@@ -645,6 +633,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'There are no captions to export yet.'**
   String get exportEmpty;
+
+  /// Label of the mode switch segment that shows the transcript-first editing view
+  ///
+  /// In en, this message translates to:
+  /// **'Script'**
+  String get editorModeScript;
+
+  /// Label of the mode switch segment that shows the clip/track editing view
+  ///
+  /// In en, this message translates to:
+  /// **'Timeline'**
+  String get editorModeTimeline;
+
+  /// Tooltip on the button that opens the video preview full screen
+  ///
+  /// In en, this message translates to:
+  /// **'Fullscreen'**
+  String get timelineFullscreen;
+
+  /// Tooltip on the button that switches the preview between fitted and filled framing
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle fit'**
+  String get timelineAspectToggle;
+
+  /// Label under the track icon that mutes the video's own audio
+  ///
+  /// In en, this message translates to:
+  /// **'Mute clip'**
+  String get timelineMuteClip;
+
+  /// Label under the track icon that sets the project's cover frame
+  ///
+  /// In en, this message translates to:
+  /// **'Cover'**
+  String get timelineCover;
+
+  /// Label on the row that adds an audio track below the filmstrip
+  ///
+  /// In en, this message translates to:
+  /// **'Add audio'**
+  String get timelineAddAudio;
+
+  /// Heading above the caption list shown when the Captions toolbar button is toggled on
+  ///
+  /// In en, this message translates to:
+  /// **'Captions'**
+  String get timelineCaptionsLabel;
+
+  /// Bottom toolbar button: cut/trim/split (not yet built)
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get timelineToolEdit;
+
+  /// Bottom toolbar button: audio tools (not yet built)
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get timelineToolAudio;
+
+  /// Bottom toolbar button: text overlays (not yet built)
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get timelineToolText;
+
+  /// Bottom toolbar button: visual effects (not yet built)
+  ///
+  /// In en, this message translates to:
+  /// **'Effects'**
+  String get timelineToolEffects;
+
+  /// Bottom toolbar button: image/video overlays (not yet built)
+  ///
+  /// In en, this message translates to:
+  /// **'Overlay'**
+  String get timelineToolOverlay;
+
+  /// Bottom toolbar button: toggles the caption list under the track area
+  ///
+  /// In en, this message translates to:
+  /// **'Captions'**
+  String get timelineToolCaptions;
+
+  /// Bottom toolbar button: colour filters (not yet built)
+  ///
+  /// In en, this message translates to:
+  /// **'Filter'**
+  String get timelineToolFilter;
+
+  /// Acknowledgement shown when a Timeline mode tool without a real implementation yet is tapped
+  ///
+  /// In en, this message translates to:
+  /// **'{feature} is coming soon.'**
+  String timelineComingSoon(String feature);
+
+  /// Shown on an empty project's timeline and in Script mode when the project has no clips
+  ///
+  /// In en, this message translates to:
+  /// **'No media yet. Tap + to add a clip.'**
+  String get timelineNoClips;
+
+  /// Accessibility label of the + button that adds media to a project
+  ///
+  /// In en, this message translates to:
+  /// **'Add a clip'**
+  String get clipAdd;
+
+  /// Menu entry that removes a clip from the project
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get clipRemove;
+
+  /// Heading of the dialog confirming a clip's removal
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this clip?'**
+  String get clipRemoveTitle;
+
+  /// Body of the clip-removal confirmation, stating that the media is permanently deleted
+  ///
+  /// In en, this message translates to:
+  /// **'This deletes the clip\'s media from your device, along with anything transcribed from it. It cannot be undone.'**
+  String get clipRemoveMessage;
+
+  /// Menu entry that moves a clip one place towards the start of the timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Move earlier'**
+  String get clipMoveEarlier;
+
+  /// Menu entry that moves a clip one place towards the end of the timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Move later'**
+  String get clipMoveLater;
+
+  /// Button that starts transcribing the selected clip
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe'**
+  String get clipTranscribe;
+
+  /// Shown beside the Transcribe button when the selected clip has no transcript
+  ///
+  /// In en, this message translates to:
+  /// **'Not transcribed yet.'**
+  String get clipNotTranscribed;
+
+  /// Shown in Script mode when the selected clip has no transcript, pointing at where the action lives
+  ///
+  /// In en, this message translates to:
+  /// **'This clip hasn\'t been transcribed yet. Switch to Timeline and tap Transcribe to start.'**
+  String get clipNotTranscribedScript;
+
+  /// Shown beside the selected clip once it has a transcript
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribed.'**
+  String get clipTranscribed;
+
+  /// Shown when transcribing a clip failed; the clip itself is unaffected and the action can be retried
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t transcribe this clip.'**
+  String get clipTranscribeFailed;
+
+  /// Label on the library panel that creates an empty project and opens it on the timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Create project'**
+  String get createProjectHeadline;
+
+  /// Supporting line under the create-project panel
+  ///
+  /// In en, this message translates to:
+  /// **'Name it, then add clips on the timeline'**
+  String get createProjectSubhead;
+
+  /// Heading of the dialog asking for a new project's name
+  ///
+  /// In en, this message translates to:
+  /// **'Name this project'**
+  String get createProjectTitle;
+
+  /// Button that confirms creating the named project
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get createProjectAction;
+
+  /// The name a project gets when the user confirms without typing one
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled project'**
+  String get createProjectDefaultName;
 }
 
 class _AppLocalizationsDelegate

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,18 +5,10 @@ import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../core/diarization/diarization_controller.dart';
-import '../../core/diarization/speaker_assignment.dart';
-import '../../core/diarization/speaker_diarizer.dart';
-import '../../core/diarization/speaker_refiner.dart';
-import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/media/shared_media.dart';
-import '../../core/whisper/transcription_language_controller.dart';
-import '../../core/whisper/vad_controller.dart';
-import '../../core/whisper/whisper_model_controller.dart';
-import '../../core/whisper/whisper_service.dart';
 import 'transcript_repository.dart';
+import 'transcription_run.dart';
 
 part 'import_controller.g.dart';
 
@@ -82,13 +73,8 @@ class ImportFailed extends ImportStatus {
 /// any of this logic (CLAUDE.md 4).
 @riverpod
 class ImportController extends _$ImportController {
-  Timer? _progressTimer;
-
   @override
-  ImportStatus build() {
-    ref.onDispose(() => _progressTimer?.cancel());
-    return const ImportIdle();
-  }
+  ImportStatus build() => const ImportIdle();
 
   /// Containers offered in the picker.
   ///
@@ -114,8 +100,9 @@ class ImportController extends _$ImportController {
     }
     await _run(
       fileName: picked.name,
-      copyIn: (converter, projectId) => converter.importToAppStorage(
+      copyIn: (converter, projectId, clipId) => converter.importToAppStorage(
         projectId: projectId,
+        clipId: clipId,
         fileName: picked.name,
         bytes: picked.readAsByteStream(),
       ),
@@ -153,8 +140,9 @@ class ImportController extends _$ImportController {
 
     await _run(
       fileName: media.name,
-      copyIn: (converter, projectId) => converter.adoptIntoAppStorage(
+      copyIn: (converter, projectId, clipId) => converter.adoptIntoAppStorage(
         projectId: projectId,
+        clipId: clipId,
         fileName: media.name,
         source: File(cached!),
       ),
@@ -172,135 +160,46 @@ class ImportController extends _$ImportController {
   /// identical and must stay that way.
   Future<void> _run({
     required String fileName,
-    required Future<File> Function(MediaConverter, String projectId) copyIn,
+    required Future<File> Function(
+            MediaConverter, String projectId, String clipId)
+        copyIn,
   }) async {
     final repository = ref.read(transcriptRepositoryProvider);
     final converter = ref.read(mediaConverterProvider);
-    final whisper = ref.read(whisperServiceProvider);
 
     final projectId = repository.newId();
+    // Minted alongside the project because the media directory is keyed by
+    // both, and the copy has to land somewhere before any row exists.
+    final clipId = repository.newId();
 
     try {
-      // Copying the model out of assets happens once per model, but it is
-      // slow enough on first use to deserve its own visible stage rather than
-      // being hidden inside "transcribing".
-      state = const ImportRunning(ImportStage.preparingModel);
-      final model = await ref.read(selectedWhisperModelProvider.future);
-      if (model == null) {
-        throw StateError('No transcription model is available in this build');
-      }
-      await whisper.ensureModelReady(model);
-
       state = const ImportRunning(ImportStage.copyingMedia);
-      final media = await copyIn(converter, projectId);
-
-      state = const ImportRunning(ImportStage.extractingAudio);
-      final wav = await converter.extractWavForTranscription(media.path);
+      final media = await copyIn(converter, projectId, clipId);
       final duration = await converter.probeDuration(media.path);
 
-      // Both of these are engine parameters rather than passes over the audio,
-      // so they are read here and handed to the one transcribe call. Nothing
-      // rewrites the extracted WAV: whisper is always fed exactly what
-      // MediaConverter produced.
-      final language = await ref.read(selectedTranscriptionLanguageProvider.future);
-      final skipSilence = await ref.read(silenceSkippingEnabledProvider.future);
-
-      state = const ImportRunning(ImportStage.transcribing, percent: 0);
-      _startProgressPolling(whisper);
-      final result = await whisper.transcribeWav(
-        wav.path,
-        model: model,
-        language: language,
-        skipSilence: skipSilence,
+      // The engine sequence itself lives in TranscriptionRunner, shared with
+      // the on-demand path that transcribes a clip added later.
+      final outcome = await TranscriptionRunner(ref).run(
+        mediaPath: media.path,
+        onStage: (stage, {int? percent}) {
+          state = ImportRunning(stage, percent: percent);
+        },
       );
-      _stopProgressPolling();
-
-      // Runs after transcription, over the same extracted WAV. Deliberately
-      // not fatal to the import: a transcript without speaker labels is still
-      // the thing the user asked for, whereas failing here would throw away a
-      // transcription that already succeeded and cost the most time.
-      var speakerSpans = const <SpeakerSpan>[];
-      if (await ref.read(speakerDiarizationEnabledProvider.future)) {
-        state = const ImportRunning(ImportStage.identifyingSpeakers, percent: 0);
-        try {
-          speakerSpans = await ref.read(speakerDiarizerProvider).diarize(
-                    wav.path,
-                    onProgress: _reportDiarizationProgress,
-                  ) ??
-              const <SpeakerSpan>[];
-        } catch (error, stackTrace) {
-          // Swallowed on purpose, but never silently: the words still save.
-          debugPrint('Diarization failed, saving without speakers: $error');
-          debugPrintStack(stackTrace: stackTrace);
-        }
-
-        // Challenges short spans segmentation appears to have invented, before
-        // anything reads them. This has to come first: a spurious span edge
-        // cannot be repaired downstream, because once it exists whichever side
-        // a word falls on decides that word's speaker -- which is how two
-        // transcription models end up disagreeing about the same audio. Uses no
-        // transcript at all, so the correction is identical for every model.
-        if (speakerSpans.isNotEmpty) {
-          try {
-            final before = speakerSpans;
-            speakerSpans = await ref
-                .read(speakerRefinerProvider)
-                .validateSpans(wavPath: wav.path, spans: speakerSpans);
-            final changed = [
-              for (var i = 0; i < speakerSpans.length; i++)
-                if (speakerSpans[i].speaker != before[i].speaker) i,
-            ];
-            if (changed.isNotEmpty) {
-              debugPrint('Span validation re-labelled ${changed.length} span(s)'
-                  ': $changed');
-            }
-          } catch (error, stackTrace) {
-            // Swallowed like every other diarization stage: the unvalidated
-            // spans are what shipped before this pass existed.
-            debugPrint('Span validation failed, keeping raw spans: $error');
-            debugPrintStack(stackTrace: stackTrace);
-          }
-        }
-
-        // Re-checks doubtful attributions against the audio itself, which is
-        // the only thing that can reach a turn segmentation never reported.
-        // Non-fatal for the same reason as diarization, one step weaker: a
-        // failure here costs nothing that was not already in hand, because the
-        // unrefined spans are still good.
-        if (speakerSpans.isNotEmpty) {
-          try {
-            final words = wordTimingsOf(result);
-            final refined = await ref.read(speakerRefinerProvider).refine(
-                  wavPath: wav.path,
-                  spans: speakerSpans,
-                  words: words,
-                  assigned: assignSpeakers(words, speakerSpans),
-                );
-            debugPrint('Refinement: ${refined.movedCount} moved of '
-                '${refined.decisions.length} candidates, '
-                '${refined.embeddedRegions} embeddings, ${refined.elapsedMs}ms');
-            speakerSpans = refined.spans;
-          } catch (error, stackTrace) {
-            debugPrint('Refinement failed, keeping unrefined spans: $error');
-            debugPrintStack(stackTrace: stackTrace);
-          }
-        }
-      }
 
       state = const ImportRunning(ImportStage.saving);
       await repository.saveImport(
         projectId: projectId,
+        clipId: clipId,
         title: p.basenameWithoutExtension(fileName),
         mediaPath: media.path,
         duration: duration,
-        language: language,
-        speakerSpans: speakerSpans,
-        result: result,
+        language: outcome.language,
+        speakerSpans: outcome.speakerSpans,
+        result: outcome.result,
       );
 
       state = ImportSucceeded(projectId);
     } catch (error) {
-      _stopProgressPolling();
       // Nothing was committed to the database yet -- saveImport is the last
       // step and runs in a transaction -- so rolling back means dropping the
       // copied media, otherwise a failed import leaks a few hundred MB.
@@ -314,33 +213,4 @@ class ImportController extends _$ImportController {
     }
   }
 
-  /// Whisper reports progress through a native atomic rather than a stream,
-  /// so it has to be sampled. Granularity is one whisper decode window
-  /// (~30s of audio), which is why this is deliberately a slow poll -- a
-  /// faster one would only re-render the same number.
-  void _startProgressPolling(WhisperService whisper) {
-    _progressTimer?.cancel();
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
-      final current = state;
-      if (current is! ImportRunning || current.stage != ImportStage.transcribing) return;
-      state = ImportRunning(ImportStage.transcribing, percent: whisper.progressPercent);
-    });
-  }
-
-  /// Unlike whisper's progress, which has to be polled off a native atomic,
-  /// diarization pushes: the native callback runs on the worker isolate and
-  /// sends through a port. So this is a plain state write, not a timer.
-  void _reportDiarizationProgress(int percent) {
-    final current = state;
-    if (current is! ImportRunning ||
-        current.stage != ImportStage.identifyingSpeakers) {
-      return;
-    }
-    state = ImportRunning(ImportStage.identifyingSpeakers, percent: percent);
-  }
-
-  void _stopProgressPolling() {
-    _progressTimer?.cancel();
-    _progressTimer = null;
-  }
 }

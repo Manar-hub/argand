@@ -27,16 +27,65 @@ mixin _RecordColumns on Table {
   DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
-/// One imported media item and its editing state.
+/// One project: a title, and an ordered list of [MediaClips].
 class Projects extends Table with _RecordColumns {
   TextColumn get title => text()();
 
-  /// Path to this app's own copy of the media, never the picker's original
-  /// URI. Android content:// permissions are revocable, so a project that
-  /// referenced one would break the next time the app launched.
+  /// **Vestigial since schema 5. Do not read it.**
+  ///
+  /// A project used to *be* one media file, and this column held its path.
+  /// Media now lives on [MediaClips], one row per clip, because a project can
+  /// hold several. The column survives only because migrations here are
+  /// strictly additive (see [AppDatabase.migration]) and dropping it would mean
+  /// recreating the table over real user data.
+  ///
+  /// Schema 5's migration copied every existing value into a clip row. New
+  /// projects write `''`, which is why nothing may treat it as a path again.
   TextColumn get mediaPath => text()();
 
+  /// **Vestigial since schema 5**, for the same reason as [mediaPath]. A
+  /// project's running time is now the sum of its clips' durations.
   IntColumn get durationMs => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// One piece of media inside a project, at a position on the timeline.
+///
+/// **Media and transcription are separate events.** A clip is added by copying
+/// a file in; it carries no transcript until the user asks for one, which is
+/// what lets a project hold several clips and transcribe only the ones worth
+/// the minutes. [Transcripts.clipId] is the link, and it stays null until then.
+///
+/// Ordered by [position] rather than `createdAt` so clips can be rearranged
+/// without rewriting timestamps.
+@TableIndex(name: 'media_clips_project_position', columns: {#projectId, #position})
+class MediaClips extends Table with _RecordColumns {
+  TextColumn get projectId => text().references(Projects, #id)();
+
+  /// Order on the timeline, contiguous from zero within a project. No unique
+  /// constraint, for the same reason [Words.position] has none: a reorder
+  /// rewrites a run of rows and would trip one mid-flight.
+  IntColumn get position => integer()();
+
+  /// Path to this app's own copy of the media, never the picker's original
+  /// URI. Android content:// permissions are revocable, so a clip that
+  /// referenced one would break the next time the app launched.
+  ///
+  /// Two clips may hold the same path: duplicating a project shares its media
+  /// rather than copying hundreds of megabytes, so this is refcounted by query
+  /// (`projectsSharingMedia`) rather than owned outright.
+  TextColumn get mediaPath => text()();
+
+  /// Null when `probeDuration` could not read the container -- the same
+  /// tolerance [Projects.durationMs] had, for the same reason.
+  IntColumn get durationMs => integer().nullable()();
+
+  /// The source file's name, for accessibility labels and debugging. Clips are
+  /// identified visually by their frames rather than by a name, so nothing in
+  /// the UI renames this.
+  TextColumn get title => text()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -44,6 +93,17 @@ class Projects extends Table with _RecordColumns {
 
 class Transcripts extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
+
+  /// The clip these words were transcribed from.
+  ///
+  /// Nullable only because schema 5 added it to a table that already had rows
+  /// and an additive `addColumn` cannot introduce NOT NULL; the migration
+  /// back-filled every existing transcript, and everything written since sets
+  /// it. Treat a null here as a row from a database that has not been migrated.
+  ///
+  /// Word timings are relative to the clip's own media, not to any project-wide
+  /// timeline -- there is no compositor to define one.
+  TextColumn get clipId => text().nullable().references(MediaClips, #id)();
   TextColumn get language => text().withDefault(const Constant('en'))();
 
   /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
@@ -141,16 +201,18 @@ class Settings extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-@DriftDatabase(tables: [Projects, Transcripts, Words, Settings, EditEvents])
+@DriftDatabase(
+    tables: [Projects, MediaClips, Transcripts, Words, Settings, EditEvents])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
-  /// 3 -> 4 added [Transcripts.speakerNames].
+  /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
+  /// [Transcripts.clipId], moving media off the project row.
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -169,8 +231,54 @@ class AppDatabase extends _$AppDatabase {
           if (from < 4) {
             await migrator.addColumn(transcripts, transcripts.speakerNames);
           }
+          if (from < 5) {
+            await migrator.createTable(mediaClips);
+            await migrator.addColumn(transcripts, transcripts.clipId);
+            await _backfillClips();
+          }
         },
       );
+
+  /// Gives every pre-schema-5 project the clip its media already implied.
+  ///
+  /// Runs inside the 4 -> 5 step. Each project had exactly one media file
+  /// recorded on its own row, so each gets exactly one clip at position 0
+  /// carrying that path, and its transcripts are pointed at that clip.
+  ///
+  /// **Files are not moved.** `mediaPath` is an absolute path, so a migrated
+  /// clip keeps pointing at `<media>/<projectId>/source.<ext>` while clips
+  /// added later live in `<media>/<projectId>/<clipId>/`. Both layouts are
+  /// valid and `MediaConverter` handles the difference when discarding one.
+  ///
+  /// Soft-deleted projects are migrated too: a tombstone row is what a future
+  /// sync needs, and leaving one without a clip would make it the single shape
+  /// the rest of the code no longer expects.
+  Future<void> _backfillClips() async {
+    final rows = await select(projects).get();
+    final now = DateTime.now();
+
+    for (final project in rows) {
+      final clipId = _uuid.v4();
+      await into(mediaClips).insert(
+        MediaClipsCompanion.insert(
+          id: clipId,
+          createdAt: project.createdAt,
+          updatedAt: now,
+          projectId: project.id,
+          position: 0,
+          mediaPath: project.mediaPath,
+          durationMs: Value(project.durationMs),
+          title: project.title,
+          // A deleted project's clip is deleted with it, so the tombstone
+          // stays internally consistent.
+          deletedAt: Value(project.deletedAt),
+        ),
+      );
+
+      await (update(transcripts)..where((t) => t.projectId.equals(project.id)))
+          .write(TranscriptsCompanion(clipId: Value(clipId)));
+    }
+  }
 
   /// Current value of [key], or null if never set.
   Future<String?> readSetting(String key) async {
@@ -239,20 +347,200 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// How many *live* projects other than [excluding] point at [mediaPath].
+  /// How many *live* clips outside project [excluding] point at [mediaPath].
   ///
   /// The whole of media refcounting. Duplicated projects share one file rather
-  /// than copying hundreds of megabytes, so the directory can only be removed
-  /// once nothing still needs it — and "nothing" means no project a user can
-  /// still open, which is why soft-deleted rows do not count.
-  Future<int> projectsSharingMedia(String mediaPath, {required String excluding}) async {
-    final rows = await (select(projects)
+  /// than copying hundreds of megabytes, so a file can only be removed once
+  /// nothing still needs it — and "nothing" means no clip a user can still
+  /// open, which is why soft-deleted rows do not count.
+  ///
+  /// Counted over clips rather than projects since schema 5: media hangs off
+  /// [MediaClips] now, and one project can hold several files.
+  Future<int> projectsSharingMedia(String mediaPath,
+      {required String excluding}) async {
+    final rows = await (select(mediaClips)
           ..where((t) =>
               t.mediaPath.equals(mediaPath) &
               t.deletedAt.isNull() &
-              t.id.equals(excluding).not()))
+              t.projectId.equals(excluding).not()))
         .get();
     return rows.length;
+  }
+
+  /// Creates a project with no media, for the "Create project" entry point.
+  ///
+  /// [Projects.mediaPath] is written empty rather than left out because the
+  /// column is NOT NULL and vestigial — see its doc. Clips carry the media.
+  Future<void> createEmptyProject({
+    required String projectId,
+    required String title,
+  }) {
+    final now = DateTime.now();
+    return into(projects).insert(
+      ProjectsCompanion.insert(
+        id: projectId,
+        createdAt: now,
+        updatedAt: now,
+        title: title,
+        mediaPath: '',
+      ),
+    );
+  }
+
+  /// A project's clips in timeline order.
+  Stream<List<MediaClip>> watchClips(String projectId) {
+    return (select(mediaClips)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+        .watch();
+  }
+
+  /// A project's clips in timeline order, read once.
+  Future<List<MediaClip>> clipsForProject(String projectId) {
+    return (select(mediaClips)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+        .get();
+  }
+
+  /// Records a clip's running time once something authoritative knows it.
+  ///
+  /// Written only when the row does not already have a usable one.
+  /// `probeDuration` is allowed to fail, and every clip carried over by the
+  /// schema-5 migration inherited whatever the *project* row held -- which for
+  /// anything imported before duration probing worked is either null or, for
+  /// the oldest rows, a literal zero. **Both count as unknown**: a zero-length
+  /// clip cannot exist, so treating it as a real duration would collapse the
+  /// clip to a minimum width on the timeline and leave the ruler nothing to
+  /// measure, permanently. The player repairs it the first time it opens the
+  /// clip and actually knows.
+  Future<void> fillMissingClipDuration(String clipId, Duration duration) {
+    if (duration <= Duration.zero) return Future.value();
+    return (update(mediaClips)
+          ..where((t) =>
+              t.id.equals(clipId) &
+              (t.durationMs.isNull() | t.durationMs.isSmallerOrEqualValue(0))))
+        .write(
+      MediaClipsCompanion(
+        durationMs: Value(duration.inMilliseconds),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<MediaClip?> findClip(String id) {
+    return (select(mediaClips)
+          ..where((t) => t.id.equals(id) & t.deletedAt.isNull()))
+        .getSingleOrNull();
+  }
+
+  /// Appends a clip to the end of [projectId]'s timeline.
+  ///
+  /// The position is computed here rather than by the caller so two adds cannot
+  /// race to the same slot — the read and the insert share one transaction.
+  Future<void> appendClip({
+    required String clipId,
+    required String projectId,
+    required String mediaPath,
+    required Duration? duration,
+    required String title,
+  }) {
+    final now = DateTime.now();
+    return transaction(() async {
+      final existing = await clipsForProject(projectId);
+      final next = existing.isEmpty ? 0 : existing.last.position + 1;
+
+      await into(mediaClips).insert(
+        MediaClipsCompanion.insert(
+          id: clipId,
+          createdAt: now,
+          updatedAt: now,
+          projectId: projectId,
+          position: next,
+          mediaPath: mediaPath,
+          durationMs: Value(duration?.inMilliseconds),
+          title: title,
+        ),
+      );
+    });
+  }
+
+  /// Removes a clip and closes the gap its position left behind.
+  ///
+  /// The clip's transcript and words are left live but unreachable, exactly as
+  /// [softDeleteProject] leaves a deleted project's rows: every read path
+  /// starts from the clip, so nothing can still find them, and a future sync
+  /// wants the tombstone rather than a hole.
+  Future<void> softDeleteClip(String clipId) {
+    final now = DateTime.now();
+    return transaction(() async {
+      final clip = await findClip(clipId);
+      if (clip == null) return;
+
+      await (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+        MediaClipsCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+
+      await customUpdate(
+        'UPDATE media_clips SET position = position - 1, updated_at = ? '
+        'WHERE project_id = ? AND deleted_at IS NULL AND position > ?',
+        variables: [
+          Variable.withInt(now.millisecondsSinceEpoch ~/ 1000),
+          Variable.withString(clip.projectId),
+          Variable.withInt(clip.position),
+        ],
+        updates: {mediaClips},
+      );
+    });
+  }
+
+  /// Rewrites the whole project's clip order from [orderedIds].
+  ///
+  /// Takes the full order rather than a from/to pair: a drag produces a new
+  /// arrangement, and writing it wholesale cannot leave two clips claiming one
+  /// position the way an incremental shift can if it is interrupted.
+  Future<void> reorderClips({
+    required String projectId,
+    required List<String> orderedIds,
+  }) {
+    final now = DateTime.now();
+    return transaction(() async {
+      for (final (index, id) in orderedIds.indexed) {
+        await (update(mediaClips)
+              ..where((t) => t.id.equals(id) & t.projectId.equals(projectId)))
+            .write(
+          MediaClipsCompanion(
+            position: Value(index),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
+  }
+
+  /// The transcript belonging to one clip, or null when it has none yet.
+  ///
+  /// Watched rather than fetched once for the same reason
+  /// [watchTranscriptForProject] was: speaker names live on this row, so a
+  /// rename has to reach the transcript view, the caption overlay and the
+  /// export button without any of them being told to refresh.
+  Stream<Transcript?> watchTranscriptForClip(String clipId) {
+    return (select(transcripts)
+          ..where((t) => t.clipId.equals(clipId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+          ..limit(1))
+        .watchSingleOrNull();
+  }
+
+  Future<Transcript?> findTranscriptForClip(String clipId) {
+    return (select(transcripts)
+          ..where((t) => t.clipId.equals(clipId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+          ..limit(1))
+        .getSingleOrNull();
   }
 
   /// Copies a project, its transcript and every word, sharing the media file.
@@ -286,50 +574,69 @@ class AppDatabase extends _$AppDatabase {
           createdAt: now,
           updatedAt: now,
           title: title,
-          // The same file. Not a copy -- see `projectsSharingMedia`.
-          mediaPath: source.mediaPath,
-          durationMs: Value(source.durationMs),
+          // Vestigial since schema 5; media lives on the copied clips below.
+          mediaPath: '',
         ),
       );
 
-      final transcript = await findTranscriptForProject(sourceProjectId);
-      if (transcript == null) return newProjectId;
+      // Every clip, in order, each reusing the source's file. Not a copy --
+      // see `projectsSharingMedia`.
+      for (final clip in await clipsForProject(sourceProjectId)) {
+        final newClipId = newId();
+        await into(mediaClips).insert(
+          MediaClipsCompanion.insert(
+            id: newClipId,
+            createdAt: now,
+            updatedAt: now,
+            projectId: newProjectId,
+            position: clip.position,
+            mediaPath: clip.mediaPath,
+            durationMs: Value(clip.durationMs),
+            title: clip.title,
+          ),
+        );
 
-      final newTranscriptId = newId();
-      await into(transcripts).insert(
-        TranscriptsCompanion.insert(
-          id: newTranscriptId,
-          createdAt: now,
-          updatedAt: now,
-          projectId: newProjectId,
-          language: Value(transcript.language),
-          speakerNames: Value(transcript.speakerNames),
-          fullText: transcript.fullText,
-        ),
-      );
+        // A clip nobody has transcribed yet copies as an untranscribed clip.
+        final transcript = await findTranscriptForClip(clip.id);
+        if (transcript == null) continue;
 
-      final words = await (select(this.words)
-            ..where((t) =>
-                t.transcriptId.equals(transcript.id) & t.deletedAt.isNull())
-            ..orderBy([(t) => OrderingTerm.asc(t.position)]))
-          .get();
+        final newTranscriptId = newId();
+        await into(transcripts).insert(
+          TranscriptsCompanion.insert(
+            id: newTranscriptId,
+            createdAt: now,
+            updatedAt: now,
+            projectId: newProjectId,
+            clipId: Value(newClipId),
+            language: Value(transcript.language),
+            speakerNames: Value(transcript.speakerNames),
+            fullText: transcript.fullText,
+          ),
+        );
 
-      await batch((batch) {
-        batch.insertAll(this.words, [
-          for (final word in words)
-            WordsCompanion.insert(
-              id: newId(),
-              createdAt: now,
-              updatedAt: now,
-              transcriptId: newTranscriptId,
-              position: word.position,
-              word: word.word,
-              startMs: word.startMs,
-              endMs: word.endMs,
-              speakerId: Value(word.speakerId),
-            ),
-        ]);
-      });
+        final words = await (select(this.words)
+              ..where((t) =>
+                  t.transcriptId.equals(transcript.id) & t.deletedAt.isNull())
+              ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+            .get();
+
+        await batch((batch) {
+          batch.insertAll(this.words, [
+            for (final word in words)
+              WordsCompanion.insert(
+                id: newId(),
+                createdAt: now,
+                updatedAt: now,
+                transcriptId: newTranscriptId,
+                position: word.position,
+                word: word.word,
+                startMs: word.startMs,
+                endMs: word.endMs,
+                speakerId: Value(word.speakerId),
+              ),
+          ]);
+        });
+      }
 
       return newProjectId;
     });
@@ -453,10 +760,26 @@ class AppDatabase extends _$AppDatabase {
   /// while an orphaned video costs hundreds of megabytes that nothing would
   /// ever reclaim.
   Future<void> softDeleteProject(String id) {
+    final now = DateTime.now();
+    return transaction(() async {
+      // The clips go with it. Their transcripts and words are left live but
+      // unreachable, exactly as before -- every read path starts from the
+      // project, so nothing can still find them.
+      await (update(mediaClips)..where((t) => t.projectId.equals(id))).write(
+        MediaClipsCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
+      await _softDeleteProjectRow(id, now);
+    });
+  }
+
+  Future<void> _softDeleteProjectRow(String id, DateTime now) {
     return (update(projects)..where((t) => t.id.equals(id))).write(
       ProjectsCompanion(
-        deletedAt: Value(DateTime.now()),
-        updatedAt: Value(DateTime.now()),
+        deletedAt: Value(now),
+        updatedAt: Value(now),
       ),
     );
   }

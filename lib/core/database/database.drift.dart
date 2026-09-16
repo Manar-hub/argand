@@ -204,10 +204,20 @@ class Project extends DataClass implements Insertable<Project> {
   final DateTime? deletedAt;
   final String title;
 
-  /// Path to this app's own copy of the media, never the picker's original
-  /// URI. Android content:// permissions are revocable, so a project that
-  /// referenced one would break the next time the app launched.
+  /// **Vestigial since schema 5. Do not read it.**
+  ///
+  /// A project used to *be* one media file, and this column held its path.
+  /// Media now lives on [MediaClips], one row per clip, because a project can
+  /// hold several. The column survives only because migrations here are
+  /// strictly additive (see [AppDatabase.migration]) and dropping it would mean
+  /// recreating the table over real user data.
+  ///
+  /// Schema 5's migration copied every existing value into a clip row. New
+  /// projects write `''`, which is why nothing may treat it as a path again.
   final String mediaPath;
+
+  /// **Vestigial since schema 5**, for the same reason as [mediaPath]. A
+  /// project's running time is now the sum of its clips' durations.
   final int? durationMs;
   const Project({
     required this.id,
@@ -471,6 +481,590 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
   }
 }
 
+class $MediaClipsTable extends MediaClips
+    with TableInfo<$MediaClipsTable, MediaClip> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MediaClipsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mediaPathMeta = const VerificationMeta(
+    'mediaPath',
+  );
+  @override
+  late final GeneratedColumn<String> mediaPath = GeneratedColumn<String>(
+    'media_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    position,
+    mediaPath,
+    durationMs,
+    title,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'media_clips';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MediaClip> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    if (data.containsKey('media_path')) {
+      context.handle(
+        _mediaPathMeta,
+        mediaPath.isAcceptableOrUnknown(data['media_path']!, _mediaPathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mediaPathMeta);
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  MediaClip map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MediaClip(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      mediaPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}media_path'],
+      )!,
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+    );
+  }
+
+  @override
+  $MediaClipsTable createAlias(String alias) {
+    return $MediaClipsTable(attachedDatabase, alias);
+  }
+}
+
+class MediaClip extends DataClass implements Insertable<MediaClip> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String projectId;
+
+  /// Order on the timeline, contiguous from zero within a project. No unique
+  /// constraint, for the same reason [Words.position] has none: a reorder
+  /// rewrites a run of rows and would trip one mid-flight.
+  final int position;
+
+  /// Path to this app's own copy of the media, never the picker's original
+  /// URI. Android content:// permissions are revocable, so a clip that
+  /// referenced one would break the next time the app launched.
+  ///
+  /// Two clips may hold the same path: duplicating a project shares its media
+  /// rather than copying hundreds of megabytes, so this is refcounted by query
+  /// (`projectsSharingMedia`) rather than owned outright.
+  final String mediaPath;
+
+  /// Null when `probeDuration` could not read the container -- the same
+  /// tolerance [Projects.durationMs] had, for the same reason.
+  final int? durationMs;
+
+  /// The source file's name, for accessibility labels and debugging. Clips are
+  /// identified visually by their frames rather than by a name, so nothing in
+  /// the UI renames this.
+  final String title;
+  const MediaClip({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.projectId,
+    required this.position,
+    required this.mediaPath,
+    this.durationMs,
+    required this.title,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['project_id'] = Variable<String>(projectId);
+    map['position'] = Variable<int>(position);
+    map['media_path'] = Variable<String>(mediaPath);
+    if (!nullToAbsent || durationMs != null) {
+      map['duration_ms'] = Variable<int>(durationMs);
+    }
+    map['title'] = Variable<String>(title);
+    return map;
+  }
+
+  MediaClipsCompanion toCompanion(bool nullToAbsent) {
+    return MediaClipsCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      projectId: Value(projectId),
+      position: Value(position),
+      mediaPath: Value(mediaPath),
+      durationMs: durationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationMs),
+      title: Value(title),
+    );
+  }
+
+  factory MediaClip.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MediaClip(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      position: serializer.fromJson<int>(json['position']),
+      mediaPath: serializer.fromJson<String>(json['mediaPath']),
+      durationMs: serializer.fromJson<int?>(json['durationMs']),
+      title: serializer.fromJson<String>(json['title']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'projectId': serializer.toJson<String>(projectId),
+      'position': serializer.toJson<int>(position),
+      'mediaPath': serializer.toJson<String>(mediaPath),
+      'durationMs': serializer.toJson<int?>(durationMs),
+      'title': serializer.toJson<String>(title),
+    };
+  }
+
+  MediaClip copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? projectId,
+    int? position,
+    String? mediaPath,
+    Value<int?> durationMs = const Value.absent(),
+    String? title,
+  }) => MediaClip(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    projectId: projectId ?? this.projectId,
+    position: position ?? this.position,
+    mediaPath: mediaPath ?? this.mediaPath,
+    durationMs: durationMs.present ? durationMs.value : this.durationMs,
+    title: title ?? this.title,
+  );
+  MediaClip copyWithCompanion(MediaClipsCompanion data) {
+    return MediaClip(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      position: data.position.present ? data.position.value : this.position,
+      mediaPath: data.mediaPath.present ? data.mediaPath.value : this.mediaPath,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+      title: data.title.present ? data.title.value : this.title,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MediaClip(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('position: $position, ')
+          ..write('mediaPath: $mediaPath, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('title: $title')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    position,
+    mediaPath,
+    durationMs,
+    title,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MediaClip &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.projectId == this.projectId &&
+          other.position == this.position &&
+          other.mediaPath == this.mediaPath &&
+          other.durationMs == this.durationMs &&
+          other.title == this.title);
+}
+
+class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> projectId;
+  final Value<int> position;
+  final Value<String> mediaPath;
+  final Value<int?> durationMs;
+  final Value<String> title;
+  final Value<int> rowid;
+  const MediaClipsCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.position = const Value.absent(),
+    this.mediaPath = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.title = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MediaClipsCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String projectId,
+    required int position,
+    required String mediaPath,
+    this.durationMs = const Value.absent(),
+    required String title,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       projectId = Value(projectId),
+       position = Value(position),
+       mediaPath = Value(mediaPath),
+       title = Value(title);
+  static Insertable<MediaClip> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? projectId,
+    Expression<int>? position,
+    Expression<String>? mediaPath,
+    Expression<int>? durationMs,
+    Expression<String>? title,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (projectId != null) 'project_id': projectId,
+      if (position != null) 'position': position,
+      if (mediaPath != null) 'media_path': mediaPath,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (title != null) 'title': title,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MediaClipsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? projectId,
+    Value<int>? position,
+    Value<String>? mediaPath,
+    Value<int?>? durationMs,
+    Value<String>? title,
+    Value<int>? rowid,
+  }) {
+    return MediaClipsCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      projectId: projectId ?? this.projectId,
+      position: position ?? this.position,
+      mediaPath: mediaPath ?? this.mediaPath,
+      durationMs: durationMs ?? this.durationMs,
+      title: title ?? this.title,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (mediaPath.present) {
+      map['media_path'] = Variable<String>(mediaPath.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MediaClipsCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('position: $position, ')
+          ..write('mediaPath: $mediaPath, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('title: $title, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TranscriptsTable extends Transcripts
     with TableInfo<$TranscriptsTable, Transcript> {
   @override
@@ -533,6 +1127,18 @@ class $TranscriptsTable extends Transcripts
       'REFERENCES projects (id)',
     ),
   );
+  static const VerificationMeta _clipIdMeta = const VerificationMeta('clipId');
+  @override
+  late final GeneratedColumn<String> clipId = GeneratedColumn<String>(
+    'clip_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES media_clips (id)',
+    ),
+  );
   static const VerificationMeta _languageMeta = const VerificationMeta(
     'language',
   );
@@ -574,6 +1180,7 @@ class $TranscriptsTable extends Transcripts
     updatedAt,
     deletedAt,
     projectId,
+    clipId,
     language,
     speakerNames,
     fullText,
@@ -624,6 +1231,12 @@ class $TranscriptsTable extends Transcripts
       );
     } else if (isInserting) {
       context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('clip_id')) {
+      context.handle(
+        _clipIdMeta,
+        clipId.isAcceptableOrUnknown(data['clip_id']!, _clipIdMeta),
+      );
     }
     if (data.containsKey('language')) {
       context.handle(
@@ -677,6 +1290,10 @@ class $TranscriptsTable extends Transcripts
         DriftSqlType.string,
         data['${effectivePrefix}project_id'],
       )!,
+      clipId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}clip_id'],
+      ),
       language: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}language'],
@@ -704,6 +1321,17 @@ class Transcript extends DataClass implements Insertable<Transcript> {
   final DateTime updatedAt;
   final DateTime? deletedAt;
   final String projectId;
+
+  /// The clip these words were transcribed from.
+  ///
+  /// Nullable only because schema 5 added it to a table that already had rows
+  /// and an additive `addColumn` cannot introduce NOT NULL; the migration
+  /// back-filled every existing transcript, and everything written since sets
+  /// it. Treat a null here as a row from a database that has not been migrated.
+  ///
+  /// Word timings are relative to the clip's own media, not to any project-wide
+  /// timeline -- there is no compositor to define one.
+  final String? clipId;
   final String language;
 
   /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
@@ -733,6 +1361,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     required this.updatedAt,
     this.deletedAt,
     required this.projectId,
+    this.clipId,
     required this.language,
     this.speakerNames,
     required this.fullText,
@@ -747,6 +1376,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
     }
     map['project_id'] = Variable<String>(projectId);
+    if (!nullToAbsent || clipId != null) {
+      map['clip_id'] = Variable<String>(clipId);
+    }
     map['language'] = Variable<String>(language);
     if (!nullToAbsent || speakerNames != null) {
       map['speaker_names'] = Variable<String>(speakerNames);
@@ -764,6 +1396,9 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           ? const Value.absent()
           : Value(deletedAt),
       projectId: Value(projectId),
+      clipId: clipId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(clipId),
       language: Value(language),
       speakerNames: speakerNames == null && nullToAbsent
           ? const Value.absent()
@@ -783,6 +1418,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
       projectId: serializer.fromJson<String>(json['projectId']),
+      clipId: serializer.fromJson<String?>(json['clipId']),
       language: serializer.fromJson<String>(json['language']),
       speakerNames: serializer.fromJson<String?>(json['speakerNames']),
       fullText: serializer.fromJson<String>(json['fullText']),
@@ -797,6 +1433,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
       'projectId': serializer.toJson<String>(projectId),
+      'clipId': serializer.toJson<String?>(clipId),
       'language': serializer.toJson<String>(language),
       'speakerNames': serializer.toJson<String?>(speakerNames),
       'fullText': serializer.toJson<String>(fullText),
@@ -809,6 +1446,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     DateTime? updatedAt,
     Value<DateTime?> deletedAt = const Value.absent(),
     String? projectId,
+    Value<String?> clipId = const Value.absent(),
     String? language,
     Value<String?> speakerNames = const Value.absent(),
     String? fullText,
@@ -818,6 +1456,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
     projectId: projectId ?? this.projectId,
+    clipId: clipId.present ? clipId.value : this.clipId,
     language: language ?? this.language,
     speakerNames: speakerNames.present ? speakerNames.value : this.speakerNames,
     fullText: fullText ?? this.fullText,
@@ -829,6 +1468,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      clipId: data.clipId.present ? data.clipId.value : this.clipId,
       language: data.language.present ? data.language.value : this.language,
       speakerNames: data.speakerNames.present
           ? data.speakerNames.value
@@ -845,6 +1485,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('projectId: $projectId, ')
+          ..write('clipId: $clipId, ')
           ..write('language: $language, ')
           ..write('speakerNames: $speakerNames, ')
           ..write('fullText: $fullText')
@@ -859,6 +1500,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
     updatedAt,
     deletedAt,
     projectId,
+    clipId,
     language,
     speakerNames,
     fullText,
@@ -872,6 +1514,7 @@ class Transcript extends DataClass implements Insertable<Transcript> {
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt &&
           other.projectId == this.projectId &&
+          other.clipId == this.clipId &&
           other.language == this.language &&
           other.speakerNames == this.speakerNames &&
           other.fullText == this.fullText);
@@ -883,6 +1526,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
   final Value<String> projectId;
+  final Value<String?> clipId;
   final Value<String> language;
   final Value<String?> speakerNames;
   final Value<String> fullText;
@@ -893,6 +1537,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.projectId = const Value.absent(),
+    this.clipId = const Value.absent(),
     this.language = const Value.absent(),
     this.speakerNames = const Value.absent(),
     this.fullText = const Value.absent(),
@@ -904,6 +1549,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     required DateTime updatedAt,
     this.deletedAt = const Value.absent(),
     required String projectId,
+    this.clipId = const Value.absent(),
     this.language = const Value.absent(),
     this.speakerNames = const Value.absent(),
     required String fullText,
@@ -919,6 +1565,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
     Expression<String>? projectId,
+    Expression<String>? clipId,
     Expression<String>? language,
     Expression<String>? speakerNames,
     Expression<String>? fullText,
@@ -930,6 +1577,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (projectId != null) 'project_id': projectId,
+      if (clipId != null) 'clip_id': clipId,
       if (language != null) 'language': language,
       if (speakerNames != null) 'speaker_names': speakerNames,
       if (fullText != null) 'full_text': fullText,
@@ -943,6 +1591,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     Value<DateTime>? updatedAt,
     Value<DateTime?>? deletedAt,
     Value<String>? projectId,
+    Value<String?>? clipId,
     Value<String>? language,
     Value<String?>? speakerNames,
     Value<String>? fullText,
@@ -954,6 +1603,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       projectId: projectId ?? this.projectId,
+      clipId: clipId ?? this.clipId,
       language: language ?? this.language,
       speakerNames: speakerNames ?? this.speakerNames,
       fullText: fullText ?? this.fullText,
@@ -979,6 +1629,9 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
     if (projectId.present) {
       map['project_id'] = Variable<String>(projectId.value);
     }
+    if (clipId.present) {
+      map['clip_id'] = Variable<String>(clipId.value);
+    }
     if (language.present) {
       map['language'] = Variable<String>(language.value);
     }
@@ -1002,6 +1655,7 @@ class TranscriptsCompanion extends UpdateCompanion<Transcript> {
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('projectId: $projectId, ')
+          ..write('clipId: $clipId, ')
           ..write('language: $language, ')
           ..write('speakerNames: $speakerNames, ')
           ..write('fullText: $fullText, ')
@@ -2621,10 +3275,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProjectsTable projects = $ProjectsTable(this);
+  late final $MediaClipsTable mediaClips = $MediaClipsTable(this);
   late final $TranscriptsTable transcripts = $TranscriptsTable(this);
   late final $WordsTable words = $WordsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $EditEventsTable editEvents = $EditEventsTable(this);
+  late final Index mediaClipsProjectPosition = Index(
+    'media_clips_project_position',
+    'CREATE INDEX media_clips_project_position ON media_clips (project_id, position)',
+  );
   late final Index wordsTranscriptStart = Index(
     'words_transcript_start',
     'CREATE INDEX words_transcript_start ON words (transcript_id, start_ms)',
@@ -2643,10 +3302,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     projects,
+    mediaClips,
     transcripts,
     words,
     settings,
     editEvents,
+    mediaClipsProjectPosition,
     wordsTranscriptStart,
     settingsKey,
     editEventsTranscriptSeq,
@@ -2677,6 +3338,24 @@ typedef $$ProjectsTableUpdateCompanionBuilder = ProjectsCompanion Function({
 final class $$ProjectsTableReferences
     extends BaseReferences<_$AppDatabase, $ProjectsTable, Project> {
   $$ProjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$MediaClipsTable, List<MediaClip>>
+  _mediaClipsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.mediaClips,
+    aliasName: 'projects__id__media_clips__project_id',
+  );
+
+  $$MediaClipsTableProcessedTableManager get mediaClipsRefs {
+    final manager = $$MediaClipsTableTableManager(
+      $_db,
+      $_db.mediaClips,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_mediaClipsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 
   static MultiTypedResultKey<$TranscriptsTable, List<Transcript>>
   _transcriptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
@@ -2740,6 +3419,31 @@ class $$ProjectsTableFilterComposer
     column: $table.durationMs,
     builder: (column) => ColumnFilters(column),
   );
+
+  Expression<bool> mediaClipsRefs(
+    Expression<bool> Function($$MediaClipsTableFilterComposer f) f,
+  ) {
+    final $$MediaClipsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.mediaClips,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaClipsTableFilterComposer(
+            $db: $db,
+            $table: $db.mediaClips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 
   Expression<bool> transcriptsRefs(
     Expression<bool> Function($$TranscriptsTableFilterComposer f) f,
@@ -2844,6 +3548,31 @@ class $$ProjectsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  Expression<T> mediaClipsRefs<T extends Object>(
+    Expression<T> Function($$MediaClipsTableAnnotationComposer a) f,
+  ) {
+    final $$MediaClipsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.mediaClips,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaClipsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.mediaClips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> transcriptsRefs<T extends Object>(
     Expression<T> Function($$TranscriptsTableAnnotationComposer a) f,
   ) {
@@ -2883,7 +3612,7 @@ class $$ProjectsTableTableManager
           $$ProjectsTableUpdateCompanionBuilder,
           (Project, $$ProjectsTableReferences),
           Project,
-          PrefetchHooks Function({bool transcriptsRefs})
+          PrefetchHooks Function({bool mediaClipsRefs, bool transcriptsRefs})
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
     : super(
@@ -2944,35 +3673,63 @@ class $$ProjectsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({transcriptsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (transcriptsRefs) db.transcripts],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (transcriptsRefs)
-                    await $_getPrefetchedData<
-                      Project,
-                      $ProjectsTable,
-                      Transcript
-                    >(
-                      currentTable: table,
-                      referencedTable: $$ProjectsTableReferences
-                          ._transcriptsRefsTable(db),
-                      managerFromTypedResult: (p0) => $$ProjectsTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).transcriptsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.projectId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({mediaClipsRefs = false, transcriptsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (mediaClipsRefs) db.mediaClips,
+                    if (transcriptsRefs) db.transcripts,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (mediaClipsRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          MediaClip
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._mediaClipsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).mediaClipsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (transcriptsRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          Transcript
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._transcriptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).transcriptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -2989,7 +3746,491 @@ typedef $$ProjectsTableProcessedTableManager =
       $$ProjectsTableUpdateCompanionBuilder,
       (Project, $$ProjectsTableReferences),
       Project,
-      PrefetchHooks Function({bool transcriptsRefs})
+      PrefetchHooks Function({bool mediaClipsRefs, bool transcriptsRefs})
+    >;
+typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
+  required String id,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<DateTime?> deletedAt,
+  required String projectId,
+  required int position,
+  required String mediaPath,
+  Value<int?> durationMs,
+  required String title,
+  Value<int> rowid,
+});
+typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
+  Value<String> id,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<String> projectId,
+  Value<int> position,
+  Value<String> mediaPath,
+  Value<int?> durationMs,
+  Value<String> title,
+  Value<int> rowid,
+});
+
+final class $$MediaClipsTableReferences
+    extends BaseReferences<_$AppDatabase, $MediaClipsTable, MediaClip> {
+  $$MediaClipsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('media_clips__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$TranscriptsTable, List<Transcript>>
+  _transcriptsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.transcripts,
+    aliasName: 'media_clips__id__transcripts__clip_id',
+  );
+
+  $$TranscriptsTableProcessedTableManager get transcriptsRefs {
+    final manager = $$TranscriptsTableTableManager(
+      $_db,
+      $_db.transcripts,
+    ).filter((f) => f.clipId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_transcriptsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$MediaClipsTableFilterComposer
+    extends Composer<_$AppDatabase, $MediaClipsTable> {
+  $$MediaClipsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mediaPath => $composableBuilder(
+    column: $table.mediaPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> transcriptsRefs(
+    Expression<bool> Function($$TranscriptsTableFilterComposer f) f,
+  ) {
+    final $$TranscriptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.clipId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableFilterComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$MediaClipsTableOrderingComposer
+    extends Composer<_$AppDatabase, $MediaClipsTable> {
+  $$MediaClipsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mediaPath => $composableBuilder(
+    column: $table.mediaPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MediaClipsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MediaClipsTable> {
+  $$MediaClipsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaPath =>
+      $composableBuilder(column: $table.mediaPath, builder: (column) => column);
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> transcriptsRefs<T extends Object>(
+    Expression<T> Function($$TranscriptsTableAnnotationComposer a) f,
+  ) {
+    final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.clipId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$MediaClipsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MediaClipsTable,
+          MediaClip,
+          $$MediaClipsTableFilterComposer,
+          $$MediaClipsTableOrderingComposer,
+          $$MediaClipsTableAnnotationComposer,
+          $$MediaClipsTableCreateCompanionBuilder,
+          $$MediaClipsTableUpdateCompanionBuilder,
+          (MediaClip, $$MediaClipsTableReferences),
+          MediaClip,
+          PrefetchHooks Function({bool projectId, bool transcriptsRefs})
+        > {
+  $$MediaClipsTableTableManager(_$AppDatabase db, $MediaClipsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MediaClipsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MediaClipsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MediaClipsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<String> mediaPath = const Value.absent(),
+                Value<int?> durationMs = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MediaClipsCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                position: position,
+                mediaPath: mediaPath,
+                durationMs: durationMs,
+                title: title,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String projectId,
+                required int position,
+                required String mediaPath,
+                Value<int?> durationMs = const Value.absent(),
+                required String title,
+                Value<int> rowid = const Value.absent(),
+              }) => MediaClipsCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                position: position,
+                mediaPath: mediaPath,
+                durationMs: durationMs,
+                title: title,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$MediaClipsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({projectId = false, transcriptsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (transcriptsRefs) db.transcripts,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (projectId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.projectId,
+                            referencedTable: $$MediaClipsTableReferences
+                                ._projectIdTable(db),
+                            referencedColumn: $$MediaClipsTableReferences
+                                ._projectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (transcriptsRefs)
+                        await $_getPrefetchedData<
+                          MediaClip,
+                          $MediaClipsTable,
+                          Transcript
+                        >(
+                          currentTable: table,
+                          referencedTable: $$MediaClipsTableReferences
+                              ._transcriptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$MediaClipsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).transcriptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.clipId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$MediaClipsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MediaClipsTable,
+      MediaClip,
+      $$MediaClipsTableFilterComposer,
+      $$MediaClipsTableOrderingComposer,
+      $$MediaClipsTableAnnotationComposer,
+      $$MediaClipsTableCreateCompanionBuilder,
+      $$MediaClipsTableUpdateCompanionBuilder,
+      (MediaClip, $$MediaClipsTableReferences),
+      MediaClip,
+      PrefetchHooks Function({bool projectId, bool transcriptsRefs})
     >;
 typedef $$TranscriptsTableCreateCompanionBuilder =
     TranscriptsCompanion Function({
@@ -2998,6 +4239,7 @@ typedef $$TranscriptsTableCreateCompanionBuilder =
       required DateTime updatedAt,
       Value<DateTime?> deletedAt,
       required String projectId,
+      Value<String?> clipId,
       Value<String> language,
       Value<String?> speakerNames,
       required String fullText,
@@ -3010,6 +4252,7 @@ typedef $$TranscriptsTableUpdateCompanionBuilder =
       Value<DateTime> updatedAt,
       Value<DateTime?> deletedAt,
       Value<String> projectId,
+      Value<String?> clipId,
       Value<String> language,
       Value<String?> speakerNames,
       Value<String> fullText,
@@ -3031,6 +4274,23 @@ final class $$TranscriptsTableReferences
       $_db.projects,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $MediaClipsTable _clipIdTable(_$AppDatabase db) =>
+      db.mediaClips.createAlias('transcripts__clip_id__media_clips__id');
+
+  $$MediaClipsTableProcessedTableManager? get clipId {
+    final $_column = $_itemColumn<String>('clip_id');
+    if ($_column == null) return null;
+    final manager = $$MediaClipsTableTableManager(
+      $_db,
+      $_db.mediaClips,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_clipIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -3133,6 +4393,29 @@ class $$TranscriptsTableFilterComposer
           }) => $$ProjectsTableFilterComposer(
             $db: $db,
             $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$MediaClipsTableFilterComposer get clipId {
+    final $$MediaClipsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clipId,
+      referencedTable: $db.mediaClips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaClipsTableFilterComposer(
+            $db: $db,
+            $table: $db.mediaClips,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3259,6 +4542,29 @@ class $$TranscriptsTableOrderingComposer
     );
     return composer;
   }
+
+  $$MediaClipsTableOrderingComposer get clipId {
+    final $$MediaClipsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clipId,
+      referencedTable: $db.mediaClips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaClipsTableOrderingComposer(
+            $db: $db,
+            $table: $db.mediaClips,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
 }
 
 class $$TranscriptsTableAnnotationComposer
@@ -3307,6 +4613,29 @@ class $$TranscriptsTableAnnotationComposer
           }) => $$ProjectsTableAnnotationComposer(
             $db: $db,
             $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$MediaClipsTableAnnotationComposer get clipId {
+    final $$MediaClipsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.clipId,
+      referencedTable: $db.mediaClips,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MediaClipsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.mediaClips,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3382,6 +4711,7 @@ class $$TranscriptsTableTableManager
           Transcript,
           PrefetchHooks Function({
             bool projectId,
+            bool clipId,
             bool wordsRefs,
             bool editEventsRefs,
           })
@@ -3404,6 +4734,7 @@ class $$TranscriptsTableTableManager
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<DateTime?> deletedAt = const Value.absent(),
                 Value<String> projectId = const Value.absent(),
+                Value<String?> clipId = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<String?> speakerNames = const Value.absent(),
                 Value<String> fullText = const Value.absent(),
@@ -3414,6 +4745,7 @@ class $$TranscriptsTableTableManager
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 projectId: projectId,
+                clipId: clipId,
                 language: language,
                 speakerNames: speakerNames,
                 fullText: fullText,
@@ -3426,6 +4758,7 @@ class $$TranscriptsTableTableManager
                 required DateTime updatedAt,
                 Value<DateTime?> deletedAt = const Value.absent(),
                 required String projectId,
+                Value<String?> clipId = const Value.absent(),
                 Value<String> language = const Value.absent(),
                 Value<String?> speakerNames = const Value.absent(),
                 required String fullText,
@@ -3436,6 +4769,7 @@ class $$TranscriptsTableTableManager
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
                 projectId: projectId,
+                clipId: clipId,
                 language: language,
                 speakerNames: speakerNames,
                 fullText: fullText,
@@ -3450,7 +4784,12 @@ class $$TranscriptsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({projectId = false, wordsRefs = false, editEventsRefs = false}) {
+              ({
+                projectId = false,
+                clipId = false,
+                wordsRefs = false,
+                editEventsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
@@ -3481,6 +4820,17 @@ class $$TranscriptsTableTableManager
                                 ._projectIdTable(db),
                             referencedColumn: $$TranscriptsTableReferences
                                 ._projectIdTable(db)
+                                .id,
+                          ) as T;
+                        }
+                        if (clipId) {
+                          state = state.withJoin(
+                            currentTable: table,
+                            currentColumn: table.clipId,
+                            referencedTable: $$TranscriptsTableReferences
+                                ._clipIdTable(db),
+                            referencedColumn: $$TranscriptsTableReferences
+                                ._clipIdTable(db)
                                 .id,
                           ) as T;
                         }
@@ -3553,6 +4903,7 @@ typedef $$TranscriptsTableProcessedTableManager =
       Transcript,
       PrefetchHooks Function({
         bool projectId,
+        bool clipId,
         bool wordsRefs,
         bool editEventsRefs,
       })
@@ -4568,6 +5919,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$ProjectsTableTableManager get projects =>
       $$ProjectsTableTableManager(_db, _db.projects);
+  $$MediaClipsTableTableManager get mediaClips =>
+      $$MediaClipsTableTableManager(_db, _db.mediaClips);
   $$TranscriptsTableTableManager get transcripts =>
       $$TranscriptsTableTableManager(_db, _db.transcripts);
   $$WordsTableTableManager get words =>

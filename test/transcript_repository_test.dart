@@ -20,8 +20,10 @@ void main() {
       final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
+      final clipId = repository.newId();
       await repository.saveImport(
         projectId: projectId,
+        clipId: clipId,
         title: 'interview',
         mediaPath: '/tmp/interview.mp4',
         duration: const Duration(seconds: 3),
@@ -52,7 +54,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForProject(projectId);
+      final transcript = await repository.findTranscriptForClip(clipId);
       expect(transcript, isNotNull);
       expect(transcript!.fullText, 'Hello there world');
 
@@ -67,8 +69,10 @@ void main() {
       final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
+      final clipId = repository.newId();
       await repository.saveImport(
         projectId: projectId,
+        clipId: clipId,
         title: 'pauses',
         mediaPath: '/tmp/pauses.wav',
         duration: null,
@@ -92,7 +96,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForProject(projectId);
+      final transcript = await repository.findTranscriptForClip(clipId);
       final words = await repository.watchWords(transcript!.id).first;
 
       // The blank segment must not survive as an empty, invisible word, and
@@ -105,8 +109,10 @@ void main() {
       final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
+      final clipId = repository.newId();
       await repository.saveImport(
         projectId: projectId,
+        clipId: clipId,
         title: 'clip',
         mediaPath: '/tmp/clip.m4a',
         duration: null,
@@ -130,8 +136,10 @@ void main() {
       final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
+      final clipId = repository.newId();
       await repository.saveImport(
         projectId: projectId,
+        clipId: clipId,
         title: 'edit',
         mediaPath: '/tmp/edit.wav',
         duration: null,
@@ -150,7 +158,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForProject(projectId);
+      final transcript = await repository.findTranscriptForClip(clipId);
       final before = (await repository.watchWords(transcript!.id).first).single;
 
       await repository.updateWordText(before.id, 'API');
@@ -169,8 +177,10 @@ void main() {
       final repository = TranscriptRepository(database, MediaConverter());
       final projectId = repository.newId();
 
+      final clipId = repository.newId();
       await repository.saveImport(
         projectId: projectId,
+        clipId: clipId,
         title: 'turns',
         mediaPath: '/tmp/turns.wav',
         duration: null,
@@ -202,7 +212,7 @@ void main() {
         ),
       );
 
-      final transcript = await repository.findTranscriptForProject(projectId);
+      final transcript = await repository.findTranscriptForClip(clipId);
 
       // "That's right." arrived split across two speakers -- the reported
       // failure. Putting both words on one speaker is the correction, and it

@@ -125,6 +125,7 @@ void main() {
 
       final imported = await converter.importToAppStorage(
         projectId: 'reanchor-probe',
+        clipId: 'clip',
         fileName: clip,
         bytes: media.openRead(),
       );

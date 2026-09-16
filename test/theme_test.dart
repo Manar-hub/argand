@@ -104,6 +104,101 @@ void main() {
     });
   });
 
+  group('speaker colours used as text', () {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance() + 0.05;
+      final lb = b.computeLuminance() + 0.05;
+      return la > lb ? la / lb : lb / la;
+    }
+
+    test('every speaker is legible as text on its own theme', () {
+      // The transcript colours its timestamps by speaker, which uses a speaker
+      // colour as *text* rather than as a fill. The raw fills manage 1.28:1
+      // for amber on the warm off-white ground -- they are chosen to sit
+      // behind caption text over video, not to be read directly.
+      for (final theme in [light, dark]) {
+        for (var speaker = 0; speaker < SpeakerPalette.length; speaker++) {
+          final ink = SpeakerPalette.textColorFor(
+            speaker,
+            brightness: theme.brightness,
+            fallback: Colors.black,
+          );
+          expect(contrast(ink, theme.colorScheme.surface),
+              greaterThanOrEqualTo(4.5),
+              reason: 'speaker $speaker cannot be read on this ground');
+        }
+      }
+    });
+
+    test('dark uses the caption fills unchanged', () {
+      // Nothing to fix there: the fills already clear 7.5:1 on the near-black
+      // ground, and reusing them keeps a stamp identical to the caption chip
+      // beside it.
+      for (var speaker = 0; speaker < SpeakerPalette.length; speaker++) {
+        expect(
+          SpeakerPalette.textColorFor(
+            speaker,
+            brightness: Brightness.dark,
+            fallback: Colors.black,
+          ),
+          SpeakerPalette.colorFor(speaker, fallback: Colors.black),
+        );
+      }
+    });
+
+    test('the light inks stay saturated rather than going grey', () {
+      // The failure mode being guarded against is the previous attempt:
+      // blending each hue toward black until it passed, which desaturates and
+      // produced olive and teal. Chroma is the plain spread between channels.
+      double chromaOf(Color c) {
+        final hi = [c.r, c.g, c.b].reduce((a, v) => a > v ? a : v);
+        final lo = [c.r, c.g, c.b].reduce((a, v) => a < v ? a : v);
+        return hi - lo;
+      }
+
+      for (var speaker = 0; speaker < SpeakerPalette.length; speaker++) {
+        final ink = SpeakerPalette.textColorFor(
+          speaker,
+          brightness: Brightness.light,
+          fallback: Colors.black,
+        );
+        expect(chromaOf(ink), greaterThan(0.45),
+            reason: 'speaker $speaker has gone muddy');
+      }
+    });
+
+    test('the light inks are all clearly different from each other', () {
+      // Amber and orange are ten degrees apart as fills and converge on the
+      // same brown when darkened, which is why the orange ink is pushed to
+      // vermilion. This is what stops that regressing.
+      for (var i = 0; i < SpeakerPalette.length; i++) {
+        for (var j = i + 1; j < SpeakerPalette.length; j++) {
+          expect(_apart(i, j, Brightness.light), greaterThan(0.4),
+              reason: 'light speakers $i and $j look alike');
+        }
+      }
+    });
+
+    test('the dark fills are weaker, and that is recorded not fixed', () {
+      // **A finding, not a passing grade.** The caption fills put amber at
+      // `#FFD54F` and orange at `#FFB74D` -- 32 apart out of a possible 765,
+      // which is nearly the same colour. It shows up wherever those two
+      // speakers meet, in the captions burned over video as much as in the
+      // transcript, and it predates the transcript using them as text.
+      //
+      // Changing it means changing what is burned into an exported video, so
+      // it is the user's call rather than a quiet retune. The bar here is set
+      // at what the palette actually manages so the number is visible, and the
+      // light inks above are held to four times it.
+      for (var i = 0; i < SpeakerPalette.length; i++) {
+        for (var j = i + 1; j < SpeakerPalette.length; j++) {
+          expect(_apart(i, j, Brightness.dark), greaterThan(0.12),
+              reason: 'dark speakers $i and $j are closer than amber/orange');
+        }
+      }
+    });
+  });
+
   group('the surface pattern', () {
     test('is registered on both themes', () {
       expect(light.extension<AppSurface>(), isNotNull);
@@ -258,4 +353,16 @@ void main() {
     expect(light.scaffoldBackgroundColor,
         isNot(dark.scaffoldBackgroundColor));
   });
+}
+
+/// Total channel separation between two speakers' text colours, 0 to 3.
+double _apart(int a, int b, Brightness brightness) {
+  Color ink(int i) => SpeakerPalette.textColorFor(
+        i,
+        brightness: brightness,
+        fallback: Colors.black,
+      );
+  final x = ink(a);
+  final y = ink(b);
+  return (x.r - y.r).abs() + (x.g - y.g).abs() + (x.b - y.b).abs();
 }

@@ -39,6 +39,7 @@ void main() {
 
     final imported = await converter.importToAppStorage(
       projectId: 'detected-language-test',
+      clipId: 'clip',
       fileName: 'two_speakers.wav',
       bytes: media.openRead(),
     );

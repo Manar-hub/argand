@@ -380,3 +380,105 @@ abstract class _$SpeakerRangeAnchor extends $Notifier<int?> {
     return element.handleCreate(ref, build);
   }
 }
+
+/// The span of words currently open for retyping, or null when none is.
+///
+/// **Replaces a modal dialog**, and the reason is that a dialog is the wrong
+/// shape for this on a phone. Retyping a line is a keyboard task, and a
+/// keyboard already covers half the screen; putting a second surface in front
+/// of the transcript hides the very context the correction is being made
+/// against. Inline, the line stays where it is, the words around it stay
+/// readable, and the only new thing on screen is the keyboard.
+///
+/// Positions rather than words, so the target survives the transcript stream
+/// re-emitting mid-edit — the rows are rebuilt from the database on every
+/// change, and a held `Word` object would be a stale copy.
+
+@ProviderFor(InlineEdit)
+final inlineEditProvider = InlineEditProvider._();
+
+/// The span of words currently open for retyping, or null when none is.
+///
+/// **Replaces a modal dialog**, and the reason is that a dialog is the wrong
+/// shape for this on a phone. Retyping a line is a keyboard task, and a
+/// keyboard already covers half the screen; putting a second surface in front
+/// of the transcript hides the very context the correction is being made
+/// against. Inline, the line stays where it is, the words around it stay
+/// readable, and the only new thing on screen is the keyboard.
+///
+/// Positions rather than words, so the target survives the transcript stream
+/// re-emitting mid-edit — the rows are rebuilt from the database on every
+/// change, and a held `Word` object would be a stale copy.
+final class InlineEditProvider
+    extends $NotifierProvider<InlineEdit, ({int from, int to})?> {
+  /// The span of words currently open for retyping, or null when none is.
+  ///
+  /// **Replaces a modal dialog**, and the reason is that a dialog is the wrong
+  /// shape for this on a phone. Retyping a line is a keyboard task, and a
+  /// keyboard already covers half the screen; putting a second surface in front
+  /// of the transcript hides the very context the correction is being made
+  /// against. Inline, the line stays where it is, the words around it stay
+  /// readable, and the only new thing on screen is the keyboard.
+  ///
+  /// Positions rather than words, so the target survives the transcript stream
+  /// re-emitting mid-edit — the rows are rebuilt from the database on every
+  /// change, and a held `Word` object would be a stale copy.
+  InlineEditProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'inlineEditProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$inlineEditHash();
+
+  @$internal
+  @override
+  InlineEdit create() => InlineEdit();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(({int from, int to})? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<({int from, int to})?>(value),
+    );
+  }
+}
+
+String _$inlineEditHash() => r'2be335e9130fd50341f578a4ec875879ef16d5eb';
+
+/// The span of words currently open for retyping, or null when none is.
+///
+/// **Replaces a modal dialog**, and the reason is that a dialog is the wrong
+/// shape for this on a phone. Retyping a line is a keyboard task, and a
+/// keyboard already covers half the screen; putting a second surface in front
+/// of the transcript hides the very context the correction is being made
+/// against. Inline, the line stays where it is, the words around it stay
+/// readable, and the only new thing on screen is the keyboard.
+///
+/// Positions rather than words, so the target survives the transcript stream
+/// re-emitting mid-edit — the rows are rebuilt from the database on every
+/// change, and a held `Word` object would be a stale copy.
+
+abstract class _$InlineEdit extends $Notifier<({int from, int to})?> {
+  ({int from, int to})? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<({int from, int to})?, ({int from, int to})?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<({int from, int to})?, ({int from, int to})?>,
+              ({int from, int to})?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

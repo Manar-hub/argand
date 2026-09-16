@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
@@ -12,16 +15,21 @@ import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
 import '../../core/transcript/speaker_names.dart';
 import '../../core/whisper/transcription_language_controller.dart';
+import 'editor_mode_controller.dart';
 
 part 'transcript_repository.g.dart';
 
-/// The `Settings` key holding where playback last stopped in [projectId].
+/// The `Settings` key holding where playback last stopped in [clipId].
 ///
-/// Namespaced by project because `Settings` is one shared key/value table --
-/// the same reason `whisper_model_controller.dart` namespaces its own key.
-/// Retired by [TranscriptRepository.deleteProject] so a deleted project leaves
-/// no stray row behind.
-String playbackPositionKey(String projectId) => 'project.$projectId.positionMs';
+/// Namespaced like every other per-entity key because `Settings` is one shared
+/// key/value table -- the same reason `whisper_model_controller.dart`
+/// namespaces its own.
+///
+/// **Keyed by clip since schema 5**, having been keyed by project before that.
+/// A project now holds several clips and the preview plays whichever one is
+/// selected, so a single per-project position would drop the user somewhere
+/// arbitrary in whatever clip they opened next.
+String playbackPositionKey(String clipId) => 'clip.$clipId.positionMs';
 
 /// All persistence for projects and their transcripts.
 ///
@@ -47,13 +55,142 @@ class TranscriptRepository {
 
   Future<Project?> findProject(String id) => _db.findProject(id);
 
-  Future<Transcript?> findTranscriptForProject(String projectId) =>
-      _db.findTranscriptForProject(projectId);
+  Future<Transcript?> findTranscriptForClip(String clipId) =>
+      _db.findTranscriptForClip(clipId);
 
-  Stream<Transcript?> watchTranscriptForProject(String projectId) =>
-      _db.watchTranscriptForProject(projectId);
+  Stream<Transcript?> watchTranscriptForClip(String clipId) =>
+      _db.watchTranscriptForClip(clipId);
 
   Stream<List<Word>> watchWords(String transcriptId) => _db.watchWords(transcriptId);
+
+  Stream<List<MediaClip>> watchClips(String projectId) =>
+      _db.watchClips(projectId);
+
+  Future<List<MediaClip>> clipsForProject(String projectId) =>
+      _db.clipsForProject(projectId);
+
+  Future<MediaClip?> findClip(String clipId) => _db.findClip(clipId);
+
+  /// Creates an empty project, with no media and nothing transcribed.
+  ///
+  /// The shape "Create project" produces: a named shell the user then adds
+  /// clips to. Import still creates a project and its first clip together, so
+  /// this is an alternative entry rather than a stage every project passes
+  /// through.
+  Future<String> createEmptyProject({required String title}) async {
+    final projectId = newId();
+    await _db.createEmptyProject(projectId: projectId, title: title);
+    return projectId;
+  }
+
+  /// Copies [fileName]'s bytes in as a new clip at the end of the timeline.
+  ///
+  /// **No transcription happens here.** Adding media and transcribing it are
+  /// separate events: a project can carry several clips and only some are worth
+  /// the minutes whisper and diarization cost, so the engine runs only when the
+  /// user asks for it on a specific clip.
+  ///
+  /// The duration probe is best-effort by design ([MediaConverter.probeDuration]
+  /// returns null rather than throwing), so a container the prober dislikes
+  /// still yields a usable clip.
+  Future<MediaClip> addClip({
+    required String projectId,
+    required String fileName,
+    required Stream<List<int>> bytes,
+  }) async {
+    final clipId = newId();
+    final media = await _media.importToAppStorage(
+      projectId: projectId,
+      clipId: clipId,
+      fileName: fileName,
+      bytes: bytes,
+    );
+    return _registerClip(
+      clipId: clipId,
+      projectId: projectId,
+      mediaPath: media.path,
+      fileName: fileName,
+    );
+  }
+
+  /// Adopts a file already on disk as a new clip. See
+  /// [MediaConverter.adoptIntoAppStorage] for why this moves rather than copies.
+  Future<MediaClip> adoptClip({
+    required String projectId,
+    required String fileName,
+    required File source,
+  }) async {
+    final clipId = newId();
+    final media = await _media.adoptIntoAppStorage(
+      projectId: projectId,
+      clipId: clipId,
+      fileName: fileName,
+      source: source,
+    );
+    return _registerClip(
+      clipId: clipId,
+      projectId: projectId,
+      mediaPath: media.path,
+      fileName: fileName,
+    );
+  }
+
+  Future<MediaClip> _registerClip({
+    required String clipId,
+    required String projectId,
+    required String mediaPath,
+    required String fileName,
+  }) async {
+    final duration = await _media.probeDuration(mediaPath);
+    await _db.appendClip(
+      clipId: clipId,
+      projectId: projectId,
+      mediaPath: mediaPath,
+      duration: duration,
+      title: p.basenameWithoutExtension(fileName),
+    );
+
+    final clip = await _db.findClip(clipId);
+    if (clip == null) {
+      throw StateError('Clip $clipId vanished immediately after being written');
+    }
+    return clip;
+  }
+
+  /// Removes one clip and its media, leaving the rest of the project intact.
+  ///
+  /// Same ordering and the same guard as [deleteProject]: rows first so the
+  /// clip disappears from the timeline even if the filesystem step fails, and
+  /// the filesystem step is best-effort because by then the removal has already
+  /// succeeded as far as the user is concerned.
+  Future<void> removeClip(String clipId) async {
+    final clip = await _db.findClip(clipId);
+    if (clip == null) return;
+
+    await _db.softDeleteClip(clipId);
+    await _db.softDeleteSetting(playbackPositionKey(clipId));
+
+    // A duplicated project points a clip of its own at the same file, so the
+    // bytes only go when nothing else still needs them.
+    final stillNeeded = await _db.projectsSharingMedia(
+      clip.mediaPath,
+      excluding: clip.projectId,
+    );
+    if (stillNeeded > 0) return;
+
+    try {
+      await _media.discardClipMedia(clipId: clipId, mediaPath: clip.mediaPath);
+    } catch (error) {
+      debugPrint('Removed clip $clipId but could not remove its media: $error');
+    }
+  }
+
+  /// Writes a new clip order for one project. See [AppDatabase.reorderClips].
+  Future<void> reorderClips({
+    required String projectId,
+    required List<String> orderedIds,
+  }) =>
+      _db.reorderClips(projectId: projectId, orderedIds: orderedIds);
 
   /// Removes a project: its row, its per-project settings, and its media.
   ///
@@ -74,22 +211,35 @@ class TranscriptRepository {
   /// report a failure that did not happen.
   Future<void> deleteProject(String id) async {
     final project = await _db.findProject(id);
+    // Read before the soft delete, which retires them along with the project.
+    final clips = await _db.clipsForProject(id);
 
     await _db.softDeleteProject(id);
-    await _db.softDeleteSetting(playbackPositionKey(id));
+    await _db.softDeleteSetting(editorModeKey(id));
+    for (final clip in clips) {
+      await _db.softDeleteSetting(playbackPositionKey(clip.id));
+    }
     if (project == null) return;
 
-    // Duplicates share one file, so the media only goes when nothing can still
-    // open it. Counted *after* the soft delete and excluding this project, so
-    // the answer is exactly "does anyone else still need this".
-    final stillNeeded = await _db.projectsSharingMedia(
-      project.mediaPath,
-      excluding: id,
-    );
-    if (stillNeeded > 0) return;
+    // Duplicates share their files, so the media only goes when nothing else
+    // can still open it. Asked per clip and *after* the soft delete, excluding
+    // this project, so the answer is exactly "does anyone else still need
+    // this" -- and asked of the database rather than the filesystem, so the
+    // decision needs no path lookup.
+    //
+    // Conservative on purpose: one shared clip spares the whole directory.
+    // Duplicates share every clip in practice, and leaking a file is a cost
+    // the user can recover from while deleting another project's video is not.
+    for (final clip in clips) {
+      final stillNeeded = await _db.projectsSharingMedia(
+        clip.mediaPath,
+        excluding: id,
+      );
+      if (stillNeeded > 0) return;
+    }
 
     try {
-      await _media.discardMediaAt(project.mediaPath);
+      await _media.discardProjectMedia(id);
     } catch (error) {
       debugPrint('Deleted project $id but could not remove its media: $error');
     }
@@ -429,6 +579,7 @@ class TranscriptRepository {
   /// before diarization existed.
   Future<void> saveImport({
     required String projectId,
+    required String clipId,
     required String title,
     required String mediaPath,
     required Duration? duration,
@@ -437,7 +588,6 @@ class TranscriptRepository {
     required WhisperTranscribeResponse result,
   }) async {
     final now = DateTime.now();
-    final transcriptId = newId();
 
     await _db.transaction(() async {
       await _db.into(_db.projects).insert(
@@ -446,17 +596,83 @@ class TranscriptRepository {
               createdAt: now,
               updatedAt: now,
               title: title,
-              mediaPath: mediaPath,
-              durationMs: Value(duration?.inMilliseconds),
+              // Vestigial since schema 5 -- the clip below carries the media.
+              mediaPath: '',
             ),
           );
 
+      await _db.into(_db.mediaClips).insert(
+            MediaClipsCompanion.insert(
+              id: clipId,
+              createdAt: now,
+              updatedAt: now,
+              projectId: projectId,
+              position: 0,
+              mediaPath: mediaPath,
+              durationMs: Value(duration?.inMilliseconds),
+              title: title,
+            ),
+          );
+
+      await _writeTranscript(
+        projectId: projectId,
+        clipId: clipId,
+        language: language,
+        speakerSpans: speakerSpans,
+        result: result,
+        now: now,
+      );
+    });
+  }
+
+  /// Saves a transcript for a clip that already exists.
+  ///
+  /// The on-demand half of the split: [saveImport] creates a project, its first
+  /// clip and its transcript together, while this attaches words to a clip the
+  /// user added earlier and has now asked to transcribe.
+  ///
+  /// Replacing an existing transcript is not handled here — the caller checks
+  /// first, because re-transcribing would discard corrections the user has
+  /// already made and that is a decision to surface, not to take silently.
+  Future<void> saveClipTranscript({
+    required String projectId,
+    required String clipId,
+    required TranscriptionLanguage language,
+    required List<SpeakerSpan> speakerSpans,
+    required WhisperTranscribeResponse result,
+  }) async {
+    final now = DateTime.now();
+    await _db.transaction(() async {
+      await _writeTranscript(
+        projectId: projectId,
+        clipId: clipId,
+        language: language,
+        speakerSpans: speakerSpans,
+        result: result,
+        now: now,
+      );
+    });
+  }
+
+  /// Writes one transcript and its words. **Caller supplies the transaction.**
+  Future<void> _writeTranscript({
+    required String projectId,
+    required String clipId,
+    required TranscriptionLanguage language,
+    required List<SpeakerSpan> speakerSpans,
+    required WhisperTranscribeResponse result,
+    required DateTime now,
+  }) async {
+    final transcriptId = newId();
+
+    {
       await _db.into(_db.transcripts).insert(
             TranscriptsCompanion.insert(
               id: transcriptId,
               createdAt: now,
               updatedAt: now,
               projectId: projectId,
+              clipId: Value(clipId),
               language: Value(result.detectedLanguage ?? language.code),
               fullText: result.text.trim(),
             ),
@@ -509,7 +725,7 @@ class TranscriptRepository {
           ],
         );
       });
-    });
+    }
   }
 }
 
@@ -565,14 +781,36 @@ Future<Project?> projectById(Ref ref, String projectId) =>
 Stream<List<Word>> transcriptWords(Ref ref, String transcriptId) =>
     ref.watch(transcriptRepositoryProvider).watchWords(transcriptId);
 
-/// The project's transcript, watched rather than fetched.
+/// One clip's transcript, watched rather than fetched, or null when it has not
+/// been transcribed yet.
 ///
 /// Speaker names live on this row, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 @riverpod
-Stream<Transcript?> projectTranscript(Ref ref, String projectId) =>
-    ref.watch(transcriptRepositoryProvider).watchTranscriptForProject(projectId);
+Stream<Transcript?> clipTranscript(Ref ref, String clipId) =>
+    ref.watch(transcriptRepositoryProvider).watchTranscriptForClip(clipId);
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+@riverpod
+Stream<List<MediaClip>> projectClips(Ref ref, String projectId) =>
+    ref.watch(transcriptRepositoryProvider).watchClips(projectId);
+
+/// A project's running time: the sum of its clips' durations.
+///
+/// Clips whose duration could not be probed contribute nothing rather than
+/// making the whole total unknown — a slightly short number reads better in the
+/// library than a blank one.
+@riverpod
+Duration projectDuration(Ref ref, String projectId) {
+  final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
+  var total = 0;
+  for (final clip in clips) {
+    total += clip.durationMs ?? 0;
+  }
+  return Duration(milliseconds: total);
+}
 
 /// The engine's segments as word timings, filtered exactly as [saveImport]
 /// filters them before writing rows.

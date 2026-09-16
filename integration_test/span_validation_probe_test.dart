@@ -60,6 +60,7 @@ void main() {
 
       final imported = await converter.importToAppStorage(
         projectId: 'span-validation-probe',
+        clipId: 'clip',
         fileName: clip,
         bytes: media.openRead(),
       );

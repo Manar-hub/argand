@@ -619,22 +619,24 @@ final class TranscriptWordsFamily extends $Family
   String toString() => r'transcriptWordsProvider';
 }
 
-/// The project's transcript, watched rather than fetched.
+/// One clip's transcript, watched rather than fetched, or null when it has not
+/// been transcribed yet.
 ///
 /// Speaker names live on this row, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 
-@ProviderFor(projectTranscript)
-final projectTranscriptProvider = ProjectTranscriptFamily._();
+@ProviderFor(clipTranscript)
+final clipTranscriptProvider = ClipTranscriptFamily._();
 
-/// The project's transcript, watched rather than fetched.
+/// One clip's transcript, watched rather than fetched, or null when it has not
+/// been transcribed yet.
 ///
 /// Speaker names live on this row, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 
-final class ProjectTranscriptProvider
+final class ClipTranscriptProvider
     extends
         $FunctionalProvider<
           AsyncValue<Transcript?>,
@@ -642,28 +644,29 @@ final class ProjectTranscriptProvider
           Stream<Transcript?>
         >
     with $FutureModifier<Transcript?>, $StreamProvider<Transcript?> {
-  /// The project's transcript, watched rather than fetched.
+  /// One clip's transcript, watched rather than fetched, or null when it has not
+  /// been transcribed yet.
   ///
   /// Speaker names live on this row, so a rename has to reach the transcript
   /// view, the caption overlay and the export button with nothing being told to
   /// refresh.
-  ProjectTranscriptProvider._({
-    required ProjectTranscriptFamily super.from,
+  ClipTranscriptProvider._({
+    required ClipTranscriptFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'projectTranscriptProvider',
+         name: r'clipTranscriptProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
 
   @override
-  String debugGetCreateSourceHash() => _$projectTranscriptHash();
+  String debugGetCreateSourceHash() => _$clipTranscriptHash();
 
   @override
   String toString() {
-    return r'projectTranscriptProvider'
+    return r'clipTranscriptProvider'
         ''
         '($argument)';
   }
@@ -677,12 +680,12 @@ final class ProjectTranscriptProvider
   @override
   Stream<Transcript?> create(Ref ref) {
     final argument = this.argument as String;
-    return projectTranscript(ref, argument);
+    return clipTranscript(ref, argument);
   }
 
   @override
   bool operator ==(Object other) {
-    return other is ProjectTranscriptProvider && other.argument == argument;
+    return other is ClipTranscriptProvider && other.argument == argument;
   }
 
   @override
@@ -691,34 +694,231 @@ final class ProjectTranscriptProvider
   }
 }
 
-String _$projectTranscriptHash() => r'73f3857248e5d566bbfa84842cbaa59d896ebeae';
+String _$clipTranscriptHash() => r'dbb62793737613497f77caad89e7dcecebbc2021';
 
-/// The project's transcript, watched rather than fetched.
+/// One clip's transcript, watched rather than fetched, or null when it has not
+/// been transcribed yet.
 ///
 /// Speaker names live on this row, so a rename has to reach the transcript
 /// view, the caption overlay and the export button with nothing being told to
 /// refresh.
 
-final class ProjectTranscriptFamily extends $Family
+final class ClipTranscriptFamily extends $Family
     with $FunctionalFamilyOverride<Stream<Transcript?>, String> {
-  ProjectTranscriptFamily._()
+  ClipTranscriptFamily._()
     : super(
         retry: null,
-        name: r'projectTranscriptProvider',
+        name: r'clipTranscriptProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
 
-  /// The project's transcript, watched rather than fetched.
+  /// One clip's transcript, watched rather than fetched, or null when it has not
+  /// been transcribed yet.
   ///
   /// Speaker names live on this row, so a rename has to reach the transcript
   /// view, the caption overlay and the export button with nothing being told to
   /// refresh.
 
-  ProjectTranscriptProvider call(String projectId) =>
-      ProjectTranscriptProvider._(argument: projectId, from: this);
+  ClipTranscriptProvider call(String clipId) =>
+      ClipTranscriptProvider._(argument: clipId, from: this);
 
   @override
-  String toString() => r'projectTranscriptProvider';
+  String toString() => r'clipTranscriptProvider';
+}
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+
+@ProviderFor(projectClips)
+final projectClipsProvider = ProjectClipsFamily._();
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+
+final class ProjectClipsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<MediaClip>>,
+          List<MediaClip>,
+          Stream<List<MediaClip>>
+        >
+    with $FutureModifier<List<MediaClip>>, $StreamProvider<List<MediaClip>> {
+  /// A project's clips in timeline order. Empty for a project nobody has added
+  /// media to yet, which is the state "Create project" leaves behind.
+  ProjectClipsProvider._({
+    required ProjectClipsFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectClipsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectClipsHash();
+
+  @override
+  String toString() {
+    return r'projectClipsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<MediaClip>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<MediaClip>> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectClips(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectClipsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectClipsHash() => r'a7d7b988b97250e4aba927803acb6a82e3545406';
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+
+final class ProjectClipsFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<MediaClip>>, String> {
+  ProjectClipsFamily._()
+    : super(
+        retry: null,
+        name: r'projectClipsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's clips in timeline order. Empty for a project nobody has added
+  /// media to yet, which is the state "Create project" leaves behind.
+
+  ProjectClipsProvider call(String projectId) =>
+      ProjectClipsProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectClipsProvider';
+}
+
+/// A project's running time: the sum of its clips' durations.
+///
+/// Clips whose duration could not be probed contribute nothing rather than
+/// making the whole total unknown — a slightly short number reads better in the
+/// library than a blank one.
+
+@ProviderFor(projectDuration)
+final projectDurationProvider = ProjectDurationFamily._();
+
+/// A project's running time: the sum of its clips' durations.
+///
+/// Clips whose duration could not be probed contribute nothing rather than
+/// making the whole total unknown — a slightly short number reads better in the
+/// library than a blank one.
+
+final class ProjectDurationProvider
+    extends $FunctionalProvider<Duration, Duration, Duration>
+    with $Provider<Duration> {
+  /// A project's running time: the sum of its clips' durations.
+  ///
+  /// Clips whose duration could not be probed contribute nothing rather than
+  /// making the whole total unknown — a slightly short number reads better in the
+  /// library than a blank one.
+  ProjectDurationProvider._({
+    required ProjectDurationFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectDurationProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectDurationHash();
+
+  @override
+  String toString() {
+    return r'projectDurationProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<Duration> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  Duration create(Ref ref) {
+    final argument = this.argument as String;
+    return projectDuration(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Duration value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Duration>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectDurationProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectDurationHash() => r'9c9074daa6c0dd6d69e46f12b9446a750a3037c6';
+
+/// A project's running time: the sum of its clips' durations.
+///
+/// Clips whose duration could not be probed contribute nothing rather than
+/// making the whole total unknown — a slightly short number reads better in the
+/// library than a blank one.
+
+final class ProjectDurationFamily extends $Family
+    with $FunctionalFamilyOverride<Duration, String> {
+  ProjectDurationFamily._()
+    : super(
+        retry: null,
+        name: r'projectDurationProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's running time: the sum of its clips' durations.
+  ///
+  /// Clips whose duration could not be probed contribute nothing rather than
+  /// making the whole total unknown — a slightly short number reads better in the
+  /// library than a blank one.
+
+  ProjectDurationProvider call(String projectId) =>
+      ProjectDurationProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectDurationProvider';
 }

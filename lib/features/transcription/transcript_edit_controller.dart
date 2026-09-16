@@ -103,3 +103,32 @@ class SpeakerRangeAnchor extends _$SpeakerRangeAnchor {
 
   void clear() => state = null;
 }
+
+/// The span of words currently open for retyping, or null when none is.
+///
+/// **Replaces a modal dialog**, and the reason is that a dialog is the wrong
+/// shape for this on a phone. Retyping a line is a keyboard task, and a
+/// keyboard already covers half the screen; putting a second surface in front
+/// of the transcript hides the very context the correction is being made
+/// against. Inline, the line stays where it is, the words around it stay
+/// readable, and the only new thing on screen is the keyboard.
+///
+/// Positions rather than words, so the target survives the transcript stream
+/// re-emitting mid-edit — the rows are rebuilt from the database on every
+/// change, and a held `Word` object would be a stale copy.
+@riverpod
+class InlineEdit extends _$InlineEdit {
+  @override
+  ({int from, int to})? build() => null;
+
+  void open({required int from, required int to}) =>
+      state = (from: from, to: to);
+
+  void close() => state = null;
+
+  /// Whether [position] falls inside the open span.
+  bool covers(int position) {
+    final open = state;
+    return open != null && position >= open.from && position <= open.to;
+  }
+}

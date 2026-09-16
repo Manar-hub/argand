@@ -88,6 +88,7 @@ void main() {
 
       final imported = await converter.importToAppStorage(
         projectId: 'retiming-${clip.hashCode}',
+        clipId: 'clip',
         fileName: clip,
         bytes: source.openRead(),
       );

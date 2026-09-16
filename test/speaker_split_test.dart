@@ -32,8 +32,10 @@ void main() {
     final projectId = repository.newId();
     const texts = ['One', 'two', 'three', 'four', 'five', 'six.'];
 
+    final clipId = repository.newId();
     await repository.saveImport(
       projectId: projectId,
+      clipId: clipId,
       title: 'clip',
       mediaPath: '/tmp/clip.wav',
       duration: null,
@@ -53,7 +55,7 @@ void main() {
         ],
       ),
     );
-    return (await repository.findTranscriptForProject(projectId))!.id;
+    return (await repository.findTranscriptForClip(clipId))!.id;
   }
 
   Future<List<Word>> wordsOf(String id) => repository.watchWords(id).first;

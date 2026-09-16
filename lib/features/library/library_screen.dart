@@ -15,6 +15,7 @@ import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_catalog.dart';
 import '../../core/whisper/whisper_model_controller.dart';
 import '../../l10n/app_localizations.dart';
+import '../transcription/editor_mode_controller.dart';
 import '../transcription/import_controller.dart';
 import '../transcription/project_screen.dart';
 import '../transcription/transcript_repository.dart';
@@ -30,6 +31,13 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   StreamSubscription<SharedMedia>? _shares;
+
+  /// Which mode the entry button just tapped wants the resulting project to
+  /// open in, consumed the moment the pipeline reports [ImportSucceeded].
+  /// Cleared on every path that is not "a button was just tapped" -- a
+  /// share-sheet arrival, or the previous attempt being cancelled -- so it
+  /// never leaks into an import it was not meant for.
+  EditorMode? _pendingImportMode;
 
   @override
   void initState() {
@@ -67,7 +75,46 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     // interleave two sets of progress into one status.
     if (ref.read(importControllerProvider) is ImportRunning) return;
 
+    // A share never came through a button, so it never has a mode opinion --
+    // clear a mode a cancelled button-triggered import might have left behind.
+    _pendingImportMode = null;
     ref.read(importControllerProvider.notifier).importShared(media);
+  }
+
+  void _startImport(EditorMode mode) {
+    _pendingImportMode = mode;
+    ref.read(importControllerProvider.notifier).importFromPicker();
+  }
+
+  /// Names an empty project and opens it on the timeline.
+  ///
+  /// **No picker, and nothing transcribed.** This is the entry point for
+  /// building something out of several clips: the project is created first and
+  /// media is added to it afterwards, which is the opposite order from
+  /// "Transcribe", where the file *is* the project.
+  Future<void> _createProject() async {
+    final l10n = AppLocalizations.of(context);
+    final title = await showDialog<String>(
+      context: context,
+      builder: (context) => const _NameProjectDialog(),
+    );
+    if (title == null || !mounted) return;
+
+    final projectId = await ref
+        .read(transcriptRepositoryProvider)
+        .createEmptyProject(
+          title: title.trim().isEmpty ? l10n.createProjectDefaultName : title.trim(),
+        );
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProjectScreen(
+          projectId: projectId,
+          initialMode: EditorMode.timeline,
+        ),
+      ),
+    );
   }
 
   @override
@@ -79,13 +126,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ref.listen(importControllerProvider, (previous, next) {
       switch (next) {
         case ImportSucceeded(:final projectId):
+          final mode = _pendingImportMode;
+          _pendingImportMode = null;
           ref.read(importControllerProvider.notifier).reset();
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => ProjectScreen(projectId: projectId),
+              builder: (_) => ProjectScreen(projectId: projectId, initialMode: mode),
             ),
           );
         case ImportCancelled():
+          _pendingImportMode = null;
           ref.read(importControllerProvider.notifier).reset();
           ScaffoldMessenger.of(context)
             ..clearSnackBars()
@@ -121,7 +171,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _ImportPanel(busy: busy),
+                  _ImportPanel(
+                    busy: busy,
+                    icon: Icons.movie_creation_outlined,
+                    headline: l10n.createProjectHeadline,
+                    subhead: l10n.createProjectSubhead,
+                    onTap: _createProject,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _ImportPanel(
+                    busy: busy,
+                    icon: Icons.text_snippet_outlined,
+                    headline: l10n.importHeadline,
+                    subhead: l10n.importSubhead,
+                    onTap: () => _startImport(EditorMode.script),
+                  ),
                   if (import is ImportRunning) ...[
                     const SizedBox(height: AppSpacing.md),
                     _ImportProgress(status: import),
@@ -154,21 +218,85 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-/// The import action, as the largest thing on the page.
+/// Asks for a new project's name before it is created.
 ///
-/// A tall panel rather than a floating button. Importing is what an empty
-/// library is *for*, and a corner FAB makes the one action people opened the
-/// app to perform the smallest thing on screen. Filled with the accent and
-/// carrying the outline and offset shadow, so it is unmistakable before there
-/// is anything else to look at.
-class _ImportPanel extends ConsumerWidget {
-  const _ImportPanel({required this.busy});
-
-  final bool busy;
+/// Prefilled and pre-selected so confirming immediately is a valid answer: the
+/// point of naming here is that a project holding several clips has no filename
+/// to borrow one from, not that the user must invent something before starting.
+class _NameProjectDialog extends StatefulWidget {
+  const _NameProjectDialog();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  State<_NameProjectDialog> createState() => _NameProjectDialogState();
+}
+
+class _NameProjectDialogState extends State<_NameProjectDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+
+    return AlertDialog(
+      title: Text(l10n.createProjectTitle),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(hintText: l10n.createProjectDefaultName),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.editCancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: Text(l10n.createProjectAction),
+        ),
+      ],
+    );
+  }
+}
+
+/// One of the two entry points on the library, as the largest things on the
+/// page.
+///
+/// Tall panels rather than a floating button. Importing is what an empty
+/// library is *for*, and a corner FAB makes the one action people opened the
+/// app to perform the smallest thing on screen. Filled with the accent and
+/// carrying the outline and offset shadow, so each is unmistakable before
+/// there is anything else to look at.
+///
+/// **Two of these, not one**, since the library gained a second entry point:
+/// "Import & edit" opens the result in Timeline mode, "Transcribe" (the
+/// original single button) opens it in Script mode as it always did. Both
+/// run the identical `ImportController` pipeline -- see `_startImport` --
+/// they differ only in which mode the resulting `ProjectScreen` defaults to.
+class _ImportPanel extends StatelessWidget {
+  const _ImportPanel({
+    required this.busy,
+    required this.icon,
+    required this.headline,
+    required this.subhead,
+    required this.onTap,
+  });
+
+  final bool busy;
+  final IconData icon;
+  final String headline;
+  final String subhead;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final surface = context.surface;
 
@@ -179,17 +307,14 @@ class _ImportPanel extends ConsumerWidget {
     return Semantics(
       button: true,
       enabled: !busy,
-      label: l10n.importHeadline,
+      label: headline,
       child: InkWell(
         borderRadius: surface.borderRadius,
-        onTap: busy
-            ? null
-            : () =>
-                ref.read(importControllerProvider.notifier).importFromPicker(),
+        onTap: busy ? null : onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
-            vertical: AppSpacing.xl,
+            vertical: AppSpacing.lg,
           ),
           decoration: surface.decoration(
             fill: busy
@@ -198,7 +323,7 @@ class _ImportPanel extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              Icon(Icons.add, size: 34, color: ink),
+              Icon(icon, size: 30, color: ink),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -206,12 +331,12 @@ class _ImportPanel extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      l10n.importHeadline,
-                      style: theme.textTheme.titleLarge?.copyWith(color: ink),
+                      headline,
+                      style: theme.textTheme.titleMedium?.copyWith(color: ink),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      l10n.importSubhead,
+                      subhead,
                       style: theme.textTheme.bodySmall
                           ?.copyWith(color: ink.withValues(alpha: 0.75)),
                     ),
@@ -269,74 +394,101 @@ class _ProjectSliver extends StatelessWidget {
 /// Everything needed to choose between two similar recordings is on the face of
 /// it — when it was imported, how long it runs, what it costs on disk — because
 /// the alternative is opening each one to find out.
-class _ProjectTile extends ConsumerWidget {
+class _ProjectTile extends ConsumerStatefulWidget {
   const _ProjectTile({required this.project});
 
   final Project project;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProjectTile> createState() => _ProjectTileState();
+}
+
+class _ProjectTileState extends ConsumerState<_ProjectTile> {
+  /// Whether the row is currently under a finger.
+  ///
+  /// Nothing here stays "selected" the way a segment or a speaker chip does —
+  /// a tap navigates away immediately — so the pressed look is momentary,
+  /// driven by `InkWell.onHighlightChanged` rather than a persisted choice.
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final surface = context.surface;
     // Null while the directory is still being measured, so the meta line shows
     // what it knows rather than flashing a placeholder size.
-    final bytes = ref.watch(projectMediaBytesProvider(project.id)).value;
+    final bytes =
+        ref.watch(projectMediaBytesProvider(widget.project.id)).value;
+    final duration = ref.watch(projectDurationProvider(widget.project.id));
 
-    return InkWell(
+    return PressableSurface(
+      selected: _pressed,
+      fill: theme.colorScheme.surfaceContainerHighest,
+      border: true,
+      // Raised at rest, like every other card, and sinks onto the page while
+      // held rather than merely losing its shadow.
+      raised: true,
       borderRadius: surface.borderRadius,
-      onTap: () => _open(context),
-      // Long-press still reaches the same menu, so the gesture people learned
-      // before the button existed keeps working.
-      onLongPress: () => _showActions(context, ref, l10n, bytes),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: surface.decoration(
-          fill: theme.colorScheme.surfaceContainerHighest,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: surface.decoration(
-                fill: theme.colorScheme.surface,
-                // Inside an already-raised card. Nesting one offset shadow in
-                // another is what turns this style into noise.
-                raised: false,
+      child: InkWell(
+        borderRadius: surface.borderRadius,
+        // The press itself is `PressableSurface`'s job -- the row sinking in
+        // already says "tapped", so Material's own splash/highlight overlay
+        // is switched off rather than layering a second, conflicting kind of
+        // feedback on top.
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        onTap: () => _open(context),
+        // Long-press still reaches the same menu, so the gesture people
+        // learned before the button existed keeps working.
+        onLongPress: () => _showActions(context, ref, l10n, bytes),
+        onHighlightChanged: (value) => setState(() => _pressed = value),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: surface.decoration(
+                  fill: theme.colorScheme.surface,
+                  // Inside an already-raised card. Nesting one offset shadow
+                  // in another is what turns this style into noise.
+                  raised: false,
+                ),
+                child: const Icon(Icons.movie_outlined, size: 22),
               ),
-              child: const Icon(Icons.movie_outlined, size: 22),
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    project.title,
-                    style: theme.textTheme.titleSmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  // One line, ellipsised: three facts of wildly different
-                  // lengths, and a wrap would make neighbouring rows different
-                  // heights for no gain.
-                  Text(
-                    _meta(l10n, bytes),
-                    style: theme.textTheme.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.project.title,
+                      style: theme.textTheme.titleSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    // One line, ellipsised: three facts of wildly different
+                    // lengths, and a wrap would make neighbouring rows
+                    // different heights for no gain.
+                    Text(
+                      _meta(l10n, bytes, duration),
+                      style: theme.textTheme.bodySmall,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.more_vert),
-              tooltip: l10n.projectsHeading,
-              onPressed: () => _showActions(context, ref, l10n, bytes),
-            ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.more_vert),
+                tooltip: l10n.projectsHeading,
+                onPressed: () => _showActions(context, ref, l10n, bytes),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -344,11 +496,13 @@ class _ProjectTile extends ConsumerWidget {
 
   /// Created date, running time and size on disk, in that order — oldest fact
   /// first, because it is what distinguishes two imports of the same clip.
-  String _meta(AppLocalizations l10n, int? bytes) {
+  String _meta(AppLocalizations l10n, int? bytes, Duration duration) {
     return [
-      l10n.projectCreated(project.createdAt),
-      if (project.durationMs case final int ms)
-        _formatDuration(Duration(milliseconds: ms)),
+      l10n.projectCreated(widget.project.createdAt),
+      // Summed across clips rather than read off the project row, which has
+      // held nothing since schema 5. Omitted at zero: a project with no media
+      // yet would otherwise advertise a running time of 00:00.
+      if (duration > Duration.zero) _formatDuration(duration),
       if (bytes != null) _formatBytes(l10n, bytes),
     ].join('  \u00b7  ');
   }
@@ -356,7 +510,7 @@ class _ProjectTile extends ConsumerWidget {
   void _open(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProjectScreen(projectId: project.id),
+        builder: (_) => ProjectScreen(projectId: widget.project.id),
       ),
     );
   }
@@ -383,7 +537,7 @@ class _ProjectTile extends ConsumerWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  project.title,
+                  widget.project.title,
                   style: Theme.of(sheetContext).textTheme.titleMedium,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -459,8 +613,8 @@ class _ProjectTile extends ConsumerWidget {
     }
 
     await repository.duplicateProject(
-      projectId: project.id,
-      title: l10n.duplicateTitle(project.title),
+      projectId: widget.project.id,
+      title: l10n.duplicateTitle(widget.project.title),
     );
   }
 
@@ -500,7 +654,9 @@ class _ProjectTile extends ConsumerWidget {
       ),
     );
     if (confirmed ?? false) {
-      await ref.read(transcriptRepositoryProvider).deleteProject(project.id);
+      await ref
+          .read(transcriptRepositoryProvider)
+          .deleteProject(widget.project.id);
     }
   }
 }

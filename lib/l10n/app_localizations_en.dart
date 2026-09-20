@@ -289,10 +289,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get exportAction => 'Export captions';
+  String get exportAction => 'Export';
 
   @override
-  String get exportSheetTitle => 'Export captions';
+  String get exportSheetTitle => 'Export';
 
   @override
   String get exportSrt => 'SubRip (.srt)';
@@ -307,6 +307,42 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get exportVttDetail =>
       'For the web, and keeps speaker names as voice tags';
+
+  @override
+  String get exportVideo => 'Video (.mp4)';
+
+  @override
+  String get exportVideoDetail =>
+      'Renders the timeline and saves it to Downloads';
+
+  @override
+  String exportVideoRunning(int percent) {
+    return 'Rendering video… $percent%';
+  }
+
+  @override
+  String get exportVideoStarting => 'Rendering video…';
+
+  @override
+  String exportVideoSaved(String fileName) {
+    return 'Saved to Downloads: $fileName';
+  }
+
+  @override
+  String get exportVideoFailed => 'Could not render the video.';
+
+  @override
+  String get exportVideoEmpty =>
+      'There is nothing on the timeline to render yet.';
+
+  @override
+  String get exportNeedsTranscript => 'Transcribe this clip first';
+
+  @override
+  String get transcribeOptionsTitle => 'Transcribe';
+
+  @override
+  String get transcribeOptionsConfirm => 'Transcribe';
 
   @override
   String get exportIncludeSpeakers => 'Include speaker names';

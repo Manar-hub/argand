@@ -277,11 +277,11 @@
     "placeholders": { "count": { "type": "String", "example": "1.4" } }
   },
 
-  "exportAction": "Export captions",
-  "@exportAction": { "description": "Tooltip on the app bar control that opens the caption export options" },
+  "exportAction": "Export",
+  "@exportAction": { "description": "Tooltip on the app bar control that opens the export options" },
 
-  "exportSheetTitle": "Export captions",
-  "@exportSheetTitle": { "description": "Header of the sheet listing subtitle formats to export" },
+  "exportSheetTitle": "Export",
+  "@exportSheetTitle": { "description": "Header of the sheet listing what can be exported" },
 
   "exportSrt": "SubRip (.srt)",
   "@exportSrt": { "description": "Menu entry exporting captions as a SubRip subtitle file" },
@@ -294,6 +294,42 @@
 
   "exportVttDetail": "For the web, and keeps speaker names as voice tags",
   "@exportVttDetail": { "description": "Explains where a WebVTT file can be used and what it preserves" },
+
+  "exportVideo": "Video (.mp4)",
+  "@exportVideo": { "description": "Menu entry rendering the project's clips into a single video file" },
+
+  "exportVideoDetail": "Renders the timeline and saves it to Downloads",
+  "@exportVideoDetail": { "description": "Explains what the video export produces" },
+
+  "exportVideoRunning": "Rendering video… {percent}%",
+  "@exportVideoRunning": {
+    "description": "Progress message shown while the video is being rendered",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+
+  "exportVideoStarting": "Rendering video…",
+  "@exportVideoStarting": { "description": "Progress message shown before the renderer reports a percentage" },
+
+  "exportVideoSaved": "Saved to Downloads: {fileName}",
+  "@exportVideoSaved": {
+    "description": "Confirmation shown when the rendered video has been written",
+    "placeholders": { "fileName": { "type": "String" } }
+  },
+
+  "exportVideoFailed": "Could not render the video.",
+  "@exportVideoFailed": { "description": "Shown when rendering the video did not produce a file" },
+
+  "exportVideoEmpty": "There is nothing on the timeline to render yet.",
+  "@exportVideoEmpty": { "description": "Shown when a video export is asked for but the project has no usable clips" },
+
+  "exportNeedsTranscript": "Transcribe this clip first",
+  "@exportNeedsTranscript": { "description": "Reason shown on the disabled subtitle export entries when the clip has no transcript yet" },
+
+  "transcribeOptionsTitle": "Transcribe",
+  "@transcribeOptionsTitle": { "description": "Title of the dialog that collects transcription choices before a run starts" },
+
+  "transcribeOptionsConfirm": "Transcribe",
+  "@transcribeOptionsConfirm": { "description": "Button that starts the transcription with the chosen options" },
 
   "exportIncludeSpeakers": "Include speaker names",
   "@exportIncludeSpeakers": { "description": "Toggle controlling whether exported captions are attributed to speakers" },

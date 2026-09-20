@@ -22,6 +22,7 @@ import 'subtitle_export_controller.dart';
 import 'timeline_screen.dart';
 import 'transcript_edit_controller.dart';
 import 'transcript_repository.dart';
+import 'video_export_controller.dart';
 
 /// One project: its media, and either the transcript as tappable words
 /// (Script mode) or the clip/track view (Timeline mode).
@@ -115,6 +116,26 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
         ..showSnackBar(SnackBar(content: Text(message)));
     });
 
+    // The video render reports the same way, but separately: it can run for
+    // minutes, so its outcome routinely arrives long after the sheet is gone.
+    ref.listen(videoExportControllerProvider(widget.projectId),
+        (previous, next) {
+      final message = switch (next) {
+        VideoExportDone(:final video) => l10n.exportVideoSaved(video.name),
+        VideoExportEmpty() => l10n.exportVideoEmpty,
+        VideoExportFailed() => l10n.exportVideoFailed,
+        _ => null,
+      };
+      if (message == null) return;
+
+      ref
+          .read(videoExportControllerProvider(widget.projectId).notifier)
+          .reset();
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -123,22 +144,27 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
-          // Script mode's own controls. Timeline mode has its own toolbar for
-          // Edit and Captions, so none of these apply there.
+          // **Export sits in both modes and needs no transcript.** Rendering
+          // the timeline to video is a project-level act covering every clip,
+          // so gating it on the selected clip having been transcribed made it
+          // unreachable for exactly the projects most likely to want it, and
+          // invisible from Timeline mode where it most obviously belongs. What
+          // the sheet offers still depends on what exists; being able to open
+          // it does not.
+          if (!editing)
+            _ExportButton(
+              projectId: widget.projectId,
+              transcript: transcript,
+              title: project.value?.title ?? '',
+            ),
+          // Script mode's own controls. Timeline mode has its own toolbar
+          // for Edit and Captions, so none of these apply there.
           if (mode == EditorMode.script) ...[
             // History belongs to editing, so it appears with it. Showing two
             // permanently-disabled buttons during playback would add weight
             // to the bar for a mode in which nothing can be edited or undone.
             if (editing && transcript != null)
               HistoryControls(transcriptId: transcript.id),
-            // Not gated behind edit mode: exporting is something you do to a
-            // finished transcript, and it is free for every container of the
-            // user's own words (CLAUDE.md §2).
-            if (!editing && transcript != null)
-              _ExportButton(
-                transcript: transcript,
-                title: project.value?.title ?? '',
-              ),
             IconButton(
               icon: Icon(editing ? Icons.done : Icons.edit_outlined),
               tooltip: editing ? l10n.editModeDisable : l10n.editModeEnable,
@@ -187,15 +213,28 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
 /// Shows a spinner in place of the icon while a file is being written, so a
 /// second tap cannot start an overlapping export and open two save dialogs.
 class _ExportButton extends ConsumerWidget {
-  const _ExportButton({required this.transcript, required this.title});
+  const _ExportButton({
+    required this.projectId,
+    required this.transcript,
+    required this.title,
+  });
 
-  final Transcript transcript;
+  /// The video render is project-wide: it covers every clip on the timeline,
+  /// not just the one whose transcript is open.
+  final String projectId;
+
+  /// Null when the selected clip has not been transcribed. Only the subtitle
+  /// formats need one; the video render does not.
+  final Transcript? transcript;
+
   final String title;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final running = ref.watch(subtitleExporterProvider) is SubtitleExportRunning;
+    final running = ref.watch(subtitleExporterProvider) is SubtitleExportRunning ||
+        ref.watch(videoExportControllerProvider(projectId))
+            is VideoExportRunning;
 
     if (running) {
       return const Padding(
@@ -222,19 +261,30 @@ class _ExportButton extends ConsumerWidget {
     WidgetRef ref,
     AppLocalizations l10n,
   ) async {
-    final names = ref.read(speakerNamesProvider(transcript.id));
+    final source = transcript;
 
     final choice = await showModalBottomSheet<_ExportChoice>(
       context: context,
-      builder: (_) => const _ExportSheet(),
+      builder: (_) => _ExportSheet(hasTranscript: source != null),
     );
     if (choice == null) return;
 
+    final format = choice.format;
+    if (format == null) {
+      await ref.read(videoExportControllerProvider(projectId).notifier).export();
+      return;
+    }
+
+    // Unreachable unless a transcript exists, since the sheet does not offer
+    // the subtitle formats without one -- but proving it beats asserting it.
+    if (source == null) return;
+    final names = ref.read(speakerNamesProvider(source.id));
+
     await ref.read(subtitleExporterProvider.notifier).export(
-          transcriptId: transcript.id,
+          transcriptId: source.id,
           title: title,
-          language: transcript.language,
-          format: choice.format,
+          language: source.language,
+          format: format,
           // Built here rather than in the controller: "Speaker 1" is interface
           // text, and CLAUDE.md 4 keeps those out of the service layer.
           speakerLabel: choice.includeSpeakers
@@ -248,10 +298,20 @@ class _ExportButton extends ConsumerWidget {
 }
 
 /// What the export sheet returns: a format, and whether to attribute lines.
+/// What the export sheet came back with.
+///
+/// [format] is null for the video render, which is the one entry that is not a
+/// subtitle container. Modelled as an absent format rather than a parallel enum
+/// so the subtitle path keeps taking a [SubtitleFormat] and gains no null
+/// checks it did not have before.
 class _ExportChoice {
   const _ExportChoice({required this.format, required this.includeSpeakers});
 
-  final SubtitleFormat format;
+  const _ExportChoice.video()
+      : format = null,
+        includeSpeakers = false;
+
+  final SubtitleFormat? format;
   final bool includeSpeakers;
 }
 
@@ -261,7 +321,14 @@ class _ExportChoice {
 /// chosen -- tapping a format is what closes the sheet, so the switch cannot
 /// come after it.
 class _ExportSheet extends StatefulWidget {
-  const _ExportSheet();
+  const _ExportSheet({required this.hasTranscript});
+
+  /// Whether the subtitle formats have anything to write.
+  ///
+  /// They are shown disabled rather than removed when there is nothing to
+  /// export: a sheet that changes shape between visits reads as a bug, and a
+  /// disabled row has somewhere to put the reason.
+  final bool hasTranscript;
 
   @override
   State<_ExportSheet> createState() => _ExportSheetState();
@@ -297,7 +364,9 @@ class _ExportSheetState extends State<_ExportSheet> {
             ),
             SwitchListTile(
               value: _includeSpeakers,
-              onChanged: (value) => setState(() => _includeSpeakers = value),
+              onChanged: widget.hasTranscript
+                  ? (value) => setState(() => _includeSpeakers = value)
+                  : null,
               title: Text(l10n.exportIncludeSpeakers),
               secondary: const Icon(Icons.record_voice_over_outlined),
             ),
@@ -307,9 +376,12 @@ class _ExportSheetState extends State<_ExportSheet> {
               (SubtitleFormat.vtt, l10n.exportVtt, l10n.exportVttDetail),
             ])
               ListTile(
+                enabled: widget.hasTranscript,
                 leading: const Icon(Icons.subtitles_outlined),
                 title: Text(title),
-                subtitle: Text(detail),
+                subtitle: Text(
+                  widget.hasTranscript ? detail : l10n.exportNeedsTranscript,
+                ),
                 onTap: () => Navigator.of(context).pop(
                   _ExportChoice(
                     format: format,
@@ -317,6 +389,17 @@ class _ExportSheetState extends State<_ExportSheet> {
                   ),
                 ),
               ),
+            // Below a divider, because this is the one entry that renders
+            // pixels rather than writing out text the app already holds --
+            // it takes minutes where the others take a moment.
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.movie_outlined),
+              title: Text(l10n.exportVideo),
+              subtitle: Text(l10n.exportVideoDetail),
+              onTap: () =>
+                  Navigator.of(context).pop(const _ExportChoice.video()),
+            ),
             const SizedBox(height: 8),
           ],
         ),

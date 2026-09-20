@@ -562,16 +562,16 @@ abstract class AppLocalizations {
   /// **'{count} GB'**
   String sizeGigabytes(String count);
 
-  /// Tooltip on the app bar control that opens the caption export options
+  /// Tooltip on the app bar control that opens the export options
   ///
   /// In en, this message translates to:
-  /// **'Export captions'**
+  /// **'Export'**
   String get exportAction;
 
-  /// Header of the sheet listing subtitle formats to export
+  /// Header of the sheet listing what can be exported
   ///
   /// In en, this message translates to:
-  /// **'Export captions'**
+  /// **'Export'**
   String get exportSheetTitle;
 
   /// Menu entry exporting captions as a SubRip subtitle file
@@ -597,6 +597,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'For the web, and keeps speaker names as voice tags'**
   String get exportVttDetail;
+
+  /// Menu entry rendering the project's clips into a single video file
+  ///
+  /// In en, this message translates to:
+  /// **'Video (.mp4)'**
+  String get exportVideo;
+
+  /// Explains what the video export produces
+  ///
+  /// In en, this message translates to:
+  /// **'Renders the timeline and saves it to Downloads'**
+  String get exportVideoDetail;
+
+  /// Progress message shown while the video is being rendered
+  ///
+  /// In en, this message translates to:
+  /// **'Rendering video… {percent}%'**
+  String exportVideoRunning(int percent);
+
+  /// Progress message shown before the renderer reports a percentage
+  ///
+  /// In en, this message translates to:
+  /// **'Rendering video…'**
+  String get exportVideoStarting;
+
+  /// Confirmation shown when the rendered video has been written
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to Downloads: {fileName}'**
+  String exportVideoSaved(String fileName);
+
+  /// Shown when rendering the video did not produce a file
+  ///
+  /// In en, this message translates to:
+  /// **'Could not render the video.'**
+  String get exportVideoFailed;
+
+  /// Shown when a video export is asked for but the project has no usable clips
+  ///
+  /// In en, this message translates to:
+  /// **'There is nothing on the timeline to render yet.'**
+  String get exportVideoEmpty;
+
+  /// Reason shown on the disabled subtitle export entries when the clip has no transcript yet
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe this clip first'**
+  String get exportNeedsTranscript;
+
+  /// Title of the dialog that collects transcription choices before a run starts
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe'**
+  String get transcribeOptionsTitle;
+
+  /// Button that starts the transcription with the chosen options
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe'**
+  String get transcribeOptionsConfirm;
 
   /// Toggle controlling whether exported captions are attributed to speakers
   ///

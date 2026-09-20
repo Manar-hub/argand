@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
@@ -50,14 +53,26 @@ class TranscriptionRunner {
   /// [onStage] is how progress reaches the UI; both callers render the same
   /// [ImportStage] labels, which is why the stage vocabulary is shared rather
   /// than duplicated per controller.
+  ///
+  /// [range] limits the run to part of the media, for a transcribe layer that
+  /// covers less than a whole clip. **Null keeps the whole-file path exactly
+  /// as it was** — no slice is written and nothing extra runs — so the import
+  /// path is untouched by this having been added.
+  ///
+  /// Times in the result are relative to whatever audio the engine was handed,
+  /// so a range's words come back starting at zero. Shifting them back onto
+  /// the clip is the caller's job, and `saveClipTranscript` is the one place
+  /// that does it.
   Future<TranscriptionOutcome> run({
     required String mediaPath,
     required StageSink onStage,
+    ({int startMs, int endMs})? range,
   }) async {
     final converter = _ref.read(mediaConverterProvider);
     final whisper = _ref.read(whisperServiceProvider);
 
     Timer? progressTimer;
+    File? slice;
 
     // Whisper reports progress through a native atomic rather than a stream,
     // so it has to be sampled. Granularity is one whisper decode window
@@ -88,10 +103,28 @@ class TranscriptionRunner {
       onStage(ImportStage.extractingAudio);
       final wav = await converter.extractWavForTranscription(mediaPath);
 
+      // A slice is a *new* file cut from the extracted WAV, never an edit of
+      // it -- see the note below about what is and is not rewritten.
+      if (range != null) {
+        slice = File(p.join(
+          (await getTemporaryDirectory()).path,
+          _sliceDir,
+          'range_${DateTime.now().microsecondsSinceEpoch}.wav',
+        ));
+        await converter.sliceWav(
+          source: wav.path,
+          destination: slice.path,
+          startMs: range.startMs,
+          endMs: range.endMs,
+        );
+      }
+      final audio = slice ?? wav;
+
       // Both of these are engine parameters rather than passes over the audio,
-      // so they are read here and handed to the one transcribe call. Nothing
-      // rewrites the extracted WAV: whisper is always fed exactly what
-      // MediaConverter produced.
+      // so they are read here and handed to the one transcribe call. **The
+      // extracted WAV is never rewritten**: a range is served by cutting a new
+      // file from it, and whisper is always fed exactly the bytes
+      // MediaConverter produced, in the format it produced them.
       final language =
           await _ref.read(selectedTranscriptionLanguageProvider.future);
       final skipSilence = await _ref.read(silenceSkippingEnabledProvider.future);
@@ -99,7 +132,7 @@ class TranscriptionRunner {
       onStage(ImportStage.transcribing, percent: 0);
       startPolling();
       final result = await whisper.transcribeWav(
-        wav.path,
+        audio.path,
         model: model,
         language: language,
         skipSilence: skipSilence,
@@ -107,7 +140,7 @@ class TranscriptionRunner {
       stopPolling();
 
       final speakerSpans = await _identifySpeakers(
-        wavPath: wav.path,
+        wavPath: audio.path,
         result: result,
         onStage: onStage,
       );
@@ -115,7 +148,38 @@ class TranscriptionRunner {
       return (result: result, speakerSpans: speakerSpans, language: language);
     } finally {
       stopPolling();
+      // Slices are scratch. Deleted on both paths, because a failed run leaves
+      // one behind just as readily as a successful one, and they are written
+      // to the cache rather than beside the media precisely so a leak is the
+      // OS's to reclaim rather than something counted into the project's size.
+      if (slice != null) {
+        try {
+          await slice.delete();
+        } catch (_) {}
+      }
     }
+  }
+
+  /// Where range slices are written inside the cache directory.
+  ///
+  /// Never beside the media: `discardClipMedia` enumerates a fixed list of
+  /// files and would strand one, and `projectMediaBytes` would count it into
+  /// the size the library reports for the project.
+  static const String _sliceDir = 'transcribe_slices';
+
+  /// Removes slices a previous run left behind.
+  ///
+  /// Called before a run rather than relying only on the `finally` above: a
+  /// process killed mid-transcription never reaches it, and without this the
+  /// leftovers would accumulate one per crash forever.
+  static Future<void> sweepSlices() async {
+    try {
+      final dir = Directory(p.join(
+        (await getTemporaryDirectory()).path,
+        _sliceDir,
+      ));
+      if (await dir.exists()) await dir.delete(recursive: true);
+    } catch (_) {}
   }
 
   /// Diarization and its two correction passes.

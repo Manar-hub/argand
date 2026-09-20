@@ -1015,6 +1015,246 @@ final class ProjectTimelineFamily extends $Family
   String toString() => r'projectTimelineProvider';
 }
 
+/// The amplitude readings behind a clip's audio lane, computed on first need.
+///
+/// **Not computed at import.** Deriving these costs a full native decode of
+/// the media, and "+" is specified to copy a file in and do nothing else — so
+/// the lane fills in once the timeline asks for it, and a clip added a moment
+/// ago legitimately draws flat until it does.
+///
+/// Returns an empty list while computing and for media that has no decodable
+/// audio; both cases draw as a flat lane. The result is stored on the clip, so
+/// this decodes once per clip ever rather than once per visit.
+
+@ProviderFor(clipWaveform)
+final clipWaveformProvider = ClipWaveformFamily._();
+
+/// The amplitude readings behind a clip's audio lane, computed on first need.
+///
+/// **Not computed at import.** Deriving these costs a full native decode of
+/// the media, and "+" is specified to copy a file in and do nothing else — so
+/// the lane fills in once the timeline asks for it, and a clip added a moment
+/// ago legitimately draws flat until it does.
+///
+/// Returns an empty list while computing and for media that has no decodable
+/// audio; both cases draw as a flat lane. The result is stored on the clip, so
+/// this decodes once per clip ever rather than once per visit.
+
+final class ClipWaveformProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Uint8List>,
+          Uint8List,
+          FutureOr<Uint8List>
+        >
+    with $FutureModifier<Uint8List>, $FutureProvider<Uint8List> {
+  /// The amplitude readings behind a clip's audio lane, computed on first need.
+  ///
+  /// **Not computed at import.** Deriving these costs a full native decode of
+  /// the media, and "+" is specified to copy a file in and do nothing else — so
+  /// the lane fills in once the timeline asks for it, and a clip added a moment
+  /// ago legitimately draws flat until it does.
+  ///
+  /// Returns an empty list while computing and for media that has no decodable
+  /// audio; both cases draw as a flat lane. The result is stored on the clip, so
+  /// this decodes once per clip ever rather than once per visit.
+  ClipWaveformProvider._({
+    required ClipWaveformFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'clipWaveformProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$clipWaveformHash();
+
+  @override
+  String toString() {
+    return r'clipWaveformProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<Uint8List> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Uint8List> create(Ref ref) {
+    final argument = this.argument as String;
+    return clipWaveform(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ClipWaveformProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$clipWaveformHash() => r'4d3e713f370b5755a81eb3617bfa18d3b31ecbc4';
+
+/// The amplitude readings behind a clip's audio lane, computed on first need.
+///
+/// **Not computed at import.** Deriving these costs a full native decode of
+/// the media, and "+" is specified to copy a file in and do nothing else — so
+/// the lane fills in once the timeline asks for it, and a clip added a moment
+/// ago legitimately draws flat until it does.
+///
+/// Returns an empty list while computing and for media that has no decodable
+/// audio; both cases draw as a flat lane. The result is stored on the clip, so
+/// this decodes once per clip ever rather than once per visit.
+
+final class ClipWaveformFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<Uint8List>, String> {
+  ClipWaveformFamily._()
+    : super(
+        retry: null,
+        name: r'clipWaveformProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// The amplitude readings behind a clip's audio lane, computed on first need.
+  ///
+  /// **Not computed at import.** Deriving these costs a full native decode of
+  /// the media, and "+" is specified to copy a file in and do nothing else — so
+  /// the lane fills in once the timeline asks for it, and a clip added a moment
+  /// ago legitimately draws flat until it does.
+  ///
+  /// Returns an empty list while computing and for media that has no decodable
+  /// audio; both cases draw as a flat lane. The result is stored on the clip, so
+  /// this decodes once per clip ever rather than once per visit.
+
+  ClipWaveformProvider call(String clipId) =>
+      ClipWaveformProvider._(argument: clipId, from: this);
+
+  @override
+  String toString() => r'clipWaveformProvider';
+}
+
+/// Every transcribed sentence in a project, in timeline order.
+///
+/// A thin assembly over [sentencesForClip]: this walks the project's clips and
+/// their transcripts, and that does the placing. The arithmetic lives there so
+/// it can be tested without a database.
+
+@ProviderFor(projectSentences)
+final projectSentencesProvider = ProjectSentencesFamily._();
+
+/// Every transcribed sentence in a project, in timeline order.
+///
+/// A thin assembly over [sentencesForClip]: this walks the project's clips and
+/// their transcripts, and that does the placing. The arithmetic lives there so
+/// it can be tested without a database.
+
+final class ProjectSentencesProvider
+    extends
+        $FunctionalProvider<
+          List<TimelineSentence>,
+          List<TimelineSentence>,
+          List<TimelineSentence>
+        >
+    with $Provider<List<TimelineSentence>> {
+  /// Every transcribed sentence in a project, in timeline order.
+  ///
+  /// A thin assembly over [sentencesForClip]: this walks the project's clips and
+  /// their transcripts, and that does the placing. The arithmetic lives there so
+  /// it can be tested without a database.
+  ProjectSentencesProvider._({
+    required ProjectSentencesFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectSentencesProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectSentencesHash();
+
+  @override
+  String toString() {
+    return r'projectSentencesProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<List<TimelineSentence>> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  List<TimelineSentence> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectSentences(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<TimelineSentence> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<TimelineSentence>>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectSentencesProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectSentencesHash() => r'8c886a78526a1341d185117e4917e3a34efdc233';
+
+/// Every transcribed sentence in a project, in timeline order.
+///
+/// A thin assembly over [sentencesForClip]: this walks the project's clips and
+/// their transcripts, and that does the placing. The arithmetic lives there so
+/// it can be tested without a database.
+
+final class ProjectSentencesFamily extends $Family
+    with $FunctionalFamilyOverride<List<TimelineSentence>, String> {
+  ProjectSentencesFamily._()
+    : super(
+        retry: null,
+        name: r'projectSentencesProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Every transcribed sentence in a project, in timeline order.
+  ///
+  /// A thin assembly over [sentencesForClip]: this walks the project's clips and
+  /// their transcripts, and that does the placing. The arithmetic lives there so
+  /// it can be tested without a database.
+
+  ProjectSentencesProvider call(String projectId) =>
+      ProjectSentencesProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectSentencesProvider';
+}
+
 /// A project's running time, for the library row.
 ///
 /// Clips whose duration could not be probed contribute nothing rather than

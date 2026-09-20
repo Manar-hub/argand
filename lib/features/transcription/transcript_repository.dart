@@ -7,6 +7,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
+import '../../core/audio/waveform_service.dart';
 import '../../core/database/database.dart';
 import '../../core/diarization/speaker_assignment.dart';
 import '../../core/diarization/speaker_span.dart';
@@ -14,6 +15,7 @@ import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
 import '../../core/timeline/project_timeline.dart';
+import '../../core/timeline/timeline_sentences.dart';
 import '../../core/transcript/speaker_names.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import 'editor_mode_controller.dart';
@@ -131,6 +133,13 @@ class TranscriptRepository {
 
   Future<void> removeLayer(String layerId) => _db.softDeleteLayer(layerId);
 
+  /// Discards what a layer produced, keeping the layer itself.
+  ///
+  /// For re-running: the request stands, only its answer is being replaced.
+  /// Soft, like every other delete here, so a future sync has the tombstones.
+  Future<void> discardLayerTranscripts(String layerId) =>
+      _db.softDeleteTranscriptsForLayer(layerId);
+
   /// Half-open overlap, matching [ProjectTimeline]'s convention: two layers
   /// meeting exactly at a boundary are adjacent, not overlapping.
   bool _overlaps(
@@ -157,6 +166,10 @@ class TranscriptRepository {
       _db.clipsForProject(projectId);
 
   Future<MediaClip?> findClip(String clipId) => _db.findClip(clipId);
+
+  /// Stores a clip's amplitude readings for the timeline's audio lane.
+  Future<void> storeClipWaveform(String clipId, Uint8List peaks) =>
+      _db.fillMissingClipWaveform(clipId, peaks);
 
   /// Creates an empty project, with no media and nothing transcribed.
   ///
@@ -938,6 +951,72 @@ ProjectTimeline projectTimeline(Ref ref, String projectId) {
   final clips = ref.watch(projectClipsProvider(projectId)).value;
   if (clips == null) return ProjectTimeline.empty;
   return ProjectTimeline.fromClips(clips);
+}
+
+/// The amplitude readings behind a clip's audio lane, computed on first need.
+///
+/// **Not computed at import.** Deriving these costs a full native decode of
+/// the media, and "+" is specified to copy a file in and do nothing else — so
+/// the lane fills in once the timeline asks for it, and a clip added a moment
+/// ago legitimately draws flat until it does.
+///
+/// Returns an empty list while computing and for media that has no decodable
+/// audio; both cases draw as a flat lane. The result is stored on the clip, so
+/// this decodes once per clip ever rather than once per visit.
+@riverpod
+Future<Uint8List> clipWaveform(Ref ref, String clipId) async {
+  final repository = ref.watch(transcriptRepositoryProvider);
+  final clip = await repository.findClip(clipId);
+  if (clip == null) return Uint8List(0);
+
+  final stored = clip.waveform;
+  if (stored != null && stored.isNotEmpty) return stored;
+
+  final peaks = await ref.watch(waveformServiceProvider).peaksFor(clip.mediaPath);
+  if (peaks.isNotEmpty) {
+    await repository.storeClipWaveform(clipId, peaks);
+  }
+  return peaks;
+}
+
+/// Every transcribed sentence in a project, in timeline order.
+///
+/// A thin assembly over [sentencesForClip]: this walks the project's clips and
+/// their transcripts, and that does the placing. The arithmetic lives there so
+/// it can be tested without a database.
+@riverpod
+List<TimelineSentence> projectSentences(Ref ref, String projectId) {
+  final timeline = ref.watch(projectTimelineProvider(projectId));
+  final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
+
+  final sentences = <TimelineSentence>[];
+  for (final clip in clips) {
+    final transcripts =
+        ref.watch(clipTranscriptsProvider(clip.id)).value ?? const [];
+
+    for (final transcript in transcripts) {
+      final words =
+          ref.watch(transcriptWordsProvider(transcript.id)).value ?? const [];
+
+      sentences.addAll(sentencesForClip(
+        timeline: timeline,
+        clipId: clip.id,
+        transcriptId: transcript.id,
+        words: [
+          for (final word in words)
+            (
+              text: word.word,
+              startMs: word.startMs,
+              endMs: word.endMs,
+              speakerId: word.speakerId,
+            ),
+        ],
+      ));
+    }
+  }
+
+  sentences.sort((a, b) => a.projectStartMs - b.projectStartMs);
+  return sentences;
 }
 
 /// A project's running time, for the library row.

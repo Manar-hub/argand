@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'wav_codec.dart';
 import 'wav_header.dart';
 
 part 'media_converter.g.dart';
@@ -110,8 +111,15 @@ class MediaConverter {
   /// Works on video containers as well as audio files: the native backends
   /// select the audio track and ignore the video one, which is first-class
   /// behaviour on both platforms rather than an edge case.
-  Future<File> extractWavForTranscription(String mediaPath) async {
-    final output = File(p.setExtension(mediaPath, '.16k.wav'));
+  Future<File> extractWavForTranscription(
+    String mediaPath, {
+    String? destination,
+  }) async {
+    // The default path is fixed, which also makes it not re-entrant: two runs
+    // against one clip would write the same file. Callers that are not the
+    // transcription run -- the waveform lane, notably -- pass their own
+    // destination so they can never truncate a WAV mid-transcribe.
+    final output = File(destination ?? p.setExtension(mediaPath, '.16k.wav'));
 
     // Converted unconditionally, and deliberately not gated on
     // `AudioDecoder.needsConversion`. Two reasons that helper is wrong here:
@@ -342,6 +350,144 @@ class MediaConverter {
     final dir = await getApplicationDocumentsDirectory();
     return p.join(dir.path, 'media');
   }
+  /// Writes the samples between [startMs] and [endMs] of [source] to
+  /// [destination] as a WAV in the same format.
+  ///
+  /// **Deliberately not `AudioDecoder.trimAudio`.** That helper exists and
+  /// would be one call, but it exposes no sample-rate, channel or depth
+  /// control, and `docs/engine-architecture.md` records that `performTrimAudio`
+  /// still carries the upstream resample-ratio flaw the fork fixed only for
+  /// `convertToWav` — the bug that decoded HE-AAC at half speed and produced
+  /// fluent nonsense. Copying bytes out of a WAV that has already been
+  /// correctly decoded cannot reintroduce it: nothing here resamples.
+  ///
+  /// The range is clamped to the data actually present, so a layer drawn past
+  /// the end of its media yields the tail rather than failing.
+  ///
+  /// Returns the slice. Throws [AudioExtractionException] if the source cannot
+  /// be read, or if the range is empty once clamped.
+  Future<File> sliceWav({
+    required String source,
+    required String destination,
+    required int startMs,
+    required int endMs,
+  }) async {
+    final input = File(source);
+    if (!await input.exists()) {
+      throw AudioExtractionException('No audio to slice at $source');
+    }
+
+    final handle = await input.open();
+    try {
+      // Only the head is read to parse the header: the chunk walk needs a few
+      // hundred bytes, never the whole multi-megabyte file.
+      final head = await handle.read(_headerProbeBytes);
+      final header = WavHeader.parse(head);
+
+      // The same arithmetic `speaker_refiner.dart` reads embedding windows
+      // with. Bytes per millisecond is a rate, not an integer count -- at
+      // 16kHz/16-bit/mono it is exactly 32, but rounding it before multiplying
+      // would drift by a sample every few seconds at other rates.
+      final bytesPerMs =
+          header.sampleRate * (header.bitsPerSample ~/ 8) * header.channels / 1000;
+
+      var from = (startMs * bytesPerMs).floor();
+      var to = (endMs * bytesPerMs).ceil();
+      if (from < 0) from = 0;
+      if (to > header.dataBytes) to = header.dataBytes;
+      // Whole samples only. A range starting mid-sample would shift every
+      // byte after it by one and turn the audio into noise.
+      final align = header.channels * (header.bitsPerSample ~/ 8);
+      from -= from % align;
+      to -= to % align;
+
+      if (to <= from) {
+        throw AudioExtractionException(
+          'Range ${startMs}ms-${endMs}ms is empty within ${header.duration.inMilliseconds}ms of audio',
+        );
+      }
+
+      final output = File(destination);
+      await output.parent.create(recursive: true);
+      final sink = output.openWrite();
+      try {
+        sink.add(buildWavHeader(
+          sampleRate: header.sampleRate,
+          channels: header.channels,
+          bitsPerSample: header.bitsPerSample,
+          dataBytes: to - from,
+        ));
+
+        // Never a constant 44: `WavHeader` walks the chunks precisely because
+        // encoders put `LIST` or `fact` ahead of `data`, and seeking to a
+        // guessed offset would slice from the wrong place -- or from metadata.
+        await handle.setPosition(header.dataOffset + from);
+
+        var remaining = to - from;
+        while (remaining > 0) {
+          final chunk = await handle.read(
+            remaining < _sliceChunkBytes ? remaining : _sliceChunkBytes,
+          );
+          if (chunk.isEmpty) break;
+          sink.add(chunk);
+          remaining -= chunk.length;
+        }
+      } finally {
+        await sink.close();
+      }
+
+      await _verifySlice(output, expected: to - from, source: header);
+      return output;
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /// Checks a slice is the format and the length it was asked for.
+  ///
+  /// **Deliberately not [_verifyTranscribableWav].** That compares the audio's
+  /// duration against the *source media's*, which a slice fails by
+  /// construction — it is meant to be shorter. The guarantee it provides is
+  /// inherited rather than skipped: the file being sliced already passed it at
+  /// import. What a slice has to prove instead is stronger and exact, so that
+  /// is what is checked — the format triple carried through unchanged, and the
+  /// sample count is precisely the range requested.
+  Future<void> _verifySlice(
+    File slice, {
+    required int expected,
+    required WavHeader source,
+  }) async {
+    final handle = await slice.open();
+    final WavHeader written;
+    try {
+      written = WavHeader.parse(await handle.read(_headerProbeBytes));
+    } finally {
+      await handle.close();
+    }
+
+    if (written.sampleRate != source.sampleRate ||
+        written.channels != source.channels ||
+        written.bitsPerSample != source.bitsPerSample) {
+      throw AudioExtractionException(
+        'Slice changed format: ${written.sampleRate}Hz/${written.channels}ch/'
+        '${written.bitsPerSample}-bit from ${source.sampleRate}Hz/'
+        '${source.channels}ch/${source.bitsPerSample}-bit',
+      );
+    }
+
+    if (written.dataBytes != expected) {
+      throw AudioExtractionException(
+        'Slice is ${written.dataBytes} bytes, expected $expected',
+      );
+    }
+  }
+
+  /// Enough of a file to contain any reasonable RIFF header and its chunks.
+  static const int _headerProbeBytes = 1024;
+
+  /// Copy granularity. Large enough that a long slice is not thousands of
+  /// reads, small enough that memory stays flat.
+  static const int _sliceChunkBytes = 256 * 1024;
 }
 
 @Riverpod(keepAlive: true)

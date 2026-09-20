@@ -92,7 +92,7 @@ class AddClipFailed extends AddClipStatus {
 /// that holds several clips cannot work that way, because most of them are not
 /// worth that cost until the user says so. So this copies the bytes in, probes
 /// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act (`ClipTranscriptionController`).
+/// a separate, explicit act: drawing a transcribe layer and running it.
 @riverpod
 class AddClipController extends _$AddClipController {
   @override

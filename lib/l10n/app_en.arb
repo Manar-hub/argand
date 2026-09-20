@@ -334,8 +334,32 @@
   "timelineCover": "Cover",
   "@timelineCover": { "description": "Label under the track icon that sets the project's cover frame" },
 
-  "timelineAddAudio": "Add audio",
-  "@timelineAddAudio": { "description": "Label on the row that adds an audio track below the filmstrip" },
+  "trackAdd": "Add track",
+  "@trackAdd": { "description": "Button below the timeline that adds a new track to the stack" },
+
+  "trackAddTitle": "Add a track",
+  "@trackAddTitle": { "description": "Heading of the sheet listing the kinds of track that can be added" },
+
+  "trackKindTranscribe": "Transcribe",
+  "@trackKindTranscribe": { "description": "Track kind: a lane of ranges marked for transcription" },
+
+  "trackKindTranscribeDetail": "Mark stretches of the timeline to transcribe.",
+  "@trackKindTranscribeDetail": { "description": "Explanation under the Transcribe track kind" },
+
+  "trackKindAudio": "Audio",
+  "@trackKindAudio": { "description": "Track kind: an imported audio file, e.g. music or voiceover" },
+
+  "trackKindText": "Text",
+  "@trackKindText": { "description": "Track kind: text overlaid on the video" },
+
+  "trackKindImage": "Image",
+  "@trackKindImage": { "description": "Track kind: an image overlaid on the video" },
+
+  "trackKindVideo": "Video",
+  "@trackKindVideo": { "description": "Track kind: a video overlaid on the main one" },
+
+  "trackKindUnavailable": "Needs export compositing, which isn't built yet.",
+  "@trackKindUnavailable": { "description": "Explanation under the track kinds that cannot be added yet, stating what is missing rather than only that they are disabled" },
 
   "timelineCaptionsLabel": "Captions",
   "@timelineCaptionsLabel": { "description": "Heading above the caption list shown when the Captions toolbar button is toggled on" },
@@ -420,6 +444,15 @@
 
   "layerAdd": "Add layer",
   "@layerAdd": { "description": "Button that draws a new transcribe layer on the timeline" },
+
+  "layerRerunTitle": "Transcribe this layer again?",
+  "@layerRerunTitle": { "description": "Title of the dialog confirming a layer is transcribed a second time" },
+
+  "layerRerunBody": "The words this layer produced will be replaced. Any corrections you typed and any speaker names you set on them are lost.",
+  "@layerRerunBody": { "description": "Body of the re-transcribe confirmation, naming specifically what the run discards" },
+
+  "layerRerunConfirm": "Transcribe again",
+  "@layerRerunConfirm": { "description": "Confirming button of the re-transcribe dialog" },
 
   "layerRemove": "Remove layer",
   "@layerRemove": { "description": "Button that removes the selected transcribe layer and anything it transcribed" },

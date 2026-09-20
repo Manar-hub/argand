@@ -347,7 +347,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timelineCover => 'Cover';
 
   @override
-  String get timelineAddAudio => 'Add audio';
+  String get trackAdd => 'Add track';
+
+  @override
+  String get trackAddTitle => 'Add a track';
+
+  @override
+  String get trackKindTranscribe => 'Transcribe';
+
+  @override
+  String get trackKindTranscribeDetail =>
+      'Mark stretches of the timeline to transcribe.';
+
+  @override
+  String get trackKindAudio => 'Audio';
+
+  @override
+  String get trackKindText => 'Text';
+
+  @override
+  String get trackKindImage => 'Image';
+
+  @override
+  String get trackKindVideo => 'Video';
+
+  @override
+  String get trackKindUnavailable =>
+      'Needs export compositing, which isn\'t built yet.';
 
   @override
   String get timelineCaptionsLabel => 'Captions';
@@ -433,6 +459,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get layerAdd => 'Add layer';
+
+  @override
+  String get layerRerunTitle => 'Transcribe this layer again?';
+
+  @override
+  String get layerRerunBody =>
+      'The words this layer produced will be replaced. Any corrections you typed and any speaker names you set on them are lost.';
+
+  @override
+  String get layerRerunConfirm => 'Transcribe again';
 
   @override
   String get layerRemove => 'Remove layer';

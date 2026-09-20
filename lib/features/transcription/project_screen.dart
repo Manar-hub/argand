@@ -968,7 +968,7 @@ class _Player extends ConsumerWidget {
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        child: _CaptionOverlay(
+                        child: CaptionOverlay(
                           transcriptId: transcriptId!,
                           positionMs: value.position.inMilliseconds,
                         ),
@@ -1002,11 +1002,17 @@ class _Player extends ConsumerWidget {
 
 /// The caption for the current playback position, drawn over the video.
 ///
+/// **Shared by both modes.** Script mode and the timeline draw the same
+/// overlay from the same [captionCuesProvider], so a sentence edited in one is
+/// already edited in the other -- there is no syncing step because there is
+/// only ever one set of cues, derived from the word rows both modes read.
+///
 /// This is the Tier 1 caption surface: one grouping mode, coloured by speaker,
 /// and structured all the way down — the cue keeps its words, so nothing here
 /// has flattened the caption into pixels or even into a bare string.
-class _CaptionOverlay extends ConsumerWidget {
-  const _CaptionOverlay({
+class CaptionOverlay extends ConsumerWidget {
+  const CaptionOverlay({
+    super.key,
     required this.transcriptId,
     required this.positionMs,
   });

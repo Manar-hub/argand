@@ -670,11 +670,59 @@ abstract class AppLocalizations {
   /// **'Cover'**
   String get timelineCover;
 
-  /// Label on the row that adds an audio track below the filmstrip
+  /// Button below the timeline that adds a new track to the stack
   ///
   /// In en, this message translates to:
-  /// **'Add audio'**
-  String get timelineAddAudio;
+  /// **'Add track'**
+  String get trackAdd;
+
+  /// Heading of the sheet listing the kinds of track that can be added
+  ///
+  /// In en, this message translates to:
+  /// **'Add a track'**
+  String get trackAddTitle;
+
+  /// Track kind: a lane of ranges marked for transcription
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe'**
+  String get trackKindTranscribe;
+
+  /// Explanation under the Transcribe track kind
+  ///
+  /// In en, this message translates to:
+  /// **'Mark stretches of the timeline to transcribe.'**
+  String get trackKindTranscribeDetail;
+
+  /// Track kind: an imported audio file, e.g. music or voiceover
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get trackKindAudio;
+
+  /// Track kind: text overlaid on the video
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get trackKindText;
+
+  /// Track kind: an image overlaid on the video
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get trackKindImage;
+
+  /// Track kind: a video overlaid on the main one
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get trackKindVideo;
+
+  /// Explanation under the track kinds that cannot be added yet, stating what is missing rather than only that they are disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Needs export compositing, which isn\'t built yet.'**
+  String get trackKindUnavailable;
 
   /// Heading above the caption list shown when the Captions toolbar button is toggled on
   ///
@@ -837,6 +885,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add layer'**
   String get layerAdd;
+
+  /// Title of the dialog confirming a layer is transcribed a second time
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe this layer again?'**
+  String get layerRerunTitle;
+
+  /// Body of the re-transcribe confirmation, naming specifically what the run discards
+  ///
+  /// In en, this message translates to:
+  /// **'The words this layer produced will be replaced. Any corrections you typed and any speaker names you set on them are lost.'**
+  String get layerRerunBody;
+
+  /// Confirming button of the re-transcribe dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe again'**
+  String get layerRerunConfirm;
 
   /// Button that removes the selected transcribe layer and anything it transcribed
   ///

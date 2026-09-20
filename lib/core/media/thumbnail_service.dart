@@ -36,8 +36,36 @@ class ThumbnailService {
     return (seconds ~/ 2).clamp(_minFrames, _maxFrames);
   }
 
+  /// How many frames to extract for a filmstrip that has room for [slots].
+  ///
+  /// **Quantised, deliberately.** The obvious thing is to extract exactly as
+  /// many frames as the strip can show, but the count is what the frame cache
+  /// is keyed by, so a strip that asked for its exact width would request — and
+  /// decode — a whole new set at every step of a pinch. Rounding up into a few
+  /// buckets means a zoom crosses a handful of thresholds instead, and each
+  /// one it lands on is already on disk the second time.
+  ///
+  /// Never more than about two frames a second of media: beyond that
+  /// neighbouring frames are the same picture, and a long clip would spend a
+  /// lot of decoding to say nothing new.
+  static int frameCountForSlots(int slots, Duration duration) {
+    final ceiling = duration.inSeconds <= 0
+        ? _minFrames
+        : (duration.inSeconds * 2).clamp(_minFrames, _maxDetailFrames);
+
+    for (final bucket in _frameBuckets) {
+      if (slots <= bucket) return bucket.clamp(_minFrames, ceiling);
+    }
+    return _frameBuckets.last.clamp(_minFrames, ceiling);
+  }
+
+  static const _frameBuckets = [10, 20, 40, 80, 120];
+
   static const _minFrames = 3;
   static const _maxFrames = 40;
+
+  /// Ceiling once a filmstrip is zoomed in far enough to want detail.
+  static const _maxDetailFrames = 120;
 
   /// Frame images for [mediaPath], generating them if they are not on disk.
   ///

@@ -305,7 +305,7 @@ final class ResolvedSelectedClipFamily extends $Family
 /// that holds several clips cannot work that way, because most of them are not
 /// worth that cost until the user says so. So this copies the bytes in, probes
 /// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act (`ClipTranscriptionController`).
+/// a separate, explicit act: drawing a transcribe layer and running it.
 
 @ProviderFor(AddClipController)
 final addClipControllerProvider = AddClipControllerFamily._();
@@ -317,7 +317,7 @@ final addClipControllerProvider = AddClipControllerFamily._();
 /// that holds several clips cannot work that way, because most of them are not
 /// worth that cost until the user says so. So this copies the bytes in, probes
 /// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act (`ClipTranscriptionController`).
+/// a separate, explicit act: drawing a transcribe layer and running it.
 final class AddClipControllerProvider
     extends $NotifierProvider<AddClipController, AddClipStatus> {
   /// Adds media to a project without transcribing it.
@@ -327,7 +327,7 @@ final class AddClipControllerProvider
   /// that holds several clips cannot work that way, because most of them are not
   /// worth that cost until the user says so. So this copies the bytes in, probes
   /// the duration and writes a row — seconds, not minutes — and transcription is
-  /// a separate, explicit act (`ClipTranscriptionController`).
+  /// a separate, explicit act: drawing a transcribe layer and running it.
   AddClipControllerProvider._({
     required AddClipControllerFamily super.from,
     required String super.argument,
@@ -381,7 +381,7 @@ String _$addClipControllerHash() => r'c1cc51ffa83d162a63eb56ab68eb3a48c6b49bcf';
 /// that holds several clips cannot work that way, because most of them are not
 /// worth that cost until the user says so. So this copies the bytes in, probes
 /// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act (`ClipTranscriptionController`).
+/// a separate, explicit act: drawing a transcribe layer and running it.
 
 final class AddClipControllerFamily extends $Family
     with
@@ -408,7 +408,7 @@ final class AddClipControllerFamily extends $Family
   /// that holds several clips cannot work that way, because most of them are not
   /// worth that cost until the user says so. So this copies the bytes in, probes
   /// the duration and writes a row — seconds, not minutes — and transcription is
-  /// a separate, explicit act (`ClipTranscriptionController`).
+  /// a separate, explicit act: drawing a transcribe layer and running it.
 
   AddClipControllerProvider call(String projectId) =>
       AddClipControllerProvider._(argument: projectId, from: this);
@@ -424,7 +424,7 @@ final class AddClipControllerFamily extends $Family
 /// that holds several clips cannot work that way, because most of them are not
 /// worth that cost until the user says so. So this copies the bytes in, probes
 /// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act (`ClipTranscriptionController`).
+/// a separate, explicit act: drawing a transcribe layer and running it.
 
 abstract class _$AddClipController extends $Notifier<AddClipStatus> {
   late final _$args = ref.$arg as String;

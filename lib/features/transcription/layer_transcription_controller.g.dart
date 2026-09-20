@@ -20,9 +20,10 @@ part of 'layer_transcription_controller.dart';
 /// contexts is not a throughput win on a phone, and the emulator already dies
 /// at three sequential runs; a layer covering four clips would be four at
 /// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded — the same no-rollback reasoning
-/// [ClipTranscriptionController] uses, for the same reason: what is already
-/// written is not garbage.
+/// what already succeeded. A failed run costs the attempt and nothing else:
+/// the clips still play and the layer still stands, so the action can simply
+/// be taken again -- the same reasoning import uses for not rolling back a
+/// clip that is already committed.
 ///
 /// Two engine properties leak through here and are worth knowing:
 ///
@@ -49,9 +50,10 @@ final layerTranscriptionControllerProvider =
 /// contexts is not a throughput win on a phone, and the emulator already dies
 /// at three sequential runs; a layer covering four clips would be four at
 /// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded — the same no-rollback reasoning
-/// [ClipTranscriptionController] uses, for the same reason: what is already
-/// written is not garbage.
+/// what already succeeded. A failed run costs the attempt and nothing else:
+/// the clips still play and the layer still stands, so the action can simply
+/// be taken again -- the same reasoning import uses for not rolling back a
+/// clip that is already committed.
 ///
 /// Two engine properties leak through here and are worth knowing:
 ///
@@ -79,9 +81,10 @@ final class LayerTranscriptionControllerProvider
   /// contexts is not a throughput win on a phone, and the emulator already dies
   /// at three sequential runs; a layer covering four clips would be four at
   /// once. Each transcript is committed as it lands, so a failure part-way keeps
-  /// what already succeeded — the same no-rollback reasoning
-  /// [ClipTranscriptionController] uses, for the same reason: what is already
-  /// written is not garbage.
+  /// what already succeeded. A failed run costs the attempt and nothing else:
+  /// the clips still play and the layer still stands, so the action can simply
+  /// be taken again -- the same reasoning import uses for not rolling back a
+  /// clip that is already committed.
   ///
   /// Two engine properties leak through here and are worth knowing:
   ///
@@ -151,9 +154,10 @@ String _$layerTranscriptionControllerHash() =>
 /// contexts is not a throughput win on a phone, and the emulator already dies
 /// at three sequential runs; a layer covering four clips would be four at
 /// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded — the same no-rollback reasoning
-/// [ClipTranscriptionController] uses, for the same reason: what is already
-/// written is not garbage.
+/// what already succeeded. A failed run costs the attempt and nothing else:
+/// the clips still play and the layer still stands, so the action can simply
+/// be taken again -- the same reasoning import uses for not rolling back a
+/// clip that is already committed.
 ///
 /// Two engine properties leak through here and are worth knowing:
 ///
@@ -194,9 +198,10 @@ final class LayerTranscriptionControllerFamily extends $Family
   /// contexts is not a throughput win on a phone, and the emulator already dies
   /// at three sequential runs; a layer covering four clips would be four at
   /// once. Each transcript is committed as it lands, so a failure part-way keeps
-  /// what already succeeded — the same no-rollback reasoning
-  /// [ClipTranscriptionController] uses, for the same reason: what is already
-  /// written is not garbage.
+  /// what already succeeded. A failed run costs the attempt and nothing else:
+  /// the clips still play and the layer still stands, so the action can simply
+  /// be taken again -- the same reasoning import uses for not rolling back a
+  /// clip that is already committed.
   ///
   /// Two engine properties leak through here and are worth knowing:
   ///
@@ -226,9 +231,10 @@ final class LayerTranscriptionControllerFamily extends $Family
 /// contexts is not a throughput win on a phone, and the emulator already dies
 /// at three sequential runs; a layer covering four clips would be four at
 /// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded — the same no-rollback reasoning
-/// [ClipTranscriptionController] uses, for the same reason: what is already
-/// written is not garbage.
+/// what already succeeded. A failed run costs the attempt and nothing else:
+/// the clips still play and the layer still stands, so the action can simply
+/// be taken again -- the same reasoning import uses for not rolling back a
+/// clip that is already committed.
 ///
 /// Two engine properties leak through here and are worth knowing:
 ///

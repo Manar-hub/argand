@@ -57,6 +57,12 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var thumbnails: MethodChannel? = null
 
+    /**
+     * Video export, which owns its own channel rather than adding methods
+     * here: it is unrelated to sharing and has a run that outlives a call.
+     */
+    private val videoExport = VideoExportChannel(this)
+
     /** A share that arrived before Dart was listening, handed over on request. */
     private var pending: Map<String, String>? = null
 
@@ -70,6 +76,8 @@ class MainActivity : FlutterActivity() {
 
         thumbnails = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, THUMBNAIL_CHANNEL)
             .also { it.setMethodCallHandler(::onThumbnailCall) }
+
+        videoExport.attach(flutterEngine.dartExecutor.binaryMessenger)
 
         // Read at configure time rather than in onCreate: a cold start launched
         // by a share has the intent waiting, and Dart asks for it once it is
@@ -91,6 +99,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        videoExport.detach()
         io.shutdown()
         super.onDestroy()
     }

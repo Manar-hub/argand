@@ -38,6 +38,20 @@ android {
     }
 }
 
+dependencies {
+    // Media3 Transformer is the chosen Android implementation for video export
+    // (docs/engine-architecture.md, "Video/audio editing", decided 2026-09-14).
+    // One dependency covers Phase 9's cut/split/trim, the caption burn-in any
+    // video export needs, and Phase 10's watermark.
+    //
+    // Pinned rather than floating: Transformer's API is marked @UnstableApi and
+    // has moved between minor releases, so an unpinned bump would break the
+    // build at a time of Gradle's choosing rather than ours.
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
+    implementation("androidx.media3:media3-common:1.11.1")
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17

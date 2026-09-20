@@ -1,4 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        Only for API 28 and below, where publishing a rendered video to the
+        public Downloads folder means writing the file directly. From API 29
+        MediaStore owns that collection and grants access per-insert, so the
+        permission is not merely unnecessary there - it is not granted.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <application
         android:label="argand"
         android:name="${applicationName}"

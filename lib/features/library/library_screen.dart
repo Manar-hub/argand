@@ -9,12 +9,8 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/theme/theme_mode_controller.dart';
 import '../../core/theme/theme_reveal.dart';
-import '../../core/diarization/diarization_controller.dart';
-import '../../core/whisper/transcription_language_controller.dart';
-import '../../core/whisper/vad_controller.dart';
-import '../../core/whisper/whisper_model_catalog.dart';
-import '../../core/whisper/whisper_model_controller.dart';
 import '../../l10n/app_localizations.dart';
+import '../transcription/transcription_options.dart';
 import '../transcription/editor_mode_controller.dart';
 import '../transcription/import_controller.dart';
 import '../transcription/project_screen.dart';
@@ -68,12 +64,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     super.dispose();
   }
 
-  void _importShared(SharedMedia media) {
+  Future<void> _importShared(SharedMedia media) async {
     if (!mounted) return;
     // A second share arriving mid-import is dropped rather than queued. The
     // pipeline runs one file at a time, and silently starting a second would
     // interleave two sets of progress into one status.
     if (ref.read(importControllerProvider) is ImportRunning) return;
+
+    // **An import transcribes**, so it gets the same options any other run
+    // does. Asking on a share is not an interruption of something already
+    // underway: this is the first thing that happens after the file arrives.
+    if (!await showTranscriptionOptions(context)) return;
+    if (!mounted) return;
 
     // A share never came through a button, so it never has a mode opinion --
     // clear a mode a cancelled button-triggered import might have left behind.
@@ -81,7 +83,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ref.read(importControllerProvider.notifier).importShared(media);
   }
 
-  void _startImport(EditorMode mode) {
+  Future<void> _startImport(EditorMode mode) async {
+    if (!await showTranscriptionOptions(context)) return;
+    if (!mounted) return;
+
     _pendingImportMode = mode;
     ref.read(importControllerProvider.notifier).importFromPicker();
   }
@@ -245,6 +250,10 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
 
     return AlertDialog(
       title: Text(l10n.createProjectTitle),
+      // **No transcription options here.** This creates an empty project and
+      // transcribes nothing -- media is added afterwards and run separately --
+      // so there is no run for those choices to apply to. They belong where a
+      // transcription actually starts, which is the Transcribe action.
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -934,192 +943,30 @@ class _ThemeModeControlState extends ConsumerState<_ThemeModeControl> {
   }
 }
 
+/// App-level settings.
+///
+/// **Transcription options are deliberately not here.** Model, language,
+/// silence skipping and diarization moved to the three places a run actually
+/// starts -- creating a project, importing a file, and running a transcribe
+/// layer -- because they are decisions about the next run rather than standing
+/// app preferences, and a sheet behind the app bar is somewhere you have to
+/// already know to look. See `TranscriptionOptions`.
+///
+/// The theme stays because it genuinely is app-wide and belongs to no run.
 class _SettingsSheet extends ConsumerWidget {
   const _SettingsSheet();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final models = ref.watch(availableWhisperModelsProvider).value ?? const [];
-    final selectedModel = ref.watch(selectedWhisperModelProvider).value;
-    final language = ref.watch(selectedTranscriptionLanguageProvider).value;
-    final skipSilence = ref.watch(silenceSkippingEnabledProvider).value;
-    final diarize = ref.watch(speakerDiarizationEnabledProvider).value;
-
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
-        ),
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          children: [
-            // First, because it is the only entry here that changes the app
-            // rather than the next import -- and because it is what lets the
-            // dark theme be seen at all on a device set to light.
-            const _ThemeModeControl(),
-            const Divider(),
-            // A picker over fewer than two models is just clutter; the rest of
-            // the sheet still earns its place.
-            if (models.length >= 2) ...[
-              _SectionHeader(label: l10n.transcriptionModelTitle),
-              for (final model in models)
-                _ChoiceTile(
-                  selected: model == selectedModel,
-                  title: _labelFor(l10n, model),
-                  subtitle: _hintFor(l10n, model),
-                  onTap: () => ref
-                      .read(selectedWhisperModelProvider.notifier)
-                      .select(model),
-                ),
-              const Divider(),
-            ],
-            _SectionHeader(label: l10n.transcriptionLanguageTitle),
-            for (final option in TranscriptionLanguage.values)
-              _ChoiceTile(
-                selected: option == language,
-                title: _languageLabel(l10n, option),
-                subtitle: _languageHint(l10n, option),
-                onTap: () => ref
-                    .read(selectedTranscriptionLanguageProvider.notifier)
-                    .select(option),
-              ),
-            const Divider(),
-            SwitchListTile(
-              // Falls back to the declared default only for the instant before
-              // the stored value has been read; `onChanged` stays null until
-              // then so a tap cannot race the load and write the wrong value.
-              value: skipSilence ?? SilenceSkippingEnabled.defaultEnabled,
-              title: Text(l10n.silenceSkippingTitle),
-              subtitle: Text(l10n.silenceSkippingHint),
-              onChanged: skipSilence == null
-                  ? null
-                  : (value) => ref
-                      .read(silenceSkippingEnabledProvider.notifier)
-                      .setEnabled(value),
-            ),
-            SwitchListTile(
-              value: diarize ?? SpeakerDiarizationEnabled.defaultEnabled,
-              title: Text(l10n.diarizationTitle),
-              subtitle: Text(l10n.diarizationHint),
-              onChanged: diarize == null
-                  ? null
-                  : (value) => ref
-                      .read(speakerDiarizationEnabledProvider.notifier)
-                      .setEnabled(value),
-            ),
-          ],
+    return const SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [_ThemeModeControl()],
         ),
       ),
     );
   }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md,
-        AppSpacing.lg,
-        AppSpacing.xs,
-      ),
-      child: Text(
-        label,
-        // Plain ink, not the accent. The accent is a *fill* colour: yellow
-        // text on a cream page is close to unreadable, which is exactly what
-        // this looked like before.
-        style: theme.textTheme.labelLarge,
-      ),
-    );
-  }
-}
-
-/// One row in a mutually exclusive group.
-///
-/// Text is deliberately left to wrap rather than capped with `maxLines`:
-/// these strings are localized and the sheet already scrolls, so growing is
-/// always preferable to hiding half of an option's explanation.
-class _ChoiceTile extends StatelessWidget {
-  const _ChoiceTile({
-    required this.selected,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    // `ListTile.selected` tints the whole row with the primary colour, which
-    // for a fill colour like yellow means unreadable text. Selection is shown
-    // by the check mark and the weight instead, with the colour carried by the
-    // icon where it sits on the page rather than behind letterforms.
-    return ListTile(
-      leading: Icon(
-        selected ? Icons.check : Icons.radio_button_unchecked,
-        color: selected ? theme.colorScheme.secondary : null,
-      ),
-      title: Text(
-        title,
-        style: selected
-            ? theme.textTheme.titleSmall
-            : theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(subtitle),
-      onTap: onTap,
-    );
-  }
-}
-
-/// Localized name for a known model, falling back to its raw id.
-///
-/// The fallback is what keeps this honest once Tier 2 delivers models this
-/// build has never heard of: they still render, just under their identifier
-/// rather than a translated name.
-String _labelFor(AppLocalizations l10n, WhisperModelDescriptor model) {
-  return switch (model.id) {
-    'base' => l10n.modelNameBase,
-    'small-q5_1' => l10n.modelNameSmallQ51,
-    _ => model.id,
-  };
-}
-
-String _hintFor(AppLocalizations l10n, WhisperModelDescriptor model) {
-  return switch (model.id) {
-    'base' => l10n.modelHintFaster,
-    _ => l10n.modelHintAccurate,
-  };
-}
-
-/// Exhaustive over [TranscriptionLanguage] rather than falling back to the
-/// code, unlike the model labels above: this enum is closed and every entry is
-/// one this build deliberately offers, so a missing string is a bug the
-/// compiler should catch rather than something to paper over at runtime.
-String _languageLabel(AppLocalizations l10n, TranscriptionLanguage language) {
-  return switch (language) {
-    TranscriptionLanguage.auto => l10n.languageAuto,
-    TranscriptionLanguage.english => l10n.languageEnglish,
-  };
-}
-
-String _languageHint(AppLocalizations l10n, TranscriptionLanguage language) {
-  return switch (language) {
-    TranscriptionLanguage.auto => l10n.languageAutoHint,
-    TranscriptionLanguage.english => l10n.languageEnglishHint,
-  };
 }

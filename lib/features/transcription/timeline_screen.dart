@@ -26,6 +26,7 @@ import 'import_controller.dart' show ImportStage;
 import 'media_player_controller.dart';
 import 'project_screen.dart' show CaptionOverlay, HistoryControls;
 import 'transcript_repository.dart';
+import 'transcription_options.dart';
 
 /// Height of every track row.
 ///
@@ -1294,34 +1295,26 @@ class _LayerStrip extends ConsumerWidget {
 
     final existing =
         await ref.read(transcriptRepositoryProvider).transcriptsForLayer(layerId);
-    if (existing.isEmpty) {
-      await controller.transcribe();
-      return;
-    }
+    if (!context.mounted) return;
 
+    // The options come first, every time -- this is the moment they apply to.
+    //
     // **Re-running is offered rather than refused**, but never silently: it
     // discards word corrections and speaker names, which are the parts the
-    // user typed rather than the parts the engine produced.
-    if (!context.mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.layerRerunTitle),
-        content: Text(l10n.layerRerunBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.editCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.layerRerunConfirm),
-          ),
-        ],
-      ),
+    // user typed rather than the parts the engine produced. That warning rides
+    // inside this dialog instead of being a second one, because two modals in
+    // a row for a single decision is one too many.
+    final confirmed = await showTranscriptionOptions(
+      context,
+      warning: existing.isEmpty ? null : l10n.layerRerunBody,
     );
+    if (!confirmed) return;
 
-    if (confirmed == true) await controller.rerun();
+    if (existing.isEmpty) {
+      await controller.transcribe();
+    } else {
+      await controller.rerun();
+    }
   }
 }
 

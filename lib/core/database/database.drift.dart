@@ -585,6 +585,17 @@ class $MediaClipsTable extends MediaClips
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _waveformMeta = const VerificationMeta(
+    'waveform',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> waveform = GeneratedColumn<Uint8List>(
+    'waveform',
+    aliasedName,
+    true,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -596,6 +607,7 @@ class $MediaClipsTable extends MediaClips
     mediaPath,
     durationMs,
     title,
+    waveform,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -674,6 +686,12 @@ class $MediaClipsTable extends MediaClips
     } else if (isInserting) {
       context.missing(_titleMeta);
     }
+    if (data.containsKey('waveform')) {
+      context.handle(
+        _waveformMeta,
+        waveform.isAcceptableOrUnknown(data['waveform']!, _waveformMeta),
+      );
+    }
     return context;
   }
 
@@ -719,6 +737,10 @@ class $MediaClipsTable extends MediaClips
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
+      waveform: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}waveform'],
+      ),
     );
   }
 
@@ -757,6 +779,21 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   /// identified visually by their frames rather than by a name, so nothing in
   /// the UI renames this.
   final String title;
+
+  /// Amplitude readings for the audio lane: one byte per bucket, at
+  /// `waveformPeaksPerSecond`. See `lib/core/audio/waveform.dart`.
+  ///
+  /// **Null means "not computed yet", never "silent".** Computing it needs a
+  /// full native decode of the media, which is far too slow to run while the
+  /// user waits for "+" to return, so the lane fills in afterwards and a clip
+  /// added a moment ago legitimately has none.
+  ///
+  /// Stored rather than derived on demand, even though the 16kHz WAV it comes
+  /// from is deliberately discarded (CLAUDE.md §5). The two are not comparable:
+  /// that WAV is ~1.9MB per audio-minute and re-extracting it is seconds of
+  /// CPU, whereas this is ~1.2KB per audio-minute and would otherwise be
+  /// recomputed every time the timeline opened.
+  final Uint8List? waveform;
   const MediaClip({
     required this.id,
     required this.createdAt,
@@ -767,6 +804,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     required this.mediaPath,
     this.durationMs,
     required this.title,
+    this.waveform,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -784,6 +822,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       map['duration_ms'] = Variable<int>(durationMs);
     }
     map['title'] = Variable<String>(title);
+    if (!nullToAbsent || waveform != null) {
+      map['waveform'] = Variable<Uint8List>(waveform);
+    }
     return map;
   }
 
@@ -802,6 +843,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           ? const Value.absent()
           : Value(durationMs),
       title: Value(title),
+      waveform: waveform == null && nullToAbsent
+          ? const Value.absent()
+          : Value(waveform),
     );
   }
 
@@ -820,6 +864,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       mediaPath: serializer.fromJson<String>(json['mediaPath']),
       durationMs: serializer.fromJson<int?>(json['durationMs']),
       title: serializer.fromJson<String>(json['title']),
+      waveform: serializer.fromJson<Uint8List?>(json['waveform']),
     );
   }
   @override
@@ -835,6 +880,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       'mediaPath': serializer.toJson<String>(mediaPath),
       'durationMs': serializer.toJson<int?>(durationMs),
       'title': serializer.toJson<String>(title),
+      'waveform': serializer.toJson<Uint8List?>(waveform),
     };
   }
 
@@ -848,6 +894,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     String? mediaPath,
     Value<int?> durationMs = const Value.absent(),
     String? title,
+    Value<Uint8List?> waveform = const Value.absent(),
   }) => MediaClip(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -858,6 +905,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     mediaPath: mediaPath ?? this.mediaPath,
     durationMs: durationMs.present ? durationMs.value : this.durationMs,
     title: title ?? this.title,
+    waveform: waveform.present ? waveform.value : this.waveform,
   );
   MediaClip copyWithCompanion(MediaClipsCompanion data) {
     return MediaClip(
@@ -872,6 +920,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           ? data.durationMs.value
           : this.durationMs,
       title: data.title.present ? data.title.value : this.title,
+      waveform: data.waveform.present ? data.waveform.value : this.waveform,
     );
   }
 
@@ -886,7 +935,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           ..write('position: $position, ')
           ..write('mediaPath: $mediaPath, ')
           ..write('durationMs: $durationMs, ')
-          ..write('title: $title')
+          ..write('title: $title, ')
+          ..write('waveform: $waveform')
           ..write(')'))
         .toString();
   }
@@ -902,6 +952,7 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     mediaPath,
     durationMs,
     title,
+    $driftBlobEquality.hash(waveform),
   );
   @override
   bool operator ==(Object other) =>
@@ -915,7 +966,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           other.position == this.position &&
           other.mediaPath == this.mediaPath &&
           other.durationMs == this.durationMs &&
-          other.title == this.title);
+          other.title == this.title &&
+          $driftBlobEquality.equals(other.waveform, this.waveform));
 }
 
 class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
@@ -928,6 +980,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
   final Value<String> mediaPath;
   final Value<int?> durationMs;
   final Value<String> title;
+  final Value<Uint8List?> waveform;
   final Value<int> rowid;
   const MediaClipsCompanion({
     this.id = const Value.absent(),
@@ -939,6 +992,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     this.mediaPath = const Value.absent(),
     this.durationMs = const Value.absent(),
     this.title = const Value.absent(),
+    this.waveform = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MediaClipsCompanion.insert({
@@ -951,6 +1005,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     required String mediaPath,
     this.durationMs = const Value.absent(),
     required String title,
+    this.waveform = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -969,6 +1024,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Expression<String>? mediaPath,
     Expression<int>? durationMs,
     Expression<String>? title,
+    Expression<Uint8List>? waveform,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -981,6 +1037,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       if (mediaPath != null) 'media_path': mediaPath,
       if (durationMs != null) 'duration_ms': durationMs,
       if (title != null) 'title': title,
+      if (waveform != null) 'waveform': waveform,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -995,6 +1052,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Value<String>? mediaPath,
     Value<int?>? durationMs,
     Value<String>? title,
+    Value<Uint8List?>? waveform,
     Value<int>? rowid,
   }) {
     return MediaClipsCompanion(
@@ -1007,6 +1065,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       mediaPath: mediaPath ?? this.mediaPath,
       durationMs: durationMs ?? this.durationMs,
       title: title ?? this.title,
+      waveform: waveform ?? this.waveform,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1041,6 +1100,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     if (title.present) {
       map['title'] = Variable<String>(title.value);
     }
+    if (waveform.present) {
+      map['waveform'] = Variable<Uint8List>(waveform.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1059,6 +1121,7 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
           ..write('mediaPath: $mediaPath, ')
           ..write('durationMs: $durationMs, ')
           ..write('title: $title, ')
+          ..write('waveform: $waveform, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4565,6 +4628,7 @@ typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
   required String mediaPath,
   Value<int?> durationMs,
   required String title,
+  Value<Uint8List?> waveform,
   Value<int> rowid,
 });
 typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
@@ -4577,6 +4641,7 @@ typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
   Value<String> mediaPath,
   Value<int?> durationMs,
   Value<String> title,
+  Value<Uint8List?> waveform,
   Value<int> rowid,
 });
 
@@ -4666,6 +4731,11 @@ class $$MediaClipsTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get waveform => $composableBuilder(
+    column: $table.waveform,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4767,6 +4837,11 @@ class $$MediaClipsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<Uint8List> get waveform => $composableBuilder(
+    column: $table.waveform,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProjectsTableOrderingComposer get projectId {
     final $$ProjectsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4825,6 +4900,9 @@ class $$MediaClipsTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get waveform =>
+      $composableBuilder(column: $table.waveform, builder: (column) => column);
 
   $$ProjectsTableAnnotationComposer get projectId {
     final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
@@ -4912,6 +4990,7 @@ class $$MediaClipsTableTableManager
                 Value<String> mediaPath = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<Uint8List?> waveform = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaClipsCompanion(
                 id: id,
@@ -4923,6 +5002,7 @@ class $$MediaClipsTableTableManager
                 mediaPath: mediaPath,
                 durationMs: durationMs,
                 title: title,
+                waveform: waveform,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4936,6 +5016,7 @@ class $$MediaClipsTableTableManager
                 required String mediaPath,
                 Value<int?> durationMs = const Value.absent(),
                 required String title,
+                Value<Uint8List?> waveform = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaClipsCompanion.insert(
                 id: id,
@@ -4947,6 +5028,7 @@ class $$MediaClipsTableTableManager
                 mediaPath: mediaPath,
                 durationMs: durationMs,
                 title: title,
+                waveform: waveform,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

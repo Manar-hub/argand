@@ -87,6 +87,21 @@ class MediaClips extends Table with _RecordColumns {
   /// the UI renames this.
   TextColumn get title => text()();
 
+  /// Amplitude readings for the audio lane: one byte per bucket, at
+  /// `waveformPeaksPerSecond`. See `lib/core/audio/waveform.dart`.
+  ///
+  /// **Null means "not computed yet", never "silent".** Computing it needs a
+  /// full native decode of the media, which is far too slow to run while the
+  /// user waits for "+" to return, so the lane fills in afterwards and a clip
+  /// added a moment ago legitimately has none.
+  ///
+  /// Stored rather than derived on demand, even though the 16kHz WAV it comes
+  /// from is deliberately discarded (CLAUDE.md §5). The two are not comparable:
+  /// that WAV is ~1.9MB per audio-minute and re-extracting it is seconds of
+  /// CPU, whereas this is ~1.2KB per audio-minute and would otherwise be
+  /// recomputed every time the timeline opened.
+  BlobColumn get waveform => blob().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
@@ -275,12 +290,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
   /// [Transcripts.clipId], moving media off the project row, 5 -> 6 added
-  /// [TranscribeLayers] and the range columns on [Transcripts].
+  /// [TranscribeLayers] and the range columns on [Transcripts], 6 -> 7 added
+  /// [MediaClips.waveform].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -310,6 +326,24 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(transcripts, transcripts.clipStartMs);
             await migrator.addColumn(transcripts, transcripts.clipEndMs);
             await _backfillLayers();
+          }
+          // **`from >= 5`, not just `from < 7`.** `createTable` builds a table
+          // from its *current* definition, so a database coming from before
+          // schema 5 has just been handed a `media_clips` that already has
+          // this column, and adding it again fails the whole migration with
+          // "duplicate column name". Only a database that already carried the
+          // table from an older build is missing it.
+          //
+          // The same applies to every future column on a table younger than
+          // the schema: pair the version that adds the column with the
+          // version that created the table.
+          if (from >= 5 && from < 7) {
+            // No backfill. Null already means "not computed yet", so every
+            // existing clip simply fills its lane in the first time the
+            // timeline asks -- which is the same path a newly added clip
+            // takes. Decoding every clip in the library during a migration
+            // would block the first launch after an update for minutes.
+            await migrator.addColumn(mediaClips, mediaClips.waveform);
           }
 
           // **`createTable` does not create a table's declared indexes.**
@@ -598,6 +632,24 @@ class AppDatabase extends _$AppDatabase {
         .write(
       MediaClipsCompanion(
         durationMs: Value(duration.inMilliseconds),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Stores the amplitude readings backing a clip's audio lane.
+  ///
+  /// Writes only where none are stored yet, so two timelines racing to fill
+  /// the same lane settle on one result rather than the later one winning.
+  /// Nothing invalidates these: a clip's media never changes in place -- the
+  /// app owns its own copy and editing produces new clips.
+  Future<void> fillMissingClipWaveform(String clipId, Uint8List peaks) {
+    if (peaks.isEmpty) return Future.value();
+    return (update(mediaClips)
+          ..where((t) => t.id.equals(clipId) & t.waveform.isNull()))
+        .write(
+      MediaClipsCompanion(
+        waveform: Value(peaks),
         updatedAt: Value(DateTime.now()),
       ),
     );
@@ -894,6 +946,10 @@ class AppDatabase extends _$AppDatabase {
             mediaPath: clip.mediaPath,
             durationMs: Value(clip.durationMs),
             title: clip.title,
+            // Carried rather than recomputed: the duplicate points at the
+            // same media file, so the readings are identical by construction
+            // and re-deriving them would mean decoding every clip again.
+            waveform: Value(clip.waveform),
           ),
         );
 

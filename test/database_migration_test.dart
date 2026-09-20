@@ -102,7 +102,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 6', () {
+  group('schema 2 -> 7', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -181,7 +181,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 6);
+      expect(row, 7);
     });
 
     test('gives the existing transcript the layer its clip always implied',
@@ -224,6 +224,21 @@ void main() {
       expect(clip.durationMs, 61000);
       expect(clip.position, 0);
       expect(clip.projectId, 'p1');
+    });
+
+    test('leaves the audio lane uncomputed rather than back-filling it',
+        () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clip = (await db.clipsForProject('p1')).single;
+
+      // Deliberately null. Deriving these needs a full native decode per clip,
+      // so back-filling a library during a migration would block the first
+      // launch after an update for minutes. Null already means "not computed
+      // yet", and the timeline fills it in on first sight -- the same path a
+      // newly added clip takes.
+      expect(clip.waveform, isNull);
     });
 
     test('points the existing transcript at the back-filled clip', () async {

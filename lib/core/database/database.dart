@@ -82,6 +82,22 @@ class MediaClips extends Table with _RecordColumns {
   /// tolerance [Projects.durationMs] had, for the same reason.
   IntColumn get durationMs => integer().nullable()();
 
+  /// Where this clip begins and ends inside its media file.
+  ///
+  /// **Trimming is stored, never rendered.** The media is shared -- two clips
+  /// may hold the same path, and duplicating a project shares it rather than
+  /// copying hundreds of megabytes -- so cutting bytes out of the file would
+  /// damage every other reference to it. An in/out point costs nothing, stays
+  /// reversible, and is what lets a split be two rows over one file.
+  ///
+  /// **Null means untrimmed, which is not the same as zero.** A clip whose
+  /// container could not be probed has no known end, so a null [trimEndMs]
+  /// resolves to [durationMs] -- itself nullable -- rather than to a number.
+  /// Writing 0 and the duration at creation time would have forced a backfill
+  /// and made "never trimmed" indistinguishable from "trimmed to the whole".
+  IntColumn get trimStartMs => integer().nullable()();
+  IntColumn get trimEndMs => integer().nullable()();
+
   /// The source file's name, for accessibility labels and debugging. Clips are
   /// identified visually by their frames rather than by a name, so nothing in
   /// the UI renames this.
@@ -290,13 +306,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
   /// [Transcripts.clipId], moving media off the project row, 5 -> 6 added
   /// [TranscribeLayers] and the range columns on [Transcripts], 6 -> 7 added
-  /// [MediaClips.waveform].
+  /// [MediaClips.waveform], 7 -> 8 added [MediaClips.trimStartMs] and
+  /// [MediaClips.trimEndMs].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -344,6 +361,15 @@ class AppDatabase extends _$AppDatabase {
             // takes. Decoding every clip in the library during a migration
             // would block the first launch after an update for minutes.
             await migrator.addColumn(mediaClips, mediaClips.waveform);
+          }
+          // Paired with 5 for the same reason as the waveform column above:
+          // `createTable` builds `media_clips` from its *current* definition,
+          // so a database arriving from before schema 5 already has these.
+          if (from >= 5 && from < 8) {
+            // No backfill. Null is exactly "never trimmed", which is what
+            // every existing clip is.
+            await migrator.addColumn(mediaClips, mediaClips.trimStartMs);
+            await migrator.addColumn(mediaClips, mediaClips.trimEndMs);
           }
 
           // **`createTable` does not create a table's declared indexes.**
@@ -729,6 +755,143 @@ class AppDatabase extends _$AppDatabase {
   /// Takes the full order rather than a from/to pair: a drag produces a new
   /// arrangement, and writing it wholesale cannot leave two clips claiming one
   /// position the way an incremental shift can if it is interrupted.
+  /// Stores a clip's in and out points.
+  ///
+  /// The media is untouched: two clips may share one file and duplicating a
+  /// project shares it again, so a trim that rewrote bytes would damage every
+  /// other reference. Nothing here validates the window -- `clipWindow` and
+  /// `applyTrim` own that rule, and they are pure so it can be proven.
+  Future<void> trimClip({
+    required String clipId,
+    required int startMs,
+    required int endMs,
+  }) {
+    return (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+      MediaClipsCompanion(
+        trimStartMs: Value(startMs),
+        trimEndMs: Value(endMs),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Splits one clip into two at [atMediaMs], measured in the media's own time.
+  ///
+  /// **Two rows over one file**, not two files. The left keeps the original id
+  /// and everything pointing at it; the right is new, starts where the left
+  /// ends, and every later clip shifts along to make room.
+  ///
+  /// **The transcripts are copied to the right-hand clip rather than moved or
+  /// dropped.** Word timings are relative to the media, so both halves address
+  /// the same numbers and each simply renders the part inside its own window.
+  /// Moving them would strip the left clip of its captions, and dropping them
+  /// would silently lose the second half's -- the kind of loss that only shows
+  /// up at export.
+  ///
+  /// Returns the new clip's id, or null if the clip is gone.
+  Future<String?> splitClip({
+    required String clipId,
+    required int atMediaMs,
+    required String Function() newId,
+  }) async {
+    final now = DateTime.now();
+
+    return transaction(() async {
+      final clip = await findClip(clipId);
+      if (clip == null) return null;
+
+      final newClipId = newId();
+      final originalEnd = clip.trimEndMs;
+
+      // Room first: every clip after this one moves along by one, highest
+      // position first so no two rows ever hold the same position mid-flight.
+      final later = await (select(mediaClips)
+            ..where((t) =>
+                t.projectId.equals(clip.projectId) &
+                t.deletedAt.isNull() &
+                t.position.isBiggerThanValue(clip.position))
+            ..orderBy([(t) => OrderingTerm.desc(t.position)]))
+          .get();
+
+      for (final other in later) {
+        await (update(mediaClips)..where((t) => t.id.equals(other.id))).write(
+          MediaClipsCompanion(
+            position: Value(other.position + 1),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+
+      await into(mediaClips).insert(
+        MediaClipsCompanion.insert(
+          id: newClipId,
+          createdAt: now,
+          updatedAt: now,
+          projectId: clip.projectId,
+          position: clip.position + 1,
+          mediaPath: clip.mediaPath,
+          durationMs: Value(clip.durationMs),
+          trimStartMs: Value(atMediaMs),
+          trimEndMs: Value(originalEnd),
+          title: clip.title,
+          // The same file, so the readings are identical by construction.
+          waveform: Value(clip.waveform),
+        ),
+      );
+
+      await (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+        MediaClipsCompanion(
+          trimEndMs: Value(atMediaMs),
+          updatedAt: Value(now),
+        ),
+      );
+
+      for (final transcript in await transcriptsForClip(clipId)) {
+        final newTranscriptId = newId();
+        await into(transcripts).insert(
+          TranscriptsCompanion.insert(
+            id: newTranscriptId,
+            createdAt: now,
+            updatedAt: now,
+            projectId: transcript.projectId,
+            clipId: Value(newClipId),
+            layerId: Value(transcript.layerId),
+            clipStartMs: Value(transcript.clipStartMs),
+            clipEndMs: Value(transcript.clipEndMs),
+            language: Value(transcript.language),
+            speakerNames: Value(transcript.speakerNames),
+            fullText: transcript.fullText,
+          ),
+        );
+
+        final carried = await (select(words)
+              ..where((t) =>
+                  t.transcriptId.equals(transcript.id) & t.deletedAt.isNull())
+              ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+            .get();
+
+        await batch((batch) {
+          batch.insertAll(words, [
+            for (final word in carried)
+              WordsCompanion.insert(
+                id: newId(),
+                createdAt: now,
+                updatedAt: now,
+                transcriptId: newTranscriptId,
+                position: word.position,
+                word: word.word,
+                startMs: word.startMs,
+                endMs: word.endMs,
+                speakerId: Value(word.speakerId),
+              ),
+          ]);
+        });
+      }
+
+      return newClipId;
+    });
+  }
+
   Future<void> reorderClips({
     required String projectId,
     required List<String> orderedIds,
@@ -945,6 +1108,8 @@ class AppDatabase extends _$AppDatabase {
             position: clip.position,
             mediaPath: clip.mediaPath,
             durationMs: Value(clip.durationMs),
+            trimStartMs: Value(clip.trimStartMs),
+            trimEndMs: Value(clip.trimEndMs),
             title: clip.title,
             // Carried rather than recomputed: the duplicate points at the
             // same media file, so the readings are identical by construction

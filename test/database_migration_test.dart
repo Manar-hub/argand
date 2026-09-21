@@ -102,7 +102,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 7', () {
+  group('schema 2 -> 8', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -181,7 +181,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 7);
+      expect(row, 8);
     });
 
     test('gives the existing transcript the layer its clip always implied',
@@ -239,6 +239,20 @@ void main() {
       // yet", and the timeline fills it in on first sight -- the same path a
       // newly added clip takes.
       expect(clip.waveform, isNull);
+    });
+
+    test('an upgraded clip is untrimmed, not trimmed to zero', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clip = (await db.clipsForProject('p1')).single;
+
+      // Null is what "never trimmed" means, and it is why schema 8 needed no
+      // backfill. Writing 0 and the duration instead would make an untouched
+      // clip indistinguishable from one deliberately trimmed to its full
+      // length -- and would break for a clip whose duration never probed.
+      expect(clip.trimStartMs, isNull);
+      expect(clip.trimEndMs, isNull);
     });
 
     test('points the existing transcript at the back-filled clip', () async {

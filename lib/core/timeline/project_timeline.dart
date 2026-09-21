@@ -1,4 +1,5 @@
 import '../database/database.dart';
+import 'clip_trim.dart';
 
 /// Where one clip sits on the project timeline.
 typedef ClipPlacement = ({
@@ -55,7 +56,10 @@ class ProjectTimeline {
     var offset = 0;
 
     for (final (index, clip) in clips.indexed) {
-      final duration = clip.durationMs ?? 0;
+      // **The trimmed length, not the file's.** Once a clip carries in/out
+      // points these stop being the same number, and measuring the file would
+      // put every later clip at the wrong place on the ruler.
+      final duration = trimmedDurationMs(clip);
       final safe = duration < 0 ? 0 : duration;
       placements.add((
         clipId: clip.id,

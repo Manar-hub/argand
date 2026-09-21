@@ -576,6 +576,28 @@ class $MediaClipsTable extends MediaClips
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _trimStartMsMeta = const VerificationMeta(
+    'trimStartMs',
+  );
+  @override
+  late final GeneratedColumn<int> trimStartMs = GeneratedColumn<int>(
+    'trim_start_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trimEndMsMeta = const VerificationMeta(
+    'trimEndMs',
+  );
+  @override
+  late final GeneratedColumn<int> trimEndMs = GeneratedColumn<int>(
+    'trim_end_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _titleMeta = const VerificationMeta('title');
   @override
   late final GeneratedColumn<String> title = GeneratedColumn<String>(
@@ -606,6 +628,8 @@ class $MediaClipsTable extends MediaClips
     position,
     mediaPath,
     durationMs,
+    trimStartMs,
+    trimEndMs,
     title,
     waveform,
   ];
@@ -678,6 +702,21 @@ class $MediaClipsTable extends MediaClips
         durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
       );
     }
+    if (data.containsKey('trim_start_ms')) {
+      context.handle(
+        _trimStartMsMeta,
+        trimStartMs.isAcceptableOrUnknown(
+          data['trim_start_ms']!,
+          _trimStartMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('trim_end_ms')) {
+      context.handle(
+        _trimEndMsMeta,
+        trimEndMs.isAcceptableOrUnknown(data['trim_end_ms']!, _trimEndMsMeta),
+      );
+    }
     if (data.containsKey('title')) {
       context.handle(
         _titleMeta,
@@ -733,6 +772,14 @@ class $MediaClipsTable extends MediaClips
         DriftSqlType.int,
         data['${effectivePrefix}duration_ms'],
       ),
+      trimStartMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}trim_start_ms'],
+      ),
+      trimEndMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}trim_end_ms'],
+      ),
       title: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}title'],
@@ -775,6 +822,22 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   /// tolerance [Projects.durationMs] had, for the same reason.
   final int? durationMs;
 
+  /// Where this clip begins and ends inside its media file.
+  ///
+  /// **Trimming is stored, never rendered.** The media is shared -- two clips
+  /// may hold the same path, and duplicating a project shares it rather than
+  /// copying hundreds of megabytes -- so cutting bytes out of the file would
+  /// damage every other reference to it. An in/out point costs nothing, stays
+  /// reversible, and is what lets a split be two rows over one file.
+  ///
+  /// **Null means untrimmed, which is not the same as zero.** A clip whose
+  /// container could not be probed has no known end, so a null [trimEndMs]
+  /// resolves to [durationMs] -- itself nullable -- rather than to a number.
+  /// Writing 0 and the duration at creation time would have forced a backfill
+  /// and made "never trimmed" indistinguishable from "trimmed to the whole".
+  final int? trimStartMs;
+  final int? trimEndMs;
+
   /// The source file's name, for accessibility labels and debugging. Clips are
   /// identified visually by their frames rather than by a name, so nothing in
   /// the UI renames this.
@@ -803,6 +866,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     required this.position,
     required this.mediaPath,
     this.durationMs,
+    this.trimStartMs,
+    this.trimEndMs,
     required this.title,
     this.waveform,
   });
@@ -820,6 +885,12 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     map['media_path'] = Variable<String>(mediaPath);
     if (!nullToAbsent || durationMs != null) {
       map['duration_ms'] = Variable<int>(durationMs);
+    }
+    if (!nullToAbsent || trimStartMs != null) {
+      map['trim_start_ms'] = Variable<int>(trimStartMs);
+    }
+    if (!nullToAbsent || trimEndMs != null) {
+      map['trim_end_ms'] = Variable<int>(trimEndMs);
     }
     map['title'] = Variable<String>(title);
     if (!nullToAbsent || waveform != null) {
@@ -842,6 +913,12 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       durationMs: durationMs == null && nullToAbsent
           ? const Value.absent()
           : Value(durationMs),
+      trimStartMs: trimStartMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trimStartMs),
+      trimEndMs: trimEndMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trimEndMs),
       title: Value(title),
       waveform: waveform == null && nullToAbsent
           ? const Value.absent()
@@ -863,6 +940,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       position: serializer.fromJson<int>(json['position']),
       mediaPath: serializer.fromJson<String>(json['mediaPath']),
       durationMs: serializer.fromJson<int?>(json['durationMs']),
+      trimStartMs: serializer.fromJson<int?>(json['trimStartMs']),
+      trimEndMs: serializer.fromJson<int?>(json['trimEndMs']),
       title: serializer.fromJson<String>(json['title']),
       waveform: serializer.fromJson<Uint8List?>(json['waveform']),
     );
@@ -879,6 +958,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       'position': serializer.toJson<int>(position),
       'mediaPath': serializer.toJson<String>(mediaPath),
       'durationMs': serializer.toJson<int?>(durationMs),
+      'trimStartMs': serializer.toJson<int?>(trimStartMs),
+      'trimEndMs': serializer.toJson<int?>(trimEndMs),
       'title': serializer.toJson<String>(title),
       'waveform': serializer.toJson<Uint8List?>(waveform),
     };
@@ -893,6 +974,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     int? position,
     String? mediaPath,
     Value<int?> durationMs = const Value.absent(),
+    Value<int?> trimStartMs = const Value.absent(),
+    Value<int?> trimEndMs = const Value.absent(),
     String? title,
     Value<Uint8List?> waveform = const Value.absent(),
   }) => MediaClip(
@@ -904,6 +987,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     position: position ?? this.position,
     mediaPath: mediaPath ?? this.mediaPath,
     durationMs: durationMs.present ? durationMs.value : this.durationMs,
+    trimStartMs: trimStartMs.present ? trimStartMs.value : this.trimStartMs,
+    trimEndMs: trimEndMs.present ? trimEndMs.value : this.trimEndMs,
     title: title ?? this.title,
     waveform: waveform.present ? waveform.value : this.waveform,
   );
@@ -919,6 +1004,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       durationMs: data.durationMs.present
           ? data.durationMs.value
           : this.durationMs,
+      trimStartMs: data.trimStartMs.present
+          ? data.trimStartMs.value
+          : this.trimStartMs,
+      trimEndMs: data.trimEndMs.present ? data.trimEndMs.value : this.trimEndMs,
       title: data.title.present ? data.title.value : this.title,
       waveform: data.waveform.present ? data.waveform.value : this.waveform,
     );
@@ -935,6 +1024,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           ..write('position: $position, ')
           ..write('mediaPath: $mediaPath, ')
           ..write('durationMs: $durationMs, ')
+          ..write('trimStartMs: $trimStartMs, ')
+          ..write('trimEndMs: $trimEndMs, ')
           ..write('title: $title, ')
           ..write('waveform: $waveform')
           ..write(')'))
@@ -951,6 +1042,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     position,
     mediaPath,
     durationMs,
+    trimStartMs,
+    trimEndMs,
     title,
     $driftBlobEquality.hash(waveform),
   );
@@ -966,6 +1059,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           other.position == this.position &&
           other.mediaPath == this.mediaPath &&
           other.durationMs == this.durationMs &&
+          other.trimStartMs == this.trimStartMs &&
+          other.trimEndMs == this.trimEndMs &&
           other.title == this.title &&
           $driftBlobEquality.equals(other.waveform, this.waveform));
 }
@@ -979,6 +1074,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
   final Value<int> position;
   final Value<String> mediaPath;
   final Value<int?> durationMs;
+  final Value<int?> trimStartMs;
+  final Value<int?> trimEndMs;
   final Value<String> title;
   final Value<Uint8List?> waveform;
   final Value<int> rowid;
@@ -991,6 +1088,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     this.position = const Value.absent(),
     this.mediaPath = const Value.absent(),
     this.durationMs = const Value.absent(),
+    this.trimStartMs = const Value.absent(),
+    this.trimEndMs = const Value.absent(),
     this.title = const Value.absent(),
     this.waveform = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1004,6 +1103,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     required int position,
     required String mediaPath,
     this.durationMs = const Value.absent(),
+    this.trimStartMs = const Value.absent(),
+    this.trimEndMs = const Value.absent(),
     required String title,
     this.waveform = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1023,6 +1124,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Expression<int>? position,
     Expression<String>? mediaPath,
     Expression<int>? durationMs,
+    Expression<int>? trimStartMs,
+    Expression<int>? trimEndMs,
     Expression<String>? title,
     Expression<Uint8List>? waveform,
     Expression<int>? rowid,
@@ -1036,6 +1139,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       if (position != null) 'position': position,
       if (mediaPath != null) 'media_path': mediaPath,
       if (durationMs != null) 'duration_ms': durationMs,
+      if (trimStartMs != null) 'trim_start_ms': trimStartMs,
+      if (trimEndMs != null) 'trim_end_ms': trimEndMs,
       if (title != null) 'title': title,
       if (waveform != null) 'waveform': waveform,
       if (rowid != null) 'rowid': rowid,
@@ -1051,6 +1156,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Value<int>? position,
     Value<String>? mediaPath,
     Value<int?>? durationMs,
+    Value<int?>? trimStartMs,
+    Value<int?>? trimEndMs,
     Value<String>? title,
     Value<Uint8List?>? waveform,
     Value<int>? rowid,
@@ -1064,6 +1171,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       position: position ?? this.position,
       mediaPath: mediaPath ?? this.mediaPath,
       durationMs: durationMs ?? this.durationMs,
+      trimStartMs: trimStartMs ?? this.trimStartMs,
+      trimEndMs: trimEndMs ?? this.trimEndMs,
       title: title ?? this.title,
       waveform: waveform ?? this.waveform,
       rowid: rowid ?? this.rowid,
@@ -1097,6 +1206,12 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     if (durationMs.present) {
       map['duration_ms'] = Variable<int>(durationMs.value);
     }
+    if (trimStartMs.present) {
+      map['trim_start_ms'] = Variable<int>(trimStartMs.value);
+    }
+    if (trimEndMs.present) {
+      map['trim_end_ms'] = Variable<int>(trimEndMs.value);
+    }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
     }
@@ -1120,6 +1235,8 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
           ..write('position: $position, ')
           ..write('mediaPath: $mediaPath, ')
           ..write('durationMs: $durationMs, ')
+          ..write('trimStartMs: $trimStartMs, ')
+          ..write('trimEndMs: $trimEndMs, ')
           ..write('title: $title, ')
           ..write('waveform: $waveform, ')
           ..write('rowid: $rowid')
@@ -4627,6 +4744,8 @@ typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
   required int position,
   required String mediaPath,
   Value<int?> durationMs,
+  Value<int?> trimStartMs,
+  Value<int?> trimEndMs,
   required String title,
   Value<Uint8List?> waveform,
   Value<int> rowid,
@@ -4640,6 +4759,8 @@ typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
   Value<int> position,
   Value<String> mediaPath,
   Value<int?> durationMs,
+  Value<int?> trimStartMs,
+  Value<int?> trimEndMs,
   Value<String> title,
   Value<Uint8List?> waveform,
   Value<int> rowid,
@@ -4726,6 +4847,16 @@ class $$MediaClipsTableFilterComposer
 
   ColumnFilters<int> get durationMs => $composableBuilder(
     column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trimStartMs => $composableBuilder(
+    column: $table.trimStartMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trimEndMs => $composableBuilder(
+    column: $table.trimEndMs,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4832,6 +4963,16 @@ class $$MediaClipsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get trimStartMs => $composableBuilder(
+    column: $table.trimStartMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get trimEndMs => $composableBuilder(
+    column: $table.trimEndMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get title => $composableBuilder(
     column: $table.title,
     builder: (column) => ColumnOrderings(column),
@@ -4897,6 +5038,14 @@ class $$MediaClipsTableAnnotationComposer
     column: $table.durationMs,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get trimStartMs => $composableBuilder(
+    column: $table.trimStartMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get trimEndMs =>
+      $composableBuilder(column: $table.trimEndMs, builder: (column) => column);
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
@@ -4989,6 +5138,8 @@ class $$MediaClipsTableTableManager
                 Value<int> position = const Value.absent(),
                 Value<String> mediaPath = const Value.absent(),
                 Value<int?> durationMs = const Value.absent(),
+                Value<int?> trimStartMs = const Value.absent(),
+                Value<int?> trimEndMs = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<Uint8List?> waveform = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5001,6 +5152,8 @@ class $$MediaClipsTableTableManager
                 position: position,
                 mediaPath: mediaPath,
                 durationMs: durationMs,
+                trimStartMs: trimStartMs,
+                trimEndMs: trimEndMs,
                 title: title,
                 waveform: waveform,
                 rowid: rowid,
@@ -5015,6 +5168,8 @@ class $$MediaClipsTableTableManager
                 required int position,
                 required String mediaPath,
                 Value<int?> durationMs = const Value.absent(),
+                Value<int?> trimStartMs = const Value.absent(),
+                Value<int?> trimEndMs = const Value.absent(),
                 required String title,
                 Value<Uint8List?> waveform = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -5027,6 +5182,8 @@ class $$MediaClipsTableTableManager
                 position: position,
                 mediaPath: mediaPath,
                 durationMs: durationMs,
+                trimStartMs: trimStartMs,
+                trimEndMs: trimEndMs,
                 title: title,
                 waveform: waveform,
                 rowid: rowid,

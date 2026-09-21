@@ -14,6 +14,7 @@ import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
+import '../../core/timeline/clip_trim.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/timeline/timeline_sentences.dart';
 import '../../core/transcript/speaker_names.dart';
@@ -286,6 +287,42 @@ class TranscriptRepository {
   }
 
   /// Writes a new clip order for one project. See [AppDatabase.reorderClips].
+  /// Trims a clip to [window], which must already be a legal one.
+  ///
+  /// The window comes from `applyTrim`, which is pure and clamps against the
+  /// media and the minimum length; re-deriving those limits here would be a
+  /// second copy of the rule and the two would drift.
+  Future<void> trimClip({
+    required String clipId,
+    required ClipWindow window,
+  }) =>
+      _db.trimClip(
+        clipId: clipId,
+        startMs: window.startMs,
+        endMs: window.endMs,
+      );
+
+  /// Splits the clip at [atClipMs], measured from the start of what it plays.
+  ///
+  /// Returns the new clip's id, or null when the split was refused -- which
+  /// happens when either side would fall below [minimumClipMs]. Refusing is
+  /// better than making a sliver that cannot be played, and null lets the
+  /// caller say so.
+  Future<String?> splitClip({
+    required String clipId,
+    required int atClipMs,
+  }) async {
+    final clip = await _db.findClip(clipId);
+    if (clip == null) return null;
+
+    // The playhead knows where it is in what the clip plays; the rows have to
+    // store where that falls in the file.
+    final at = splitPointFor(clip, atClipMs);
+    if (at == null) return null;
+
+    return _db.splitClip(clipId: clipId, atMediaMs: at, newId: newId);
+  }
+
   Future<void> reorderClips({
     required String projectId,
     required List<String> orderedIds,

@@ -1,5 +1,7 @@
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/media/media_converter.dart';
+import 'package:argand/core/timeline/clip_trim.dart';
+import 'package:argand/core/timeline/project_timeline.dart';
 import 'package:argand/core/theme/app_theme.dart';
 import 'package:argand/features/library/library_screen.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
@@ -428,6 +430,138 @@ void main() {
       expect(transcribed, isNotNull);
       expect(transcribed!.fullText, 'hello');
       expect((await repository.transcriptsForClip(second)).firstOrNull, isNull);
+    });
+  });
+
+  group('trimming and splitting clips', () {
+    Future<(TranscriptRepository, String, String)> seedOneClip() async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'cut');
+      final clipId = repository.newId();
+      await database.appendClip(
+        clipId: clipId,
+        projectId: projectId,
+        mediaPath: '/media/$projectId/a.mp4',
+        duration: const Duration(seconds: 30),
+        title: 'a',
+      );
+      return (repository, projectId, clipId);
+    }
+
+    test('a trim changes what the timeline measures, not the file', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+
+      await repository.trimClip(
+        clipId: clipId,
+        window: (startMs: 5000, endMs: 12000),
+      );
+
+      final clip = (await database.clipsForProject(projectId)).single;
+      expect(clip.durationMs, 30000, reason: 'the file is untouched');
+      expect(trimmedDurationMs(clip), 7000);
+      expect(
+        ProjectTimeline.fromClips([clip]).totalMs,
+        7000,
+        reason: 'the ruler measures what plays, not what exists',
+      );
+    });
+
+    test('a split makes two rows over one file', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+
+      final newClipId =
+          await repository.splitClip(clipId: clipId, atClipMs: 12000);
+
+      expect(newClipId, isNotNull);
+      final clips = await database.clipsForProject(projectId);
+      expect(clips, hasLength(2));
+      expect(
+        clips.map((c) => c.mediaPath).toSet(),
+        hasLength(1),
+        reason: 'one file, two rows -- nothing is copied or cut',
+      );
+
+      expect(clipWindow(clips.first), (startMs: 0, endMs: 12000));
+      expect(clipWindow(clips.last), (startMs: 12000, endMs: 30000));
+
+      // The halves tile exactly: no millisecond is played twice or lost.
+      expect(ProjectTimeline.fromClips(clips).totalMs, 30000);
+    });
+
+    test('a split shifts every later clip along', () async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'cut');
+      final ids = <String>[];
+      for (final title in ['first', 'second', 'third']) {
+        final id = repository.newId();
+        ids.add(id);
+        await database.appendClip(
+          clipId: id,
+          projectId: projectId,
+          mediaPath: '/media/$projectId/$title.mp4',
+          duration: const Duration(seconds: 30),
+          title: title,
+        );
+      }
+
+      final newClipId =
+          await repository.splitClip(clipId: ids.first, atClipMs: 10000);
+
+      final clips = await database.clipsForProject(projectId);
+      expect(
+        clips.map((c) => c.id),
+        [ids[0], newClipId, ids[1], ids[2]],
+        reason: 'the new half sits immediately after the half it came from',
+      );
+      expect(
+        clips.map((c) => c.position),
+        [0, 1, 2, 3],
+        reason: 'positions stay contiguous from zero',
+      );
+    });
+
+    test('a split too close to an edge is refused, not clamped', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+
+      expect(await repository.splitClip(clipId: clipId, atClipMs: 10), isNull);
+      expect(
+        await database.clipsForProject(projectId),
+        hasLength(1),
+        reason: 'a refused split must leave the project alone',
+      );
+    });
+
+    test('splitting a transcribed clip keeps both halves captioned', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+
+      await repository.saveClipTranscript(
+        projectId: projectId,
+        clipId: clipId,
+        language: TranscriptionLanguage.english,
+        speakerSpans: const [],
+        result: const WhisperTranscribeResponse(
+          type: 'transcribe',
+          text: 'hello',
+          segments: [
+            WhisperTranscribeSegment(
+              fromTs: Duration.zero,
+              toTs: Duration(milliseconds: 400),
+              text: ' hello',
+            ),
+          ],
+        ),
+      );
+
+      await repository.splitClip(clipId: clipId, atClipMs: 15000);
+
+      // **Copied rather than moved.** Word times are relative to the media, so
+      // both halves address the same numbers and each renders the part inside
+      // its own window. Moving them would strip the left clip of its captions;
+      // dropping them would lose the right half's at export, which is the last
+      // place anyone would notice.
+      final clips = await database.clipsForProject(projectId);
+      expect(await repository.transcriptsForClip(clips.first.id), hasLength(1));
+      expect(await repository.transcriptsForClip(clips.last.id), hasLength(1));
     });
   });
 }

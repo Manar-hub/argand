@@ -790,6 +790,24 @@ abstract class AppLocalizations {
   /// **'Captions'**
   String get timelineCaptionsLabel;
 
+  /// Timeline toolbar action that cuts the selected clip in two at the playhead
+  ///
+  /// In en, this message translates to:
+  /// **'Split'**
+  String get timelineToolSplit;
+
+  /// Shown when a split would leave a piece too short to play
+  ///
+  /// In en, this message translates to:
+  /// **'Too close to the edge of the clip to split.'**
+  String get splitTooClose;
+
+  /// Confirmation that the clip was cut in two
+  ///
+  /// In en, this message translates to:
+  /// **'Clip split.'**
+  String get splitDone;
+
   /// Bottom toolbar button: cut/trim/split (not yet built)
   ///
   /// In en, this message translates to:

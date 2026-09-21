@@ -400,6 +400,15 @@
   "timelineCaptionsLabel": "Captions",
   "@timelineCaptionsLabel": { "description": "Heading above the caption list shown when the Captions toolbar button is toggled on" },
 
+  "timelineToolSplit": "Split",
+  "@timelineToolSplit": { "description": "Timeline toolbar action that cuts the selected clip in two at the playhead" },
+
+  "splitTooClose": "Too close to the edge of the clip to split.",
+  "@splitTooClose": { "description": "Shown when a split would leave a piece too short to play" },
+
+  "splitDone": "Clip split.",
+  "@splitDone": { "description": "Confirmation that the clip was cut in two" },
+
   "timelineToolEdit": "Edit",
   "@timelineToolEdit": { "description": "Bottom toolbar button: cut/trim/split (not yet built)" },
 

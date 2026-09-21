@@ -415,6 +415,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get timelineCaptionsLabel => 'Captions';
 
   @override
+  String get timelineToolSplit => 'Split';
+
+  @override
+  String get splitTooClose => 'Too close to the edge of the clip to split.';
+
+  @override
+  String get splitDone => 'Clip split.';
+
+  @override
   String get timelineToolEdit => 'Edit';
 
   @override

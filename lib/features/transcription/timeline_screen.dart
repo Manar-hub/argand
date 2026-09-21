@@ -139,6 +139,39 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
         .select(added);
   }
 
+  /// Cuts the selected clip in two where the playhead sits.
+  ///
+  /// **At the player's position within the clip**, which is exactly the number
+  /// `splitClip` wants: it measures from the start of what the clip plays, not
+  /// from the start of its file, and those differ the moment a clip has been
+  /// trimmed or split before.
+  Future<void> _split(String clipId) async {
+    final l10n = AppLocalizations.of(context);
+    final player = ref.read(mediaPlayerProvider(clipId)).value;
+    if (player == null) return;
+
+    final newClipId = await ref.read(transcriptRepositoryProvider).splitClip(
+          clipId: clipId,
+          // `player` is the controller; its `value` carries the live
+          // position. The controller's own `position` is a Future.
+          atClipMs: player.value.position.inMilliseconds,
+        );
+    if (!mounted) return;
+
+    // Refused rather than clamped when either side would be too short to play,
+    // so the message says what happened instead of a cut appearing to land
+    // somewhere the playhead was not.
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            newClipId == null ? l10n.splitTooClose : l10n.splitDone,
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final projectId = widget.project.id;
@@ -203,6 +236,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
           showCaptions: _showCaptions,
           onToggleCaptions: () =>
               setState(() => _showCaptions = !_showCaptions),
+          onSplit: selectedId == null ? null : () => _split(selectedId),
           onPlaceholder: _placeholder,
         ),
       ],
@@ -2415,11 +2449,17 @@ class _BottomToolbar extends StatelessWidget {
   const _BottomToolbar({
     required this.showCaptions,
     required this.onToggleCaptions,
+    required this.onSplit,
     required this.onPlaceholder,
   });
 
   final bool showCaptions;
   final VoidCallback onToggleCaptions;
+
+  /// Null with no clip selected, which disables the control rather than
+  /// hiding it: a toolbar that changes width as clips come and go is harder
+  /// to aim at than one with a dimmed entry.
+  final VoidCallback? onSplit;
   final void Function(String feature) onPlaceholder;
 
   @override
@@ -2448,8 +2488,8 @@ class _BottomToolbar extends StatelessWidget {
               Expanded(
                 child: _ToolbarButton(
                   icon: Icons.content_cut,
-                  label: l10n.timelineToolEdit,
-                  onTap: () => onPlaceholder(l10n.timelineToolEdit),
+                  label: l10n.timelineToolSplit,
+                  onTap: onSplit ?? () => onPlaceholder(l10n.timelineToolSplit),
                 ),
               ),
               Expanded(

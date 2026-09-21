@@ -95,7 +95,14 @@ void main() {
 
     final started = DateTime.now();
     final video = await const VideoExporter().export(
-      clips: [(path: clips.first.mediaPath, captions: const [])],
+      clips: [
+        (
+          path: clips.first.mediaPath,
+          startMs: 0,
+          endMs: clips.first.durationMs ?? 0,
+          captions: const <ExportCaption>[],
+        ),
+      ],
       fileName: exportFileName(projectTitle: 'single clip', at: DateTime.now()),
       onProgress: (percent) => log('progress $percent%'),
     );
@@ -136,7 +143,12 @@ void main() {
     final video = await const VideoExporter().export(
       clips: [
         for (final clip in clips)
-          (path: clip.mediaPath, captions: const <ExportCaption>[]),
+          (
+            path: clip.mediaPath,
+            startMs: 0,
+            endMs: clip.durationMs ?? 0,
+            captions: const <ExportCaption>[],
+          ),
       ],
       fileName: exportFileName(projectTitle: 'joined', at: DateTime.now()),
       onProgress: (percent) => log('progress $percent%'),

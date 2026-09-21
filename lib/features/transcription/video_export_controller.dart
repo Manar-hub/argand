@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/database/database.dart';
+import '../../core/timeline/clip_trim.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/video/video_export.dart';
 import 'transcript_repository.dart';
@@ -174,7 +175,9 @@ class VideoExportController extends _$VideoExportController {
         words.addAll(await repository.watchWords(transcript.id).first);
       }
 
-      final captions = exportCaptionsFor(words);
+      // Scoped to what the clip actually plays: a trimmed clip must not
+      // carry captions for audio the viewer never hears.
+      final captions = exportCaptionsFor(words, window: clipWindow(clip));
       if (captions.isNotEmpty) byClip[clip.id] = captions;
     }
 

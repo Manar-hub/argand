@@ -261,4 +261,61 @@ void main() {
       }
     });
   });
+
+  group('exportCaptionsFor with a trim window', () {
+    test('drops words the trim cut away', () {
+      final captions = exportCaptionsFor(
+        [
+          word('Before.', 0, 900, position: 0),
+          word('Inside.', 5000, 5900, position: 1),
+          word('After.', 20000, 20900, position: 2),
+        ],
+        window: (startMs: 4000, endMs: 10000),
+      );
+
+      expect(captions.map((c) => c.text), ['Inside.']);
+    });
+
+    test('rebases onto the in-point', () {
+      // A trimmed item's clock starts at its in-point, so a caption five
+      // seconds into the file but one second into the clip must be drawn at
+      // one second or it appears at the wrong moment entirely.
+      final captions = exportCaptionsFor(
+        [word('Inside.', 5000, 5900, position: 0)],
+        window: (startMs: 4000, endMs: 10000),
+      );
+
+      expect(captions.single.startMs, 1000);
+      expect(captions.single.endMs, 1900);
+    });
+
+    test('a word straddling the in-point is kept and clamped', () {
+      // Filtering happens before grouping, so a cue across the cut breaks at
+      // the cut rather than being discarded whole -- and never starts before
+      // zero, which would place it outside the item.
+      final captions = exportCaptionsFor(
+        [word('Straddling.', 3000, 5000, position: 0)],
+        window: (startMs: 4000, endMs: 10000),
+      );
+
+      expect(captions.single.startMs, 0);
+    });
+
+    test('a word starting exactly on the out-point belongs to the next clip', () {
+      final captions = exportCaptionsFor(
+        [word('Next.', 10000, 10900, position: 0)],
+        window: (startMs: 4000, endMs: 10000),
+      );
+
+      expect(captions, isEmpty);
+    });
+
+    test('without a window nothing is dropped or shifted', () {
+      final captions = exportCaptionsFor([
+        word('Whole.', 5000, 5900, position: 0),
+      ]);
+
+      expect(captions.single.startMs, 5000);
+    });
+  });
 }

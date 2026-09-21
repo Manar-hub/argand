@@ -10,11 +10,13 @@ part of 'video_export_controller.dart';
 // ignore_for_file: type=lint, type=warning
 /// Renders the project's clips into a single MP4 in the device's Downloads.
 ///
-/// **This is Phase 9's first slice and deliberately renders nothing but the
-/// clips.** Captions are not burned in, trims are not applied and no watermark
-/// is composited, because none of those exist yet. The point of the slice is to
-/// establish the export path itself — everything above depends on it, and the
-/// shape of the operations that follow depends on what this turns out to cost.
+/// **Captions are burned into the picture here and nowhere else.** They stay
+/// structured text and timing through every other part of the app, so they
+/// remain editable, re-groupable and exportable as SRT; rasterising them is the
+/// last thing that happens, to the copy that leaves the device.
+///
+/// Trims are not applied and no watermark is composited, because neither
+/// exists yet. That is the next slice, not an omission here.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -29,11 +31,13 @@ final videoExportControllerProvider = VideoExportControllerFamily._();
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
 ///
-/// **This is Phase 9's first slice and deliberately renders nothing but the
-/// clips.** Captions are not burned in, trims are not applied and no watermark
-/// is composited, because none of those exist yet. The point of the slice is to
-/// establish the export path itself — everything above depends on it, and the
-/// shape of the operations that follow depends on what this turns out to cost.
+/// **Captions are burned into the picture here and nowhere else.** They stay
+/// structured text and timing through every other part of the app, so they
+/// remain editable, re-groupable and exportable as SRT; rasterising them is the
+/// last thing that happens, to the copy that leaves the device.
+///
+/// Trims are not applied and no watermark is composited, because neither
+/// exists yet. That is the next slice, not an omission here.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -46,11 +50,13 @@ final class VideoExportControllerProvider
     extends $NotifierProvider<VideoExportController, VideoExportStatus> {
   /// Renders the project's clips into a single MP4 in the device's Downloads.
   ///
-  /// **This is Phase 9's first slice and deliberately renders nothing but the
-  /// clips.** Captions are not burned in, trims are not applied and no watermark
-  /// is composited, because none of those exist yet. The point of the slice is to
-  /// establish the export path itself — everything above depends on it, and the
-  /// shape of the operations that follow depends on what this turns out to cost.
+  /// **Captions are burned into the picture here and nowhere else.** They stay
+  /// structured text and timing through every other part of the app, so they
+  /// remain editable, re-groupable and exportable as SRT; rasterising them is the
+  /// last thing that happens, to the copy that leaves the device.
+  ///
+  /// Trims are not applied and no watermark is composited, because neither
+  /// exists yet. That is the next slice, not an omission here.
   ///
   /// **The file goes to the device's Downloads folder**, not app storage. An
   /// export the user cannot open, share or find in a file manager is not an
@@ -104,15 +110,17 @@ final class VideoExportControllerProvider
 }
 
 String _$videoExportControllerHash() =>
-    r'e63c4fe735df6e2570e99c3038a870c58d3a6ad6';
+    r'9adeb9382e84a59290be80d0404908d767443817';
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
 ///
-/// **This is Phase 9's first slice and deliberately renders nothing but the
-/// clips.** Captions are not burned in, trims are not applied and no watermark
-/// is composited, because none of those exist yet. The point of the slice is to
-/// establish the export path itself — everything above depends on it, and the
-/// shape of the operations that follow depends on what this turns out to cost.
+/// **Captions are burned into the picture here and nowhere else.** They stay
+/// structured text and timing through every other part of the app, so they
+/// remain editable, re-groupable and exportable as SRT; rasterising them is the
+/// last thing that happens, to the copy that leaves the device.
+///
+/// Trims are not applied and no watermark is composited, because neither
+/// exists yet. That is the next slice, not an omission here.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -142,11 +150,13 @@ final class VideoExportControllerFamily extends $Family
 
   /// Renders the project's clips into a single MP4 in the device's Downloads.
   ///
-  /// **This is Phase 9's first slice and deliberately renders nothing but the
-  /// clips.** Captions are not burned in, trims are not applied and no watermark
-  /// is composited, because none of those exist yet. The point of the slice is to
-  /// establish the export path itself — everything above depends on it, and the
-  /// shape of the operations that follow depends on what this turns out to cost.
+  /// **Captions are burned into the picture here and nowhere else.** They stay
+  /// structured text and timing through every other part of the app, so they
+  /// remain editable, re-groupable and exportable as SRT; rasterising them is the
+  /// last thing that happens, to the copy that leaves the device.
+  ///
+  /// Trims are not applied and no watermark is composited, because neither
+  /// exists yet. That is the next slice, not an omission here.
   ///
   /// **The file goes to the device's Downloads folder**, not app storage. An
   /// export the user cannot open, share or find in a file manager is not an
@@ -165,11 +175,13 @@ final class VideoExportControllerFamily extends $Family
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
 ///
-/// **This is Phase 9's first slice and deliberately renders nothing but the
-/// clips.** Captions are not burned in, trims are not applied and no watermark
-/// is composited, because none of those exist yet. The point of the slice is to
-/// establish the export path itself — everything above depends on it, and the
-/// shape of the operations that follow depends on what this turns out to cost.
+/// **Captions are burned into the picture here and nowhere else.** They stay
+/// structured text and timing through every other part of the app, so they
+/// remain editable, re-groupable and exportable as SRT; rasterising them is the
+/// last thing that happens, to the copy that leaves the device.
+///
+/// Trims are not applied and no watermark is composited, because neither
+/// exists yet. That is the next slice, not an omission here.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an

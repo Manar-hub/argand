@@ -275,7 +275,23 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 )
             }
 
-            EditedMediaItem.Builder(MediaItem.fromUri(File(path).toURI().toString()))
+            // **Trimming is a clipping configuration, not a cut file.** The
+            // media is shared between clips and between projects, so the
+            // render reads a window of it rather than anything on disk being
+            // altered. An absent or zero end means "to the end of the file".
+            val start = (clip["startMs"] as? Number)?.toLong() ?: 0L
+            val end = (clip["endMs"] as? Number)?.toLong() ?: 0L
+            val clipping = MediaItem.ClippingConfiguration.Builder()
+                .setStartPositionMs(start)
+                .apply { if (end > start) setEndPositionMs(end) }
+                .build()
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(File(path).toURI().toString())
+                .setClippingConfiguration(clipping)
+                .build()
+
+            EditedMediaItem.Builder(mediaItem)
                 .setEffects(Effects(emptyList(), videoEffects))
                 .build()
         }

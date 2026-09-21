@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../captions/caption_grouper.dart';
 import '../captions/speaker_palette.dart';
 import '../database/database.dart';
+import '../timeline/clip_trim.dart';
 import '../timeline/project_timeline.dart';
 
 /// One caption as the renderer needs it: when to show it, what it says, and
@@ -14,8 +15,17 @@ import '../timeline/project_timeline.dart';
 /// timebase, so the two agree without any conversion here.
 typedef ExportCaption = ({int startMs, int endMs, String text, int colorArgb});
 
-/// One clip to render, with whatever captions belong on top of it.
-typedef ExportClip = ({String path, List<ExportCaption> captions});
+/// One clip to render: which stretch of its media, and what goes on top.
+///
+/// [startMs]/[endMs] are the trim window in **media** time, which is what the
+/// player needs to be told. Caption times are relative to the window, because
+/// that is where the rendered item's own clock starts.
+typedef ExportClip = ({
+  String path,
+  int startMs,
+  int endMs,
+  List<ExportCaption> captions,
+});
 
 /// What to render, and how long the result should be.
 ///
@@ -34,19 +44,37 @@ typedef ExportRequest = ({List<ExportClip> clips, int totalMs});
 /// Words may arrive from several transcripts when more than one transcribe
 /// layer covers the clip, so they are sorted before grouping; `groupIntoCues`
 /// expects transcript order and would otherwise break cues at the seam.
+/// [window] is the clip's trim range in media time. Words outside it are
+/// dropped and the rest are rebased onto it, because a trimmed item's clock
+/// starts at its in-point rather than at the start of the file. Filtering
+/// **before** grouping rather than after is deliberate: a cue straddling the
+/// trim point then breaks at the cut instead of being discarded whole or
+/// hanging past the end.
 List<ExportCaption> exportCaptionsFor(
   List<Word> words, {
+  ClipWindow? window,
   Color fallback = const Color(0xFFFFFFFF),
 }) {
   if (words.isEmpty) return const [];
 
-  final ordered = [...words]..sort((a, b) => a.startMs.compareTo(b.startMs));
+  final from = window?.startMs ?? 0;
+  final to = window?.endMs;
+
+  final kept = [
+    for (final word in words)
+      // Half-open against the end, matching every other interval here: a word
+      // starting exactly on the out-point belongs to the next clip.
+      if (word.endMs > from && (to == null || word.startMs < to)) word,
+  ];
+  if (kept.isEmpty) return const [];
+
+  kept.sort((a, b) => a.startMs.compareTo(b.startMs));
 
   return [
-    for (final cue in groupIntoCues(ordered))
+    for (final cue in groupIntoCues(kept))
       (
-        startMs: cue.startMs,
-        endMs: cue.endMs,
+        startMs: cue.startMs - from < 0 ? 0 : cue.startMs - from,
+        endMs: cue.endMs - from,
         text: cue.text,
         colorArgb:
             SpeakerPalette.colorFor(cue.speaker, fallback: fallback).toARGB32(),
@@ -80,9 +108,7 @@ ExportRequest? exportRequestFor({
 }) {
   if (timeline.placements.isEmpty) return null;
 
-  final paths = <String, String>{
-    for (final clip in clips) clip.id: clip.mediaPath,
-  };
+  final byId = {for (final clip in clips) clip.id: clip};
 
   final ordered = <ExportClip>[];
   for (final placement in timeline.placements) {
@@ -91,10 +117,14 @@ ExportRequest? exportRequestFor({
     // on others, and neither is worth the inconsistency.
     if (placement.durationMs <= 0) continue;
 
-    final path = paths[placement.clipId];
-    if (path == null) return null;
+    final clip = byId[placement.clipId];
+    if (clip == null) return null;
+
+    final window = clipWindow(clip);
     ordered.add((
-      path: path,
+      path: clip.mediaPath,
+      startMs: window.startMs,
+      endMs: window.endMs,
       captions: captionsByClip[placement.clipId] ?? const [],
     ));
   }
@@ -205,6 +235,8 @@ class VideoExporter {
           for (final clip in clips)
             {
               'path': clip.path,
+              'startMs': clip.startMs,
+              'endMs': clip.endMs,
               'captions': [
                 for (final caption in clip.captions)
                   {

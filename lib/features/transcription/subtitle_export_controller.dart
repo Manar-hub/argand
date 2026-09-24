@@ -5,8 +5,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../core/captions/caption_grouper.dart';
+import '../../core/captions/caption_cue.dart';
+import '../../core/captions/project_cues.dart';
 import '../../core/captions/subtitle_export.dart';
+import '../../core/database/database.dart';
+import '../../core/timeline/project_timeline.dart';
+import '../../core/transcript/speaker_names.dart';
 import 'transcript_repository.dart';
 
 part 'subtitle_export_controller.g.dart';
@@ -44,12 +48,13 @@ class SubtitleExportFailed extends SubtitleExportStatus {
   final Object error;
 }
 
-/// The transcript has no words, so there is nothing to write.
+/// Nothing on the timeline has been transcribed, so there is nothing to write.
 ///
-/// Reachable: an import whose engine run returned nothing still creates a
-/// transcript row. Caught before the save dialog opens, because asking someone
-/// to choose a destination for an empty file wastes two taps and then puts a
-/// header-only `.vtt` on their device.
+/// Reachable: an engine run that returned nothing still creates a transcript
+/// row, and a project can have clips with no transcript at all. Caught before
+/// the save dialog opens, because asking someone to choose a destination for an
+/// empty file wastes two taps and then puts a header-only `.vtt` on their
+/// device.
 class SubtitleExportEmpty extends SubtitleExportStatus {
   const SubtitleExportEmpty();
 }
@@ -72,40 +77,90 @@ class SubtitleExporter extends _$SubtitleExporter {
 
   void reset() => state = const SubtitleExportIdle();
 
-  /// Groups [transcriptId] into cues, serialises them, and hands the bytes to
-  /// the system save dialog.
+  /// Writes the project's captions out as [format], through the system save
+  /// dialog.
   ///
-  /// [speakerLabel] comes from the widget layer because "Speaker 1" is
-  /// interface text (CLAUDE.md §4). Pass null to write a file with no
-  /// attribution.
+  /// **The whole project, on the project's clock.** The first version wrote the
+  /// selected clip's transcript in that clip's own time, which lined up with
+  /// the exported video only until something was split, trimmed or added. The
+  /// cues now come from `projectSubtitleCues`, the same cues the video burns in,
+  /// placed where the video places them.
+  ///
+  /// [defaultSpeakerLabel] is the fallback name for a speaker nobody renamed --
+  /// "Speaker 1" -- and comes from the widget layer because it is interface
+  /// text (CLAUDE.md §4). Pass null to write a file with no attribution.
   Future<void> export({
-    required String transcriptId,
-    required String title,
-    required String language,
+    required String projectId,
     required SubtitleFormat format,
-    String Function(int speaker)? speakerLabel,
+    SubtitleLineLength lineLength = SubtitleLineLength.standard,
+    String Function(int speaker)? defaultSpeakerLabel,
   }) async {
     state = const SubtitleExportRunning();
 
     try {
-      final words = await ref.read(transcriptRepositoryProvider)
-          .watchWords(transcriptId)
-          .first;
+      final repository = ref.read(transcriptRepositoryProvider);
 
-      if (words.isEmpty) {
+      // Straight from the repository, for the reason the video export gives:
+      // the clip providers may not have emitted yet, and an empty timeline
+      // beside a full clip list would write an empty file.
+      final clips = await repository.clipsForProject(projectId);
+      final timeline = ProjectTimeline.fromClips(clips);
+
+      final wordsByClip = <String, List<Word>>{};
+      final namesByTranscript = <String, SpeakerNames>{};
+      String? language;
+
+      for (final placement in timeline.placements) {
+        final transcripts =
+            await repository.transcriptsForClip(placement.clipId);
+        final words = <Word>[];
+
+        for (final transcript in transcripts) {
+          words.addAll(await repository.watchWords(transcript.id).first);
+          namesByTranscript[transcript.id] =
+              SpeakerNames.decode(transcript.speakerNames);
+          // The first language the timeline reaches, which is what the file
+          // name should claim: players label the track from it.
+          language ??= transcript.language;
+        }
+
+        if (words.isNotEmpty) wordsByClip[placement.clipId] = words;
+      }
+
+      final cues = projectSubtitleCues(
+        timeline: timeline,
+        clips: clips,
+        wordsByClip: wordsByClip,
+      );
+
+      if (cues.isEmpty) {
         state = const SubtitleExportEmpty();
         return;
       }
 
+      final fallback = defaultSpeakerLabel;
       final content = formatSubtitles(
-        groupIntoCues(words),
+        cues,
         format: format,
-        speakerLabel: speakerLabel,
+        options: SubtitleOptions(maxLineCharacters: lineLength.maxCharacters),
+        // Named from the transcript the cue's own words belong to. The same
+        // speaker number is a different person in a different run, so a
+        // project-wide name map would put one person's name on another.
+        speakerLabel: fallback == null
+            ? null
+            : (CaptionCue cue) {
+                final speaker = cue.speaker!;
+                final names = namesByTranscript[cue.words.first.transcriptId];
+                final byDefault = fallback(speaker);
+                return names?.labelFor(speaker, defaultLabel: byDefault) ??
+                    byDefault;
+              },
       );
 
+      final project = await repository.findProject(projectId);
       final fileName = subtitleFileName(
-        title: title,
-        language: language,
+        title: project?.title ?? '',
+        language: language ?? '',
         format: format,
       );
 

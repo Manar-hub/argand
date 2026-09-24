@@ -1,5 +1,6 @@
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/media/media_converter.dart';
+import 'package:argand/core/theme/app_dialog.dart';
 import 'package:argand/core/theme/app_theme.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/features/library/library_screen.dart';
@@ -164,12 +165,12 @@ void main() {
       await tester.tap(find.text('Delete'));
       await settle(tester);
 
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(AppDialog), findsOneWidget);
       // The promise the whole design rests on: the user is told before the
       // video is destroyed, rather than given seconds to catch it afterwards.
       expect(find.textContaining('cannot be undone'), findsOneWidget);
-      expect(find.widgetWithText(TextButton, 'Cancel'), findsOneWidget);
-      expect(find.widgetWithText(TextButton, 'Delete'), findsOneWidget);
+      expect(find.widgetWithText(AppDialogButton, 'Cancel'), findsOneWidget);
+      expect(find.widgetWithText(AppDialogButton, 'Delete'), findsOneWidget);
     });
 
     uiTest('cancelling keeps the project', (tester) async {
@@ -181,10 +182,10 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Delete'));
       await settle(tester);
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.tap(find.widgetWithText(AppDialogButton, 'Cancel'));
       await settle(tester);
 
-      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(AppDialog), findsNothing);
       expect(find.text('spared'), findsOneWidget);
       // A one-shot query, not `watchProjects().first`: a drift query stream
       // only emits after a table-update notification, which the fake clock in
@@ -201,7 +202,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Delete'));
       await settle(tester);
-      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.tap(find.widgetWithText(AppDialogButton, 'Delete'));
       await settle(tester);
 
       expect(find.text('doomed'), findsNothing);
@@ -221,7 +222,7 @@ void main() {
       await settle(tester);
       await tester.tap(find.text('Delete'));
       await settle(tester);
-      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.tap(find.widgetWithText(AppDialogButton, 'Delete'));
       await settle(tester);
 
       expect(find.text('doomed'), findsNothing);

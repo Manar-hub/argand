@@ -1,7 +1,12 @@
 import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
+
+import '../../core/database/database.dart';
 import '../../core/timeline/project_timeline.dart';
+import '../../core/timeline/timeline_event.dart';
+import 'timeline_history.dart';
 import 'import_controller.dart' show ImportStage;
 import 'transcript_repository.dart';
 import 'transcription_run.dart';
@@ -130,6 +135,10 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
       return;
     }
 
+    // Collected across the whole run rather than per clip: a layer covering
+    // several clips is still one action, and undo should take all of it back.
+    final written = <String>[];
+
     try {
       // A process killed mid-run never reaches its own cleanup, so the
       // leftovers are swept here rather than accumulating one per crash.
@@ -139,19 +148,34 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
         await repository.discardLayerTranscripts(layerId);
       }
 
-      for (final (index, range) in ranges.indexed) {
+      final clips = <String, MediaClip>{};
+      for (final range in ranges) {
         final clip = await repository.findClip(range.clipId);
-        if (clip == null) continue;
+        if (clip != null) clips[range.clipId] = clip;
+      }
 
+      final groups = groupContiguousRanges(ranges, clips);
+
+      for (final (index, group) in groups.indexed) {
+        final mediaPath = clips[group.first.clipId]!.mediaPath;
+        final from = group.first.clipStartMs;
+        final to = group.last.clipEndMs;
+
+        // **One run for the whole recording, not one per clip.** Splitting a
+        // clip does not make it two recordings, but a run per clip meant a
+        // diarization run per clip -- and speaker numbers are cluster indices
+        // with meaning only inside the run that produced them. The same person
+        // either side of a cut came back as two speakers, in two colours,
+        // because nothing had ever compared them.
         final outcome = await TranscriptionRunner(ref).run(
-          mediaPath: clip.mediaPath,
-          range: (startMs: range.clipStartMs, endMs: range.clipEndMs),
+          mediaPath: mediaPath,
+          range: (startMs: from, endMs: to),
           onStage: (stage, {int? percent}) {
             state = LayerTranscriptionRunning(
               stage,
               percent: percent,
               clipIndex: index,
-              clipCount: ranges.length,
+              clipCount: groups.length,
             );
           },
         );
@@ -159,32 +183,70 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
         state = LayerTranscriptionRunning(
           ImportStage.saving,
           clipIndex: index,
-          clipCount: ranges.length,
+          clipCount: groups.length,
         );
 
-        // Committed per clip rather than all at the end. The engine has
-        // already been paid for at this point, and holding the result back
-        // only creates a window in which a later failure throws it away.
-        await repository.saveClipTranscript(
-          projectId: layer.projectId,
-          clipId: range.clipId,
-          language: outcome.language,
-          speakerSpans: outcome.speakerSpans,
-          result: outcome.result,
-          layerId: layerId,
-          // The engine saw the range starting at zero; this is what puts its
-          // words back where they were spoken in the clip.
-          offsetMs: range.clipStartMs,
-          rangeEndMs: range.clipEndMs,
-        );
+        // The words are shared out by time, but the speaker spans are not:
+        // every clip in the group is handed the same ones, so assignment
+        // happens in the single space the one run established.
+        for (final range in group) {
+          written.add(await repository.saveClipTranscript(
+            projectId: layer.projectId,
+            clipId: range.clipId,
+            language: outcome.language,
+            speakerSpans: outcome.speakerSpans,
+            result: segmentsWithin(
+              outcome.result,
+              fromMs: range.clipStartMs - from,
+              toMs: range.clipEndMs - from,
+            ),
+            layerId: layerId,
+            // The engine saw the *group* starting at zero, so this is what
+            // puts its words back where they were spoken in the file.
+            offsetMs: from,
+            // What this clip covers, which is its own share of the run.
+            rangeStartMs: range.clipStartMs,
+            rangeEndMs: range.clipEndMs,
+          ));
+        }
       }
 
+      await _record(repository, layer.projectId, written);
       state = const LayerTranscriptionIdle();
     } catch (error, stackTrace) {
+      // Recorded even when the run died part-way. Whatever committed is on
+      // screen, and undo has to be able to reach what is on screen.
+      await _record(repository, layer.projectId, written);
       debugPrint('Could not transcribe layer $layerId: $error');
       debugPrintStack(stackTrace: stackTrace);
       state = LayerTranscriptionFailed(error);
     }
+  }
+
+  /// Records the run, so undo takes back the transcription itself.
+  ///
+  /// **A separate event from the layer that asked for it.** Drawing a layer
+  /// and running the engine over it are two actions at two moments; with only
+  /// the first recorded, undo after transcribing reached past the words to the
+  /// track underneath them -- which is how the track disappeared while its
+  /// captions stayed on the video.
+  ///
+  /// A rerun's *discarded* words are not part of this. Undoing a rerun retires
+  /// what the rerun wrote without restoring what it replaced, because the
+  /// discard is not in the history either; the layer is left ready to be run
+  /// again, which is the state the rerun started from.
+  Future<void> _record(
+    TranscriptRepository repository,
+    String projectId,
+    List<String> transcriptIds,
+  ) async {
+    if (transcriptIds.isEmpty) return;
+
+    await repository.recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.transcribeRun,
+      payload: transcribeRunPayload(transcriptIds: transcriptIds),
+    );
   }
 
   /// Logs a range too short to transcribe and contributes nothing.
@@ -195,4 +257,63 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
       'can say anything about. Skipping that clip.',
     );
   }
+}
+
+/// Groups ranges that are really one recording.
+///
+/// Two ranges belong together when they play the **same file** and meet
+/// exactly -- which is what splitting a clip produces. Anything else starts a
+/// new group: a different file is a different recording, and a gap means the
+/// audio between was deliberately cut out and must not be transcribed.
+List<List<ClipRange>> groupContiguousRanges(
+  List<ClipRange> ranges,
+  Map<String, MediaClip> clips,
+) {
+  final groups = <List<ClipRange>>[];
+
+  for (final range in ranges) {
+    final clip = clips[range.clipId];
+    if (clip == null) continue;
+
+    final current = groups.isEmpty ? null : groups.last;
+    final previous = current?.last;
+    final previousClip = previous == null ? null : clips[previous.clipId];
+
+    final joins = previousClip != null &&
+        previousClip.mediaPath == clip.mediaPath &&
+        previous!.clipEndMs == range.clipStartMs;
+
+    if (joins) {
+      current!.add(range);
+    } else {
+      groups.add([range]);
+    }
+  }
+
+  return groups;
+}
+
+/// The part of [whole] that falls in `[fromMs, toMs)`, in the run's own time.
+///
+/// Used to share one run's words out among the clips it covered. Half-open, so
+/// a segment starting exactly on a cut belongs to the clip after it and no word
+/// is stored twice.
+WhisperTranscribeResponse segmentsWithin(
+  WhisperTranscribeResponse whole, {
+  required int fromMs,
+  required int toMs,
+}) {
+  final kept = [
+    for (final segment in whole.segments ?? const <WhisperTranscribeSegment>[])
+      if (segment.fromTs.inMilliseconds >= fromMs &&
+          segment.fromTs.inMilliseconds < toMs)
+        segment,
+  ];
+
+  return WhisperTranscribeResponse(
+    type: whole.type,
+    text: kept.map((segment) => segment.text.trim()).join(' ').trim(),
+    detectedLanguage: whole.detectedLanguage,
+    segments: kept,
+  );
 }

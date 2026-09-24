@@ -309,9 +309,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'For the web, and keeps speaker names as voice tags';
 
   @override
-  String get exportVideo => 'Video (.mp4)';
-
-  @override
   String get exportVideoDetail =>
       'Renders the timeline and saves it to Downloads';
 
@@ -334,9 +331,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get exportVideoEmpty =>
       'There is nothing on the timeline to render yet.';
-
-  @override
-  String get exportNeedsTranscript => 'Transcribe this clip first';
 
   @override
   String get transcribeOptionsTitle => 'Transcribe';
@@ -372,9 +366,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get timelineFullscreen => 'Fullscreen';
-
-  @override
-  String get timelineAspectToggle => 'Toggle fit';
 
   @override
   String get timelineMuteClip => 'Mute clip';
@@ -419,6 +410,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get splitTooClose => 'Too close to the edge of the clip to split.';
+
+  @override
+  String get splitNothingSelected =>
+      'Select something on the timeline to split.';
+
+  @override
+  String get splitNotUnderPlayhead =>
+      'The playhead is not over anything selected.';
 
   @override
   String get splitDone => 'Clip split.';
@@ -535,4 +534,203 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trackReorder => 'Reorder tracks';
+
+  @override
+  String get exportOptionsQuality => 'Resolution';
+
+  @override
+  String get exportOptionsAspect => 'Aspect ratio';
+
+  @override
+  String get exportQuality720 => '720p';
+
+  @override
+  String get exportQuality1080 => '1080p';
+
+  @override
+  String get exportQuality1440 => '2K';
+
+  @override
+  String get exportQuality2160 => '4K';
+
+  @override
+  String get exportQualitySource => 'Source';
+
+  @override
+  String get exportAspectSource => 'Source';
+
+  @override
+  String get exportAspectPortrait => '9:16';
+
+  @override
+  String get exportAspectSquare => '1:1';
+
+  @override
+  String get exportAspectFeed => '4:5';
+
+  @override
+  String get exportAspectWide => '16:9';
+
+  @override
+  String exportFrameSize(int width, int height) {
+    return '$width x $height';
+  }
+
+  @override
+  String get exportRemoveWatermark => 'Remove watermark';
+
+  @override
+  String get exportRemoveWatermarkDetail => 'Watch a short ad first';
+
+  @override
+  String get exportStart => 'Export';
+
+  @override
+  String get exportProgressTitle => 'Rendering video';
+
+  @override
+  String get exportProgressPreparing => 'Preparing...';
+
+  @override
+  String exportProgressPercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String get exportProgressNote => 'Keep the app open while this finishes.';
+
+  @override
+  String get exportCancel => 'Cancel export';
+
+  @override
+  String get exportTabVideo => 'Video';
+
+  @override
+  String get exportTabSrt => 'SRT';
+
+  @override
+  String get exportTabVtt => 'VTT';
+
+  @override
+  String get exportTabPro => 'Pro formats';
+
+  @override
+  String get exportWatchAdThenExport => 'Watch ad, then export';
+
+  @override
+  String get exportAdOffline =>
+      'Couldn\'t load the ad — the watermark stays on.';
+
+  @override
+  String get exportAdIncomplete =>
+      'Watch the ad to the end to remove the watermark.';
+
+  @override
+  String get exportProIncluded => 'No watermark — included with Pro';
+
+  @override
+  String get exportLineLength => 'Line length';
+
+  @override
+  String get exportLineStandard => 'Standard';
+
+  @override
+  String get exportLineShort => 'Short';
+
+  @override
+  String get exportLineHint => 'Short lines suit vertical video.';
+
+  @override
+  String get exportSubtitlesTimed =>
+      'Timed to the whole timeline, so it lines up with the exported video.';
+
+  @override
+  String get exportSubtitlesNeedTranscript =>
+      'Transcribe something first — there are no captions to export yet.';
+
+  @override
+  String get exportProFormatsIntro => 'Formats for professional editing tools.';
+
+  @override
+  String get exportProFormatAss => 'ASS / SSA';
+
+  @override
+  String get exportProFormatAssDetail =>
+      'Styled subtitles with speaker colours';
+
+  @override
+  String get exportProFormatFcpxml => 'Final Cut Pro (FCPXML)';
+
+  @override
+  String get exportProFormatFcpxmlDetail =>
+      'Captions as titles on your timeline';
+
+  @override
+  String get exportProFormatPremiere => 'Premiere Pro (XML)';
+
+  @override
+  String get exportProFormatPremiereDetail => 'Captions as a caption track';
+
+  @override
+  String get exportProComing => 'Coming with Pro';
+
+  @override
+  String get exportProName => 'Argand Pro';
+
+  @override
+  String get exportProPitch => 'One payment. No watermark, no ads.';
+
+  @override
+  String get exportGetPro => 'Get Pro';
+
+  @override
+  String get exportProSoon => 'Purchases aren\'t connected yet.';
+
+  @override
+  String get adPlaceholderLabel => 'Ad placeholder';
+
+  @override
+  String get adPlaceholderBody =>
+      'A rewarded ad plays here once ads are connected.';
+
+  @override
+  String get adPlaceholderContinue => 'Continue to export';
+
+  @override
+  String get adPlaceholderClose => 'Close ad';
+
+  @override
+  String adPlaceholderSeconds(int seconds) {
+    return '$seconds';
+  }
+
+  @override
+  String get videoSettingsOpen => 'Video settings';
+
+  @override
+  String get videoSettingsVisible => 'Visible';
+
+  @override
+  String get videoSettingsHidden => 'Hidden';
+
+  @override
+  String get videoSettingsWatermarkPreview => 'Preview';
+
+  @override
+  String get watermarkTopLeft => 'Upper left';
+
+  @override
+  String get watermarkTopRight => 'Upper right';
+
+  @override
+  String get watermarkBottomLeft => 'Lower left';
+
+  @override
+  String get watermarkBottomRight => 'Lower right';
+
+  @override
+  String get videoSettingsClose => 'Close video settings';
+
+  @override
+  String get videoSettingsWatermarkItem => 'Watermark';
 }

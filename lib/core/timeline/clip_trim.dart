@@ -98,3 +98,49 @@ int? splitPointFor(MediaClip clip, int atClipMs) {
 
   return at;
 }
+
+/// Two clips over one file, meeting at a cut.
+typedef RolledCut = ({ClipWindow left, ClipWindow right});
+
+/// Whether [left] and [right] are the two sides of one cut.
+///
+/// True when they play the same file and the first ends exactly where the
+/// second begins — which is what a split produces and nothing else does.
+bool sharesACut(MediaClip left, MediaClip right) =>
+    left.mediaPath == right.mediaPath &&
+    clipWindow(left).endMs == clipWindow(right).startMs;
+
+/// Moves the cut between two clips, instead of resizing one of them.
+///
+/// **This is what stops the project growing longer than its source.** Trimming
+/// a clip on its own is clamped by the media, so dragging the end of a split
+/// half outward re-covers footage the other half already plays: the two
+/// together then run longer than the file they came from, and the overlap
+/// plays twice. Splitting a 14s clip and extending one side turned a 14s
+/// project into a 22s one exactly that way.
+///
+/// Rolling keeps `left.endMs == right.startMs`, so the pair always covers the
+/// same span of media and the project's length does not change. One side gains
+/// what the other gives up, which is what "move the cut" means and what a
+/// person expects after splitting something.
+///
+/// Both sides are held to [minimumClipMs], so the cut cannot be pushed off
+/// either end.
+RolledCut rollCut({
+  required MediaClip left,
+  required MediaClip right,
+  required int deltaMs,
+}) {
+  final leftWindow = clipWindow(left);
+  final rightWindow = clipWindow(right);
+
+  final at = (leftWindow.endMs + deltaMs).clamp(
+    leftWindow.startMs + minimumClipMs,
+    rightWindow.endMs - minimumClipMs,
+  );
+
+  return (
+    left: (startMs: leftWindow.startMs, endMs: at),
+    right: (startMs: at, endMs: rightWindow.endMs),
+  );
+}

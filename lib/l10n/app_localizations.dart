@@ -598,12 +598,6 @@ abstract class AppLocalizations {
   /// **'For the web, and keeps speaker names as voice tags'**
   String get exportVttDetail;
 
-  /// Menu entry rendering the project's clips into a single video file
-  ///
-  /// In en, this message translates to:
-  /// **'Video (.mp4)'**
-  String get exportVideo;
-
   /// Explains what the video export produces
   ///
   /// In en, this message translates to:
@@ -639,12 +633,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'There is nothing on the timeline to render yet.'**
   String get exportVideoEmpty;
-
-  /// Reason shown on the disabled subtitle export entries when the clip has no transcript yet
-  ///
-  /// In en, this message translates to:
-  /// **'Transcribe this clip first'**
-  String get exportNeedsTranscript;
 
   /// Title of the dialog that collects transcription choices before a run starts
   ///
@@ -711,12 +699,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fullscreen'**
   String get timelineFullscreen;
-
-  /// Tooltip on the button that switches the preview between fitted and filled framing
-  ///
-  /// In en, this message translates to:
-  /// **'Toggle fit'**
-  String get timelineAspectToggle;
 
   /// Label under the track icon that mutes the video's own audio
   ///
@@ -801,6 +783,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Too close to the edge of the clip to split.'**
   String get splitTooClose;
+
+  /// Shown when Split is used with an empty selection
+  ///
+  /// In en, this message translates to:
+  /// **'Select something on the timeline to split.'**
+  String get splitNothingSelected;
+
+  /// Shown when Split runs but the playhead falls outside every selected item
+  ///
+  /// In en, this message translates to:
+  /// **'The playhead is not over anything selected.'**
+  String get splitNotUnderPlayhead;
 
   /// Confirmation that the clip was cut in two
   ///
@@ -1023,6 +1017,378 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reorder tracks'**
   String get trackReorder;
+
+  /// Label above the output size choices
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution'**
+  String get exportOptionsQuality;
+
+  /// Label above the output shape choices
+  ///
+  /// In en, this message translates to:
+  /// **'Aspect ratio'**
+  String get exportOptionsAspect;
+
+  /// Output size preset, 720 pixels on the short edge
+  ///
+  /// In en, this message translates to:
+  /// **'720p'**
+  String get exportQuality720;
+
+  /// Output size preset, 1080 pixels on the short edge
+  ///
+  /// In en, this message translates to:
+  /// **'1080p'**
+  String get exportQuality1080;
+
+  /// Output size preset, 1440 pixels on the short edge
+  ///
+  /// In en, this message translates to:
+  /// **'2K'**
+  String get exportQuality1440;
+
+  /// Output size preset, 2160 pixels on the short edge
+  ///
+  /// In en, this message translates to:
+  /// **'4K'**
+  String get exportQuality2160;
+
+  /// Output size preset meaning keep the clip's own size
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get exportQualitySource;
+
+  /// Output shape preset meaning keep the clip's own shape
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get exportAspectSource;
+
+  /// Tall output shape, for stories and reels
+  ///
+  /// In en, this message translates to:
+  /// **'9:16'**
+  String get exportAspectPortrait;
+
+  /// Square output shape
+  ///
+  /// In en, this message translates to:
+  /// **'1:1'**
+  String get exportAspectSquare;
+
+  /// Slightly tall output shape, for feed posts
+  ///
+  /// In en, this message translates to:
+  /// **'4:5'**
+  String get exportAspectFeed;
+
+  /// Wide output shape
+  ///
+  /// In en, this message translates to:
+  /// **'16:9'**
+  String get exportAspectWide;
+
+  /// The pixel size the render will produce, shown under the framing preview
+  ///
+  /// In en, this message translates to:
+  /// **'{width} x {height}'**
+  String exportFrameSize(int width, int height);
+
+  /// Toggle that leaves the app's mark off the exported video
+  ///
+  /// In en, this message translates to:
+  /// **'Remove watermark'**
+  String get exportRemoveWatermark;
+
+  /// What removing the watermark costs
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a short ad first'**
+  String get exportRemoveWatermarkDetail;
+
+  /// Button that begins the render with the chosen options
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get exportStart;
+
+  /// Header of the window shown while the video is being rendered
+  ///
+  /// In en, this message translates to:
+  /// **'Rendering video'**
+  String get exportProgressTitle;
+
+  /// Shown before the renderer reports a percentage
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing...'**
+  String get exportProgressPreparing;
+
+  /// How far through the render is
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String exportProgressPercent(int percent);
+
+  /// Advice shown under the render progress bar
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the app open while this finishes.'**
+  String get exportProgressNote;
+
+  /// Button that stops a render already under way
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel export'**
+  String get exportCancel;
+
+  /// Export sheet tab for rendering the timeline to a video file
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get exportTabVideo;
+
+  /// Export sheet tab for a SubRip subtitle file
+  ///
+  /// In en, this message translates to:
+  /// **'SRT'**
+  String get exportTabSrt;
+
+  /// Export sheet tab for a WebVTT subtitle file
+  ///
+  /// In en, this message translates to:
+  /// **'VTT'**
+  String get exportTabVtt;
+
+  /// Export sheet tab listing professional formats that come with Pro
+  ///
+  /// In en, this message translates to:
+  /// **'Pro formats'**
+  String get exportTabPro;
+
+  /// Export button when the user has chosen to remove the watermark by watching an ad
+  ///
+  /// In en, this message translates to:
+  /// **'Watch ad, then export'**
+  String get exportWatchAdThenExport;
+
+  /// Shown when no ad could be loaded, usually because the device is offline
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the ad — the watermark stays on.'**
+  String get exportAdOffline;
+
+  /// Shown when the ad was closed before it finished
+  ///
+  /// In en, this message translates to:
+  /// **'Watch the ad to the end to remove the watermark.'**
+  String get exportAdIncomplete;
+
+  /// Shown in place of the watermark toggle when Pro is owned
+  ///
+  /// In en, this message translates to:
+  /// **'No watermark — included with Pro'**
+  String get exportProIncluded;
+
+  /// Label above the subtitle line-length choices
+  ///
+  /// In en, this message translates to:
+  /// **'Line length'**
+  String get exportLineLength;
+
+  /// Subtitle line length suited to landscape video
+  ///
+  /// In en, this message translates to:
+  /// **'Standard'**
+  String get exportLineStandard;
+
+  /// Subtitle line length suited to vertical video
+  ///
+  /// In en, this message translates to:
+  /// **'Short'**
+  String get exportLineShort;
+
+  /// Explains when to choose short subtitle lines
+  ///
+  /// In en, this message translates to:
+  /// **'Short lines suit vertical video.'**
+  String get exportLineHint;
+
+  /// Explains that subtitle files follow the edited project
+  ///
+  /// In en, this message translates to:
+  /// **'Timed to the whole timeline, so it lines up with the exported video.'**
+  String get exportSubtitlesTimed;
+
+  /// Shown on the subtitle tabs when nothing in the project has been transcribed
+  ///
+  /// In en, this message translates to:
+  /// **'Transcribe something first — there are no captions to export yet.'**
+  String get exportSubtitlesNeedTranscript;
+
+  /// Introduces the Pro formats tab
+  ///
+  /// In en, this message translates to:
+  /// **'Formats for professional editing tools.'**
+  String get exportProFormatsIntro;
+
+  /// Advanced SubStation Alpha subtitle format
+  ///
+  /// In en, this message translates to:
+  /// **'ASS / SSA'**
+  String get exportProFormatAss;
+
+  /// What the ASS format adds
+  ///
+  /// In en, this message translates to:
+  /// **'Styled subtitles with speaker colours'**
+  String get exportProFormatAssDetail;
+
+  /// Final Cut Pro interchange format
+  ///
+  /// In en, this message translates to:
+  /// **'Final Cut Pro (FCPXML)'**
+  String get exportProFormatFcpxml;
+
+  /// What the FCPXML format adds
+  ///
+  /// In en, this message translates to:
+  /// **'Captions as titles on your timeline'**
+  String get exportProFormatFcpxmlDetail;
+
+  /// Adobe Premiere interchange format
+  ///
+  /// In en, this message translates to:
+  /// **'Premiere Pro (XML)'**
+  String get exportProFormatPremiere;
+
+  /// What the Premiere format adds
+  ///
+  /// In en, this message translates to:
+  /// **'Captions as a caption track'**
+  String get exportProFormatPremiereDetail;
+
+  /// Marks a format that is not built yet and will be part of Pro
+  ///
+  /// In en, this message translates to:
+  /// **'Coming with Pro'**
+  String get exportProComing;
+
+  /// Name of the one-time purchase
+  ///
+  /// In en, this message translates to:
+  /// **'Argand Pro'**
+  String get exportProName;
+
+  /// What the one-time Pro purchase gives, shown before every export
+  ///
+  /// In en, this message translates to:
+  /// **'One payment. No watermark, no ads.'**
+  String get exportProPitch;
+
+  /// Button that will open the one-time Pro purchase
+  ///
+  /// In en, this message translates to:
+  /// **'Get Pro'**
+  String get exportGetPro;
+
+  /// Shown when Get Pro is tapped before purchases exist
+  ///
+  /// In en, this message translates to:
+  /// **'Purchases aren\'t connected yet.'**
+  String get exportProSoon;
+
+  /// Header of the stand-in shown where a rewarded ad will play
+  ///
+  /// In en, this message translates to:
+  /// **'Ad placeholder'**
+  String get adPlaceholderLabel;
+
+  /// Explains that this is not a real advert
+  ///
+  /// In en, this message translates to:
+  /// **'A rewarded ad plays here once ads are connected.'**
+  String get adPlaceholderBody;
+
+  /// Button shown once the placeholder ad has finished
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to export'**
+  String get adPlaceholderContinue;
+
+  /// Tooltip on the control that closes the ad early
+  ///
+  /// In en, this message translates to:
+  /// **'Close ad'**
+  String get adPlaceholderClose;
+
+  /// Seconds left before the placeholder ad can be claimed
+  ///
+  /// In en, this message translates to:
+  /// **'{seconds}'**
+  String adPlaceholderSeconds(int seconds);
+
+  /// Tooltip on the gear that opens the video settings panel
+  ///
+  /// In en, this message translates to:
+  /// **'Video settings'**
+  String get videoSettingsOpen;
+
+  /// Shows the watermark in the preview
+  ///
+  /// In en, this message translates to:
+  /// **'Visible'**
+  String get videoSettingsVisible;
+
+  /// Hides the watermark in the preview
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden'**
+  String get videoSettingsHidden;
+
+  /// Label beside the Visible/Hidden choice for showing the watermark in the editor's preview
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get videoSettingsWatermarkPreview;
+
+  /// Watermark corner
+  ///
+  /// In en, this message translates to:
+  /// **'Upper left'**
+  String get watermarkTopLeft;
+
+  /// Watermark corner
+  ///
+  /// In en, this message translates to:
+  /// **'Upper right'**
+  String get watermarkTopRight;
+
+  /// Watermark corner
+  ///
+  /// In en, this message translates to:
+  /// **'Lower left'**
+  String get watermarkBottomLeft;
+
+  /// Watermark corner
+  ///
+  /// In en, this message translates to:
+  /// **'Lower right'**
+  String get watermarkBottomRight;
+
+  /// Tooltip on the gear while the settings panel is open
+  ///
+  /// In en, this message translates to:
+  /// **'Close video settings'**
+  String get videoSettingsClose;
+
+  /// Settings panel item for the watermark's visibility and position
+  ///
+  /// In en, this message translates to:
+  /// **'Watermark'**
+  String get videoSettingsWatermarkItem;
 }
 
 class _AppLocalizationsDelegate

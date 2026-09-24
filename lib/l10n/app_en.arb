@@ -295,9 +295,6 @@
   "exportVttDetail": "For the web, and keeps speaker names as voice tags",
   "@exportVttDetail": { "description": "Explains where a WebVTT file can be used and what it preserves" },
 
-  "exportVideo": "Video (.mp4)",
-  "@exportVideo": { "description": "Menu entry rendering the project's clips into a single video file" },
-
   "exportVideoDetail": "Renders the timeline and saves it to Downloads",
   "@exportVideoDetail": { "description": "Explains what the video export produces" },
 
@@ -321,9 +318,6 @@
 
   "exportVideoEmpty": "There is nothing on the timeline to render yet.",
   "@exportVideoEmpty": { "description": "Shown when a video export is asked for but the project has no usable clips" },
-
-  "exportNeedsTranscript": "Transcribe this clip first",
-  "@exportNeedsTranscript": { "description": "Reason shown on the disabled subtitle export entries when the clip has no transcript yet" },
 
   "transcribeOptionsTitle": "Transcribe",
   "@transcribeOptionsTitle": { "description": "Title of the dialog that collects transcription choices before a run starts" },
@@ -360,9 +354,6 @@
 
   "timelineFullscreen": "Fullscreen",
   "@timelineFullscreen": { "description": "Tooltip on the button that opens the video preview full screen" },
-
-  "timelineAspectToggle": "Toggle fit",
-  "@timelineAspectToggle": { "description": "Tooltip on the button that switches the preview between fitted and filled framing" },
 
   "timelineMuteClip": "Mute clip",
   "@timelineMuteClip": { "description": "Label under the track icon that mutes the video's own audio" },
@@ -405,6 +396,12 @@
 
   "splitTooClose": "Too close to the edge of the clip to split.",
   "@splitTooClose": { "description": "Shown when a split would leave a piece too short to play" },
+
+  "splitNothingSelected": "Select something on the timeline to split.",
+  "@splitNothingSelected": { "description": "Shown when Split is used with an empty selection" },
+
+  "splitNotUnderPlayhead": "The playhead is not over anything selected.",
+  "@splitNotUnderPlayhead": { "description": "Shown when Split runs but the playhead falls outside every selected item" },
 
   "splitDone": "Clip split.",
   "@splitDone": { "description": "Confirmation that the clip was cut in two" },
@@ -518,5 +515,200 @@
   "@trackHide": { "description": "Tooltip on the gutter control that hides a timeline track" },
 
   "trackReorder": "Reorder tracks",
-  "@trackReorder": { "description": "Tooltip on the gutter handle that swaps the vertical order of the timeline tracks" }
+  "@trackReorder": { "description": "Tooltip on the gutter handle that swaps the vertical order of the timeline tracks" },
+
+  "exportOptionsQuality": "Resolution",
+  "@exportOptionsQuality": { "description": "Label above the output size choices" },
+
+  "exportOptionsAspect": "Aspect ratio",
+  "@exportOptionsAspect": { "description": "Label above the output shape choices" },
+
+  "exportQuality720": "720p",
+  "@exportQuality720": { "description": "Output size preset, 720 pixels on the short edge" },
+
+  "exportQuality1080": "1080p",
+  "@exportQuality1080": { "description": "Output size preset, 1080 pixels on the short edge" },
+
+  "exportQuality1440": "2K",
+  "@exportQuality1440": { "description": "Output size preset, 1440 pixels on the short edge" },
+
+  "exportQuality2160": "4K",
+  "@exportQuality2160": { "description": "Output size preset, 2160 pixels on the short edge" },
+
+  "exportQualitySource": "Source",
+  "@exportQualitySource": { "description": "Output size preset meaning keep the clip's own size" },
+
+  "exportAspectSource": "Source",
+  "@exportAspectSource": { "description": "Output shape preset meaning keep the clip's own shape" },
+
+  "exportAspectPortrait": "9:16",
+  "@exportAspectPortrait": { "description": "Tall output shape, for stories and reels" },
+
+  "exportAspectSquare": "1:1",
+  "@exportAspectSquare": { "description": "Square output shape" },
+
+  "exportAspectFeed": "4:5",
+  "@exportAspectFeed": { "description": "Slightly tall output shape, for feed posts" },
+
+  "exportAspectWide": "16:9",
+  "@exportAspectWide": { "description": "Wide output shape" },
+
+  "exportFrameSize": "{width} x {height}",
+  "@exportFrameSize": {
+    "description": "The pixel size the render will produce, shown under the framing preview",
+    "placeholders": { "width": { "type": "int" }, "height": { "type": "int" } }
+  },
+
+  "exportRemoveWatermark": "Remove watermark",
+  "@exportRemoveWatermark": { "description": "Toggle that leaves the app's mark off the exported video" },
+
+  "exportRemoveWatermarkDetail": "Watch a short ad first",
+  "@exportRemoveWatermarkDetail": { "description": "What removing the watermark costs" },
+
+  "exportStart": "Export",
+  "@exportStart": { "description": "Button that begins the render with the chosen options" },
+
+  "exportProgressTitle": "Rendering video",
+  "@exportProgressTitle": { "description": "Header of the window shown while the video is being rendered" },
+
+  "exportProgressPreparing": "Preparing...",
+  "@exportProgressPreparing": { "description": "Shown before the renderer reports a percentage" },
+
+  "exportProgressPercent": "{percent}%",
+  "@exportProgressPercent": {
+    "description": "How far through the render is",
+    "placeholders": { "percent": { "type": "int" } }
+  },
+
+  "exportProgressNote": "Keep the app open while this finishes.",
+  "@exportProgressNote": { "description": "Advice shown under the render progress bar" },
+
+  "exportCancel": "Cancel export",
+  "@exportCancel": { "description": "Button that stops a render already under way" },
+
+  "exportTabVideo": "Video",
+  "@exportTabVideo": { "description": "Export sheet tab for rendering the timeline to a video file" },
+
+  "exportTabSrt": "SRT",
+  "@exportTabSrt": { "description": "Export sheet tab for a SubRip subtitle file" },
+
+  "exportTabVtt": "VTT",
+  "@exportTabVtt": { "description": "Export sheet tab for a WebVTT subtitle file" },
+
+  "exportTabPro": "Pro formats",
+  "@exportTabPro": { "description": "Export sheet tab listing professional formats that come with Pro" },
+
+  "exportWatchAdThenExport": "Watch ad, then export",
+  "@exportWatchAdThenExport": { "description": "Export button when the user has chosen to remove the watermark by watching an ad" },
+
+  "exportAdOffline": "Couldn't load the ad — the watermark stays on.",
+  "@exportAdOffline": { "description": "Shown when no ad could be loaded, usually because the device is offline" },
+
+  "exportAdIncomplete": "Watch the ad to the end to remove the watermark.",
+  "@exportAdIncomplete": { "description": "Shown when the ad was closed before it finished" },
+
+  "exportProIncluded": "No watermark — included with Pro",
+  "@exportProIncluded": { "description": "Shown in place of the watermark toggle when Pro is owned" },
+
+  "exportLineLength": "Line length",
+  "@exportLineLength": { "description": "Label above the subtitle line-length choices" },
+
+  "exportLineStandard": "Standard",
+  "@exportLineStandard": { "description": "Subtitle line length suited to landscape video" },
+
+  "exportLineShort": "Short",
+  "@exportLineShort": { "description": "Subtitle line length suited to vertical video" },
+
+  "exportLineHint": "Short lines suit vertical video.",
+  "@exportLineHint": { "description": "Explains when to choose short subtitle lines" },
+
+  "exportSubtitlesTimed": "Timed to the whole timeline, so it lines up with the exported video.",
+  "@exportSubtitlesTimed": { "description": "Explains that subtitle files follow the edited project" },
+
+  "exportSubtitlesNeedTranscript": "Transcribe something first — there are no captions to export yet.",
+  "@exportSubtitlesNeedTranscript": { "description": "Shown on the subtitle tabs when nothing in the project has been transcribed" },
+
+  "exportProFormatsIntro": "Formats for professional editing tools.",
+  "@exportProFormatsIntro": { "description": "Introduces the Pro formats tab" },
+
+  "exportProFormatAss": "ASS / SSA",
+  "@exportProFormatAss": { "description": "Advanced SubStation Alpha subtitle format" },
+
+  "exportProFormatAssDetail": "Styled subtitles with speaker colours",
+  "@exportProFormatAssDetail": { "description": "What the ASS format adds" },
+
+  "exportProFormatFcpxml": "Final Cut Pro (FCPXML)",
+  "@exportProFormatFcpxml": { "description": "Final Cut Pro interchange format" },
+
+  "exportProFormatFcpxmlDetail": "Captions as titles on your timeline",
+  "@exportProFormatFcpxmlDetail": { "description": "What the FCPXML format adds" },
+
+  "exportProFormatPremiere": "Premiere Pro (XML)",
+  "@exportProFormatPremiere": { "description": "Adobe Premiere interchange format" },
+
+  "exportProFormatPremiereDetail": "Captions as a caption track",
+  "@exportProFormatPremiereDetail": { "description": "What the Premiere format adds" },
+
+  "exportProComing": "Coming with Pro",
+  "@exportProComing": { "description": "Marks a format that is not built yet and will be part of Pro" },
+
+  "exportProName": "Argand Pro",
+  "@exportProName": { "description": "Name of the one-time purchase" },
+
+  "exportProPitch": "One payment. No watermark, no ads.",
+  "@exportProPitch": { "description": "What the one-time Pro purchase gives, shown before every export" },
+
+  "exportGetPro": "Get Pro",
+  "@exportGetPro": { "description": "Button that will open the one-time Pro purchase" },
+
+  "exportProSoon": "Purchases aren't connected yet.",
+  "@exportProSoon": { "description": "Shown when Get Pro is tapped before purchases exist" },
+
+  "adPlaceholderLabel": "Ad placeholder",
+  "@adPlaceholderLabel": { "description": "Header of the stand-in shown where a rewarded ad will play" },
+
+  "adPlaceholderBody": "A rewarded ad plays here once ads are connected.",
+  "@adPlaceholderBody": { "description": "Explains that this is not a real advert" },
+
+  "adPlaceholderContinue": "Continue to export",
+  "@adPlaceholderContinue": { "description": "Button shown once the placeholder ad has finished" },
+
+  "adPlaceholderClose": "Close ad",
+  "@adPlaceholderClose": { "description": "Tooltip on the control that closes the ad early" },
+
+  "adPlaceholderSeconds": "{seconds}",
+  "@adPlaceholderSeconds": {
+    "description": "Seconds left before the placeholder ad can be claimed",
+    "placeholders": { "seconds": { "type": "int" } }
+  },
+
+  "videoSettingsOpen": "Video settings",
+  "@videoSettingsOpen": { "description": "Tooltip on the gear that opens the video settings panel" },
+
+  "videoSettingsVisible": "Visible",
+  "@videoSettingsVisible": { "description": "Shows the watermark in the preview" },
+
+  "videoSettingsHidden": "Hidden",
+  "@videoSettingsHidden": { "description": "Hides the watermark in the preview" },
+
+  "videoSettingsWatermarkPreview": "Preview",
+  "@videoSettingsWatermarkPreview": { "description": "Label beside the Visible/Hidden choice for showing the watermark in the editor's preview" },
+
+  "watermarkTopLeft": "Upper left",
+  "@watermarkTopLeft": { "description": "Watermark corner" },
+
+  "watermarkTopRight": "Upper right",
+  "@watermarkTopRight": { "description": "Watermark corner" },
+
+  "watermarkBottomLeft": "Lower left",
+  "@watermarkBottomLeft": { "description": "Watermark corner" },
+
+  "watermarkBottomRight": "Lower right",
+  "@watermarkBottomRight": { "description": "Watermark corner" },
+
+  "videoSettingsClose": "Close video settings",
+  "@videoSettingsClose": { "description": "Tooltip on the gear while the settings panel is open" },
+
+  "videoSettingsWatermarkItem": "Watermark",
+  "@videoSettingsWatermarkItem": { "description": "Settings panel item for the watermark's visibility and position" }
 }

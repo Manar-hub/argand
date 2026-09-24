@@ -1,10 +1,11 @@
 import 'package:flutter/services.dart';
 
-import '../captions/caption_grouper.dart';
+import '../captions/project_cues.dart';
 import '../captions/speaker_palette.dart';
 import '../database/database.dart';
 import '../timeline/clip_trim.dart';
 import '../timeline/project_timeline.dart';
+import 'export_options.dart';
 
 /// One caption as the renderer needs it: when to show it, what it says, and
 /// what colour the speaker is.
@@ -34,47 +35,25 @@ typedef ExportClip = ({
 /// produces a playable MP4, and duration is the cheapest thing that catches it.
 typedef ExportRequest = ({List<ExportClip> clips, int totalMs});
 
-/// The captions to burn over one clip, grouped from its words.
+/// The captions to burn over one clip, coloured by speaker.
 ///
-/// **Reuses `groupIntoCues` and `SpeakerPalette` rather than grouping again.**
+/// **Reuses `clipCuesFor` and `SpeakerPalette` rather than grouping again.**
 /// Burned captions have to break and colour exactly as the preview does, and
-/// the only way to guarantee that is for both to come from the same rule --
-/// a second implementation here would drift the moment either was tuned.
+/// the SRT/VTT files have to break exactly as the burned ones do. The only way
+/// to guarantee both is for all three to come from the same rule.
 ///
-/// Words may arrive from several transcripts when more than one transcribe
-/// layer covers the clip, so they are sorted before grouping; `groupIntoCues`
-/// expects transcript order and would otherwise break cues at the seam.
-/// [window] is the clip's trim range in media time. Words outside it are
-/// dropped and the rest are rebased onto it, because a trimmed item's clock
-/// starts at its in-point rather than at the start of the file. Filtering
-/// **before** grouping rather than after is deliberate: a cue straddling the
-/// trim point then breaks at the cut instead of being discarded whole or
-/// hanging past the end.
+/// [window] is the clip's trim range in media time; see `clipCuesFor` for why
+/// words are filtered before grouping.
 List<ExportCaption> exportCaptionsFor(
   List<Word> words, {
   ClipWindow? window,
   Color fallback = const Color(0xFFFFFFFF),
 }) {
-  if (words.isEmpty) return const [];
-
-  final from = window?.startMs ?? 0;
-  final to = window?.endMs;
-
-  final kept = [
-    for (final word in words)
-      // Half-open against the end, matching every other interval here: a word
-      // starting exactly on the out-point belongs to the next clip.
-      if (word.endMs > from && (to == null || word.startMs < to)) word,
-  ];
-  if (kept.isEmpty) return const [];
-
-  kept.sort((a, b) => a.startMs.compareTo(b.startMs));
-
   return [
-    for (final cue in groupIntoCues(kept))
+    for (final cue in clipCuesFor(words, window: window))
       (
-        startMs: cue.startMs - from < 0 ? 0 : cue.startMs - from,
-        endMs: cue.endMs - from,
+        startMs: cue.startMs,
+        endMs: cue.endMs,
         text: cue.text,
         colorArgb:
             SpeakerPalette.colorFor(cue.speaker, fallback: fallback).toARGB32(),
@@ -219,6 +198,7 @@ class VideoExporter {
   Future<ExportedVideo> export({
     required List<ExportClip> clips,
     required String fileName,
+    ExportOptions options = ExportOptions.defaults,
     void Function(int percent)? onProgress,
   }) async {
     _channel.setMethodCallHandler((call) async {
@@ -249,6 +229,9 @@ class VideoExporter {
             },
         ],
         'fileName': fileName,
+        // Spread rather than nested, so the native side reads one flat map and
+        // an option added later needs no new unwrapping on the way down.
+        ...options.encode(),
       });
       // The native side answers with what the store recorded. Falling back to
       // what was requested would paper over a contract change rather than
@@ -291,6 +274,29 @@ class VideoExporter {
 
   /// Stops a running export. Safe to call when none is running.
   Future<void> cancel() => _channel.invokeMethod<void>('cancel');
+
+  /// The size [mediaPath] is seen at, rotation applied -- the same size the
+  /// render starts from.
+  ///
+  /// Null when it cannot be known: an unreadable file, audio only, or a
+  /// platform with no native side (the host tests). Callers treat that as
+  /// "unknown", never as zero.
+  Future<({int width, int height})?> sourceSize(String mediaPath) async {
+    try {
+      final size = await _channel.invokeMapMethod<String, Object?>(
+        'sourceSize',
+        {'path': mediaPath},
+      );
+      final width = size?['width'];
+      final height = size?['height'];
+      if (width is! int || height is! int) return null;
+      return (width: width, height: height);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
 }
 
 /// A render that did not produce a file.

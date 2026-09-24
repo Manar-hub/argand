@@ -7,12 +7,21 @@ typedef ClipPlacement = ({
   int index,
   int startMs,
   int durationMs,
+
+  /// Where this clip's window begins inside its media file.
+  ///
+  /// **The difference between the two timebases, in one number.** Project time
+  /// counts from the start of the arrangement; media time counts from the start
+  /// of the file, which is what the player seeks in and what word timings are
+  /// stored in. Before clips could be trimmed these differed by
+  /// [startMs] alone; now they differ by [startMs] minus this.
+  int mediaStartMs,
 });
 
 /// A range's intersection with one clip, in both timebases at once.
 ///
 /// [clipStartMs]/[clipEndMs] are what the engine needs — offsets into that
-/// clip's own media. [projectStartMs]/[projectEndMs] are what the timeline
+/// clip's own media file, past its in-point if it has been trimmed. [projectStartMs]/[projectEndMs] are what the timeline
 /// draws. Carrying both is the point: converting between them requires the
 /// clip's placement, and every caller that had to redo that conversion would
 /// be a second copy of the rule.
@@ -66,6 +75,7 @@ class ProjectTimeline {
         index: index,
         startMs: offset,
         durationMs: safe,
+        mediaStartMs: clipWindow(clip).startMs,
       ));
       offset += safe;
     }
@@ -89,14 +99,19 @@ class ProjectTimeline {
     return null;
   }
 
-  /// Converts a position inside one clip to a position on the project timeline.
+  /// Converts a position inside one clip's **media** to project time.
+  ///
+  /// [clipMs] is measured from the start of the file, not from the start of
+  /// what the clip plays — that is the timebase word timings are stored in and
+  /// the one the player seeks in, so it is the one this accepts. A trimmed
+  /// clip's in-point is subtracted here, in the single place that knows it.
   ///
   /// Null when the clip is not part of this arrangement — it was removed, or
   /// the timeline was built from a different project.
   int? projectMsOf({required String clipId, required int clipMs}) {
     final placement = placementOf(clipId);
     if (placement == null) return null;
-    return placement.startMs + clipMs;
+    return placement.startMs + (clipMs - placement.mediaStartMs);
   }
 
   /// Which clip covers [projectMs], and how far into it that lands.
@@ -104,11 +119,13 @@ class ProjectTimeline {
   /// Clamped to the arrangement rather than returning null past the ends: the
   /// playhead can be dragged beyond the last frame, and the honest answer there
   /// is "the end of the last clip", not "nowhere".
+  /// [clipMs] comes back in **media** time, ready to hand to the player.
   ({String clipId, int clipMs})? clipAt(int projectMs) {
     if (placements.isEmpty) return null;
 
     if (projectMs < 0) {
-      return (clipId: placements.first.clipId, clipMs: 0);
+      final first = placements.first;
+      return (clipId: first.clipId, clipMs: first.mediaStartMs);
     }
 
     for (final placement in placements) {
@@ -116,12 +133,15 @@ class ProjectTimeline {
       // Half-open, so a position exactly on a boundary belongs to the clip
       // starting there rather than the one ending.
       if (projectMs < end) {
-        return (clipId: placement.clipId, clipMs: projectMs - placement.startMs);
+        return (
+          clipId: placement.clipId,
+          clipMs: placement.mediaStartMs + (projectMs - placement.startMs),
+        );
       }
     }
 
     final last = placements.last;
-    return (clipId: last.clipId, clipMs: last.durationMs);
+    return (clipId: last.clipId, clipMs: last.mediaStartMs + last.durationMs);
   }
 
   /// Splits a project-timeline range into the per-clip work it implies.
@@ -146,8 +166,11 @@ class ProjectTimeline {
 
       ranges.add((
         clipId: placement.clipId,
-        clipStartMs: from - placement.startMs,
-        clipEndMs: to - placement.startMs,
+        // Media time, because this is what slices the WAV and what
+        // `saveClipTranscript` offsets its words by -- both of which address
+        // the file, not the window.
+        clipStartMs: placement.mediaStartMs + (from - placement.startMs),
+        clipEndMs: placement.mediaStartMs + (to - placement.startMs),
         projectStartMs: from,
         projectEndMs: to,
       ));

@@ -168,7 +168,7 @@ void main() {
     final srt = formatSubtitles(
       groupIntoCues(words),
       format: SubtitleFormat.srt,
-      speakerLabel: (speaker) => 'Speaker ${speaker + 1}',
+      speakerLabel: (cue) => 'Speaker ${cue.speaker! + 1}',
     );
 
     log('--- srt from real rows ---');

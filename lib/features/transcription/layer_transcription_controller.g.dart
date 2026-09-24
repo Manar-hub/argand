@@ -140,7 +140,7 @@ final class LayerTranscriptionControllerProvider
 }
 
 String _$layerTranscriptionControllerHash() =>
-    r'7c798a280c178600ff1495b77028a2d3bdfd821d';
+    r'e2cf9f65e754738c8bf65b84a43f84a59c9ceeb8';
 
 /// Transcribes exactly the stretch of timeline a layer covers.
 ///

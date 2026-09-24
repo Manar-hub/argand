@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/media/shared_media.dart';
+import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/theme/theme_mode_controller.dart';
@@ -248,8 +249,8 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return AlertDialog(
-      title: Text(l10n.createProjectTitle),
+    return AppDialog(
+      title: l10n.createProjectTitle,
       // **No transcription options here.** This creates an empty project and
       // transcribes nothing -- media is added afterwards and run separately --
       // so there is no run for those choices to apply to. They belong where a
@@ -262,13 +263,14 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
         onSubmitted: (value) => Navigator.of(context).pop(value),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.editCancel),
-        ),
-        TextButton(
+        AppDialogAction(
+          label: l10n.createProjectAction,
+          emphasis: AppDialogEmphasis.primary,
           onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: Text(l10n.createProjectAction),
+        ),
+        AppDialogAction(
+          label: l10n.editCancel,
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ],
     );
@@ -607,13 +609,14 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
     if (seen == null && context.mounted) {
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.duplicateSharesMediaTitle),
+        builder: (dialogContext) => AppDialog(
+          title: l10n.duplicateSharesMediaTitle,
           content: Text(l10n.duplicateSharesMediaBody),
           actions: [
-            FilledButton(
+            AppDialogAction(
+              label: l10n.gotItAction,
+              emphasis: AppDialogEmphasis.primary,
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(l10n.gotItAction),
             ),
           ],
         ),
@@ -642,22 +645,22 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.deleteProjectTitle),
+      builder: (dialogContext) => AppDialog(
+        title: l10n.deleteProjectTitle,
         content: Text(
           l10n.deleteProjectMessage(_formatBytes(l10n, bytes ?? 0)),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.editCancel),
-          ),
-          TextButton(
+          // Red, and the only place in the app that is: this hard-deletes the
+          // imported media, which is the one action here that cannot be undone.
+          AppDialogAction(
+            label: l10n.deleteAction,
+            emphasis: AppDialogEmphasis.danger,
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            child: Text(l10n.deleteAction),
+          ),
+          AppDialogAction(
+            label: l10n.editCancel,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
           ),
         ],
       ),

@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../core/database/database.dart';
 import '../../core/timeline/clip_trim.dart';
 import '../../core/timeline/project_timeline.dart';
+import '../../core/video/export_options.dart';
 import '../../core/video/video_export.dart';
 import 'transcript_repository.dart';
 
@@ -52,8 +53,9 @@ class VideoExportFailed extends VideoExportStatus {
 /// remain editable, re-groupable and exportable as SRT; rasterising them is the
 /// last thing that happens, to the copy that leaves the device.
 ///
-/// Trims are not applied and no watermark is composited, because neither
-/// exists yet. That is the next slice, not an omission here.
+/// **The watermark is composited here too, and nowhere else.** It lands in the
+/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+/// written once, at the end, to the copy that leaves the device.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -64,12 +66,44 @@ class VideoExportFailed extends VideoExportStatus {
 /// per-clip transcription runs sequential rather than parallel.
 @riverpod
 class VideoExportController extends _$VideoExportController {
+  /// Set while a cancellation is in flight.
+  ///
+  /// **A flag rather than an ordering.** Stopping the render makes the native
+  /// side raise an exception to acknowledge it, and that arrives through the
+  /// same catch a real failure does. A first version told them apart by
+  /// checking whether the state had already gone idle, which lost the race the
+  /// moment the platform answered faster than [cancel] could set it -- and a
+  /// user who pressed Cancel was told the render had failed.
+  bool _cancelled = false;
+
   @override
   VideoExportStatus build(String projectId) => const VideoExportIdle();
 
   /// Renders the project and saves the result to Downloads.
-  Future<void> export() async {
-    if (state is VideoExportRunning) return;
+  ///
+  /// [options] is what the export dialog collected. It defaults to the same
+  /// values the dialog opens on, so a caller with nothing to say about framing
+  /// gets the branded, source-shaped 1080p render rather than an error.
+  /// Returns the state the render ended in.
+  ///
+  /// **Returned rather than read back off the provider afterwards.** Both this
+  /// and the screen listen to the same notifier, and the screen resets it to
+  /// idle as soon as it has shown the outcome -- so a caller that waited and
+  /// then looked was reading whichever listener happened to run first. It read
+  /// a finished export as a cancelled one.
+  Future<VideoExportStatus> export({
+    ExportOptions options = ExportOptions.defaults,
+  }) async {
+    if (state is VideoExportRunning) return state;
+    _cancelled = false;
+
+    // **Set before the first await, not inside [_run].** Gathering the clips
+    // and their captions is asynchronous, so a caller that opened a progress
+    // window and then looked at the state found the controller still idle and
+    // concluded the render had already ended -- which closed the window in the
+    // same frame it opened. The transition belongs to whoever starts the
+    // render, because that is the moment it becomes true.
+    state = const VideoExportRunning();
 
     // **Pinned for the duration of the render.** This provider is
     // auto-disposing, and a render runs for minutes -- long enough that
@@ -79,13 +113,13 @@ class VideoExportController extends _$VideoExportController {
     // inside a job that was otherwise going fine.
     final link = ref.keepAlive();
     try {
-      await _run();
+      return await _run(options);
     } finally {
       link.close();
     }
   }
 
-  Future<void> _run() async {
+  Future<VideoExportStatus> _run(ExportOptions options) async {
     final repository = ref.read(transcriptRepositoryProvider);
 
     // **Read straight from the repository, not through the clip providers.**
@@ -108,11 +142,10 @@ class VideoExportController extends _$VideoExportController {
       captionsByClip: await _captionsFor(repository, clips),
     );
     if (request == null) {
-      if (ref.mounted) state = const VideoExportEmpty();
-      return;
+      const empty = VideoExportEmpty();
+      if (ref.mounted) state = empty;
+      return empty;
     }
-
-    state = const VideoExportRunning();
 
     try {
       final project = await repository.findProject(projectId);
@@ -124,6 +157,7 @@ class VideoExportController extends _$VideoExportController {
       final video = await const VideoExporter().export(
         clips: request.clips,
         fileName: fileName,
+        options: options,
         onProgress: (percent) {
           // Dropped if the controller has already finished or been torn down:
           // progress can arrive one poll after completion, and `state` itself
@@ -141,11 +175,24 @@ class VideoExportController extends _$VideoExportController {
         '(${video.sizeBytes} bytes, ${request.clips.length} clips, '
         '$captionCount captions, ${request.totalMs}ms expected)',
       );
-      if (ref.mounted) state = VideoExportDone(video);
+      final done = VideoExportDone(video);
+      if (ref.mounted) state = done;
+      return done;
     } catch (error, stackTrace) {
       debugPrint('Could not export $projectId: $error');
       debugPrintStack(stackTrace: stackTrace);
-      if (ref.mounted) state = VideoExportFailed(error);
+
+      // **A cancelled render is not a failed one.** The exception is the
+      // native side acknowledging the stop; reporting it as an error would
+      // tell the user their own decision went wrong.
+      if (_cancelled) {
+        if (ref.mounted) state = const VideoExportIdle();
+        return const VideoExportIdle();
+      }
+
+      final failed = VideoExportFailed(error);
+      if (ref.mounted) state = failed;
+      return failed;
     }
   }
 
@@ -187,8 +234,12 @@ class VideoExportController extends _$VideoExportController {
   /// Stops a running render and returns to idle.
   Future<void> cancel() async {
     if (state is! VideoExportRunning) return;
+
+    // Raised before the request goes out, because the refusal can come back
+    // before this method resumes.
+    _cancelled = true;
     await const VideoExporter().cancel();
-    state = const VideoExportIdle();
+    if (ref.mounted) state = const VideoExportIdle();
   }
 
   /// Clears a finished or failed run so the action can be taken again.

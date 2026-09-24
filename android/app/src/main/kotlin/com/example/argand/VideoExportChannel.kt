@@ -102,6 +102,29 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
          * coordinates where -1 is the bottom edge and 1 the top.
          */
         const val CAPTION_ANCHOR_Y = -0.82f
+
+        /** The mark drawn into a render the user has not asked to unbrand. */
+        const val WATERMARK_TEXT = " Argand "
+
+        /**
+         * Smaller than a caption, and deliberately so: the watermark is a
+         * signature rather than something to read. Still a fraction of the
+         * short edge rather than a pixel size, for the same reason captions
+         * are -- it has to read the same on a 720p export and a 4K one.
+         */
+        const val WATERMARK_TEXT_FRACTION = 0.030f
+
+        const val WATERMARK_COLOR = 0xF2FFFFFF.toInt()
+        const val WATERMARK_BACKGROUND = 0x66000000.toInt()
+
+        /**
+         * Where the watermark goes when Dart does not say: top-right, in
+         * normalised device coordinates. Dart normally sends the corner the
+         * user chose (`WatermarkCorner` in `export_options.dart`), which is
+         * where these numbers come from.
+         */
+        const val WATERMARK_ANCHOR_X = 0.94f
+        const val WATERMARK_ANCHOR_Y = 0.90f
     }
 
     /**
@@ -168,6 +191,62 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             if (activeAt(presentationTimeUs) == null) hidden else settings
     }
 
+    /**
+     * Draws the app's mark into the corner of every frame.
+     *
+     * **A real overlay, not a flag.** The toggle in the export dialog removes
+     * something that was genuinely composited, which is what makes "remove
+     * watermark" an honest offer rather than a switch over nothing.
+     *
+     * Constant for the whole item, so the text and its settings are built once
+     * rather than per frame -- unlike [CaptionOverlay], which has to answer
+     * differently as cues come and go.
+     */
+    private class WatermarkOverlay(
+        textSizePx: Int,
+        anchorX: Float,
+        anchorY: Float,
+    ) : TextOverlay() {
+
+        private val settings = StaticOverlaySettings.Builder()
+            .setBackgroundFrameAnchor(anchorX, anchorY)
+            // The mark's own matching corner is what lands on that point --
+            // its top-right in the top-right, its bottom-left in the
+            // bottom-left -- so a longer mark grows toward the middle of the
+            // frame instead of off its edge.
+            .setOverlayFrameAnchor(
+                if (anchorX < 0f) -1f else 1f,
+                if (anchorY < 0f) -1f else 1f,
+            )
+            .build()
+
+        private val mark = SpannableString(WATERMARK_TEXT).apply {
+            setSpan(
+                ForegroundColorSpan(WATERMARK_COLOR),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            setSpan(
+                BackgroundColorSpan(WATERMARK_BACKGROUND),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            setSpan(
+                AbsoluteSizeSpan(textSizePx),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+
+        override fun getText(presentationTimeUs: Long): SpannableString = mark
+
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings =
+            settings
+    }
+
     /** One caption, in the clip's own timebase. */
     private data class Caption(
         val startMs: Long,
@@ -208,12 +287,45 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                     result.error("bad_args", "export needs clips and fileName", null)
                     return
                 }
-                startExport(clips, fileName, result)
+                startExport(
+                    clips,
+                    fileName,
+                    // Absent means "as the source is", which is also what Dart
+                    // sends for the Source presets.
+                    aspectRatio = (call.argument<Any?>("aspectRatio") as? Number)?.toFloat(),
+                    shortEdge = (call.argument<Any?>("shortEdge") as? Number)?.toInt(),
+                    watermark = call.argument<Boolean>("watermark") ?: true,
+                    watermarkAnchorX = (call.argument<Any?>("watermarkAnchorX") as? Number)
+                        ?.toFloat() ?: WATERMARK_ANCHOR_X,
+                    watermarkAnchorY = (call.argument<Any?>("watermarkAnchorY") as? Number)
+                        ?.toFloat() ?: WATERMARK_ANCHOR_Y,
+                    result = result,
+                )
             }
 
             "cancel" -> {
                 cancelRunning()
                 result.success(null)
+            }
+
+            // The size a clip is seen at, rotation applied, so Dart can offer
+            // only the export sizes the footage can fill. Null when the file
+            // cannot be read -- never the render's fallback size, which would
+            // be a guess dressed as a measurement.
+            "sourceSize" -> {
+                val path = call.argument<String>("path")
+                if (path.isNullOrBlank()) {
+                    result.error("bad_args", "sourceSize needs a path", null)
+                    return
+                }
+                io.execute {
+                    val size = probeSize(path)
+                    main.post {
+                        result.success(
+                            size?.let { mapOf("width" to it.first, "height" to it.second) },
+                        )
+                    }
+                }
             }
 
             else -> result.notImplemented()
@@ -223,6 +335,11 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
     private fun startExport(
         clips: List<Map<String, Any?>>,
         fileName: String,
+        aspectRatio: Float?,
+        shortEdge: Int?,
+        watermark: Boolean,
+        watermarkAnchorX: Float,
+        watermarkAnchorY: Float,
         result: MethodChannel.Result,
     ) {
         val clipPaths = clips.mapNotNull { it["path"] as? String }
@@ -250,7 +367,19 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         // Without this the encoder either rejects the mix or stretches later
         // clips to match the first, and a stretched export reads as a bug in
         // the editor rather than in the render.
-        val size = outputSizeOf(clipPaths.first())
+        val source = outputSizeOf(clipPaths.first())
+        val size = outputFrameOf(source, aspectRatio, shortEdge)
+
+        // **One presentation stage, not a reframe followed by a resize.**
+        // `createForWidthAndHeight` takes the layout mode as well, so the fit
+        // and the scale happen in a single resample; chaining two Presentation
+        // effects would resample the picture twice for nothing.
+        //
+        // **Always fit, never crop.** A chosen shape keeps the whole picture
+        // and fills the rest of the frame with black: a landscape clip in a
+        // 9:16 frame gets bars above and below. Cropping silently threw away
+        // the sides of every shot, which is a reframe the user never made.
+        // The preview draws the same fit (`VideoCanvas`).
         val presentation: Effect = Presentation.createForWidthAndHeight(
             size.first,
             size.second,
@@ -260,6 +389,8 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         // the same whatever the source was.
         val textSizePx =
             (min(size.first, size.second) * CAPTION_TEXT_FRACTION).roundToInt()
+        val watermarkSizePx =
+            (min(size.first, size.second) * WATERMARK_TEXT_FRACTION).roundToInt()
 
         val items = clips.map { clip ->
             val path = clip["path"] as String
@@ -269,10 +400,21 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             // so putting the caption first would size it against the source
             // frame and then scale it with everything else.
             val videoEffects = mutableListOf<Effect>(presentation)
+
+            // One effect carrying both overlays rather than two effects: each
+            // OverlayEffect is its own GL pass over the frame, and there is no
+            // reason for the mark to cost a second one.
+            val overlays = mutableListOf<TextOverlay>()
             if (captions.isNotEmpty()) {
-                videoEffects.add(
-                    OverlayEffect(listOf(CaptionOverlay(captions, textSizePx))),
+                overlays.add(CaptionOverlay(captions, textSizePx))
+            }
+            if (watermark) {
+                overlays.add(
+                    WatermarkOverlay(watermarkSizePx, watermarkAnchorX, watermarkAnchorY),
                 )
+            }
+            if (overlays.isNotEmpty()) {
+                videoEffects.add(OverlayEffect(overlays.toList()))
             }
 
             // **Trimming is a clipping configuration, not a cut file.** The
@@ -618,7 +760,11 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
      * round for what the viewer actually sees. Ignoring it exports a portrait
      * recording as a squashed landscape one.
      */
-    private fun outputSizeOf(path: String): Pair<Int, Int> {
+    private fun outputSizeOf(path: String): Pair<Int, Int> =
+        probeSize(path) ?: (FALLBACK_WIDTH to FALLBACK_HEIGHT)
+
+    /** The clip's size as seen, rotation applied, or null if unreadable. */
+    private fun probeSize(path: String): Pair<Int, Int>? {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(path)
@@ -628,7 +774,7 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             val rotation = readInt(retriever, MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
 
             when {
-                width <= 0 || height <= 0 -> FALLBACK_WIDTH to FALLBACK_HEIGHT
+                width <= 0 || height <= 0 -> null
                 // `METADATA_KEY_VIDEO_WIDTH` is the stored width, so a phone
                 // video recorded upright and stored landscape needs its
                 // dimensions swapped to describe what a viewer actually sees.
@@ -636,7 +782,7 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 else -> width to height
             }
         } catch (error: Exception) {
-            FALLBACK_WIDTH to FALLBACK_HEIGHT
+            null
         } finally {
             try {
                 retriever.release()
@@ -645,6 +791,45 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             }
         }
     }
+
+    /**
+     * The frame to render into, from the source size and what was chosen.
+     *
+     * **Mirrors `exportFrameFor` in `lib/core/video/export_options.dart`**,
+     * where the same arithmetic is covered by host tests; the two are checked
+     * against each other by reading the dimensions back off a finished export.
+     * Duplicated rather than round-tripped because Dart cannot see a clip's
+     * pixel size without asking this side for it first.
+     *
+     * [shortEdge] names the short edge rather than the height, so a quality
+     * preset means the same thing in both orientations.
+     */
+    private fun outputFrameOf(
+        source: Pair<Int, Int>,
+        aspectRatio: Float?,
+        shortEdge: Int?,
+    ): Pair<Int, Int> {
+        val ratio = aspectRatio ?: (source.first.toFloat() / source.second.toFloat())
+        if (ratio <= 0f) return source
+
+        // Never above the source's own short edge: a larger frame would only
+        // be an upscale. Dart already offers nothing bigger than the source;
+        // this holds even when Dart could not learn the source's size.
+        val sourceShort = min(source.first, source.second)
+        val short = min(shortEdge ?: sourceShort, sourceShort)
+
+        // Which edge is short depends on the *output* shape, not the source's.
+        val width = if (ratio < 1f) short else (short * ratio).roundToInt()
+        val height = if (ratio < 1f) (short / ratio).roundToInt() else short
+
+        return even(width) to even(height)
+    }
+
+    /**
+     * H.264 rejects odd dimensions outright, so a ratio landing on one is
+     * nudged down rather than failing the export.
+     */
+    private fun even(value: Int): Int = if (value % 2 == 0) value else value - 1
 
     private fun readInt(retriever: MediaMetadataRetriever, key: Int): Int =
         retriever.extractMetadata(key)?.toIntOrNull() ?: 0

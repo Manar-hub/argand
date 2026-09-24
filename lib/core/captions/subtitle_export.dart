@@ -22,6 +22,22 @@ enum SubtitleFormat {
   final String mimeType;
 }
 
+/// How long a subtitle line may run before it wraps.
+///
+/// **The one layout choice worth handing to the user.** Forty-two characters is
+/// the broadcast convention and suits a landscape frame; on a 9:16 video the
+/// same line covers most of the picture's width, which is why short-form
+/// platforms settle nearer thirty. Everything else about the file is decided
+/// by the captions themselves.
+enum SubtitleLineLength {
+  standard(42),
+  short(32);
+
+  const SubtitleLineLength(this.maxCharacters);
+
+  final int maxCharacters;
+}
+
 /// Knobs for turning cues into a subtitle file.
 ///
 /// Separate from [CaptionStyle], which decides *where cues break*. These decide
@@ -60,17 +76,22 @@ class SubtitleOptions {
 
 /// Serialises [cues] into [format].
 ///
-/// [speakerLabel] turns a speaker index into a display name, and is null when
-/// the file should carry no attribution. It is injected rather than built here
-/// because "Speaker 1" is interface text and belongs to the localisation layer
-/// (CLAUDE.md §4) — this file stays free of strings the user reads.
+/// [speakerLabel] names the speaker of a cue, and is null when the file should
+/// carry no attribution. It is given the whole cue rather than a speaker number
+/// because names are stored per transcript, and a project's cues come from
+/// several: the same number can be two different people in two different runs,
+/// so only the cue's own words say whose names to use.
+///
+/// It is injected rather than built here because "Speaker 1" is interface text
+/// and belongs to the localisation layer (CLAUDE.md §4) — this file stays free
+/// of strings the user reads.
 ///
 /// The two formats differ only in their timestamp separator, their header, and
 /// how they mark a speaker, so they share one pass.
 String formatSubtitles(
   List<CaptionCue> cues, {
   required SubtitleFormat format,
-  String Function(int speaker)? speakerLabel,
+  String Function(CaptionCue cue)? speakerLabel,
   SubtitleOptions options = const SubtitleOptions(),
 }) {
   final buffer = StringBuffer();
@@ -130,12 +151,11 @@ List<(int, int)> _normalise(List<CaptionCue> cues, SubtitleOptions options) {
 String _body(
   CaptionCue cue, {
   required SubtitleFormat format,
-  required String Function(int speaker)? speakerLabel,
+  required String Function(CaptionCue cue)? speakerLabel,
   required SubtitleOptions options,
 }) {
-  final speaker = cue.speaker;
   final label =
-      speaker == null || speakerLabel == null ? null : speakerLabel(speaker);
+      cue.speaker == null || speakerLabel == null ? null : speakerLabel(cue);
 
   final text = format == SubtitleFormat.vtt ? _escapeVtt(cue.text) : cue.text;
   final lines = _wrap(text, options).join('\n');

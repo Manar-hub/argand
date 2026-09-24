@@ -564,4 +564,101 @@ void main() {
       expect(await repository.transcriptsForClip(clips.last.id), hasLength(1));
     });
   });
+
+  group('undo across the project', () {
+    Future<(TranscriptRepository, String, String)> seedOneClip() async {
+      final repository = TranscriptRepository(database, MediaConverter());
+      final projectId = await repository.createEmptyProject(title: 'undo');
+      final clipId = repository.newId();
+      await database.appendClip(
+        clipId: clipId,
+        projectId: projectId,
+        mediaPath: '/media/$projectId/a.mp4',
+        duration: const Duration(seconds: 30),
+        title: 'a',
+      );
+      return (repository, projectId, clipId);
+    }
+
+    test('undoing a split puts the clip back as it was', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+      await repository.splitClip(clipId: clipId, atClipMs: 12000);
+
+      expect(await database.clipsForProject(projectId), hasLength(2));
+
+      await repository.undoProject(projectId);
+
+      final clips = await database.clipsForProject(projectId);
+      expect(clips, hasLength(1));
+      expect(
+        clipWindow(clips.single),
+        (startMs: 0, endMs: 30000),
+        reason: 'the half that was cut off has to come back too',
+      );
+      expect(
+        ProjectTimeline.fromClips(clips).totalMs,
+        30000,
+        reason: 'undo must not leave the project a different length',
+      );
+    });
+
+    test('redo puts the split back', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+      await repository.splitClip(clipId: clipId, atClipMs: 12000);
+      await repository.undoProject(projectId);
+      await repository.redoProject(projectId);
+
+      final clips = await database.clipsForProject(projectId);
+      expect(clips, hasLength(2));
+      expect(clipWindow(clips.first).endMs, 12000);
+    });
+
+    test('a new action closes the redo branch', () async {
+      // Doing something else after an undo discards what was undone. The
+      // alternative is a redo that reapplies a change to a document it no
+      // longer fits.
+      final (repository, projectId, clipId) = await seedOneClip();
+      await repository.splitClip(clipId: clipId, atClipMs: 12000);
+      await repository.undoProject(projectId);
+
+      await repository.addLayer(projectId: projectId, startMs: 0, endMs: 5000);
+      await repository.redoProject(projectId);
+
+      expect(
+        await database.clipsForProject(projectId),
+        hasLength(1),
+        reason: 'the discarded split must not come back',
+      );
+    });
+
+    test('undo walks back in the order things happened', () async {
+      // **The reason there is one history rather than two.** The layer came
+      // second, so it goes first -- undoing the split while the later layer
+      // stood would be a state that never existed.
+      final (repository, projectId, clipId) = await seedOneClip();
+      await repository.splitClip(clipId: clipId, atClipMs: 12000);
+      final layerId = await repository.addLayer(
+        projectId: projectId,
+        startMs: 0,
+        endMs: 5000,
+      );
+      expect(layerId, isNotNull);
+
+      await repository.undoProject(projectId);
+      expect(await repository.layersForProject(projectId), isEmpty);
+      expect(await database.clipsForProject(projectId), hasLength(2));
+
+      await repository.undoProject(projectId);
+      expect(await database.clipsForProject(projectId), hasLength(1));
+    });
+
+    test('undo with nothing to undo is harmless', () async {
+      final (repository, projectId, _) = await seedOneClip();
+
+      await repository.undoProject(projectId);
+      await repository.redoProject(projectId);
+
+      expect(await database.clipsForProject(projectId), hasLength(1));
+    });
+  });
 }

@@ -292,6 +292,42 @@ class Settings extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// One reversible thing that happened to a project's arrangement.
+///
+/// **Deliberately generic, and that is the design.** Adding a new undoable
+/// action must not cost a migration: everything specific to an action lives in
+/// [payload], so a new one is a new [kind] code and an entry saying how to
+/// apply it in each direction. Nothing here changes.
+///
+/// Separate from [EditEvents] because that table's `transcriptId` is a non-null
+/// reference to [Transcripts] and a split or a reorder belongs to no
+/// transcript. Relaxing that column means recreating the table, which the
+/// additive-migration rule rules out. The two are read together as one
+/// history, ordered by `createdAt`.
+class TimelineEvents extends Table with _RecordColumns {
+  /// References the project so the log inherits its lifecycle -- deleting a
+  /// project takes its history with it, with nothing to clean up separately.
+  TextColumn get projectId => text().references(Projects, #id)();
+
+  /// Monotonic within one project, assigned at append time.
+  IntColumn get sequence => integer()();
+
+  /// A `TimelineEventKind.code`. **Text, not an enum index**, so inserting a
+  /// case into that enum cannot reinterpret rows already on disk.
+  TextColumn get kind => text()();
+
+  /// JSON, carrying both the before and after state.
+  TextColumn get payload => text()();
+
+  /// Null while the edit is in effect and undoable; set once undone, which
+  /// makes it redoable. Redo is therefore a query, not a second stack -- the
+  /// same shape [EditEvents] uses.
+  DateTimeColumn get undoneAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 @DriftDatabase(tables: [
   Projects,
   MediaClips,
@@ -300,20 +336,21 @@ class Settings extends Table with _RecordColumns {
   Words,
   Settings,
   EditEvents,
+  TimelineEvents,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
   /// [Transcripts.clipId], moving media off the project row, 5 -> 6 added
   /// [TranscribeLayers] and the range columns on [Transcripts], 6 -> 7 added
   /// [MediaClips.waveform], 7 -> 8 added [MediaClips.trimStartMs] and
-  /// [MediaClips.trimEndMs].
+  /// [MediaClips.trimEndMs], 8 -> 9 added [TimelineEvents].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -365,6 +402,11 @@ class AppDatabase extends _$AppDatabase {
           // Paired with 5 for the same reason as the waveform column above:
           // `createTable` builds `media_clips` from its *current* definition,
           // so a database arriving from before schema 5 already has these.
+          if (from < 9) {
+            // A whole table rather than a column, so no version pairing is
+            // needed: `createTable` is correct from any earlier schema.
+            await migrator.createTable(timelineEvents);
+          }
           if (from >= 5 && from < 8) {
             // No backfill. Null is exactly "never trimmed", which is what
             // every existing clip is.
@@ -1595,6 +1637,204 @@ class AppDatabase extends _$AppDatabase {
 
   /// Drops an event without applying it -- used when its payload will not
   /// decode, so one corrupt row cannot wedge the undo button permanently.
+  /// Retires or restores a clip.
+  ///
+  /// **Soft in both directions**, which is what makes a split reversible: the
+  /// half a split created keeps its id, its position and the transcripts
+  /// copied onto it while it is put away, so bringing it back restores the
+  /// arrangement rather than rebuilding an approximation of it.
+  Future<void> setClipRetired({
+    required String clipId,
+    required bool retired,
+  }) {
+    final now = DateTime.now();
+    return (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+      MediaClipsCompanion(
+        deletedAt: Value(retired ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Retires or restores a layer **and the transcripts it produced**.
+  ///
+  /// Mirrors [softDeleteLayer] rather than touching the layer row alone. An
+  /// earlier version of this updated only `transcribe_layers`, so undoing a
+  /// layer took its track off the timeline and left its captions on the video:
+  /// the transcript rows were still live, and every caption read path starts
+  /// from the transcript, not from the track. **An inverse that does less than
+  /// the action it reverses is not an inverse.**
+  ///
+  /// Restoring brings back only the transcripts that went away *with* this
+  /// layer, matched on the moment they were retired, so words discarded by an
+  /// earlier rerun stay discarded instead of returning alongside the ones that
+  /// replaced them. Timestamps are stored to the second, so two unrelated
+  /// cascades over one layer inside the same second would be indistinguishable
+  /// -- reachable only by undoing in the same second a rerun discarded, and the
+  /// cost of being wrong is a stale transcript rather than a lost one.
+  Future<void> setLayerRetired({
+    required String layerId,
+    required bool retired,
+  }) {
+    final now = DateTime.now();
+    return transaction(() async {
+      if (retired) {
+        await (update(transcripts)
+              ..where((t) => t.layerId.equals(layerId) & t.deletedAt.isNull()))
+            .write(
+          TranscriptsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+        );
+      } else {
+        // Read before the layer is cleared: its deletion time is the only
+        // record of which cascade those transcripts belonged to.
+        final layer = await (select(transcribeLayers)
+              ..where((t) => t.id.equals(layerId)))
+            .getSingleOrNull();
+        final retiredAt = layer?.deletedAt;
+
+        if (retiredAt != null) {
+          await (update(transcripts)
+                ..where((t) =>
+                    t.layerId.equals(layerId) &
+                    t.deletedAt.equals(retiredAt)))
+              .write(
+            TranscriptsCompanion(
+              deletedAt: const Value<DateTime?>(null),
+              updatedAt: Value(now),
+            ),
+          );
+        }
+      }
+
+      await (update(transcribeLayers)..where((t) => t.id.equals(layerId)))
+          .write(
+        TranscribeLayersCompanion(
+          deletedAt: Value(retired ? now : null),
+          updatedAt: Value(now),
+        ),
+      );
+    });
+  }
+
+  /// Retires or restores exactly these transcripts.
+  ///
+  /// Takes ids rather than a layer because the run that wrote them knows which
+  /// rows are its own. Undoing a rerun must not resurrect the words that rerun
+  /// replaced, and a layer-wide sweep could not tell the two sets apart.
+  Future<void> setTranscriptsRetired({
+    required List<String> transcriptIds,
+    required bool retired,
+  }) async {
+    if (transcriptIds.isEmpty) return;
+
+    final now = DateTime.now();
+    await (update(transcripts)..where((t) => t.id.isIn(transcriptIds))).write(
+      TranscriptsCompanion(
+        deletedAt: Value(retired ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Appends one timeline event, and closes the redo branch.
+  ///
+  /// Doing something new after an undo discards what was undone — the same
+  /// rule [appendEditEvent] follows, and the one every editor follows, because
+  /// the alternative is a redo that reapplies a change to a document it no
+  /// longer fits.
+  Future<void> appendTimelineEvent({
+    required String projectId,
+    required String kind,
+    required String payload,
+  }) async {
+    final now = DateTime.now();
+
+    await (update(timelineEvents)
+          ..where((t) =>
+              t.projectId.equals(projectId) &
+              t.deletedAt.isNull() &
+              t.undoneAt.isNotNull()))
+        .write(TimelineEventsCompanion(
+      deletedAt: Value(now),
+      updatedAt: Value(now),
+    ));
+
+    // Over every row, not just the live ones: a sequence reused after a prune
+    // would sort a new event underneath an older one.
+    final highest = await (selectOnly(timelineEvents)
+          ..addColumns([timelineEvents.sequence.max()])
+          ..where(timelineEvents.projectId.equals(projectId)))
+        .getSingle();
+    final next = (highest.read(timelineEvents.sequence.max()) ?? 0) + 1;
+
+    await into(timelineEvents).insert(
+      TimelineEventsCompanion.insert(
+        id: _uuid.v4(),
+        createdAt: now,
+        updatedAt: now,
+        projectId: projectId,
+        sequence: next,
+        kind: kind,
+        payload: payload,
+      ),
+    );
+  }
+
+  /// A project's live timeline events, oldest first.
+  Future<List<TimelineEvent>> timelineEventsFor(String projectId) {
+    return (select(timelineEvents)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.sequence)]))
+        .get();
+  }
+
+  /// A project's live *transcript* events, oldest first.
+  ///
+  /// Read by project rather than by transcript because the history the user
+  /// made is one sequence; which transcript a word edit landed on is an
+  /// implementation detail of where it was stored.
+  Future<List<EditEvent>> editEventsForProject(String projectId) async {
+    final ids = await (select(transcripts)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull()))
+        .map((row) => row.id)
+        .get();
+    if (ids.isEmpty) return const [];
+
+    return (select(editEvents)
+          ..where((t) => t.transcriptId.isIn(ids) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.sequence)]))
+        .get();
+  }
+
+  Future<EditEvent?> findEditEvent(String id) {
+    return (select(editEvents)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<TimelineEvent?> findTimelineEvent(String id) {
+    return (select(timelineEvents)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<void> setTimelineEventUndone(String id, {required bool undone}) {
+    final now = DateTime.now();
+    return (update(timelineEvents)..where((t) => t.id.equals(id))).write(
+      TimelineEventsCompanion(
+        undoneAt: Value(undone ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Drops an event that cannot be read, rather than letting one bad row wedge
+  /// the button for good.
+  Future<void> discardTimelineEvent(String id) {
+    final now = DateTime.now();
+    return (update(timelineEvents)..where((t) => t.id.equals(id))).write(
+      TimelineEventsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+    );
+  }
+
   Future<void> discardEditEvent(String id) {
     final now = DateTime.now();
     return (update(editEvents)..where((t) => t.id.equals(id))).write(
@@ -1620,6 +1860,37 @@ class AppDatabase extends _$AppDatabase {
       var canRedo = false;
       for (final row in rows) {
         if (row.read(editEvents.undoneAt) == null) {
+          canUndo = true;
+        } else {
+          canRedo = true;
+        }
+      }
+      return (canUndo: canUndo, canRedo: canRedo);
+    }).distinct();
+  }
+
+  /// Whether the **project** has anything to undo or redo.
+  ///
+  /// Both logs at once. A trivial query declared as reading from all three
+  /// tables is what makes this re-emit when either log changes -- drift
+  /// invalidates a stream by the tables it was told about, not by what the SQL
+  /// happens to select, and there is no need to read rows here that the two
+  /// counts below already answer.
+  Stream<({bool canUndo, bool canRedo})> watchProjectHistory(String projectId) {
+    return customSelect(
+      'SELECT 1',
+      readsFrom: {editEvents, timelineEvents, transcripts},
+    ).watch().asyncMap((_) async {
+      final edits = await editEventsForProject(projectId);
+      final timeline = await timelineEventsFor(projectId);
+
+      var canUndo = false;
+      var canRedo = false;
+      for (final undoneAt in [
+        for (final event in edits) event.undoneAt,
+        for (final event in timeline) event.undoneAt,
+      ]) {
+        if (undoneAt == null) {
           canUndo = true;
         } else {
           canRedo = true;

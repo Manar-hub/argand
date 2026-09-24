@@ -5,6 +5,8 @@ import 'package:argand/core/diarization/speaker_span.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/timeline/project_timeline.dart';
+import 'package:argand/core/monetization/monetization.dart';
+import 'package:argand/core/video/export_options.dart';
 import 'package:argand/core/video/video_export.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:argand/features/transcription/video_export_controller.dart';
@@ -266,5 +268,122 @@ void main() {
     // Whether the captions are actually *visible*, in the right place and only
     // during their cue, is not answerable from inside the app -- it needs the
     // pixels. Pull the file and look at frames at 4s and 9s.
+  }, timeout: const Timeout(Duration(minutes: 20)));
+
+  /// One caption, on screen for the whole of the short window these framing
+  /// tests render, so a pulled frame always has text in it to judge.
+  const caption = (
+    startMs: 0,
+    endMs: 6000,
+    text: 'FRAMING CHECK',
+    colorArgb: 0xFFFFD54F,
+  );
+
+  /// Six seconds is enough to see the crop and cheap enough to encode on the
+  /// emulator's software codec, which is the binding constraint here.
+  const windowMs = 6000;
+
+  Future<ExportedVideo> render(
+    MediaClip clip, {
+    required ExportOptions options,
+    required String title,
+  }) {
+    return const VideoExporter().export(
+      clips: [
+        (
+          path: clip.mediaPath,
+          startMs: 0,
+          endMs: windowMs,
+          captions: const <ExportCaption>[caption],
+        ),
+      ],
+      fileName: exportFileName(projectTitle: title, at: DateTime.now()),
+      options: options,
+      onProgress: (percent) => log('progress $percent%'),
+    );
+  }
+
+  testWidgets('reframes to the chosen shape, cropping rather than padding',
+      (tester) async {
+    final (_, clips) = await seed(1, title: 'square');
+
+    final video = await render(
+      clips.first,
+      title: 'square 720',
+      options: const ExportOptions(
+        quality: ExportQuality.p720,
+        aspect: ExportAspect.square1x1,
+      ),
+    );
+
+    log('square render ${video.width}x${video.height} at ${video.location}');
+
+    // **Exact, not an unordered pair.** The other tests compare sorted
+    // dimensions because a portrait render may legitimately come back
+    // landscape-plus-rotation; a square one has no such ambiguity, so this is
+    // the assertion that actually proves the reframe happened.
+    expect(video.width, 720);
+    expect(video.height, 720);
+    expect(video.sizeBytes, greaterThan(0));
+  }, timeout: const Timeout(Duration(minutes: 20)));
+
+  testWidgets('a quality preset names the short edge', (tester) async {
+    final (_, clips) = await seed(1, title: 'portrait');
+
+    final video = await render(
+      clips.first,
+      title: 'portrait 720',
+      // Unbranded, so the pulled frame shows a clean corner beside the
+      // branded one from the square render above.
+      options: const ExportOptions(
+        quality: ExportQuality.p720,
+        aspect: ExportAspect.portrait9x16,
+      ).withWaiver(const WatermarkWaiver.forTesting()),
+    );
+
+    log('portrait render ${video.width}x${video.height} at ${video.location}');
+
+    // 720 across and 1280 down, not 405x720: a person choosing 720p for a reel
+    // is asking for the familiar size, not for a sliver.
+    expect(<int>[video.width, video.height]..sort(), <int>[720, 1280]);
+  }, timeout: const Timeout(Duration(minutes: 20)));
+
+  testWidgets('a cancelled render publishes nothing', (tester) async {
+    final (_, clips) = await seed(1, title: 'cancelled');
+
+    const exporter = VideoExporter();
+
+    // **The error is caught at creation, not awaited later.** A future that
+    // fails while nothing is listening becomes an unhandled zone error, and
+    // the test harness reports that as a failure even though the refusal is
+    // exactly what this test wants.
+    Object? refusal;
+    final running = exporter.export(
+      clips: [
+        (
+          path: clips.first.mediaPath,
+          startMs: 0,
+          endMs: clips.first.durationMs ?? windowMs,
+          captions: const <ExportCaption>[],
+        ),
+      ],
+      // Deliberately findable from the host: the check this test cannot make
+      // for itself is that Downloads has no file by this name afterwards.
+      fileName: 'cancelled run.mp4',
+      onProgress: (percent) => log('progress $percent%'),
+    ).then<void>((_) {}, onError: (Object error) => refusal = error);
+
+    // Long enough that the encoder is genuinely under way -- cancelling before
+    // it starts would prove nothing about tearing a running render down.
+    await Future<void>.delayed(const Duration(seconds: 5));
+    await exporter.cancel();
+    await running;
+
+    expect(refusal, isA<VideoExportException>());
+    log('cancelled render refused, as it should');
+
+    // The file is written to the cache and published only on success, so
+    // nothing should have reached Downloads. Confirmed from the host:
+    // adb shell ls /storage/emulated/0/Download | grep cancelled
   }, timeout: const Timeout(Duration(minutes: 20)));
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/diarization/diarization_controller.dart';
+import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
@@ -237,8 +238,8 @@ Future<bool> showTranscriptionOptions(
 
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(l10n.transcribeOptionsTitle),
+    builder: (context) => AppDialog(
+      title: l10n.transcribeOptionsTitle,
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
@@ -259,13 +260,14 @@ Future<bool> showTranscriptionOptions(
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(l10n.editCancel),
-        ),
-        FilledButton(
+        AppDialogAction(
+          label: l10n.transcribeOptionsConfirm,
+          emphasis: AppDialogEmphasis.primary,
           onPressed: () => Navigator.of(context).pop(true),
-          child: Text(l10n.transcribeOptionsConfirm),
+        ),
+        AppDialogAction(
+          label: l10n.editCancel,
+          onPressed: () => Navigator.of(context).pop(false),
         ),
       ],
     ),

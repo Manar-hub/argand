@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/database/database.dart';
 import '../../core/media/media_converter.dart';
+import '../../core/timeline/timeline_selection.dart';
 import 'transcript_repository.dart';
 
 part 'clip_controller.g.dart';
@@ -36,6 +37,52 @@ class SelectedClip extends _$SelectedClip {
   void select(String clipId) => state = clipId;
 
   void clear() => state = null;
+}
+
+/// Where the playhead sits, in project time.
+///
+/// **Lifted out of the track widget** because three things need it and only
+/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+/// and the preview shows whatever it is over. Passing it down by constructor
+/// reached the first two and never the third.
+@riverpod
+class TimelinePlayhead extends _$TimelinePlayhead {
+  @override
+  int build(String projectId) => 0;
+
+  void moveTo(int projectMs) {
+    final next = projectMs < 0 ? 0 : projectMs;
+    if (next != state) state = next;
+  }
+}
+
+/// Everything the editing tools will act on.
+///
+/// **One selection across every track**, replacing the separate "selected
+/// clip" and "selected layer" the timeline used to keep. Those two could
+/// disagree, and only one of them was ever reachable from the toolbar, which
+/// is why Split could cut the video and nothing else.
+///
+/// Holds ids only; what they refer to is resolved against the rows that
+/// currently exist, so a removed clip or a replaced row simply stops being
+/// selected rather than leaving the tools pointing at nothing.
+@riverpod
+class TimelineSelection extends _$TimelineSelection {
+  @override
+  Set<TimelineItem> build(String projectId) => const {};
+
+  void toggle(TimelineItem item) => state = toggleSelection(state, item);
+
+  void selectOnly(TimelineItem item) => state = {item};
+
+  void clear() => state = const {};
+
+  /// Drops anything that no longer exists. Called with the rows in hand rather
+  /// than querying, so it cannot race the stream that produced them.
+  void prune({required Set<String> clipIds, required Set<String> layerIds}) {
+    final next = prunedSelection(state, clipIds: clipIds, layerIds: layerIds);
+    if (next.length != state.length) state = next;
+  }
 }
 
 /// Which clip both modes are actually showing.

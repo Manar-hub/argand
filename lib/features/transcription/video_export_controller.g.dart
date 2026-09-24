@@ -15,8 +15,9 @@ part of 'video_export_controller.dart';
 /// remain editable, re-groupable and exportable as SRT; rasterising them is the
 /// last thing that happens, to the copy that leaves the device.
 ///
-/// Trims are not applied and no watermark is composited, because neither
-/// exists yet. That is the next slice, not an omission here.
+/// **The watermark is composited here too, and nowhere else.** It lands in the
+/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+/// written once, at the end, to the copy that leaves the device.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -36,8 +37,9 @@ final videoExportControllerProvider = VideoExportControllerFamily._();
 /// remain editable, re-groupable and exportable as SRT; rasterising them is the
 /// last thing that happens, to the copy that leaves the device.
 ///
-/// Trims are not applied and no watermark is composited, because neither
-/// exists yet. That is the next slice, not an omission here.
+/// **The watermark is composited here too, and nowhere else.** It lands in the
+/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+/// written once, at the end, to the copy that leaves the device.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -55,8 +57,9 @@ final class VideoExportControllerProvider
   /// remain editable, re-groupable and exportable as SRT; rasterising them is the
   /// last thing that happens, to the copy that leaves the device.
   ///
-  /// Trims are not applied and no watermark is composited, because neither
-  /// exists yet. That is the next slice, not an omission here.
+  /// **The watermark is composited here too, and nowhere else.** It lands in the
+  /// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+  /// written once, at the end, to the copy that leaves the device.
   ///
   /// **The file goes to the device's Downloads folder**, not app storage. An
   /// export the user cannot open, share or find in a file manager is not an
@@ -110,7 +113,7 @@ final class VideoExportControllerProvider
 }
 
 String _$videoExportControllerHash() =>
-    r'9adeb9382e84a59290be80d0404908d767443817';
+    r'e346fe9a06f98f0db2cfca46357dd137f34a7b02';
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
 ///
@@ -119,8 +122,9 @@ String _$videoExportControllerHash() =>
 /// remain editable, re-groupable and exportable as SRT; rasterising them is the
 /// last thing that happens, to the copy that leaves the device.
 ///
-/// Trims are not applied and no watermark is composited, because neither
-/// exists yet. That is the next slice, not an omission here.
+/// **The watermark is composited here too, and nowhere else.** It lands in the
+/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+/// written once, at the end, to the copy that leaves the device.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an
@@ -155,8 +159,9 @@ final class VideoExportControllerFamily extends $Family
   /// remain editable, re-groupable and exportable as SRT; rasterising them is the
   /// last thing that happens, to the copy that leaves the device.
   ///
-  /// Trims are not applied and no watermark is composited, because neither
-  /// exists yet. That is the next slice, not an omission here.
+  /// **The watermark is composited here too, and nowhere else.** It lands in the
+  /// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+  /// written once, at the end, to the copy that leaves the device.
   ///
   /// **The file goes to the device's Downloads folder**, not app storage. An
   /// export the user cannot open, share or find in a file manager is not an
@@ -180,8 +185,9 @@ final class VideoExportControllerFamily extends $Family
 /// remain editable, re-groupable and exportable as SRT; rasterising them is the
 /// last thing that happens, to the copy that leaves the device.
 ///
-/// Trims are not applied and no watermark is composited, because neither
-/// exists yet. That is the next slice, not an omission here.
+/// **The watermark is composited here too, and nowhere else.** It lands in the
+/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
+/// written once, at the end, to the copy that leaves the device.
 ///
 /// **The file goes to the device's Downloads folder**, not app storage. An
 /// export the user cannot open, share or find in a file manager is not an

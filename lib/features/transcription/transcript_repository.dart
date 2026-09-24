@@ -15,6 +15,9 @@ import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
 import '../../core/timeline/clip_trim.dart';
+import '../../core/timeline/layer_drag.dart';
+import '../../core/timeline/timeline_event.dart';
+import 'timeline_history.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/timeline/timeline_sentences.dart';
 import '../../core/transcript/speaker_names.dart';
@@ -29,11 +32,14 @@ part 'transcript_repository.g.dart';
 /// key/value table -- the same reason `whisper_model_controller.dart`
 /// namespaces its own.
 ///
-/// **Keyed by clip since schema 5**, having been keyed by project before that.
-/// A project now holds several clips and the preview plays whichever one is
-/// selected, so a single per-project position would drop the user somewhere
-/// arbitrary in whatever clip they opened next.
-String playbackPositionKey(String clipId) => 'clip.$clipId.positionMs';
+/// **Keyed by media path**, having been keyed by clip and, before that, by
+/// project. The decoder is shared by file now, because splitting a clip must
+/// not reload the picture, and a position belongs to whatever owns the
+/// decoder. Two clips over one file therefore share where you were in it.
+///
+/// Keys written under the old `clip.<id>.positionMs` shape are simply never
+/// read again. They are soft-deletable settings rows, not worth a migration.
+String playbackPositionKey(String mediaPath) => 'media.\$mediaPath.positionMs';
 
 /// All persistence for projects and their transcripts.
 ///
@@ -103,7 +109,61 @@ class TranscriptRepository {
       endMs: endMs,
       trackIndex: trackIndex,
     );
+
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.layerAdd,
+      payload: layerAddPayload(layerId: layerId),
+    );
+
     return layerId;
+  }
+
+  /// Cuts a layer in two at [atProjectMs].
+  ///
+  /// Returns the new layer's id, or null when the split was refused -- either
+  /// half would be under [minimumLayerMs], or the playhead is outside the
+  /// layer entirely.
+  ///
+  /// **Shrinks the original before adding the tail.** Adding it first would be
+  /// rejected by the very overlap rule the two halves are about to satisfy,
+  /// because the original still covers that range at that moment. If the add
+  /// fails anyway the shrink is undone, so a refused split leaves the layer as
+  /// it was rather than silently shortened.
+  Future<String?> splitLayer({
+    required String layerId,
+    required int atProjectMs,
+  }) async {
+    final layer = await _db.findLayer(layerId);
+    if (layer == null) return null;
+
+    if (atProjectMs - layer.startMs < minimumLayerMs) return null;
+    if (layer.endMs - atProjectMs < minimumLayerMs) return null;
+
+    final originalEnd = layer.endMs;
+
+    final shrank = await moveLayer(
+      layerId: layerId,
+      startMs: layer.startMs,
+      endMs: atProjectMs,
+    );
+    if (!shrank) return null;
+
+    final tail = await addLayer(
+      projectId: layer.projectId,
+      startMs: atProjectMs,
+      endMs: originalEnd,
+      trackIndex: layer.trackIndex,
+    );
+
+    if (tail == null) {
+      await moveLayer(
+        layerId: layerId,
+        startMs: layer.startMs,
+        endMs: originalEnd,
+      );
+    }
+    return tail;
   }
 
   /// Moves or resizes a layer, refusing a range that would overlap another.
@@ -129,6 +189,19 @@ class TranscriptRepository {
     }
 
     await _db.moveLayer(layerId: layerId, startMs: startMs, endMs: endMs);
+
+    await recordTimelineEvent(
+      projectId: layer.projectId,
+      kind: TimelineEventKind.layerMove,
+      payload: layerMovePayload(
+        layerId: layerId,
+        fromStartMs: layer.startMs,
+        fromEndMs: layer.endMs,
+        toStartMs: startMs,
+        toEndMs: endMs,
+      ),
+    );
+
     return true;
   }
 
@@ -269,7 +342,9 @@ class TranscriptRepository {
     if (clip == null) return;
 
     await _db.softDeleteClip(clipId);
-    await _db.softDeleteSetting(playbackPositionKey(clipId));
+    // Only once nothing else plays this file -- the position belongs to the
+    // media now, and another clip or another project may still want it.
+    await _db.softDeleteSetting(playbackPositionKey(clip.mediaPath));
 
     // A duplicated project points a clip of its own at the same file, so the
     // bytes only go when nothing else still needs them.
@@ -302,6 +377,31 @@ class TranscriptRepository {
         endMs: window.endMs,
       );
 
+  /// Moves the cut between two clips, writing both sides together.
+  ///
+  /// Separate from [trimClip] because it is a different operation, not a
+  /// convenience: trimming changes how long the project is, rolling never
+  /// does. Written in one transaction so the pair cannot be caught with a gap
+  /// or an overlap between them.
+  Future<void> rollCut({
+    required String leftClipId,
+    required String rightClipId,
+    required RolledCut cut,
+  }) async {
+    await _db.transaction(() async {
+      await _db.trimClip(
+        clipId: leftClipId,
+        startMs: cut.left.startMs,
+        endMs: cut.left.endMs,
+      );
+      await _db.trimClip(
+        clipId: rightClipId,
+        startMs: cut.right.startMs,
+        endMs: cut.right.endMs,
+      );
+    });
+  }
+
   /// Splits the clip at [atClipMs], measured from the start of what it plays.
   ///
   /// Returns the new clip's id, or null when the split was refused -- which
@@ -320,7 +420,27 @@ class TranscriptRepository {
     final at = splitPointFor(clip, atClipMs);
     if (at == null) return null;
 
-    return _db.splitClip(clipId: clipId, atMediaMs: at, newId: newId);
+    // Captured before the split, because afterwards the clip no longer knows
+    // how far it used to reach.
+    final whole = clipWindow(clip);
+
+    final newClipId =
+        await _db.splitClip(clipId: clipId, atMediaMs: at, newId: newId);
+    if (newClipId == null) return null;
+
+    await recordTimelineEvent(
+      projectId: clip.projectId,
+      kind: TimelineEventKind.clipSplit,
+      payload: splitPayload(
+        leftClipId: clipId,
+        rightClipId: newClipId,
+        wholeStartMs: whole.startMs,
+        wholeEndMs: whole.endMs,
+        atMs: at,
+      ),
+    );
+
+    return newClipId;
   }
 
   Future<void> reorderClips({
@@ -354,7 +474,7 @@ class TranscriptRepository {
     await _db.softDeleteProject(id);
     await _db.softDeleteSetting(editorModeKey(id));
     for (final clip in clips) {
-      await _db.softDeleteSetting(playbackPositionKey(clip.id));
+      await _db.softDeleteSetting(playbackPositionKey(clip.mediaPath));
     }
     if (project == null) return;
 
@@ -616,6 +736,101 @@ class TranscriptRepository {
   Future<void> undo(String transcriptId) =>
       _step(transcriptId, forward: false);
 
+  /// Everything that has happened to this project, oldest first.
+  ///
+  /// **Both logs, ordered by when things happened.** Which table an event
+  /// lives in is storage, not history: a word edit and a split are the same
+  /// kind of fact to someone pressing undo.
+  Future<({List<HistoryStep> steps, Set<String> undone})> projectHistory(
+    String projectId,
+  ) async {
+    final edits = await _db.editEventsForProject(projectId);
+    final timeline = await _db.timelineEventsFor(projectId);
+
+    return (
+      steps: mergeHistory(
+        transcript: edits.map(stepOfEdit).toList(),
+        timeline: timeline.map(stepOf).toList(),
+      ),
+      undone: {
+        for (final event in edits)
+          if (event.undoneAt != null) event.id,
+        for (final event in timeline)
+          if (event.undoneAt != null) event.id,
+      },
+    );
+  }
+
+  /// Undoes the last thing that happened, whichever log it came from.
+  Future<void> undoProject(String projectId) =>
+      _stepProject(projectId, forward: false);
+
+  /// Redoes the oldest thing that was undone.
+  Future<void> redoProject(String projectId) =>
+      _stepProject(projectId, forward: true);
+
+  Future<void> _stepProject(String projectId, {required bool forward}) async {
+    final history = await projectHistory(projectId);
+    final step = forward
+        ? nextRedo(history.steps, history.undone)
+        : nextUndo(history.steps, history.undone);
+    if (step == null) return;
+
+    switch (step.log) {
+      // Delegated rather than reimplemented: word edits already know how to
+      // walk themselves, and duplicating that here is how the two would drift.
+      case HistoryLog.transcript:
+        final event = await _db.findEditEvent(step.id);
+        if (event != null) {
+          await _step(event.transcriptId, forward: forward);
+        }
+
+      case HistoryLog.timeline:
+        await _stepTimeline(step.id, forward: forward);
+    }
+  }
+
+  /// Applies one timeline event in the given direction.
+  ///
+  /// Wrapped in a transaction for the same reason [_step] is: applying the
+  /// change and marking the event cannot come apart, or the log would claim a
+  /// state the project is not in and every later undo would be wrong.
+  Future<void> _stepTimeline(String eventId, {required bool forward}) async {
+    await _db.transaction(() async {
+      final event = await _db.findTimelineEvent(eventId);
+      if (event == null) return;
+
+      final kind = TimelineEventKind.fromCode(event.kind);
+      final payload = TimelineEventPayload.decode(event.payload);
+      final inverse = kind == null ? null : timelineInverses[kind];
+
+      if (payload == null || inverse == null) {
+        // Written by a newer build, or corrupt. Dropped rather than letting
+        // one unreadable row wedge the button for good.
+        await _db.discardTimelineEvent(event.id);
+        return;
+      }
+
+      await inverse(_db, payload.side(forward: forward));
+      await _db.setTimelineEventUndone(event.id, undone: !forward);
+    });
+  }
+
+  /// Records something that happened, so it can be taken back.
+  ///
+  /// Called by the actions themselves rather than wrapped around them: only
+  /// the action knows what the state was before it ran.
+  Future<void> recordTimelineEvent({
+    required String projectId,
+    required TimelineEventKind kind,
+    required TimelineEventPayload payload,
+  }) =>
+      _db.appendTimelineEvent(
+        projectId: projectId,
+        kind: kind.code,
+        payload: payload.encode(),
+      );
+
   /// Re-applies the oldest edit that has been undone.
   Future<void> redo(String transcriptId) => _step(transcriptId, forward: true);
 
@@ -788,7 +1003,9 @@ class TranscriptRepository {
   /// Replacing an existing transcript is not handled here — the caller checks
   /// first, because re-transcribing would discard corrections the user has
   /// already made and that is a decision to surface, not to take silently.
-  Future<void> saveClipTranscript({
+  /// Returns the id of the transcript written, so the caller can record what
+  /// its run produced and take exactly that back later.
+  Future<String> saveClipTranscript({
     required String projectId,
     required String clipId,
     required TranscriptionLanguage language,
@@ -796,11 +1013,12 @@ class TranscriptRepository {
     required WhisperTranscribeResponse result,
     String? layerId,
     int offsetMs = 0,
+    int? rangeStartMs,
     int? rangeEndMs,
   }) async {
     final now = DateTime.now();
-    await _db.transaction(() async {
-      await _writeTranscript(
+    return _db.transaction(() async {
+      return _writeTranscript(
         projectId: projectId,
         clipId: clipId,
         language: language,
@@ -809,6 +1027,7 @@ class TranscriptRepository {
         now: now,
         layerId: layerId,
         offsetMs: offsetMs,
+        rangeStartMs: rangeStartMs,
         rangeEndMs: rangeEndMs,
       );
     });
@@ -821,7 +1040,7 @@ class TranscriptRepository {
   /// ten seconds into a clip comes back starting at zero — **this is the one
   /// place that offset is applied.** Putting it anywhere else as well is how a
   /// double-offset bug appears only for ranges that do not start at zero.
-  Future<void> _writeTranscript({
+  Future<String> _writeTranscript({
     required String projectId,
     required String clipId,
     required TranscriptionLanguage language,
@@ -830,6 +1049,7 @@ class TranscriptRepository {
     required DateTime now,
     String? layerId,
     int offsetMs = 0,
+    int? rangeStartMs,
     int? rangeEndMs,
   }) async {
     final transcriptId = newId();
@@ -843,7 +1063,11 @@ class TranscriptRepository {
               projectId: projectId,
               clipId: Value(clipId),
               layerId: Value(layerId),
-              clipStartMs: Value(offsetMs),
+              // **Not always [offsetMs].** They are the same whenever one
+              // run produced one transcript, but a run spanning several
+              // contiguous clips shifts every word by the *run's* start while
+              // each clip records only its own share of it.
+              clipStartMs: Value(rangeStartMs ?? offsetMs),
               clipEndMs: Value(rangeEndMs),
               language: Value(result.detectedLanguage ?? language.code),
               fullText: result.text.trim(),
@@ -901,6 +1125,8 @@ class TranscriptRepository {
         );
       });
     }
+
+    return transcriptId;
   }
 }
 
@@ -927,6 +1153,19 @@ Stream<Transcript?> transcriptById(Ref ref, String transcriptId) =>
     ref.watch(appDatabaseProvider).watchTranscript(transcriptId);
 
 /// Whether the undo and redo controls are live for [transcriptId].
+/// Whether the project has anything to undo or redo.
+///
+/// **One history behind one pair of buttons.** Both modes read this, because
+/// splitting a clip and correcting a word are the same kind of fact to someone
+/// pressing undo -- which table they were stored in is not something the
+/// control should have an opinion about.
+@riverpod
+Stream<({bool canUndo, bool canRedo})> projectHistoryState(
+  Ref ref,
+  String projectId,
+) =>
+    ref.watch(appDatabaseProvider).watchProjectHistory(projectId);
+
 @riverpod
 Stream<({bool canUndo, bool canRedo})> editHistory(
   Ref ref,
@@ -965,6 +1204,49 @@ Stream<List<Word>> transcriptWords(Ref ref, String transcriptId) =>
 @riverpod
 Stream<List<Transcript>> clipTranscripts(Ref ref, String clipId) =>
     ref.watch(transcriptRepositoryProvider).watchTranscriptsForClip(clipId);
+
+/// The whole project's script: every word, in timeline order.
+///
+/// **A transcript belongs to a clip, but a script belongs to the project.**
+/// Storage is per clip because word timings are relative to a clip's media and
+/// there is no single continuous recording to store them against. That is an
+/// implementation detail, and it had been leaking: splitting a clip cut the
+/// script in half on screen, and Script mode showed only whichever half the
+/// playhead happened to be over.
+///
+/// [clipOfTranscript] is what lets a word be played. Each word knows which
+/// transcript it belongs to; this says which clip that transcript is on, so a
+/// tap can be turned into a seek without the view having to care that the
+/// script it is showing came from several rows.
+typedef ProjectScript = ({
+  List<Word> words,
+  Map<String, String> clipOfTranscript,
+});
+
+@riverpod
+ProjectScript projectScript(Ref ref, String projectId) {
+  final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
+
+  final words = <Word>[];
+  final clipOfTranscript = <String, String>{};
+
+  // Clip order is timeline order, and a clip's transcripts come back earliest
+  // range first, so reading them in this order is already the order a person
+  // would read the script in.
+  for (final clip in clips) {
+    final transcripts =
+        ref.watch(clipTranscriptsProvider(clip.id)).value ?? const [];
+
+    for (final transcript in transcripts) {
+      clipOfTranscript[transcript.id] = clip.id;
+      words.addAll(
+        ref.watch(transcriptWordsProvider(transcript.id)).value ?? const [],
+      );
+    }
+  }
+
+  return (words: words, clipOfTranscript: clipOfTranscript);
+}
 
 /// A project's transcribe layers, in timeline order.
 @riverpod

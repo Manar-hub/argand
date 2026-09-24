@@ -9,6 +9,7 @@ MediaClip clip({
   int? trimStartMs,
   int? trimEndMs,
   int position = 0,
+  String? mediaPath,
 }) =>
     MediaClip(
       id: id,
@@ -16,7 +17,7 @@ MediaClip clip({
       updatedAt: DateTime(2026),
       projectId: 'p',
       position: position,
-      mediaPath: '/media/$id.mp4',
+      mediaPath: mediaPath ?? '/media/\$id.mp4',
       durationMs: durationMs,
       trimStartMs: trimStartMs,
       trimEndMs: trimEndMs,
@@ -164,6 +165,158 @@ void main() {
 
     test('a split in the middle is allowed', () {
       expect(splitPointFor(clip(), 15000), 15000);
+    });
+  });
+
+  group('media time survives a trim', () {
+    // **The property that broke silently.** Measuring trimmed clips changed
+    // what `clipAt` returned without changing what its callers expected, so
+    // scrubbing over a trimmed clip seeked to the wrong frame and its
+    // sentences drew in the wrong place. Both conversions speak media time.
+    final timeline = ProjectTimeline.fromClips([
+      clip(id: 'a', position: 0, trimStartMs: 4000, trimEndMs: 10000),
+      clip(id: 'b', position: 1),
+    ]);
+
+    test('clipAt answers in media time, past the in-point', () {
+      // The very start of the project is 4s into the first clip's file.
+      expect(timeline.clipAt(0), (clipId: 'a', clipMs: 4000));
+      expect(timeline.clipAt(1000), (clipId: 'a', clipMs: 5000));
+    });
+
+    test('the second clip starts where the first one stops playing', () {
+      // The first contributes 6s, not its full 30.
+      expect(timeline.clipAt(6000), (clipId: 'b', clipMs: 0));
+    });
+
+    test('projectMsOf takes media time back', () {
+      expect(timeline.projectMsOf(clipId: 'a', clipMs: 4000), 0);
+      expect(timeline.projectMsOf(clipId: 'a', clipMs: 7000), 3000);
+    });
+
+    test('the two round-trip', () {
+      for (final projectMs in [0, 1, 2500, 5999, 6000, 20000]) {
+        final at = timeline.clipAt(projectMs)!;
+        expect(
+          timeline.projectMsOf(clipId: at.clipId, clipMs: at.clipMs),
+          projectMs,
+          reason: 'round trip failed at ${projectMs}ms',
+        );
+      }
+    });
+
+    test('a transcribe range addresses the file, not the window', () {
+      // This feeds the WAV slicer and `saveClipTranscript`'s offset, both of
+      // which address the media file. A window-relative number here would
+      // transcribe the wrong audio and file the words at the wrong times.
+      final ranges = timeline.rangesFor(startMs: 0, endMs: 3000);
+
+      expect(ranges.single.clipId, 'a');
+      expect(ranges.single.clipStartMs, 4000);
+      expect(ranges.single.clipEndMs, 7000);
+    });
+
+    test('an untrimmed clip is unaffected', () {
+      final plain = ProjectTimeline.fromClips([clip(id: 'a')]);
+
+      expect(plain.clipAt(5000), (clipId: 'a', clipMs: 5000));
+      expect(plain.projectMsOf(clipId: 'a', clipMs: 5000), 5000);
+    });
+  });
+
+  group('rolling the cut between two halves of a split', () {
+    // **The 14s file that became a 22s project.** Splitting german.mp4 at 6s
+    // and dragging one half outward re-covered footage the other half already
+    // played: 14 + 8 = 22, with the overlap playing twice. Rolling gives one
+    // side exactly what the other gives up.
+    const german = '/media/german.mp4';
+    MediaClip left({int end = 6000}) => clip(
+          id: 'L',
+          durationMs: 14000,
+          trimEndMs: end,
+          position: 0,
+          mediaPath: german,
+        );
+    MediaClip right({int start = 6000}) => clip(
+          id: 'R',
+          durationMs: 14000,
+          trimStartMs: start,
+          position: 1,
+          mediaPath: german,
+        );
+
+    test('the halves of a split are recognised as one cut', () {
+      expect(sharesACut(left(), right()), isTrue);
+    });
+
+    test('a gap or a different file is not a cut', () {
+      expect(sharesACut(left(), right(start: 9000)), isFalse);
+
+      final other = MediaClip(
+        id: 'X',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        projectId: 'p',
+        position: 1,
+        mediaPath: '/media/other.mp4',
+        durationMs: 14000,
+        trimStartMs: 6000,
+        title: 'X',
+      );
+      expect(sharesACut(left(), other), isFalse);
+    });
+
+    test('the project never gets longer than its source', () {
+      for (final delta in [-5000, -1000, 0, 1000, 5000, 99000, -99000]) {
+        final rolled = rollCut(left: left(), right: right(), deltaMs: delta);
+        final total = (rolled.left.endMs - rolled.left.startMs) +
+            (rolled.right.endMs - rolled.right.startMs);
+
+        expect(
+          total,
+          14000,
+          reason: 'rolling by ${delta}ms changed the total length',
+        );
+      }
+    });
+
+    test('the two sides always still meet', () {
+      final rolled = rollCut(left: left(), right: right(), deltaMs: 3000);
+
+      expect(rolled.left.endMs, rolled.right.startMs);
+      expect(rolled.left.endMs, 9000);
+    });
+
+    test('the cut cannot be pushed off either end', () {
+      final far = rollCut(left: left(), right: right(), deltaMs: 99000);
+      expect(far.right.endMs - far.right.startMs, minimumClipMs);
+
+      final back = rollCut(left: left(), right: right(), deltaMs: -99000);
+      expect(back.left.endMs - back.left.startMs, minimumClipMs);
+    });
+
+    test('a rolled pair still tiles the timeline exactly', () {
+      final rolled = rollCut(left: left(), right: right(), deltaMs: 2000);
+      final timeline = ProjectTimeline.fromClips([
+        clip(
+          id: 'L',
+          durationMs: 14000,
+          trimStartMs: rolled.left.startMs,
+          trimEndMs: rolled.left.endMs,
+          position: 0,
+          mediaPath: german,
+        ),
+        clip(
+          id: 'R',
+          durationMs: 14000,
+          trimStartMs: rolled.right.startMs,
+          trimEndMs: rolled.right.endMs,
+          position: 1,
+          mediaPath: german,
+        ),
+      ]);
+
+      expect(timeline.totalMs, 14000);
     });
   });
 }

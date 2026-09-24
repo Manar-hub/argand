@@ -56,6 +56,30 @@ class CaptionCue {
 
   int get durationMs => endMs - startMs;
 
+  /// The same cue moved along the clock by [deltaMs], never before zero.
+  ///
+  /// **Only the cue's span moves; its words keep their stored times.** Words
+  /// are rows in media time and stay the truth. A shifted cue is the caption as
+  /// it will appear somewhere else -- on a trimmed clip's own clock, or at its
+  /// place on the project's -- which is a question about the output, not about
+  /// the words.
+  CaptionCue shiftedBy(int deltaMs) => CaptionCue(
+        words: words,
+        startMs: startMs + deltaMs < 0 ? 0 : startMs + deltaMs,
+        endMs: endMs + deltaMs < 0 ? 0 : endMs + deltaMs,
+        text: text,
+        speaker: speaker,
+      );
+
+  /// The same cue, ending at [endMs] instead.
+  CaptionCue withEnd(int endMs) => CaptionCue(
+        words: words,
+        startMs: startMs,
+        endMs: endMs,
+        text: text,
+        speaker: speaker,
+      );
+
   bool containsMs(int positionMs) =>
       positionMs >= startMs && positionMs < endMs;
 

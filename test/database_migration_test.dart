@@ -102,7 +102,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 8', () {
+  group('schema 2 -> 9', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -181,7 +181,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 8);
+      expect(row, 9);
     });
 
     test('gives the existing transcript the layer its clip always implied',
@@ -239,6 +239,17 @@ void main() {
       // yet", and the timeline fills it in on first sight -- the same path a
       // newly added clip takes.
       expect(clip.waveform, isNull);
+    });
+
+    test('the timeline history arrives, and is empty', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      // A whole table rather than a column, so it needs no version pairing --
+      // but it does have to actually be created on an upgrade, which is the
+      // failure `createTable` not running would produce silently.
+      final events = await db.select(db.timelineEvents).get();
+      expect(events, isEmpty);
     });
 
     test('an upgraded clip is untrimmed, not trimmed to zero', () async {

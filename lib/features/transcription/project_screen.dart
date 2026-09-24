@@ -7,16 +7,20 @@ import '../../core/captions/caption_controller.dart';
 import '../../core/captions/caption_cue.dart';
 import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
-import '../../core/captions/subtitle_export.dart';
 import '../../core/database/database.dart';
+import '../../core/theme/app_dialog.dart';
+import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/transcript/speaker_names.dart';
 import '../../core/transcript/speaker_turns.dart';
+import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
 import 'clip_controller.dart';
 import 'editor_mode_controller.dart';
+import 'export_sheet.dart';
+import 'video_settings_panel.dart';
 import 'media_player_controller.dart';
 import 'subtitle_export_controller.dart';
 import 'timeline_screen.dart';
@@ -86,16 +90,6 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     final project = ref.watch(projectByIdProvider(widget.projectId));
 
     final editing = ref.watch(transcriptEditModeProvider);
-    // Both modes follow the same selected clip, so the app bar's export and
-    // history controls act on exactly what is on screen.
-    final selectedClip =
-        ref.watch(resolvedSelectedClipProvider(widget.projectId));
-    // The app bar acts on whichever range is in front of the user. With one
-    // transcript on the clip -- the ordinary case -- that is simply it.
-    final transcript = selectedClip == null
-        ? null
-        : (ref.watch(clipTranscriptsProvider(selectedClip)).value ?? const [])
-            .firstOrNull;
     final mode = ref.watch(sessionEditorModeProvider(widget.projectId));
 
     // Export outcomes are transient, so they are acknowledged rather than
@@ -152,19 +146,14 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
           // the sheet offers still depends on what exists; being able to open
           // it does not.
           if (!editing)
-            _ExportButton(
-              projectId: widget.projectId,
-              transcript: transcript,
-              title: project.value?.title ?? '',
-            ),
+            _ExportButton(projectId: widget.projectId),
           // Script mode's own controls. Timeline mode has its own toolbar
           // for Edit and Captions, so none of these apply there.
           if (mode == EditorMode.script) ...[
             // History belongs to editing, so it appears with it. Showing two
             // permanently-disabled buttons during playback would add weight
             // to the bar for a mode in which nothing can be edited or undone.
-            if (editing && transcript != null)
-              HistoryControls(transcriptId: transcript.id),
+            if (editing) HistoryControls(projectId: widget.projectId),
             IconButton(
               icon: Icon(editing ? Icons.done : Icons.edit_outlined),
               tooltip: editing ? l10n.editModeDisable : l10n.editModeEnable,
@@ -173,61 +162,48 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
             ),
           ],
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              0,
-              AppSpacing.lg,
-              AppSpacing.sm,
-            ),
-            child: _SegmentRow<EditorMode>(
-              selected: mode,
-              items: {
-                EditorMode.script: l10n.editorModeScript,
-                EditorMode.timeline: l10n.editorModeTimeline,
-              },
-              onSelected: (value) => ref
-                  .read(sessionEditorModeProvider(widget.projectId).notifier)
-                  .select(value),
-            ),
-          ),
-        ),
+        // **No mode switch up here any more.** It moved into the video
+        // settings panel, opened from the gear under the stage in both modes:
+        // a switch that changes what the whole screen is belongs with the
+        // other things that change what the screen shows, not in the bar.
       ),
       body: project.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _CenteredMessage(message: '$error'),
         data: (value) => value == null
             ? _CenteredMessage(message: l10n.errorTitle)
-            : mode == EditorMode.script
-                ? _ProjectBody(project: value)
-                : TimelineBody(project: value),
+            // A cross-fade rather than a cut. Both modes play through the
+            // same shared decoder, keyed by the media file, so the picture
+            // does not reload as one mode gives way to the other.
+            : AnimatedSwitcher(
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: KeyedSubtree(
+                  key: ValueKey(mode),
+                  child: mode == EditorMode.script
+                      ? _ProjectBody(project: value)
+                      : TimelineBody(project: value),
+                ),
+              ),
       ),
     );
   }
 }
 
-/// Opens the caption export options.
+/// Opens the export sheet.
 ///
 /// Shows a spinner in place of the icon while a file is being written, so a
 /// second tap cannot start an overlapping export and open two save dialogs.
 class _ExportButton extends ConsumerWidget {
-  const _ExportButton({
-    required this.projectId,
-    required this.transcript,
-    required this.title,
-  });
+  const _ExportButton({required this.projectId});
 
-  /// The video render is project-wide: it covers every clip on the timeline,
-  /// not just the one whose transcript is open.
+  /// Every export is project-wide: the video renders the whole timeline, and
+  /// the subtitle files follow it, so none of them depends on which clip is
+  /// selected.
   final String projectId;
-
-  /// Null when the selected clip has not been transcribed. Only the subtitle
-  /// formats need one; the video render does not.
-  final Transcript? transcript;
-
-  final String title;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -252,159 +228,68 @@ class _ExportButton extends ConsumerWidget {
     return IconButton(
       icon: const Icon(Icons.file_download_outlined),
       tooltip: l10n.exportAction,
-      onPressed: () => _chooseFormat(context, ref, l10n),
+      onPressed: () => _export(context, ref, l10n),
     );
   }
 
-  Future<void> _chooseFormat(
+  Future<void> _export(
     BuildContext context,
     WidgetRef ref,
     AppLocalizations l10n,
   ) async {
-    final source = transcript;
+    final decision = await showExportSheet(context, projectId);
+    if (decision == null || !context.mounted) return;
 
-    final choice = await showModalBottomSheet<_ExportChoice>(
-      context: context,
-      builder: (_) => _ExportSheet(hasTranscript: source != null),
-    );
-    if (choice == null) return;
+    switch (decision) {
+      case VideoExportDecision(:final options):
+        await _renderVideo(context, ref, l10n, projectId, options);
 
-    final format = choice.format;
-    if (format == null) {
-      await ref.read(videoExportControllerProvider(projectId).notifier).export();
-      return;
+      case SubtitleExportDecision(
+          :final format,
+          :final includeSpeakers,
+          :final lineLength,
+        ):
+        await ref.read(subtitleExporterProvider.notifier).export(
+              projectId: projectId,
+              format: format,
+              lineLength: lineLength,
+              // Built here rather than in the controller: "Speaker 1" is
+              // interface text, and CLAUDE.md 4 keeps those out of the service
+              // layer. The controller puts any renamed speaker's name first.
+              defaultSpeakerLabel: includeSpeakers
+                  ? (speaker) => l10n.speakerLabel(speaker + 1)
+                  : null,
+            );
     }
-
-    // Unreachable unless a transcript exists, since the sheet does not offer
-    // the subtitle formats without one -- but proving it beats asserting it.
-    if (source == null) return;
-    final names = ref.read(speakerNamesProvider(source.id));
-
-    await ref.read(subtitleExporterProvider.notifier).export(
-          transcriptId: source.id,
-          title: title,
-          language: source.language,
-          format: format,
-          // Built here rather than in the controller: "Speaker 1" is interface
-          // text, and CLAUDE.md 4 keeps those out of the service layer.
-          speakerLabel: choice.includeSpeakers
-              ? (speaker) => names.labelFor(
-                    speaker,
-                    defaultLabel: l10n.speakerLabel(speaker + 1),
-                  )
-              : null,
-        );
   }
 }
 
-/// What the export sheet returns: a format, and whether to attribute lines.
-/// What the export sheet came back with.
+/// Renders the video the sheet decided on, with its progress on screen.
 ///
-/// [format] is null for the video render, which is the one entry that is not a
-/// subtitle container. Modelled as an absent format rather than a parallel enum
-/// so the subtitle path keeps taking a [SubtitleFormat] and gains no null
-/// checks it did not have before.
-class _ExportChoice {
-  const _ExportChoice({required this.format, required this.includeSpeakers});
+/// **The ad is already over by the time this runs.** An unbranded export
+/// reaches here only with a waiver the sheet obtained, so nothing about paying
+/// for it happens after the file exists.
+Future<void> _renderVideo(
+  BuildContext context,
+  WidgetRef ref,
+  AppLocalizations l10n,
+  String projectId,
+  ExportOptions options,
+) async {
+  // **Started without awaiting.** The progress window has to be on screen
+  // while the render runs; awaiting the render first would put it up only once
+  // there was nothing left to show.
+  final render = ref
+      .read(videoExportControllerProvider(projectId).notifier)
+      .export(options: options);
 
-  const _ExportChoice.video()
-      : format = null,
-        includeSpeakers = false;
+  final cancelled = await showExportProgress(context, projectId);
+  await render;
 
-  final SubtitleFormat? format;
-  final bool includeSpeakers;
-}
-
-/// Format picker, with the one option that changes the file's content.
-///
-/// Stateful because the speaker toggle has to be settable *before* a format is
-/// chosen -- tapping a format is what closes the sheet, so the switch cannot
-/// come after it.
-class _ExportSheet extends StatefulWidget {
-  const _ExportSheet({required this.hasTranscript});
-
-  /// Whether the subtitle formats have anything to write.
-  ///
-  /// They are shown disabled rather than removed when there is nothing to
-  /// export: a sheet that changes shape between visits reads as a bug, and a
-  /// disabled row has somewhere to put the reason.
-  final bool hasTranscript;
-
-  @override
-  State<_ExportSheet> createState() => _ExportSheetState();
-}
-
-class _ExportSheetState extends State<_ExportSheet> {
-  bool _includeSpeakers = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return SafeArea(
-      // Scrollable so the sheet still reaches its last option on a short screen
-      // or at a large accessibility text scale, rather than overflowing.
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.sm,
-              ),
-              child: Text(
-                l10n.exportSheetTitle,
-                style: theme.textTheme.titleMedium,
-              ),
-            ),
-            SwitchListTile(
-              value: _includeSpeakers,
-              onChanged: widget.hasTranscript
-                  ? (value) => setState(() => _includeSpeakers = value)
-                  : null,
-              title: Text(l10n.exportIncludeSpeakers),
-              secondary: const Icon(Icons.record_voice_over_outlined),
-            ),
-            const Divider(height: 1),
-            for (final (format, title, detail) in [
-              (SubtitleFormat.srt, l10n.exportSrt, l10n.exportSrtDetail),
-              (SubtitleFormat.vtt, l10n.exportVtt, l10n.exportVttDetail),
-            ])
-              ListTile(
-                enabled: widget.hasTranscript,
-                leading: const Icon(Icons.subtitles_outlined),
-                title: Text(title),
-                subtitle: Text(
-                  widget.hasTranscript ? detail : l10n.exportNeedsTranscript,
-                ),
-                onTap: () => Navigator.of(context).pop(
-                  _ExportChoice(
-                    format: format,
-                    includeSpeakers: _includeSpeakers,
-                  ),
-                ),
-              ),
-            // Below a divider, because this is the one entry that renders
-            // pixels rather than writing out text the app already holds --
-            // it takes minutes where the others take a moment.
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.movie_outlined),
-              title: Text(l10n.exportVideo),
-              subtitle: Text(l10n.exportVideoDetail),
-              onTap: () =>
-                  Navigator.of(context).pop(const _ExportChoice.video()),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+  if (cancelled && context.mounted) {
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(content: Text(l10n.exportCancelled)));
   }
 }
 
@@ -418,154 +303,6 @@ class _ExportSheetState extends State<_ExportSheet> {
 /// run means a smaller re-estimate. Editing one word confines any timing change
 /// to that word; editing the line spreads it across the line. The hint says so
 /// in each mode, because a user cannot pick sensibly without knowing it.
-/// The hairline this screen rules everything with.
-///
-/// One value, used by the separator between two caption lines and by the edit
-/// control's own borders. They sit within a few pixels of each other on the
-/// page, so any difference between them reads as a mistake rather than as a
-/// distinction.
-Color _hairline(ThemeData theme) =>
-    theme.colorScheme.outline.withValues(alpha: 0.18);
-
-const double _hairlineWidth = 1;
-
-/// A full-width row of choices, divided evenly.
-///
-/// **Replaces a `SegmentedButton` in a horizontal scroller**, which was the
-/// wrong shape twice over: Material's pill sits in the middle of the page with
-/// air either side, and the scroller meant the third choice could be off
-/// screen with nothing saying so. Splitting the full width gives the control a
-/// fixed, obvious extent, and a fourth choice costs a narrower column rather
-/// than a layout decision. Labels ellipsize instead of scrolling, so a large
-/// text scale shortens a word rather than hiding a whole option.
-///
-/// **Drawn as part of the page, not as a card on top of it.** It takes the
-/// page's own background and the same hairline the transcript separates its
-/// lines with — an earlier pass gave it the card fill and the full 2pt outline
-/// every raised surface uses, which made a control sitting inside a list of
-/// text look like a slab dropped onto it. Nothing here is raised, so nothing
-/// here gets a raised surface's weight.
-///
-/// Generic over the value so the next one of these is a map literal, not a
-/// second copy of this widget.
-class _SegmentRow<T> extends StatelessWidget {
-  const _SegmentRow({
-    required this.items,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final Map<T, String> items;
-  final T selected;
-  final ValueChanged<T> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final rule = _hairline(theme);
-    final entries = items.entries.toList();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border.all(color: rule, width: _hairlineWidth),
-        borderRadius: BorderRadius.circular(context.surface.radius),
-      ),
-      // Without this the selected segment's fill is a plain rectangle that
-      // overruns the rounded border at the ends, so choosing Line or Speakers
-      // squares off that corner. A `DecoratedBox` cannot clip, which is how it
-      // was lost.
-      clipBehavior: Clip.antiAlias,
-      // The dividers need a height to stretch to, and the row's height comes
-      // from its tallest label. One intrinsic pass on a three-item row is
-      // cheap and it is what keeps the rules full-height at any text scale.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (final (index, entry) in entries.indexed) ...[
-              if (index > 0)
-                SizedBox(
-                  width: _hairlineWidth,
-                  child: ColoredBox(color: rule),
-                ),
-              Expanded(
-                child: _Segment(
-                  label: entry.value,
-                  selected: entry.key == selected,
-                  onTap: () => onSelected(entry.key),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Segment extends StatelessWidget {
-  const _Segment({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return PressableSurface(
-      selected: selected,
-      // The theme's own call to action: yellow on paper, blue on near-black.
-      // Selection used `secondary`, which is the pair the other way round and
-      // put blue on the light theme where yellow leads.
-      fill: selected ? theme.colorScheme.primary : Colors.transparent,
-      // No rounding here: `_SegmentRow` clips the whole row to its own
-      // corners, and a segment is a rectangular slice of it, not a card of
-      // its own.
-      borderRadius: BorderRadius.zero,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          // `PressableSurface` already shows the press; Material's own
-          // splash/highlight would be a second, conflicting kind of feedback
-          // on top of it.
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.md,
-            ),
-            child: Center(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                // Plain weight. The transcript beside it is set for reading, and
-                // a bold control next to body text claims a priority it does not
-                // have.
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: selected
-                      ? theme.colorScheme.onPrimary
-                      : theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _EditScopeBanner extends ConsumerWidget {
   const _EditScopeBanner({
     required this.transcriptId,
@@ -607,7 +344,7 @@ class _EditScopeBanner extends ConsumerWidget {
             // One point, matching [_EdgeShadow], so that when the bar slides
             // fully out its shadow lands precisely on the player's line rather
             // than beside it.
-            offset: const Offset(0, _hairlineWidth),
+            offset: const Offset(0, appHairlineWidth),
             blurRadius: 0,
           ),
         ],
@@ -622,7 +359,7 @@ class _EditScopeBanner extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SegmentRow<TranscriptEditScope>(
+            AppSegmentRow<TranscriptEditScope>(
               selected: scope,
               items: {
                 TranscriptEditScope.line: l10n.editScopeLine,
@@ -822,17 +559,26 @@ class _SpeakerChip extends StatelessWidget {
 /// Undo/redo for a transcript's edit history. Public because Timeline mode
 /// reuses it verbatim in its own preview controls (`timeline_screen.dart`)
 /// rather than duplicating it.
+/// Undo and redo for the whole project.
+///
+/// **One history, one pair of buttons, both modes.** Keyed by project rather
+/// than by transcript: two stacks let undo take back a word edit while a later
+/// split stands, which assembles a document from two points in time and says
+/// nothing about it.
+///
+/// The button does not name what it will undo and does not move you to it. It
+/// takes back the last thing that happened, wherever that was.
 class HistoryControls extends ConsumerWidget {
-  const HistoryControls({super.key, required this.transcriptId});
+  const HistoryControls({super.key, required this.projectId});
 
-  final String transcriptId;
+  final String projectId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     // Both false until the first frame resolves, which is correct: an empty
     // history and an unread one offer the same actions.
-    final history = ref.watch(editHistoryProvider(transcriptId)).value ??
+    final history = ref.watch(projectHistoryStateProvider(projectId)).value ??
         (canUndo: false, canRedo: false);
 
     final repository = ref.read(transcriptRepositoryProvider);
@@ -844,13 +590,13 @@ class HistoryControls extends ConsumerWidget {
           icon: const Icon(Icons.undo),
           tooltip: l10n.undoAction,
           onPressed:
-              history.canUndo ? () => repository.undo(transcriptId) : null,
+              history.canUndo ? () => repository.undoProject(projectId) : null,
         ),
         IconButton(
           icon: const Icon(Icons.redo),
           tooltip: l10n.redoAction,
           onPressed:
-              history.canRedo ? () => repository.redo(transcriptId) : null,
+              history.canRedo ? () => repository.redoProject(projectId) : null,
         ),
       ],
     );
@@ -882,8 +628,39 @@ class _ProjectBodyState extends ConsumerState<_ProjectBody> {
     // clips has nothing to show and nothing to play.
     final clipId = ref.watch(resolvedSelectedClipProvider(project.id));
     if (clipId == null) {
-      return _CenteredMessage(message: l10n.timelineNoClips);
+      // The gear on its own. The panel is also where the mode switches, so
+      // without it an empty project would be stuck in Script mode.
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: VideoSettingsGear(projectId: project.id),
+            ),
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                _CenteredMessage(message: l10n.timelineNoClips),
+                Positioned.fill(
+                  child: VideoSettingsPanel(
+                    projectId: project.id,
+                    mode: EditorMode.script,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
     }
+
+    // **The whole project, in timeline order.** Storage is per clip because
+    // word timings are relative to a clip's media, but that is an
+    // implementation detail and it was leaking: splitting a clip cut the
+    // script in half on screen and showed only the half the playhead was over.
+    final script = ref.watch(projectScriptProvider(project.id));
 
     final transcripts = ref.watch(clipTranscriptsProvider(clipId));
     final ranges = transcripts.value ?? const <Transcript>[];
@@ -908,46 +685,72 @@ class _ProjectBodyState extends ConsumerState<_ProjectBody> {
         // show one person in two colours and two names as the playhead crossed
         // a boundary.
         _PlayerPane(
+          projectId: project.id,
           clipId: clipId,
           transcriptId: selected?.id,
         ),
-        // Only when there is a choice to make. A clip with one transcript --
-        // every clip until layers are used -- looks exactly as it did before.
-        if (ranges.length > 1)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.lg,
-              0,
-            ),
-            child: _SegmentRow<String>(
-              selected: selected!.id,
-              items: {
-                for (final range in ranges)
-                  range.id: _rangeLabel(range),
-              },
-              onSelected: (id) => setState(() => _selectedRangeId = id),
-            ),
-          ),
-        // The player casts no shadow of its own — the transcript draws it,
-        // from inside its own stack. Two reasons. A column sibling paints
-        // before the one that follows it, so anything cast here would be
-        // covered by the transcript anyway. And putting it at the top of the
-        // transcript's viewport is what lets it *merge* with the edit bar's
-        // shadow: when the bar has slid fully away its own shadow lands on
-        // exactly that line, so the two become one instead of stacking into a
-        // double rule.
+        // Everything under the player sits beneath the video settings panel,
+        // which dims and blurs it while open and is absent while closed.
         Expanded(
-          child: transcripts.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => _CenteredMessage(message: '$error'),
-            // A clip nobody has asked to transcribe yet. Says so plainly and
-            // points at where the action lives, rather than implying the
-            // engine found no speech -- which is a different outcome entirely.
-            data: (_) => selected == null
-                ? _CenteredMessage(message: l10n.clipNotTranscribedScript)
-                : _TranscriptView(clipId: clipId, transcript: selected),
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                // Only when there is a choice to make. A clip with one transcript --
+                // every clip until layers are used -- looks exactly as it did before.
+                if (ranges.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.sm,
+                      AppSpacing.lg,
+                      0,
+                    ),
+                    child: AppSegmentRow<String>(
+                      selected: selected!.id,
+                      items: {
+                        for (final range in ranges)
+                          range.id: _rangeLabel(range),
+                      },
+                      onSelected: (id) => setState(() => _selectedRangeId = id),
+                    ),
+                  ),
+                // The player casts no shadow of its own — the transcript draws it,
+                // from inside its own stack. Two reasons. A column sibling paints
+                // before the one that follows it, so anything cast here would be
+                // covered by the transcript anyway. And putting it at the top of the
+                // transcript's viewport is what lets it *merge* with the edit bar's
+                // shadow: when the bar has slid fully away its own shadow lands on
+                // exactly that line, so the two become one instead of stacking into a
+                // double rule.
+                Expanded(
+                  child: transcripts.when(
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => _CenteredMessage(message: '$error'),
+                    // A clip nobody has asked to transcribe yet. Says so plainly and
+                    // points at where the action lives, rather than implying the
+                    // engine found no speech -- which is a different outcome entirely.
+                    data: (_) => script.words.isEmpty
+                        ? _CenteredMessage(message: l10n.clipNotTranscribedScript)
+                        : _TranscriptView(
+                            clipId: clipId,
+                            // Still the clip's own range: it is what the edit scope,
+                            // the speaker palette and undo/redo act on. Only the words
+                            // on screen are project-wide.
+                            transcript: selected ?? ranges.firstOrNull,
+                            script: script,
+                          ),
+                  ),
+                ),
+                ],
+              ),
+              Positioned.fill(
+                child: VideoSettingsPanel(
+                  projectId: project.id,
+                  mode: EditorMode.script,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -968,8 +771,13 @@ String _rangeLabel(Transcript transcript) {
 }
 
 class _PlayerPane extends ConsumerWidget {
-  const _PlayerPane({required this.clipId, required this.transcriptId});
+  const _PlayerPane({
+    required this.projectId,
+    required this.clipId,
+    required this.transcriptId,
+  });
 
+  final String projectId;
   final String clipId;
   final String? transcriptId;
 
@@ -988,6 +796,7 @@ class _PlayerPane extends ConsumerWidget {
         child: _CenteredMessage(message: l10n.playerUnavailable),
       ),
       data: (controller) => _Player(
+        projectId: projectId,
         clipId: clipId,
         transcriptId: transcriptId,
         controller: controller,
@@ -998,10 +807,14 @@ class _PlayerPane extends ConsumerWidget {
 
 class _Player extends ConsumerWidget {
   const _Player({
+    required this.projectId,
     required this.clipId,
     required this.transcriptId,
     required this.controller,
   });
+
+  /// Whose video settings frame the stage.
+  final String projectId;
 
   final String clipId;
   final String? transcriptId;
@@ -1010,6 +823,7 @@ class _Player extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
 
     return ValueListenableBuilder<VideoPlayerValue>(
       valueListenable: controller,
@@ -1031,34 +845,48 @@ class _Player extends ConsumerWidget {
             SizedBox(
               height: hasVideo ? 240 : 120,
               width: double.infinity,
-              child: ColoredBox(
-                color: hasVideo ? Colors.black : Colors.transparent,
-                child: Stack(
-                  // Captions sit over the picture, which is where they will be
-                  // burned in at export -- but they are live widgets here,
-                  // never rasterized (docs/engine-architecture.md).
-                  children: [
-                    Center(
-                      child: hasVideo
-                          ? AspectRatio(
-                              aspectRatio: value.aspectRatio,
-                              child: VideoPlayer(controller),
-                            )
-                          : _CenteredMessage(message: l10n.audioOnlyLabel),
-                    ),
-                    if (transcriptId != null)
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: CaptionOverlay(
-                          transcriptId: transcriptId!,
-                          positionMs: value.position.inMilliseconds,
+              // **The output's frame, as the timeline draws it.** Both
+              // modes show the same picture: the project's shape, cropped the
+              // way the render crops, the watermark where it will be, and
+              // the captions inside the frame where they will be burned in
+              // -- live widgets here, never rasterized
+              // (docs/engine-architecture.md).
+              child: hasVideo
+                  ? ColoredBox(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: ProjectStageCanvas(
+                          projectId: projectId,
+                          sourceSize: value.size,
+                          picture: VideoPlayer(controller),
+                          overlay: transcriptId == null
+                              ? null
+                              : CaptionOverlay(
+                                  transcriptId: transcriptId!,
+                                  positionMs: value.position.inMilliseconds,
+                                ),
                         ),
                       ),
-                  ],
-                ),
-              ),
+                    )
+                  : Stack(
+                      children: [
+                        Center(
+                          child:
+                              _CenteredMessage(message: l10n.audioOnlyLabel),
+                        ),
+                        if (transcriptId != null)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: CaptionOverlay(
+                              transcriptId: transcriptId!,
+                              positionMs: value.position.inMilliseconds,
+                            ),
+                          ),
+                      ],
+                    ),
             ),
             Row(
               children: [
@@ -1073,7 +901,7 @@ class _Player extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(_formatPosition(value.position)),
-                const SizedBox(width: 12),
+                VideoSettingsGear(projectId: projectId),
               ],
             ),
           ],
@@ -1153,10 +981,22 @@ class CaptionOverlay extends ConsumerWidget {
 }
 
 class _TranscriptView extends ConsumerStatefulWidget {
-  const _TranscriptView({required this.clipId, required this.transcript});
+  const _TranscriptView({
+    required this.clipId,
+    required this.transcript,
+    required this.script,
+  });
 
   final String clipId;
-  final Transcript transcript;
+
+  /// The range the *controls* act on -- edit scope, speaker names, undo.
+  ///
+  /// Null when the clip under the playhead has not been transcribed but others
+  /// have, which is ordinary once a project holds several clips.
+  final Transcript? transcript;
+
+  /// Every word in the project, and which clip each transcript sits on.
+  final ProjectScript script;
 
   @override
   ConsumerState<_TranscriptView> createState() => _TranscriptViewState();
@@ -1270,7 +1110,7 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final words = ref.watch(transcriptWordsProvider(widget.transcript.id));
+    final words = widget.script.words;
 
     // `listen` rather than `watch`: starting an animation is a side effect, and
     // a controller told to run during a build would rebuild inside its own
@@ -1292,17 +1132,21 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
     final shown = _shown.value;
     // Stays mounted through the exit animation, and through the entrance
     // before the first frame of it has been measured.
-    final barPresent = shown > 0 || ref.watch(transcriptEditModeProvider);
+    // **Also needs a range to act on.** The bar edits one transcript, and the
+    // clip under the playhead may not have been transcribed while others have
+    // -- ordinary once a project holds several clips. The script still shows
+    // in full; only the controls that need a target stand down.
+    final barPresent = widget.transcript != null &&
+        (shown > 0 || ref.watch(transcriptEditModeProvider));
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureBar());
 
-    return words.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => _CenteredMessage(message: '$error'),
-      data: (items) {
-        if (items.isEmpty) {
-          return _CenteredMessage(message: l10n.transcriptEmpty);
-        }
+    final items = words;
+    if (items.isEmpty) {
+      return _CenteredMessage(message: l10n.transcriptEmpty);
+    }
+
+    {
 
         // Every speaker this transcript actually contains, in the order they
         // first appear. That is the set a turn can be reassigned to: inventing
@@ -1325,6 +1169,7 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
                     child: _WordFlow(
                       clipId: widget.clipId,
                       words: items,
+                      clipOfTranscript: widget.script.clipOfTranscript,
                       controller: _scroll,
                       heading: l10n.wordCount(items.length),
                       // Starts the text below the bar rather than behind it.
@@ -1347,7 +1192,7 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
                       child: KeyedSubtree(
                         key: _barKey,
                         child: _EditScopeBanner(
-                          transcriptId: widget.transcript.id,
+                          transcriptId: widget.transcript!.id,
                           speakers: speakers,
                           inlineFieldKey: _inlineFieldKey,
                         ),
@@ -1355,8 +1200,7 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
                     ),
           ],
         );
-      },
-    );
+    }
   }
 }
 
@@ -1365,6 +1209,7 @@ class _WordFlow extends ConsumerWidget {
   const _WordFlow({
     required this.clipId,
     required this.words,
+    required this.clipOfTranscript,
     required this.controller,
     required this.topInset,
     required this.heading,
@@ -1373,6 +1218,14 @@ class _WordFlow extends ConsumerWidget {
 
   final String clipId;
   final List<Word> words;
+
+  /// Which clip each transcript sits on.
+  ///
+  /// The script spans the whole project now, so a word's own clip is the one
+  /// that has to be played -- [clipId] is merely where the playhead is, and
+  /// tapping a word in a different clip would otherwise seek the wrong file to
+  /// a time that means nothing in it.
+  final Map<String, String> clipOfTranscript;
 
   /// Owned by [_TranscriptViewState], which needs it to drive the edit bar.
   final ScrollController controller;
@@ -1397,6 +1250,7 @@ class _WordFlow extends ConsumerWidget {
       return _WordFlowContent(
         clipId: clipId,
         words: words,
+        clipOfTranscript: clipOfTranscript,
         positionMs: null,
         controller: controller,
         topInset: topInset,
@@ -1410,6 +1264,7 @@ class _WordFlow extends ConsumerWidget {
       builder: (context, value, _) => _WordFlowContent(
         clipId: clipId,
         words: words,
+        clipOfTranscript: clipOfTranscript,
         positionMs: value.position.inMilliseconds,
         controller: controller,
         topInset: topInset,
@@ -1424,6 +1279,7 @@ class _WordFlowContent extends ConsumerWidget {
   const _WordFlowContent({
     required this.clipId,
     required this.words,
+    required this.clipOfTranscript,
     required this.positionMs,
     required this.controller,
     required this.topInset,
@@ -1433,11 +1289,26 @@ class _WordFlowContent extends ConsumerWidget {
 
   final String clipId;
   final List<Word> words;
+
+  /// Which clip each transcript sits on.
+  ///
+  /// The script spans the whole project now, so a word's own clip is what has
+  /// to be played -- [clipId] is merely where the playhead is, and tapping a
+  /// word from another clip would otherwise seek the wrong file to a time that
+  /// means nothing in it.
+  final Map<String, String> clipOfTranscript;
+
   final int? positionMs;
   final ScrollController controller;
   final double topInset;
   final String heading;
   final GlobalKey<_InlineFieldState> inlineFieldKey;
+
+  /// Plays the clip this word actually belongs to.
+  void _seekToWord(WidgetRef ref, Word word) {
+    final owner = clipOfTranscript[word.transcriptId] ?? clipId;
+    ref.read(mediaPlayerProvider(owner).notifier).seekToWord(word.startMs);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1574,9 +1445,7 @@ List<Widget> _cueRows(
                 : null,
             onWordTap: (o) => editing
                 ? _correct(context, ref, turn, o, cue: cue)
-                : ref
-                    .read(mediaPlayerProvider(clipId).notifier)
-                    .seekToWord(turn.words[o].startMs),
+                : _seekToWord(ref, turn.words[o]),
             // The timestamp is the speaker signal, so in edit mode it is also
             // the speaker control -- the thing you tap is the thing you are
             // changing, which is the same rule the removed chip followed. It is
@@ -1584,9 +1453,7 @@ List<Widget> _cueRows(
             // both of which used to hang off that chip.
             onStampTap: editing && speakers.length > 1
                 ? () => _reassignTurn(context, ref, turn, speakers)
-                : () => ref
-                    .read(mediaPlayerProvider(clipId).notifier)
-                    .seekToWord(cue.startMs),
+                : () => _seekToWord(ref, cue.words.first),
           ),
         );
         offset += cue.words.length;
@@ -1750,8 +1617,8 @@ class _CueRule extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: ColoredBox(
-        color: _hairline(Theme.of(context)),
-        child: const SizedBox(height: _hairlineWidth, width: double.infinity),
+        color: appHairline(Theme.of(context)),
+        child: const SizedBox(height: appHairlineWidth, width: double.infinity),
       ),
     );
   }
@@ -2391,8 +2258,8 @@ class _SpeakerNameEditorState extends State<_SpeakerNameEditor> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    return AlertDialog(
-      title: Text(l10n.renameSpeakerTitle),
+    return AppDialog(
+      title: l10n.renameSpeakerTitle,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2412,13 +2279,14 @@ class _SpeakerNameEditorState extends State<_SpeakerNameEditor> {
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.editCancel),
-        ),
-        FilledButton(
+        AppDialogAction(
+          label: l10n.editSave,
+          emphasis: AppDialogEmphasis.primary,
           onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: Text(l10n.editSave),
+        ),
+        AppDialogAction(
+          label: l10n.editCancel,
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ],
     );

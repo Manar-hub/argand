@@ -244,11 +244,128 @@ final class TranscriptByIdFamily extends $Family
 }
 
 /// Whether the undo and redo controls are live for [transcriptId].
+/// Whether the project has anything to undo or redo.
+///
+/// **One history behind one pair of buttons.** Both modes read this, because
+/// splitting a clip and correcting a word are the same kind of fact to someone
+/// pressing undo -- which table they were stored in is not something the
+/// control should have an opinion about.
+
+@ProviderFor(projectHistoryState)
+final projectHistoryStateProvider = ProjectHistoryStateFamily._();
+
+/// Whether the undo and redo controls are live for [transcriptId].
+/// Whether the project has anything to undo or redo.
+///
+/// **One history behind one pair of buttons.** Both modes read this, because
+/// splitting a clip and correcting a word are the same kind of fact to someone
+/// pressing undo -- which table they were stored in is not something the
+/// control should have an opinion about.
+
+final class ProjectHistoryStateProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<({bool canRedo, bool canUndo})>,
+          ({bool canRedo, bool canUndo}),
+          Stream<({bool canRedo, bool canUndo})>
+        >
+    with
+        $FutureModifier<({bool canRedo, bool canUndo})>,
+        $StreamProvider<({bool canRedo, bool canUndo})> {
+  /// Whether the undo and redo controls are live for [transcriptId].
+  /// Whether the project has anything to undo or redo.
+  ///
+  /// **One history behind one pair of buttons.** Both modes read this, because
+  /// splitting a clip and correcting a word are the same kind of fact to someone
+  /// pressing undo -- which table they were stored in is not something the
+  /// control should have an opinion about.
+  ProjectHistoryStateProvider._({
+    required ProjectHistoryStateFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectHistoryStateProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectHistoryStateHash();
+
+  @override
+  String toString() {
+    return r'projectHistoryStateProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<({bool canRedo, bool canUndo})> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<({bool canRedo, bool canUndo})> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectHistoryState(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectHistoryStateProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectHistoryStateHash() =>
+    r'd5df89e23230fb73df06749838bf1c446caeed13';
+
+/// Whether the undo and redo controls are live for [transcriptId].
+/// Whether the project has anything to undo or redo.
+///
+/// **One history behind one pair of buttons.** Both modes read this, because
+/// splitting a clip and correcting a word are the same kind of fact to someone
+/// pressing undo -- which table they were stored in is not something the
+/// control should have an opinion about.
+
+final class ProjectHistoryStateFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          Stream<({bool canRedo, bool canUndo})>,
+          String
+        > {
+  ProjectHistoryStateFamily._()
+    : super(
+        retry: null,
+        name: r'projectHistoryStateProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Whether the undo and redo controls are live for [transcriptId].
+  /// Whether the project has anything to undo or redo.
+  ///
+  /// **One history behind one pair of buttons.** Both modes read this, because
+  /// splitting a clip and correcting a word are the same kind of fact to someone
+  /// pressing undo -- which table they were stored in is not something the
+  /// control should have an opinion about.
+
+  ProjectHistoryStateProvider call(String projectId) =>
+      ProjectHistoryStateProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectHistoryStateProvider';
+}
 
 @ProviderFor(editHistory)
 final editHistoryProvider = EditHistoryFamily._();
-
-/// Whether the undo and redo controls are live for [transcriptId].
 
 final class EditHistoryProvider
     extends
@@ -260,7 +377,6 @@ final class EditHistoryProvider
     with
         $FutureModifier<({bool canRedo, bool canUndo})>,
         $StreamProvider<({bool canRedo, bool canUndo})> {
-  /// Whether the undo and redo controls are live for [transcriptId].
   EditHistoryProvider._({
     required EditHistoryFamily super.from,
     required String super.argument,
@@ -307,8 +423,6 @@ final class EditHistoryProvider
 
 String _$editHistoryHash() => r'439dea1d8d9b647a6f3a4cb03c6eb01b36567719';
 
-/// Whether the undo and redo controls are live for [transcriptId].
-
 final class EditHistoryFamily extends $Family
     with
         $FunctionalFamilyOverride<
@@ -323,8 +437,6 @@ final class EditHistoryFamily extends $Family
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
-
-  /// Whether the undo and redo controls are live for [transcriptId].
 
   EditHistoryProvider call(String transcriptId) =>
       EditHistoryProvider._(argument: transcriptId, from: this);
@@ -726,6 +838,83 @@ final class ClipTranscriptsFamily extends $Family
 
   @override
   String toString() => r'clipTranscriptsProvider';
+}
+
+@ProviderFor(projectScript)
+final projectScriptProvider = ProjectScriptFamily._();
+
+final class ProjectScriptProvider
+    extends $FunctionalProvider<ProjectScript, ProjectScript, ProjectScript>
+    with $Provider<ProjectScript> {
+  ProjectScriptProvider._({
+    required ProjectScriptFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectScriptProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectScriptHash();
+
+  @override
+  String toString() {
+    return r'projectScriptProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<ProjectScript> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  ProjectScript create(Ref ref) {
+    final argument = this.argument as String;
+    return projectScript(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ProjectScript value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ProjectScript>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectScriptProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectScriptHash() => r'0947d0b6e4b62d1282d4cc8a1e5757614dcf1d07';
+
+final class ProjectScriptFamily extends $Family
+    with $FunctionalFamilyOverride<ProjectScript, String> {
+  ProjectScriptFamily._()
+    : super(
+        retry: null,
+        name: r'projectScriptProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ProjectScriptProvider call(String projectId) =>
+      ProjectScriptProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectScriptProvider';
 }
 
 /// A project's transcribe layers, in timeline order.

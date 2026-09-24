@@ -156,6 +156,297 @@ abstract class _$SelectedClip extends $Notifier<String?> {
   }
 }
 
+/// Where the playhead sits, in project time.
+///
+/// **Lifted out of the track widget** because three things need it and only
+/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+/// and the preview shows whatever it is over. Passing it down by constructor
+/// reached the first two and never the third.
+
+@ProviderFor(TimelinePlayhead)
+final timelinePlayheadProvider = TimelinePlayheadFamily._();
+
+/// Where the playhead sits, in project time.
+///
+/// **Lifted out of the track widget** because three things need it and only
+/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+/// and the preview shows whatever it is over. Passing it down by constructor
+/// reached the first two and never the third.
+final class TimelinePlayheadProvider
+    extends $NotifierProvider<TimelinePlayhead, int> {
+  /// Where the playhead sits, in project time.
+  ///
+  /// **Lifted out of the track widget** because three things need it and only
+  /// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+  /// and the preview shows whatever it is over. Passing it down by constructor
+  /// reached the first two and never the third.
+  TimelinePlayheadProvider._({
+    required TimelinePlayheadFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'timelinePlayheadProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$timelinePlayheadHash();
+
+  @override
+  String toString() {
+    return r'timelinePlayheadProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  TimelinePlayhead create() => TimelinePlayhead();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(int value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<int>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TimelinePlayheadProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$timelinePlayheadHash() => r'e0cc26a8091fcccd6002cbc7086d27a80279d388';
+
+/// Where the playhead sits, in project time.
+///
+/// **Lifted out of the track widget** because three things need it and only
+/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+/// and the preview shows whatever it is over. Passing it down by constructor
+/// reached the first two and never the third.
+
+final class TimelinePlayheadFamily extends $Family
+    with $ClassFamilyOverride<TimelinePlayhead, int, int, int, String> {
+  TimelinePlayheadFamily._()
+    : super(
+        retry: null,
+        name: r'timelinePlayheadProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Where the playhead sits, in project time.
+  ///
+  /// **Lifted out of the track widget** because three things need it and only
+  /// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+  /// and the preview shows whatever it is over. Passing it down by constructor
+  /// reached the first two and never the third.
+
+  TimelinePlayheadProvider call(String projectId) =>
+      TimelinePlayheadProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'timelinePlayheadProvider';
+}
+
+/// Where the playhead sits, in project time.
+///
+/// **Lifted out of the track widget** because three things need it and only
+/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
+/// and the preview shows whatever it is over. Passing it down by constructor
+/// reached the first two and never the third.
+
+abstract class _$TimelinePlayhead extends $Notifier<int> {
+  late final _$args = ref.$arg as String;
+  String get projectId => _$args;
+
+  int build(String projectId);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<int, int>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<int, int>,
+              int,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
+/// Everything the editing tools will act on.
+///
+/// **One selection across every track**, replacing the separate "selected
+/// clip" and "selected layer" the timeline used to keep. Those two could
+/// disagree, and only one of them was ever reachable from the toolbar, which
+/// is why Split could cut the video and nothing else.
+///
+/// Holds ids only; what they refer to is resolved against the rows that
+/// currently exist, so a removed clip or a replaced row simply stops being
+/// selected rather than leaving the tools pointing at nothing.
+
+@ProviderFor(TimelineSelection)
+final timelineSelectionProvider = TimelineSelectionFamily._();
+
+/// Everything the editing tools will act on.
+///
+/// **One selection across every track**, replacing the separate "selected
+/// clip" and "selected layer" the timeline used to keep. Those two could
+/// disagree, and only one of them was ever reachable from the toolbar, which
+/// is why Split could cut the video and nothing else.
+///
+/// Holds ids only; what they refer to is resolved against the rows that
+/// currently exist, so a removed clip or a replaced row simply stops being
+/// selected rather than leaving the tools pointing at nothing.
+final class TimelineSelectionProvider
+    extends $NotifierProvider<TimelineSelection, Set<TimelineItem>> {
+  /// Everything the editing tools will act on.
+  ///
+  /// **One selection across every track**, replacing the separate "selected
+  /// clip" and "selected layer" the timeline used to keep. Those two could
+  /// disagree, and only one of them was ever reachable from the toolbar, which
+  /// is why Split could cut the video and nothing else.
+  ///
+  /// Holds ids only; what they refer to is resolved against the rows that
+  /// currently exist, so a removed clip or a replaced row simply stops being
+  /// selected rather than leaving the tools pointing at nothing.
+  TimelineSelectionProvider._({
+    required TimelineSelectionFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'timelineSelectionProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$timelineSelectionHash();
+
+  @override
+  String toString() {
+    return r'timelineSelectionProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  TimelineSelection create() => TimelineSelection();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Set<TimelineItem> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Set<TimelineItem>>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TimelineSelectionProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$timelineSelectionHash() => r'df4e07d83938284d5ef533638de3a5feee94d81d';
+
+/// Everything the editing tools will act on.
+///
+/// **One selection across every track**, replacing the separate "selected
+/// clip" and "selected layer" the timeline used to keep. Those two could
+/// disagree, and only one of them was ever reachable from the toolbar, which
+/// is why Split could cut the video and nothing else.
+///
+/// Holds ids only; what they refer to is resolved against the rows that
+/// currently exist, so a removed clip or a replaced row simply stops being
+/// selected rather than leaving the tools pointing at nothing.
+
+final class TimelineSelectionFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          TimelineSelection,
+          Set<TimelineItem>,
+          Set<TimelineItem>,
+          Set<TimelineItem>,
+          String
+        > {
+  TimelineSelectionFamily._()
+    : super(
+        retry: null,
+        name: r'timelineSelectionProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Everything the editing tools will act on.
+  ///
+  /// **One selection across every track**, replacing the separate "selected
+  /// clip" and "selected layer" the timeline used to keep. Those two could
+  /// disagree, and only one of them was ever reachable from the toolbar, which
+  /// is why Split could cut the video and nothing else.
+  ///
+  /// Holds ids only; what they refer to is resolved against the rows that
+  /// currently exist, so a removed clip or a replaced row simply stops being
+  /// selected rather than leaving the tools pointing at nothing.
+
+  TimelineSelectionProvider call(String projectId) =>
+      TimelineSelectionProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'timelineSelectionProvider';
+}
+
+/// Everything the editing tools will act on.
+///
+/// **One selection across every track**, replacing the separate "selected
+/// clip" and "selected layer" the timeline used to keep. Those two could
+/// disagree, and only one of them was ever reachable from the toolbar, which
+/// is why Split could cut the video and nothing else.
+///
+/// Holds ids only; what they refer to is resolved against the rows that
+/// currently exist, so a removed clip or a replaced row simply stops being
+/// selected rather than leaving the tools pointing at nothing.
+
+abstract class _$TimelineSelection extends $Notifier<Set<TimelineItem>> {
+  late final _$args = ref.$arg as String;
+  String get projectId => _$args;
+
+  Set<TimelineItem> build(String projectId);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<Set<TimelineItem>, Set<TimelineItem>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<Set<TimelineItem>, Set<TimelineItem>>,
+              Set<TimelineItem>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
 /// Which clip both modes are actually showing.
 ///
 /// [SelectedClip] holds what the user last tapped; this resolves it against

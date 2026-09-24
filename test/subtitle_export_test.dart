@@ -33,7 +33,7 @@ CaptionCue cue(String text, int startMs, int endMs, {int? speaker}) {
   );
 }
 
-String label(int speaker) => 'Speaker ${speaker + 1}';
+String label(CaptionCue cue) => 'Speaker ${cue.speaker! + 1}';
 
 void main() {
   group('SRT', () {

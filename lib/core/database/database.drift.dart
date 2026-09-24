@@ -4145,6 +4145,583 @@ class EditEventsCompanion extends UpdateCompanion<EditEvent> {
   }
 }
 
+class $TimelineEventsTable extends TimelineEvents
+    with TableInfo<$TimelineEventsTable, TimelineEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TimelineEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _sequenceMeta = const VerificationMeta(
+    'sequence',
+  );
+  @override
+  late final GeneratedColumn<int> sequence = GeneratedColumn<int>(
+    'sequence',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _undoneAtMeta = const VerificationMeta(
+    'undoneAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> undoneAt = GeneratedColumn<DateTime>(
+    'undone_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    sequence,
+    kind,
+    payload,
+    undoneAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'timeline_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TimelineEvent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('sequence')) {
+      context.handle(
+        _sequenceMeta,
+        sequence.isAcceptableOrUnknown(data['sequence']!, _sequenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('undone_at')) {
+      context.handle(
+        _undoneAtMeta,
+        undoneAt.isAcceptableOrUnknown(data['undone_at']!, _undoneAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TimelineEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TimelineEvent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      sequence: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      undoneAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}undone_at'],
+      ),
+    );
+  }
+
+  @override
+  $TimelineEventsTable createAlias(String alias) {
+    return $TimelineEventsTable(attachedDatabase, alias);
+  }
+}
+
+class TimelineEvent extends DataClass implements Insertable<TimelineEvent> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+
+  /// References the project so the log inherits its lifecycle -- deleting a
+  /// project takes its history with it, with nothing to clean up separately.
+  final String projectId;
+
+  /// Monotonic within one project, assigned at append time.
+  final int sequence;
+
+  /// A `TimelineEventKind.code`. **Text, not an enum index**, so inserting a
+  /// case into that enum cannot reinterpret rows already on disk.
+  final String kind;
+
+  /// JSON, carrying both the before and after state.
+  final String payload;
+
+  /// Null while the edit is in effect and undoable; set once undone, which
+  /// makes it redoable. Redo is therefore a query, not a second stack -- the
+  /// same shape [EditEvents] uses.
+  final DateTime? undoneAt;
+  const TimelineEvent({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.projectId,
+    required this.sequence,
+    required this.kind,
+    required this.payload,
+    this.undoneAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['project_id'] = Variable<String>(projectId);
+    map['sequence'] = Variable<int>(sequence);
+    map['kind'] = Variable<String>(kind);
+    map['payload'] = Variable<String>(payload);
+    if (!nullToAbsent || undoneAt != null) {
+      map['undone_at'] = Variable<DateTime>(undoneAt);
+    }
+    return map;
+  }
+
+  TimelineEventsCompanion toCompanion(bool nullToAbsent) {
+    return TimelineEventsCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      projectId: Value(projectId),
+      sequence: Value(sequence),
+      kind: Value(kind),
+      payload: Value(payload),
+      undoneAt: undoneAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(undoneAt),
+    );
+  }
+
+  factory TimelineEvent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TimelineEvent(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      sequence: serializer.fromJson<int>(json['sequence']),
+      kind: serializer.fromJson<String>(json['kind']),
+      payload: serializer.fromJson<String>(json['payload']),
+      undoneAt: serializer.fromJson<DateTime?>(json['undoneAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'projectId': serializer.toJson<String>(projectId),
+      'sequence': serializer.toJson<int>(sequence),
+      'kind': serializer.toJson<String>(kind),
+      'payload': serializer.toJson<String>(payload),
+      'undoneAt': serializer.toJson<DateTime?>(undoneAt),
+    };
+  }
+
+  TimelineEvent copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? projectId,
+    int? sequence,
+    String? kind,
+    String? payload,
+    Value<DateTime?> undoneAt = const Value.absent(),
+  }) => TimelineEvent(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    projectId: projectId ?? this.projectId,
+    sequence: sequence ?? this.sequence,
+    kind: kind ?? this.kind,
+    payload: payload ?? this.payload,
+    undoneAt: undoneAt.present ? undoneAt.value : this.undoneAt,
+  );
+  TimelineEvent copyWithCompanion(TimelineEventsCompanion data) {
+    return TimelineEvent(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      sequence: data.sequence.present ? data.sequence.value : this.sequence,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      undoneAt: data.undoneAt.present ? data.undoneAt.value : this.undoneAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TimelineEvent(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('sequence: $sequence, ')
+          ..write('kind: $kind, ')
+          ..write('payload: $payload, ')
+          ..write('undoneAt: $undoneAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    sequence,
+    kind,
+    payload,
+    undoneAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TimelineEvent &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.projectId == this.projectId &&
+          other.sequence == this.sequence &&
+          other.kind == this.kind &&
+          other.payload == this.payload &&
+          other.undoneAt == this.undoneAt);
+}
+
+class TimelineEventsCompanion extends UpdateCompanion<TimelineEvent> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> projectId;
+  final Value<int> sequence;
+  final Value<String> kind;
+  final Value<String> payload;
+  final Value<DateTime?> undoneAt;
+  final Value<int> rowid;
+  const TimelineEventsCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.sequence = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.undoneAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TimelineEventsCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String projectId,
+    required int sequence,
+    required String kind,
+    required String payload,
+    this.undoneAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       projectId = Value(projectId),
+       sequence = Value(sequence),
+       kind = Value(kind),
+       payload = Value(payload);
+  static Insertable<TimelineEvent> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? projectId,
+    Expression<int>? sequence,
+    Expression<String>? kind,
+    Expression<String>? payload,
+    Expression<DateTime>? undoneAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (projectId != null) 'project_id': projectId,
+      if (sequence != null) 'sequence': sequence,
+      if (kind != null) 'kind': kind,
+      if (payload != null) 'payload': payload,
+      if (undoneAt != null) 'undone_at': undoneAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TimelineEventsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? projectId,
+    Value<int>? sequence,
+    Value<String>? kind,
+    Value<String>? payload,
+    Value<DateTime?>? undoneAt,
+    Value<int>? rowid,
+  }) {
+    return TimelineEventsCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      projectId: projectId ?? this.projectId,
+      sequence: sequence ?? this.sequence,
+      kind: kind ?? this.kind,
+      payload: payload ?? this.payload,
+      undoneAt: undoneAt ?? this.undoneAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (sequence.present) {
+      map['sequence'] = Variable<int>(sequence.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (undoneAt.present) {
+      map['undone_at'] = Variable<DateTime>(undoneAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TimelineEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('sequence: $sequence, ')
+          ..write('kind: $kind, ')
+          ..write('payload: $payload, ')
+          ..write('undoneAt: $undoneAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4157,6 +4734,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $WordsTable words = $WordsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $EditEventsTable editEvents = $EditEventsTable(this);
+  late final $TimelineEventsTable timelineEvents = $TimelineEventsTable(this);
   late final Index mediaClipsProjectPosition = Index(
     'media_clips_project_position',
     'CREATE INDEX media_clips_project_position ON media_clips (project_id, position)',
@@ -4189,6 +4767,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     words,
     settings,
     editEvents,
+    timelineEvents,
     mediaClipsProjectPosition,
     transcribeLayersProjectStart,
     wordsTranscriptStart,
@@ -4273,6 +4852,24 @@ final class $$ProjectsTableReferences
     ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_transcriptsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TimelineEventsTable, List<TimelineEvent>>
+  _timelineEventsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.timelineEvents,
+    aliasName: 'projects__id__timeline_events__project_id',
+  );
+
+  $$TimelineEventsTableProcessedTableManager get timelineEventsRefs {
+    final manager = $$TimelineEventsTableTableManager(
+      $_db,
+      $_db.timelineEvents,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_timelineEventsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -4389,6 +4986,31 @@ class $$ProjectsTableFilterComposer
           }) => $$TranscriptsTableFilterComposer(
             $db: $db,
             $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> timelineEventsRefs(
+    Expression<bool> Function($$TimelineEventsTableFilterComposer f) f,
+  ) {
+    final $$TimelineEventsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.timelineEvents,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TimelineEventsTableFilterComposer(
+            $db: $db,
+            $table: $db.timelineEvents,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4550,6 +5172,31 @@ class $$ProjectsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> timelineEventsRefs<T extends Object>(
+    Expression<T> Function($$TimelineEventsTableAnnotationComposer a) f,
+  ) {
+    final $$TimelineEventsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.timelineEvents,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TimelineEventsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.timelineEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableTableManager
@@ -4569,6 +5216,7 @@ class $$ProjectsTableTableManager
             bool mediaClipsRefs,
             bool transcribeLayersRefs,
             bool transcriptsRefs,
+            bool timelineEventsRefs,
           })
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
@@ -4635,6 +5283,7 @@ class $$ProjectsTableTableManager
                 mediaClipsRefs = false,
                 transcribeLayersRefs = false,
                 transcriptsRefs = false,
+                timelineEventsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -4642,6 +5291,7 @@ class $$ProjectsTableTableManager
                     if (mediaClipsRefs) db.mediaClips,
                     if (transcribeLayersRefs) db.transcribeLayers,
                     if (transcriptsRefs) db.transcripts,
+                    if (timelineEventsRefs) db.timelineEvents,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -4709,6 +5359,27 @@ class $$ProjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (timelineEventsRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          TimelineEvent
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._timelineEventsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).timelineEventsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -4733,6 +5404,7 @@ typedef $$ProjectsTableProcessedTableManager =
         bool mediaClipsRefs,
         bool transcribeLayersRefs,
         bool transcriptsRefs,
+        bool timelineEventsRefs,
       })
     >;
 typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
@@ -7580,6 +8252,403 @@ typedef $$EditEventsTableProcessedTableManager =
       EditEvent,
       PrefetchHooks Function({bool transcriptId})
     >;
+typedef $$TimelineEventsTableCreateCompanionBuilder =
+    TimelineEventsCompanion Function({
+      required String id,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      required String projectId,
+      required int sequence,
+      required String kind,
+      required String payload,
+      Value<DateTime?> undoneAt,
+      Value<int> rowid,
+    });
+typedef $$TimelineEventsTableUpdateCompanionBuilder =
+    TimelineEventsCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> projectId,
+      Value<int> sequence,
+      Value<String> kind,
+      Value<String> payload,
+      Value<DateTime?> undoneAt,
+      Value<int> rowid,
+    });
+
+final class $$TimelineEventsTableReferences
+    extends BaseReferences<_$AppDatabase, $TimelineEventsTable, TimelineEvent> {
+  $$TimelineEventsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('timeline_events__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TimelineEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $TimelineEventsTable> {
+  $$TimelineEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get undoneAt => $composableBuilder(
+    column: $table.undoneAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TimelineEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $TimelineEventsTable> {
+  $$TimelineEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sequence => $composableBuilder(
+    column: $table.sequence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get undoneAt => $composableBuilder(
+    column: $table.undoneAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TimelineEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TimelineEventsTable> {
+  $$TimelineEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get sequence =>
+      $composableBuilder(column: $table.sequence, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get undoneAt =>
+      $composableBuilder(column: $table.undoneAt, builder: (column) => column);
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TimelineEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TimelineEventsTable,
+          TimelineEvent,
+          $$TimelineEventsTableFilterComposer,
+          $$TimelineEventsTableOrderingComposer,
+          $$TimelineEventsTableAnnotationComposer,
+          $$TimelineEventsTableCreateCompanionBuilder,
+          $$TimelineEventsTableUpdateCompanionBuilder,
+          (TimelineEvent, $$TimelineEventsTableReferences),
+          TimelineEvent,
+          PrefetchHooks Function({bool projectId})
+        > {
+  $$TimelineEventsTableTableManager(
+    _$AppDatabase db,
+    $TimelineEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TimelineEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TimelineEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TimelineEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> sequence = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<DateTime?> undoneAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TimelineEventsCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                sequence: sequence,
+                kind: kind,
+                payload: payload,
+                undoneAt: undoneAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String projectId,
+                required int sequence,
+                required String kind,
+                required String payload,
+                Value<DateTime?> undoneAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TimelineEventsCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                sequence: sequence,
+                kind: kind,
+                payload: payload,
+                undoneAt: undoneAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TimelineEventsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (projectId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.projectId,
+                        referencedTable: $$TimelineEventsTableReferences
+                            ._projectIdTable(db),
+                        referencedColumn: $$TimelineEventsTableReferences
+                            ._projectIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TimelineEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TimelineEventsTable,
+      TimelineEvent,
+      $$TimelineEventsTableFilterComposer,
+      $$TimelineEventsTableOrderingComposer,
+      $$TimelineEventsTableAnnotationComposer,
+      $$TimelineEventsTableCreateCompanionBuilder,
+      $$TimelineEventsTableUpdateCompanionBuilder,
+      (TimelineEvent, $$TimelineEventsTableReferences),
+      TimelineEvent,
+      PrefetchHooks Function({bool projectId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7598,4 +8667,6 @@ class $AppDatabaseManager {
       $$SettingsTableTableManager(_db, _db.settings);
   $$EditEventsTableTableManager get editEvents =>
       $$EditEventsTableTableManager(_db, _db.editEvents);
+  $$TimelineEventsTableTableManager get timelineEvents =>
+      $$TimelineEventsTableTableManager(_db, _db.timelineEvents);
 }

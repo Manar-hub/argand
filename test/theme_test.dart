@@ -20,7 +20,7 @@ void main() {
       // captions are the app's signature output (CLAUDE.md §2).
       for (var speaker = 0; speaker < SpeakerPalette.length; speaker++) {
         final hue = SpeakerPalette.colorFor(speaker, fallback: Colors.black);
-        expect(hue, isNot(AppTheme.accent),
+        expect(hue, isNot(AppTheme.defaultAccent),
             reason: 'speaker $speaker shares the accent colour');
         expect(hue, isNot(AppTheme.danger),
             reason: 'speaker $speaker shares the danger colour');
@@ -212,7 +212,7 @@ void main() {
       for (final theme in [light, dark]) {
         final surface = theme.extension<AppSurface>()!;
         final shadow = surface
-            .decoration(fill: const Color(0xFFFFFFFF))
+            .decoration(fill: const Color(0xFFFFFFFF), raised: true)
             .boxShadow!
             .single;
 
@@ -222,7 +222,30 @@ void main() {
       }
     });
 
-    test('an unraised surface keeps its border but drops the shadow', () {
+    test('corners are square, in both themes', () {
+      // The reference style has no rounded parts; one rounded card would
+      // read as a mistake.
+      for (final theme in [light, dark]) {
+        final surface = theme.extension<AppSurface>()!;
+        expect(surface.borderRadius, BorderRadius.zero);
+        final card = theme.cardTheme.shape! as RoundedRectangleBorder;
+        expect(card.borderRadius, BorderRadius.zero);
+        final dialog = theme.dialogTheme.shape! as RoundedRectangleBorder;
+        expect(dialog.borderRadius, BorderRadius.zero);
+      }
+    });
+
+    test('flat unless asked: the shadow is for emphasis only', () {
+      for (final theme in [light, dark]) {
+        final surface = theme.extension<AppSurface>()!;
+        expect(
+          surface.decoration(fill: const Color(0xFFFFFFFF)).boxShadow,
+          isNull,
+        );
+      }
+    });
+
+    test('an unraised surface drops the shadow and keeps its outline', () {
       final surface = light.extension<AppSurface>()!;
       final flat = surface.decoration(
         fill: const Color(0xFFFFFFFF),
@@ -235,7 +258,23 @@ void main() {
       expect(flat.border, isNotNull);
     });
 
-    test('the outline separates a surface from its ground in both themes', () {
+    test('dark draws no outline anywhere', () {
+      // An off-white 2pt frame round every card, chip and button read as
+      // cheap on dark. Not even a hairline: Flutter paints a width-0
+      // BorderSide as one pixel, which is why dark reports no side at all.
+      final surface = dark.extension<AppSurface>()!;
+      expect(surface.outlined, isFalse);
+      expect(surface.side, BorderSide.none);
+      expect(surface.decoration(fill: const Color(0xFFFFFFFF)).border, isNull);
+      expect(dark.chipTheme.side, BorderSide.none);
+      final card = dark.cardTheme.shape! as RoundedRectangleBorder;
+      expect(card.side, BorderSide.none);
+      final field =
+          dark.inputDecorationTheme.enabledBorder! as OutlineInputBorder;
+      expect(field.borderSide, BorderSide.none);
+    });
+
+    test('the outline separates a surface from its ground on paper', () {
       double contrast(Color a, Color b) {
         final la = a.computeLuminance();
         final lb = b.computeLuminance();
@@ -244,34 +283,33 @@ void main() {
         return (hi + 0.05) / (lo + 0.05);
       }
 
+      final surface = light.extension<AppSurface>()!;
+      expect(surface.outlined, isTrue);
+      expect(contrast(surface.outline, light.colorScheme.surface),
+          greaterThan(4.5),
+          reason: 'the outline does not separate a card from the page');
+    });
+
+    test('a chosen item sinks less than the shadow drops', () {
+      // Sinking the full drop read as too deep.
       for (final theme in [light, dark]) {
         final surface = theme.extension<AppSurface>()!;
-        expect(contrast(surface.outline, theme.colorScheme.surface),
-            greaterThan(4.5),
-            reason: 'the outline does not separate a card from the page');
+        expect(surface.pressDepth, greaterThan(0));
+        expect(surface.pressDepth, lessThan(surface.offset.dy));
       }
     });
 
-    test('the shadow drops straight down, with no sideways lean', () {
-      // A diagonal offset skews a full-width card -- the shadow runs off one
-      // edge and not the other. Reference image 3 drops it vertically, which is
-      // what keeps wide surfaces square at phone width.
+    test('the shadow drops down and to the right, as the reference', () {
       for (final theme in [light, dark]) {
         final surface = theme.extension<AppSurface>()!;
-        expect(surface.offset.dx, 0);
+        expect(surface.offset.dx, greaterThan(0));
         expect(surface.offset.dy, greaterThan(0));
       }
     });
 
     test('both themes actually show their shadow', () {
-      // This assertion has been round the houses. It once required a visible
-      // shadow, was then relaxed to let dark keep an invisible black one on
-      // the theory that a pale shadow reads as a glow, and is now back --
-      // because what dark really had was light cards raised off the page and
-      // dark cards sitting flat, which is two designs rather than one.
-      //
-      // A glow needs a blur. The zero-blur assertion above is what makes a
-      // pale offset a printed layer instead, so the two rules hold together.
+      // On dark the shadow is now the only thing lifting a card off the page,
+      // so it matters more there than anywhere.
       for (final theme in [light, dark]) {
         final surface = theme.extension<AppSurface>()!;
         expect(
@@ -282,69 +320,83 @@ void main() {
       }
     });
 
-    test('the outline is never quieter than the shadow', () {
+    test('the outline is never quieter than the shadow, on paper', () {
       // The outline defines the card; the shadow only lifts it. If the shadow
       // ever out-contrasts the outline, the brightest thing on screen is
-      // behind the content instead of around it -- which is exactly what full
-      // strength looked like on dark before it was pulled back to a grey.
+      // behind the content instead of around it.
       double contrast(Color a, Color b) {
         final la = a.computeLuminance() + 0.05;
         final lb = b.computeLuminance() + 0.05;
         return la > lb ? la / lb : lb / la;
       }
 
-      for (final theme in [light, dark]) {
-        final surface = theme.extension<AppSurface>()!;
-        final ground = theme.colorScheme.surface;
-        expect(
-          contrast(surface.shadow, ground),
-          lessThanOrEqualTo(contrast(surface.outline, ground)),
-        );
-      }
+      final surface = light.extension<AppSurface>()!;
+      final ground = light.colorScheme.surface;
+      expect(
+        contrast(surface.shadow, ground),
+        lessThanOrEqualTo(contrast(surface.outline, ground)),
+      );
     });
   });
 
-  test('selection is never the same colour as the call to action', () {
-    // This replaced an assertion that selection had to be *identical* across
-    // themes. The two colours now trade roles -- yellow leads on paper and
-    // selects on black, the violet the other way round -- so the rule that
-    // actually protects the user is that within one theme a selected control
-    // can never be mistaken for the primary action.
-    for (final scheme in [light.colorScheme, dark.colorScheme]) {
-      expect(scheme.secondary, isNot(scheme.primary));
-    }
-    // And they really do swap, rather than both themes drifting to one colour.
-    expect(light.colorScheme.primary, dark.colorScheme.secondary);
-    expect(dark.colorScheme.primary, light.colorScheme.secondary);
-  });
+  group("the action colour is the user's", () {
+    // The same presets the settings sheet offers, and colours at the edges.
+    const accents = [
+      AppTheme.defaultAccent,
+      Color(0xFF116DD6),
+      Color(0xFF00A3A3),
+      Color(0xFF2E9E4F),
+      Color(0xFFFFD93D),
+      Color(0xFFFF8A3D),
+      Color(0xFFE8485A),
+      Color(0xFFFF6FB5),
+    ];
 
-  test('the call-to-action fill differs by theme, on purpose', () {
-    // Yellow is right on paper and a floodlight on near-black, so the two
-    // swap rather than one being forced to work everywhere.
-    expect(light.colorScheme.primary, isNot(dark.colorScheme.primary));
-  });
-
-  test('the ink on every filled accent is legible', () {
     double contrast(Color a, Color b) {
-      final la = a.computeLuminance();
-      final lb = b.computeLuminance();
-      final hi = la > lb ? la : lb;
-      final lo = la > lb ? lb : la;
-      return (hi + 0.05) / (lo + 0.05);
+      final la = a.computeLuminance() + 0.05;
+      final lb = b.computeLuminance() + 0.05;
+      return la > lb ? la / lb : lb / la;
     }
 
-    // Measured rather than asserted by taste, and this is the test that caught
-    // a fixed black failing at 3.4:1 on the violet. 4.5:1 is the WCAG AA
-    // threshold for body text.
-    for (final fill in [
-      light.colorScheme.primary,
-      dark.colorScheme.primary,
-      light.colorScheme.secondary,
-      dark.colorScheme.secondary,
-    ]) {
-      expect(contrast(fill, AppTheme.inkOn(fill)), greaterThan(4.5),
-          reason: 'text on $fill is not legible');
-    }
+    test('every call to action takes it, in both themes', () {
+      for (final accent in accents) {
+        for (final theme in [
+          AppTheme.light(accent: accent),
+          AppTheme.dark(accent: accent),
+        ]) {
+          expect(theme.colorScheme.primary, accent);
+          expect(theme.floatingActionButtonTheme.backgroundColor, accent);
+        }
+      }
+    });
+
+    test('selection is a block of ink, never the action colour', () {
+      // Whatever the user picks, a chosen option and a button to press are
+      // told apart -- selection does not follow the action colour at all.
+      for (final accent in accents) {
+        for (final theme in [
+          AppTheme.light(accent: accent),
+          AppTheme.dark(accent: accent),
+        ]) {
+          expect(theme.colorScheme.secondary, theme.colorScheme.onSurface);
+          expect(theme.colorScheme.secondary, isNot(accent));
+          expect(theme.colorScheme.onSecondary, theme.colorScheme.surface);
+        }
+      }
+    });
+
+    test('the label on every offered action colour is legible', () {
+      // Measured rather than assumed: the ink is picked per fill. 4.5:1 is
+      // the WCAG AA threshold for body text.
+      for (final accent in accents) {
+        expect(contrast(accent, AppTheme.inkOn(accent)), greaterThan(4.5),
+            reason: 'text on $accent is not legible');
+      }
+      for (final theme in [light, dark]) {
+        final scheme = theme.colorScheme;
+        expect(contrast(scheme.secondary, scheme.onSecondary), greaterThan(4.5));
+      }
+    });
   });
 
   test('both themes are built and disagree about brightness', () {

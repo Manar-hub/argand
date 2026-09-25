@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:argand/core/database/database.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,7 +104,7 @@ void main() {
     );
   }
 
-  group('schema 2 -> 9', () {
+  group('schema 2 -> 12', () {
     test('keeps every existing row', () async {
       final db = openV2WithData();
       addTearDown(db.close);
@@ -181,7 +183,47 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 9);
+      expect(row, 12);
+    });
+
+    test('an upgraded clip is framed as it always was', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clip = (await db.clipsForProject('p1')).single;
+
+      expect(
+        (clip.scale, clip.rotation, clip.offsetX, clip.offsetY),
+        (1.0, 0.0, 0.0, 0.0),
+      );
+    });
+
+    test('an upgraded layer keeps its captions where they rendered', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final layer = (await db.layersForProject('p1')).single;
+
+      expect(
+        (layer.captionX, layer.captionY, layer.captionScale),
+        (0.0, -0.82, 1.0),
+      );
+    });
+
+    test('an upgraded word follows its layer until placed', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final word = (await db.select(db.words).get()).single;
+      expect((word.captionX, word.captionY, word.captionScale),
+          (null, null, null));
+    });
+
+    test('text layers arrive, and are empty', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      expect(await db.textLayersForProject('p1'), isEmpty);
     });
 
     test('gives the existing transcript the layer its clip always implied',
@@ -313,6 +355,55 @@ void main() {
       expect(copiedTranscript, isNotNull);
       expect(await db.watchWords(copiedTranscript!.id).first, hasLength(1));
     });
+  });
+
+  test('schema 9 -> 12 adds the columns to tables that already exist',
+      () async {
+    // The 2 -> 10 route above creates `media_clips` and `transcribe_layers`
+    // fresh, so it never runs the `addColumn` steps; a device on schema 9
+    // does. Built by taking a fresh database back to 9 by hand.
+    final dir = await Directory.systemTemp.createTemp('argand_v9');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/app.sqlite');
+
+    final fresh = AppDatabase.forTesting(NativeDatabase(file));
+    await fresh.customStatement('SELECT 1');
+    for (final statement in [
+      'ALTER TABLE media_clips DROP COLUMN scale',
+      'ALTER TABLE media_clips DROP COLUMN rotation',
+      'ALTER TABLE media_clips DROP COLUMN offset_x',
+      'ALTER TABLE media_clips DROP COLUMN offset_y',
+      'ALTER TABLE transcribe_layers DROP COLUMN caption_x',
+      'ALTER TABLE transcribe_layers DROP COLUMN caption_y',
+      'ALTER TABLE transcribe_layers DROP COLUMN caption_scale',
+      'ALTER TABLE words DROP COLUMN caption_look',
+      'ALTER TABLE transcribe_layers DROP COLUMN caption_look',
+      'ALTER TABLE words DROP COLUMN caption_x',
+      'ALTER TABLE words DROP COLUMN caption_y',
+      'ALTER TABLE words DROP COLUMN caption_scale',
+      'DROP INDEX text_layers_project_start',
+      'DROP TABLE text_layers',
+      "INSERT INTO projects (id, created_at, updated_at, title, media_path) "
+          "VALUES ('p9', 0, 0, 'nine', '')",
+      "INSERT INTO media_clips (id, created_at, updated_at, project_id, "
+          "position, media_path, title) "
+          "VALUES ('c9', 0, 0, 'p9', 0, '/m.mp4', 'm')",
+      "INSERT INTO transcribe_layers (id, created_at, updated_at, project_id, "
+          "start_ms, end_ms) VALUES ('l9', 0, 0, 'p9', 0, 1000)",
+      'PRAGMA user_version = 9',
+    ]) {
+      await fresh.customStatement(statement);
+    }
+    await fresh.close();
+
+    final upgraded = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(upgraded.close);
+
+    final clip = (await upgraded.clipsForProject('p9')).single;
+    final layer = (await upgraded.layersForProject('p9')).single;
+    expect(clip.scale, 1.0);
+    expect(layer.captionY, -0.82);
+    expect(await upgraded.textLayersForProject('p9'), isEmpty);
   });
 
   test('a fresh install lands on the same schema as an upgraded one', () async {

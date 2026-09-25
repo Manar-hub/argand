@@ -13,6 +13,10 @@ MediaClip clip(String id, String path) => MediaClip(
       mediaPath: path,
       durationMs: 30000,
       title: id,
+      scale: 1,
+      rotation: 0,
+      offsetX: 0,
+      offsetY: 0,
     );
 
 ClipRange range(String clipId, int from, int to) => (

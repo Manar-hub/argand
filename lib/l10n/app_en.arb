@@ -268,6 +268,9 @@
   "themeModeDark": "Dark",
   "@themeModeDark": { "description": "Theme option that forces the dark theme" },
 
+  "settingsAccentColor": "Action colour",
+  "@settingsAccentColor": { "description": "Settings label for the colour every call-to-action button takes" },
+
   "openAction": "Open",
   "@openAction": { "description": "Menu entry that opens a project" },
 
@@ -376,6 +379,12 @@
   "trackKindAudio": "Audio",
   "@trackKindAudio": { "description": "Track kind: an imported audio file, e.g. music or voiceover" },
 
+  "trackKindTextDetail": "Words on the picture, at the playhead.",
+  "@trackKindTextDetail": { "description": "Explanation under the Text track kind" },
+
+  "zoomPercent": "{percent}%",
+  "@zoomPercent": { "description": "The zoom slider's current value", "placeholders": { "percent": { "type": "int" } } },
+
   "trackKindText": "Text",
   "@trackKindText": { "description": "Track kind: text overlaid on the video" },
 
@@ -390,6 +399,114 @@
 
   "timelineCaptionsLabel": "Captions",
   "@timelineCaptionsLabel": { "description": "Heading above the caption list shown when the Captions toolbar button is toggled on" },
+
+  "timelineToolZoom": "Zoom",
+  "@timelineToolZoom": { "description": "Bottom toolbar button that scales the selected clip's picture" },
+
+  "timelineToolRotate": "Rotate",
+  "@timelineToolRotate": { "description": "Bottom toolbar button that turns the selected clip's picture a quarter turn" },
+
+  "selectionCount": "{count} selected",
+  "@selectionCount": { "description": "Shown under the tracks while several timeline items are selected", "placeholders": { "count": { "type": "int" } } },
+
+  "selectionDelete": "Delete",
+  "@selectionDelete": { "description": "Deletes every selected timeline item" },
+
+  "selectionDone": "Done",
+  "@selectionDone": { "description": "Ends multi-select and clears the selection" },
+
+  "selectionHint": "Tap to edit · hold to select several",
+  "@selectionHint": { "description": "Shown under the tracks when nothing is selected, explaining tap versus long press" },
+
+  "textSelected": "Text selected.",
+  "@textSelected": { "description": "Shown under the tracks when one text layer is selected" },
+
+  "textEdit": "Edit text",
+  "@textEdit": { "description": "Opens the words of the selected text layer for editing" },
+
+  "sentenceSelected": "Sentence selected.",
+  "@sentenceSelected": { "description": "Shown under the tracks when one transcribed sentence is selected" },
+
+  "textPlaceholder": "Text",
+  "@textPlaceholder": { "description": "The word a new text layer starts with, selected so typing replaces it" },
+
+  "clipSelected": "Clip selected.",
+  "@clipSelected": { "description": "Shown under the tracks when one clip is selected" },
+
+  "clipRemoveManyTitle": "Remove {count} clips?",
+  "@clipRemoveManyTitle": { "description": "Heading of the dialog confirming removal of several clips", "placeholders": { "count": { "type": "int" } } },
+
+  "timelineToolStyle": "Style",
+  "@timelineToolStyle": { "description": "Bottom toolbar button that opens fonts, colours and caption styles" },
+
+  "styleFont": "Font",
+  "@styleFont": { "description": "Style panel item: the typeface" },
+
+  "styleColor": "Colour",
+  "@styleColor": { "description": "Style panel item: the colour of the words" },
+
+  "styleCaption": "Animation",
+  "@styleCaption": { "description": "Style panel item: how a caption's words appear as they are spoken" },
+
+  "styleHighlight": "Highlight",
+  "@styleHighlight": { "description": "Style panel item: the colour the spoken word takes" },
+
+  "styleScopeAll": "All captions",
+  "@styleScopeAll": { "description": "Style panel scope: every caption in the project" },
+
+  "styleNothing": "Select a text or caption to style it.",
+  "@styleNothing": { "description": "Style panel, when there is nothing it can style" },
+
+  "styleColorSpeaker": "Speaker",
+  "@styleColorSpeaker": { "description": "Colour choice meaning each caption takes its speaker's colour" },
+
+  "styleColorDefault": "Default",
+  "@styleColorDefault": { "description": "Colour choice meaning the default colour" },
+
+  "styleModeStandard": "Standard",
+  "@styleModeStandard": { "description": "Caption animation: the whole line at once" },
+
+  "styleModeKaraoke": "Karaoke",
+  "@styleModeKaraoke": { "description": "Caption animation: words fill with colour as they are spoken" },
+
+  "styleModeWordByWord": "Word",
+  "@styleModeWordByWord": { "description": "Caption animation: one word at a time" },
+
+  "styleModeHighlight": "Highlight",
+  "@styleModeHighlight": { "description": "Caption animation: the spoken word is picked out" },
+
+  "styleHighlightBox": "Box",
+  "@styleHighlightBox": { "description": "Highlight drawn as a box behind the word" },
+
+  "styleHighlightLetters": "Letters",
+  "@styleHighlightLetters": { "description": "Highlight drawn as the word's own colour" },
+
+  "styleScopeSelected": "Selected ({count})",
+  "@styleScopeSelected": { "description": "Style panel scope: only the selected items", "placeholders": { "count": { "type": "int" } } },
+
+  "styleShadow": "Shadow",
+  "@styleShadow": { "description": "Style panel item: the drop shadow under the words" },
+
+  "styleShadowNone": "None",
+  "@styleShadowNone": { "description": "Shadow strength readout at zero" },
+
+  "styleShadowOnBackground": "Words on a background have no shadow.",
+  "@styleShadowOnBackground": { "description": "Shown under the shadow dial when the words have a background colour" },
+
+  "styleColorText": "Text",
+  "@styleColorText": { "description": "Colour target: the words themselves" },
+
+  "styleColorBackground": "Background",
+  "@styleColorBackground": { "description": "Colour target: a colour behind the words" },
+
+  "styleColorNone": "None",
+  "@styleColorNone": { "description": "Background colour option: no background" },
+
+  "styleHue": "Hue",
+  "@styleHue": { "description": "Accessibility label for the colour spectrum slider" },
+
+  "styleShade": "Shade",
+  "@styleShade": { "description": "Accessibility label for the dark-to-light slider" },
 
   "timelineToolSplit": "Split",
   "@timelineToolSplit": { "description": "Timeline toolbar action that cuts the selected clip in two at the playhead" },

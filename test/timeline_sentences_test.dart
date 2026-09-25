@@ -12,10 +12,20 @@ MediaClip clip(String id, int? durationMs, int position) => MediaClip(
       mediaPath: '/media/$id.mp4',
       durationMs: durationMs,
       title: id,
+      scale: 1,
+      rotation: 0,
+      offsetX: 0,
+      offsetY: 0,
     );
 
 SentenceWord word(String text, int startMs, int endMs, [String? speaker]) =>
-    (text: text, startMs: startMs, endMs: endMs, speakerId: speaker);
+    (
+      text: text,
+      startMs: startMs,
+      endMs: endMs,
+      speakerId: speaker,
+      position: startMs,
+    );
 
 void main() {
   group('sentencesForClip', () {

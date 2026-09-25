@@ -858,14 +858,10 @@ class _Player extends ConsumerWidget {
                         padding: const EdgeInsets.all(AppSpacing.sm),
                         child: ProjectStageCanvas(
                           projectId: projectId,
+                          clipId: clipId,
                           sourceSize: value.size,
                           picture: VideoPlayer(controller),
-                          overlay: transcriptId == null
-                              ? null
-                              : CaptionOverlay(
-                                  transcriptId: transcriptId!,
-                                  positionMs: value.position.inMilliseconds,
-                                ),
+                          mediaPositionMs: value.position.inMilliseconds,
                         ),
                       ),
                     )
@@ -951,7 +947,6 @@ class CaptionOverlay extends ConsumerWidget {
           // A scrim rather than a solid bar: enough to keep text legible over
           // a bright frame without hiding the video behind it.
           color: Colors.black.withValues(alpha: 0.62),
-          borderRadius: BorderRadius.circular(6),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2100,15 +2095,15 @@ class _InlineFieldState extends State<_InlineField> {
         // in `AppTheme.light/dark`), so it never has to share a colour with
         // anything else on screen.
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.xs),
+          borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.xs),
+          borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSpacing.xs),
+          borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
         ),
       ),

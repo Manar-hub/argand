@@ -4,6 +4,8 @@ import '../captions/project_cues.dart';
 import '../captions/speaker_palette.dart';
 import '../database/database.dart';
 import '../timeline/clip_trim.dart';
+import '../timeline/item_look.dart';
+import '../timeline/item_transform.dart';
 import '../timeline/project_timeline.dart';
 import 'export_options.dart';
 
@@ -14,18 +16,47 @@ import 'export_options.dart';
 /// already stored that way -- `saveClipTranscript` applies its offset in one
 /// place -- and Media3 gives every item in a sequence its own presentation
 /// timebase, so the two agree without any conversion here.
-typedef ExportCaption = ({int startMs, int endMs, String text, int colorArgb});
+///
+/// [x], [y] and [scale] place it: its layer's caption placement, in the
+/// normalised coordinates `ItemTransform` describes.
+///
+/// [words] carry their own times on the same clock, for the caption modes
+/// that mark the word being said; [look] is its font and mode.
+typedef ExportCaption = ({
+  int startMs,
+  int endMs,
+  String text,
+  int colorArgb,
+  double x,
+  double y,
+  double scale,
+  List<TimedText> words,
+  ItemLook look,
+});
+
+/// One text layer's stretch over one clip, timed on that clip's own clock.
+typedef ExportText = ({
+  int startMs,
+  int endMs,
+  String text,
+  ItemTransform placement,
+  ItemLook look,
+});
 
 /// One clip to render: which stretch of its media, and what goes on top.
 ///
 /// [startMs]/[endMs] are the trim window in **media** time, which is what the
 /// player needs to be told. Caption times are relative to the window, because
 /// that is where the rendered item's own clock starts.
+///
+/// [framing] is how the picture sits in the frame, applied after the fit.
 typedef ExportClip = ({
   String path,
   int startMs,
   int endMs,
   List<ExportCaption> captions,
+  List<ExportText> texts,
+  ItemTransform framing,
 });
 
 /// What to render, and how long the result should be.
@@ -44,20 +75,88 @@ typedef ExportRequest = ({List<ExportClip> clips, int totalMs});
 ///
 /// [window] is the clip's trim range in media time; see `clipCuesFor` for why
 /// words are filtered before grouping.
+///
+/// [placement] is where the transcribe layer the words came from puts its
+/// captions; a sentence placed on its own overrides it for its cues.
 List<ExportCaption> exportCaptionsFor(
   List<Word> words, {
   ClipWindow? window,
+  ItemTransform placement = ItemTransform.captionDefault,
+  ItemLook look = ItemLook.defaults,
   Color fallback = const Color(0xFFFFFFFF),
 }) {
+  // Cues are moved onto the clip's clock; their words are not, so they are
+  // moved here by the same amount.
+  final shift = window?.startMs ?? 0;
+  int local(int ms) => ms - shift < 0 ? 0 : ms - shift;
+
   return [
     for (final cue in clipCuesFor(words, window: window))
-      (
-        startMs: cue.startMs,
-        endMs: cue.endMs,
-        text: cue.text,
-        colorArgb:
-            SpeakerPalette.colorFor(cue.speaker, fallback: fallback).toARGB32(),
-      ),
+      if ((
+        _ownPlacement(cue.words.first) ?? placement,
+        ItemLook.decode(cue.words.first.captionLook) ?? look,
+      )
+          case (final at, final style))
+        (
+          startMs: cue.startMs,
+          endMs: cue.endMs,
+          text: cue.text,
+          colorArgb: style.colorArgb ??
+              SpeakerPalette.colorFor(cue.speaker, fallback: fallback)
+                  .toARGB32(),
+          x: at.x,
+          y: at.y,
+          scale: at.scale,
+          words: [
+            for (final word in cue.words)
+              (
+                text: word.word.trim(),
+                startMs: local(word.startMs),
+                endMs: local(word.endMs),
+              ),
+          ],
+          look: style,
+        ),
+  ];
+}
+
+/// A sentence placed on its own carries its placement on every one of its
+/// words; the first word of a cue says where that cue goes.
+ItemTransform? _ownPlacement(Word word) => word.captionX == null
+    ? null
+    : ItemTransform(
+        x: word.captionX!,
+        y: word.captionY ?? ItemTransform.captionDefault.y,
+        scale: word.captionScale ?? 1,
+      );
+
+/// The parts of [texts] that fall on a clip placed at [startMs] for
+/// [durationMs] of the project, on that clip's own clock.
+///
+/// **Cut at clip boundaries.** Each clip is its own item in the render, with
+/// its own clock, so a title spanning a cut becomes two overlays -- the end of
+/// one clip and the start of the next -- that read as one to the viewer.
+List<ExportText> exportTextsFor(
+  List<TextLayer> texts, {
+  required int startMs,
+  required int durationMs,
+}) {
+  final endMs = startMs + durationMs;
+  return [
+    for (final text in texts)
+      if (text.startMs < endMs && text.endMs > startMs)
+        (
+          startMs: (text.startMs - startMs).clamp(0, durationMs),
+          endMs: (text.endMs - startMs).clamp(0, durationMs),
+          text: text.content,
+          placement: ItemTransform(
+            x: text.x,
+            y: text.y,
+            scale: text.scale,
+            rotation: text.rotation,
+          ),
+          look: ItemLook.decode(text.look) ?? ItemLook.defaults,
+        ),
   ];
 }
 
@@ -84,6 +183,7 @@ ExportRequest? exportRequestFor({
   required ProjectTimeline timeline,
   required List<MediaClip> clips,
   Map<String, List<ExportCaption>> captionsByClip = const {},
+  List<TextLayer> texts = const [],
 }) {
   if (timeline.placements.isEmpty) return null;
 
@@ -105,6 +205,17 @@ ExportRequest? exportRequestFor({
       startMs: window.startMs,
       endMs: window.endMs,
       captions: captionsByClip[placement.clipId] ?? const [],
+      texts: exportTextsFor(
+        texts,
+        startMs: placement.startMs,
+        durationMs: placement.durationMs,
+      ),
+      framing: ItemTransform(
+        x: clip.offsetX,
+        y: clip.offsetY,
+        scale: clip.scale,
+        rotation: clip.rotation,
+      ),
     ));
   }
 
@@ -224,8 +335,44 @@ class VideoExporter {
                     'endMs': caption.endMs,
                     'text': caption.text,
                     'colorArgb': caption.colorArgb,
+                    'x': caption.x,
+                    'y': caption.y,
+                    'scale': caption.scale,
+                    'font': caption.look.font.asset,
+                    'mode': caption.look.mode.name,
+                    'highlightArgb': caption.look.highlightArgb,
+                    'highlightBox': caption.look.highlightBox,
+                    'backgroundArgb': caption.look.backgroundArgb,
+                    'shadow': caption.look.shadow,
+                    'words': [
+                      for (final word in caption.words)
+                        {
+                          'text': word.text,
+                          'startMs': word.startMs,
+                          'endMs': word.endMs,
+                        },
+                    ],
                   },
               ],
+              'texts': [
+                for (final text in clip.texts)
+                  {
+                    'startMs': text.startMs,
+                    'endMs': text.endMs,
+                    'text': text.text,
+                    'x': text.placement.x,
+                    'y': text.placement.y,
+                    'scale': text.placement.scale,
+                    'rotation': text.placement.rotation,
+                    'font': text.look.font.asset,
+                    'colorArgb': text.look.colorArgb ?? 0xFFFFFFFF,
+                    // The bundled faces are display weights already.
+                    'bold': text.look.font == LookFont.standard,
+                    'backgroundArgb': text.look.backgroundArgb,
+                    'shadow': text.look.shadow,
+                  },
+              ],
+              'framing': clip.framing.toJson(),
             },
         ],
         'fileName': fileName,

@@ -23,6 +23,10 @@ MediaClip clip(
       mediaPath: '/media/$id.mp4',
       durationMs: durationMs,
       title: id,
+      scale: 1,
+      rotation: 0,
+      offsetX: 0,
+      offsetY: 0,
       trimStartMs: trimStartMs,
       trimEndMs: trimEndMs,
     );

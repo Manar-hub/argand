@@ -24,12 +24,11 @@ const double appHairlineWidth = 1;
 /// than a layout decision. Labels ellipsize instead of scrolling, so a large
 /// text scale shortens a word rather than hiding a whole option.
 ///
-/// **Drawn as part of the page, not as a card on top of it.** It takes the
-/// page's own background and the same hairline the transcript separates its
-/// lines with — an earlier pass gave it the card fill and the full 2pt outline
-/// every raised surface uses, which made a control sitting inside a list of
-/// text look like a slab dropped onto it. Nothing here is raised, so nothing
-/// here gets a raised surface's weight.
+/// **Tabs as in the reference**: no box round the row and no dividers
+/// between choices -- the chosen one is a solid square block of ink with the
+/// page's colour for its label, the rest are plain labels on the page. The
+/// block is the only thing drawn, so a row of three reads as one choice made
+/// rather than three boxes.
 ///
 /// Generic over the value so the next one of these is a map literal, not a
 /// second copy of this widget.
@@ -47,44 +46,23 @@ class AppSegmentRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final rule = appHairline(theme);
     final entries = items.entries.toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border.all(color: rule, width: appHairlineWidth),
-        borderRadius: BorderRadius.circular(context.surface.radius),
-      ),
-      // Without this the selected segment's fill is a plain rectangle that
-      // overruns the rounded border at the ends, so choosing Line or Speakers
-      // squares off that corner. A `DecoratedBox` cannot clip, which is how it
-      // was lost.
-      clipBehavior: Clip.antiAlias,
-      // The dividers need a height to stretch to, and the row's height comes
-      // from its tallest label. One intrinsic pass on a three-item row is
-      // cheap and it is what keeps the rules full-height at any text scale.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (final (index, entry) in entries.indexed) ...[
-              if (index > 0)
-                SizedBox(
-                  width: appHairlineWidth,
-                  child: ColoredBox(color: rule),
-                ),
-              Expanded(
-                child: _Segment(
-                  label: entry.value,
-                  selected: entry.key == selected,
-                  onTap: () => onSelected(entry.key),
-                ),
+    // The row's height comes from its tallest label; one intrinsic pass on a
+    // short row keeps every block full-height at any text scale.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final entry in entries)
+            Expanded(
+              child: _Segment(
+                label: entry.value,
+                selected: entry.key == selected,
+                onTap: () => onSelected(entry.key),
               ),
-            ],
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -107,13 +85,9 @@ class _Segment extends StatelessWidget {
 
     return PressableSurface(
       selected: selected,
-      // The theme's own call to action: yellow on paper, blue on near-black.
-      // Selection used `secondary`, which is the pair the other way round and
-      // put blue on the light theme where yellow leads.
-      fill: selected ? theme.colorScheme.primary : Colors.transparent,
-      // No rounding here: `AppSegmentRow` clips the whole row to its own
-      // corners, and a segment is a rectangular slice of it, not a card of
-      // its own.
+      // Selection is a block of ink, never the action colour: a chosen tab
+      // and a button to press are always told apart.
+      fill: selected ? theme.colorScheme.secondary : Colors.transparent,
       borderRadius: BorderRadius.zero,
       child: Material(
         type: MaterialType.transparency,
@@ -135,12 +109,11 @@ class _Segment extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                // Plain weight. The transcript beside it is set for reading, and
-                // a bold control next to body text claims a priority it does not
-                // have.
-                style: theme.textTheme.bodyMedium?.copyWith(
+                // Bold, as the reference's tabs: the block carries the choice,
+                // the label only names it.
+                style: theme.textTheme.labelLarge?.copyWith(
                   color: selected
-                      ? theme.colorScheme.onPrimary
+                      ? theme.colorScheme.onSecondary
                       : theme.colorScheme.onSurface,
                 ),
               ),

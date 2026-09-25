@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
 import 'editor_mode_controller.dart';
+import 'stage_editor.dart';
 import 'video_canvas.dart';
 import 'video_settings.dart';
 
@@ -265,72 +267,55 @@ class _PanelBody extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _PanelItem(
-                    icon: other == EditorMode.script
-                        ? Icons.notes
-                        : Icons.view_timeline_outlined,
-                    label: other == EditorMode.script
-                        ? l10n.editorModeScript
-                        : l10n.editorModeTimeline,
-                    selected: false,
-                    onTap: () {
-                      controller.close();
-                      ref
-                          .read(sessionEditorModeProvider(projectId).notifier)
-                          .select(other);
-                    },
-                  ),
+          // One strip, a rule between items, like the timeline's toolbar.
+          AppStrip(
+            children: [
+              AppPanelItem(
+                icon: other == EditorMode.script
+                    ? Icons.notes
+                    : Icons.view_timeline_outlined,
+                label: other == EditorMode.script
+                    ? l10n.editorModeScript
+                    : l10n.editorModeTimeline,
+                selected: false,
+                onTap: () {
+                  controller.close();
+                  ref
+                      .read(sessionEditorModeProvider(projectId).notifier)
+                      .select(other);
+                },
+              ),
+              for (final (item, icon, label) in [
+                (
+                  VideoSettingsItem.aspect,
+                  Icons.aspect_ratio,
+                  l10n.exportOptionsAspect,
                 ),
-                // Sets the mode switch apart from the three settings: it
-                // acts, the others show.
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xs,
-                    vertical: AppSpacing.sm,
-                  ),
-                  child: SizedBox(
-                    width: appHairlineWidth,
-                    child: ColoredBox(color: appHairline(theme)),
-                  ),
+                (
+                  VideoSettingsItem.resolution,
+                  Icons.high_quality_outlined,
+                  l10n.exportOptionsQuality,
                 ),
-                for (final (item, icon, label) in [
-                  (
-                    VideoSettingsItem.aspect,
-                    Icons.aspect_ratio,
-                    l10n.exportOptionsAspect,
-                  ),
-                  (
-                    VideoSettingsItem.resolution,
-                    Icons.high_quality_outlined,
-                    l10n.exportOptionsQuality,
-                  ),
-                  (
-                    VideoSettingsItem.watermark,
-                    Icons.branding_watermark_outlined,
-                    l10n.videoSettingsWatermarkItem,
-                  ),
-                ])
-                  Expanded(
-                    child: _PanelItem(
-                      icon: icon,
-                      label: label,
-                      selected: panel.item == item,
-                      onTap: () => controller.show(item),
-                    ),
-                  ),
-              ],
-            ),
+                (
+                  VideoSettingsItem.watermark,
+                  Icons.branding_watermark_outlined,
+                  l10n.videoSettingsWatermarkItem,
+                ),
+              ])
+                AppPanelItem(
+                  icon: icon,
+                  label: label,
+                  selected: panel.item == item,
+                  onTap: () => controller.show(item),
+                ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
           DecoratedBox(
-            decoration: surface.decoration(
-              fill: theme.colorScheme.surfaceContainerHighest,
-              raised: false,
+            // No frame and no shadow: the rows inside are strips with their
+            // own box. Only the card's tone, which on paper is the page's.
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
             ),
             child: ClipRRect(
               borderRadius: surface.borderRadius,
@@ -394,138 +379,6 @@ class _PanelBody extends ConsumerWidget {
   }
 }
 
-/// One of the panel's items, in the bottom toolbar's own style: icon over
-/// label on a bordered surface, the accent when selected.
-class _PanelItem extends StatelessWidget {
-  const _PanelItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final ink =
-        selected ? theme.colorScheme.onPrimary : theme.colorScheme.onSurface;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxs),
-      child: Semantics(
-        selected: selected,
-        button: true,
-        child: PressableSurface(
-          selected: selected,
-          fill: selected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.surfaceContainerHighest,
-          border: true,
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icon, color: ink, size: 22),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      label,
-                      style: theme.textTheme.labelSmall?.copyWith(color: ink),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A choice inside an item's options: a small bordered cell, the accent when
-/// chosen.
-class _Choice extends StatelessWidget {
-  const _Choice({
-    required this.selected,
-    required this.onTap,
-    required this.child,
-  });
-
-  final bool selected;
-
-  /// Null when the choice is not available, which greys it out.
-  final VoidCallback? onTap;
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final enabled = onTap != null;
-
-    return Semantics(
-      selected: selected,
-      button: true,
-      enabled: enabled,
-      child: AnimatedOpacity(
-        opacity: enabled ? 1 : 0.38,
-        duration: _motionFor(context),
-        child: PressableSurface(
-          selected: selected,
-          fill:
-              selected ? theme.colorScheme.primary : theme.colorScheme.surface,
-          border: true,
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs,
-                  vertical: AppSpacing.sm,
-                ),
-                child: DefaultTextStyle.merge(
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: selected
-                        ? theme.colorScheme.onPrimary
-                        : theme.colorScheme.onSurface,
-                  ),
-                  child: IconTheme.merge(
-                    data: IconThemeData(
-                      color: selected
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurface,
-                    ),
-                    child: child,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Five shapes, each drawn rather than only named.
 class _AspectOptions extends StatelessWidget {
   const _AspectOptions({required this.settings, required this.onChanged});
@@ -537,34 +390,31 @@ class _AspectOptions extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return Row(
+    return AppStrip(
+      onCard: true,
       children: [
-        for (final (index, (aspect, label)) in <(ExportAspect, String)>[
+        for (final (aspect, label) in <(ExportAspect, String)>[
           (ExportAspect.source, l10n.exportAspectSource),
           (ExportAspect.portrait9x16, l10n.exportAspectPortrait),
           (ExportAspect.square1x1, l10n.exportAspectSquare),
           (ExportAspect.portrait4x5, l10n.exportAspectFeed),
           (ExportAspect.landscape16x9, l10n.exportAspectWide),
-        ].indexed) ...[
-          if (index > 0) const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: _Choice(
-              selected: settings.aspect == aspect,
-              onTap: () => onChanged(settings.copyWith(aspect: aspect)),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    height: 30,
-                    child: Center(child: _ShapeGlyph(ratio: aspect.ratio)),
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
-              ),
+        ])
+          AppChoice(
+            selected: settings.aspect == aspect,
+            onTap: () => onChanged(settings.copyWith(aspect: aspect)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 30,
+                  child: Center(child: _ShapeGlyph(ratio: aspect.ratio)),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
             ),
           ),
-        ],
       ],
     );
   }
@@ -593,7 +443,6 @@ class _ShapeGlyph extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         border: Border.all(color: color, width: 1.6),
-        borderRadius: BorderRadius.circular(3),
       ),
     );
   }
@@ -623,31 +472,28 @@ class _ResolutionOptions extends ConsumerWidget {
     // because 1080p is what the file will be.
     final effective = settings.quality.fitTo(shortEdge);
 
-    return Row(
+    return AppStrip(
+      onCard: true,
       children: [
-        for (final (index, (quality, label)) in <(ExportQuality, String)>[
+        for (final (quality, label) in <(ExportQuality, String)>[
           (ExportQuality.p720, l10n.exportQuality720),
           (ExportQuality.p1080, l10n.exportQuality1080),
           (ExportQuality.p1440, l10n.exportQuality1440),
           (ExportQuality.p2160, l10n.exportQuality2160),
           (ExportQuality.source, l10n.exportQualitySource),
-        ].indexed) ...[
-          if (index > 0) const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: _Choice(
-              selected: effective == quality,
-              onTap: quality.availableFor(shortEdge)
-                  ? () => onChanged(settings.copyWith(quality: quality))
-                  : null,
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+        ])
+          AppChoice(
+            selected: effective == quality,
+            onTap: quality.availableFor(shortEdge)
+                ? () => onChanged(settings.copyWith(quality: quality))
+                : null,
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ],
       ],
     );
   }
@@ -693,26 +539,37 @@ class _WatermarkOptions extends StatelessWidget {
 ///
 /// **One widget for both stages**, so Script and Timeline cannot drift apart:
 /// the project's shape, the picture fitted inside it with black bars as the
-/// render fits it, the watermark where it will be -- and, while the
-/// Watermark item is open, every corner of the frame as a target.
+/// render fits it and then framed as the clip says, the texts and captions
+/// where they will be burned in, the watermark where it will be -- and, while
+/// the Watermark item is open, every corner of the frame as a target.
 class ProjectStageCanvas extends ConsumerWidget {
   const ProjectStageCanvas({
     super.key,
     required this.projectId,
+    required this.clipId,
     required this.sourceSize,
     required this.picture,
-    this.overlay,
+    required this.mediaPositionMs,
+    this.editable = false,
   });
 
   final String projectId;
+
+  /// The clip on the stage.
+  final String? clipId;
 
   /// The picture's own size, which is its shape when no shape is chosen.
   final Size sourceSize;
 
   final Widget picture;
 
-  /// The captions, drawn inside the frame.
-  final Widget? overlay;
+  /// Where the player is inside the clip's media, for which caption and text
+  /// are showing.
+  final int mediaPositionMs;
+
+  /// Whether items can be picked and moved here. Timeline only: Script mode
+  /// is for the words, and shows the framing without offering to change it.
+  final bool editable;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -723,11 +580,20 @@ class ProjectStageCanvas extends ConsumerWidget {
 
     return VideoCanvas(
       ratio: settings.aspect.ratio ?? sourceSize.width / sourceSize.height,
-      picture: FittedBox(
-        fit: BoxFit.contain,
-        child: SizedBox.fromSize(size: sourceSize, child: picture),
+      picture: StagePicture(
+        projectId: projectId,
+        clipId: clipId,
+        sourceSize: sourceSize,
+        picture: picture,
       ),
-      overlay: overlay,
+      foreground: StageEditor(
+        projectId: projectId,
+        clipId: clipId,
+        sourceSize: sourceSize,
+        mediaPositionMs: mediaPositionMs,
+        // Choosing the watermark's corner takes the frame's taps for itself.
+        editable: editable && !picking,
+      ),
       watermark: settings.previewWatermark ? settings.corner : null,
       pickCorner: picking
           ? (corner) => ref

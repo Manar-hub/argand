@@ -10,10 +10,11 @@ import 'package:flutter/material.dart';
 /// looking like itself.
 ///
 /// A [ThemeExtension] rather than constants, because the rule genuinely differs
-/// between themes: the outline and the shadow are near-black on a light ground
-/// and off-white on a dark one, because a black shadow on `#161616` is not a
-/// subtler shadow, it is no shadow. Anything reading these values gets the
-/// right ones for the active theme without asking which one is on.
+/// between themes: the outline and the shadow are near-black on a light ground,
+/// and on a dark one the shadow is a pale slab and **there is no outline** --
+/// an off-white 2pt frame round every card, chip and button read as cheap
+/// (the user's call, 2026-09-24). Anything reading these values gets the right
+/// ones for the active theme without asking which one is on.
 @immutable
 class AppSurface extends ThemeExtension<AppSurface> {
   const AppSurface({
@@ -24,64 +25,84 @@ class AppSurface extends ThemeExtension<AppSurface> {
     required this.offset,
   });
 
-  /// Light: near-black on warm off-white. The outline carries the structure,
-  /// so it is a real line rather than a hairline divider.
+  /// Light: a thin near-black line on warm off-white, square-cornered, as in
+  /// the reference (the Bruddle kit). The outline carries the structure, so
+  /// it is a real line rather than a hairline divider.
   factory AppSurface.light() => const AppSurface(
         outline: Color(0xFF141414),
         shadow: Color(0xFF141414),
-        borderWidth: 2,
-        radius: 14,
-        offset: Offset(0, 4),
+        borderWidth: 1.5,
+        radius: 0,
+        offset: Offset(4, 4),
       );
 
-  /// Dark inverts the same rule: the shadow is a *pale* slab, because a black
-  /// one on a `#161616` ground is not a subtler shadow, it is no shadow — dark
-  /// cards sat flat while light cards were raised, and the two themes stopped
-  /// being one design.
+  /// Dark: **no outline** -- a card is told from the page by its lighter fill
+  /// and lifted by the pale slab under it. [outline] is kept as the theme's
+  /// strong ink for the few things that use it as a colour (a muted glyph, a
+  /// hairline at low alpha), never as a frame.
   ///
-  /// It is deliberately **dimmer than the outline**, which light does not need
-  /// to be. On paper, ink at full strength is just ink; on near-black, the
-  /// same move at full strength puts the brightest thing on the screen behind
-  /// the card rather than in it, and the eye goes to the shadow instead of the
-  /// content. Pulling it back to a mid grey keeps the card lifted while
-  /// leaving the outline as the strongest edge, which is the job the outline
-  /// is for.
-  ///
-  /// A solid grey rather than the outline at low alpha, so the value does not
-  /// change with whatever the shadow happens to fall across.
+  /// The shadow is a *pale* slab, because a black one on a `#161616` ground is
+  /// not a subtler shadow, it is no shadow. A solid mid grey rather than a
+  /// light colour at low alpha, so the value does not change with whatever the
+  /// shadow happens to fall across.
   factory AppSurface.dark() => const AppSurface(
         outline: Color(0xFFEDEAE3),
         shadow: Color(0xFF6E6B65),
-        borderWidth: 2,
-        radius: 14,
-        offset: Offset(0, 4),
+        borderWidth: 0,
+        radius: 0,
+        offset: Offset(4, 4),
       );
 
   final Color outline;
   final Color shadow;
+
+  /// Zero for no outline at all -- see [outlined].
   final double borderWidth;
   final double radius;
 
-  /// Straight down, with no sideways component.
+  /// Down and to the right, as in the reference.
   ///
-  /// A diagonal offset is the more common take on this style, but it makes a
-  /// full-width card look skewed — the shadow runs off one edge and not the
-  /// other. Dropping it vertically keeps wide surfaces square, which is what
-  /// reference image 3 does and why its cards sit calmly at phone width.
+  /// It falls only on what a screen is about -- a primary action, the stage,
+  /// a dialog, a docked panel -- so the skew a diagonal gives a full-width
+  /// card is rare, and on those few it reads as the point.
   final Offset offset;
 
   BorderRadius get borderRadius => BorderRadius.circular(radius);
 
-  /// A bordered, optionally raised surface filled with [fill].
+  /// How far a pressed or chosen surface sinks: half the shadow's drop. The
+  /// full drop read as sinking too deep.
+  double get pressDepth => offset.dy / 2;
+
+  /// The hard shadow on its own, for something that draws its own shape --
+  /// an action button.
+  BoxShadow get hardShadow =>
+      BoxShadow(color: shadow, offset: offset, blurRadius: 0);
+
+  /// Whether this theme draws an outline at all.
   ///
-  /// [raised] is false for things that sit *in* the page rather than on it —
-  /// an inset field, a row inside an already-raised card. Nesting one offset
-  /// shadow inside another reads as noise, which is the trap this style falls
-  /// into when every element is treated as a card.
-  BoxDecoration decoration({required Color fill, bool raised = true}) {
+  /// Checked rather than drawing a zero-width side: Flutter paints a
+  /// `BorderSide` of width 0 as a one-pixel hairline, which on dark is exactly
+  /// the thin white frame being removed.
+  bool get outlined => borderWidth > 0;
+
+  /// The outline as a side, for a shape: [BorderSide.none] without one.
+  BorderSide get side => outlined
+      ? BorderSide(color: outline, width: borderWidth)
+      : BorderSide.none;
+
+  /// The outline as a box border: null without one.
+  Border? get border =>
+      outlined ? Border.all(color: outline, width: borderWidth) : null;
+
+  /// A bordered surface filled with [fill], **flat unless [raised]**.
+  ///
+  /// The shadow is for emphasis only -- the one or two things a screen is
+  /// about -- which is how the reference keeps a box-heavy style calm.
+  /// Everything else is a flat outlined box.
+  BoxDecoration decoration({required Color fill, bool raised = false}) {
     return BoxDecoration(
       color: fill,
-      border: Border.all(color: outline, width: borderWidth),
+      border: border,
       borderRadius: borderRadius,
       boxShadow: raised
           ? [BoxShadow(color: shadow, offset: offset, blurRadius: 0)]
@@ -151,9 +172,9 @@ class AppSurface extends ThemeExtension<AppSurface> {
 /// with a thickened top side, which is simple but has a real Flutter
 /// limitation: a [Border] with differing per-side widths is not "uniform",
 /// and `BoxDecoration` only honours `borderRadius` for a uniform border — the
-/// pressed band silently squared off every corner, most visible on the near-
-/// white dark-theme outline. A [CustomPainter] draws both the recess and the
-/// surface as explicit rounded rects instead, which are round regardless.
+/// pressed band silently squared off every corner. A [CustomPainter] draws
+/// both the recess and the surface as explicit rounded rects instead, which
+/// are round regardless.
 ///
 /// Modelled on an old recorder's transport buttons: proud until pressed, then
 /// sinking into the deck with a small bounce before settling. Unselected
@@ -181,9 +202,10 @@ class PressableSurface extends StatefulWidget {
   /// pill shape is rounder than a card's corner.
   final BorderRadius? borderRadius;
 
-  /// Whether the surface draws its own outline. Off by default for a segment
-  /// that already sits inside a bordered row — a border on every child too
-  /// would read as boxes inside a box (see `_SegmentRow`).
+  /// Whether the surface draws its own outline -- when the theme has one
+  /// ([AppSurface.outlined]). Off by default for a segment that already sits
+  /// inside a bordered row — a border on every child too would read as boxes
+  /// inside a box (see `_SegmentRow`).
   final bool border;
 
   /// Whether the *unselected* surface casts the app's normal outward card
@@ -243,7 +265,9 @@ class _PressableSurfaceState extends State<PressableSurface>
         // The same distance drives the recess band and the child's own
         // shift, so the two never separate -- that's what makes the word
         // read as moving *with* the button rather than floating over it.
-        final shift = surface.offset.dy * _depth.value;
+        // Half the shadow's drop: a chosen item settles into the page
+        // rather than sinking through it.
+        final shift = surface.pressDepth * _depth.value;
 
         return ClipRRect(
           borderRadius: radius,
@@ -252,7 +276,9 @@ class _PressableSurfaceState extends State<PressableSurface>
               shift: shift,
               fill: widget.fill,
               shadow: _pressedShadow,
-              outline: widget.border ? surface.outline : null,
+              outline: widget.border && surface.outlined
+                  ? surface.outline
+                  : null,
               borderWidth: surface.borderWidth,
               radius: radius,
               raisedShadow:
@@ -337,6 +363,26 @@ class _PressablePainter extends CustomPainter {
         fill != oldDelegate.fill ||
         outline != oldDelegate.outline ||
         raisedShadow != oldDelegate.raisedShadow;
+  }
+}
+
+/// An action, lifted on the app's hard shadow: every button that *does*
+/// something -- Export, Create project, a dialog's confirm -- stands off the
+/// page, which is what tells it apart from a choice.
+///
+/// Wraps the button rather than theming it: Material's own elevation is a
+/// blur, and this style's shadow is not.
+class AppRaised extends StatelessWidget {
+  const AppRaised({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(boxShadow: [context.surface.hardShadow]),
+      child: child,
+    );
   }
 }
 

@@ -71,17 +71,68 @@ class TimelineSelection extends _$TimelineSelection {
   @override
   Set<TimelineItem> build(String projectId) => const {};
 
-  void toggle(TimelineItem item) => state = toggleSelection(state, item);
+  TimelineMultiSelect get _multi =>
+      ref.read(timelineMultiSelectProvider(projectId).notifier);
 
-  void selectOnly(TimelineItem item) => state = {item};
+  /// A tap: picks this one, or toggles it while multi-selecting.
+  void tap(TimelineItem item) => _set(
+        tapSelection(
+          state,
+          item,
+          multi: ref.read(timelineMultiSelectProvider(projectId)),
+        ),
+      );
 
-  void clear() => state = const {};
+  /// A long press: starts multi-select with this item toggled.
+  void longPress(TimelineItem item) {
+    _multi.enter();
+    _set(longPressSelection(state, item));
+  }
+
+  void toggle(TimelineItem item) => _set(toggleSelection(state, item));
+
+  void selectOnly(TimelineItem item) => _set({item});
+
+  void clear() => _set(const {});
 
   /// Drops anything that no longer exists. Called with the rows in hand rather
   /// than querying, so it cannot race the stream that produced them.
-  void prune({required Set<String> clipIds, required Set<String> layerIds}) {
-    final next = prunedSelection(state, clipIds: clipIds, layerIds: layerIds);
-    if (next.length != state.length) state = next;
+  void prune({
+    required Set<String> clipIds,
+    required Set<String> layerIds,
+    Set<String>? textIds,
+  }) {
+    final next = prunedSelection(
+      state,
+      clipIds: clipIds,
+      layerIds: layerIds,
+      textIds: textIds,
+    );
+    if (next.length != state.length) _set(next);
+  }
+
+  /// Every change goes through here, so an empty selection always ends
+  /// multi-select: there is nothing left to add to.
+  void _set(Set<TimelineItem> next) {
+    state = next;
+    if (next.isEmpty) _multi.exit();
+  }
+}
+
+/// Whether taps on the timeline add to the selection rather than replace it.
+///
+/// Entered by a long press and left when the selection empties or the user
+/// says Done. Its own provider rather than a field on [TimelineSelection],
+/// whose value is the set that dozens of call sites already read.
+@riverpod
+class TimelineMultiSelect extends _$TimelineMultiSelect {
+  @override
+  bool build(String projectId) => false;
+
+  void enter() => state = true;
+
+  void exit() {
+    if (state) state = false;
   }
 }
 

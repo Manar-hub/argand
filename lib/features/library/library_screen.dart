@@ -5,7 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/media/shared_media.dart';
+import '../../core/theme/accent_color_controller.dart';
+import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_dialog.dart';
+import '../../core/theme/app_panel_cells.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/theme/theme_mode_controller.dart';
@@ -331,6 +335,8 @@ class _ImportPanel extends StatelessWidget {
             fill: busy
                 ? theme.colorScheme.surfaceContainerHighest
                 : theme.colorScheme.primary,
+            // One of the two things this screen is for: raised.
+            raised: true,
           ),
           child: Row(
             children: [
@@ -372,6 +378,7 @@ class _ProjectSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final surface = context.surface;
 
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(
@@ -380,27 +387,57 @@ class _ProjectSliver extends StatelessWidget {
         AppSpacing.lg,
         AppSpacing.xxl,
       ),
-      sliver: SliverList.separated(
-        itemCount: projects.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-              child: Text(
-                l10n.projectsHeading,
-                style: theme.textTheme.labelLarge,
+      // One outlined box with a rule between rows, as the reference's lists,
+      // rather than a card per project: a library is one list, and a stack of
+      // separate boxes read as a pile of unrelated things.
+      sliver: SliverList.list(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Text(
+              l10n.projectsHeading,
+              style: theme.textTheme.labelLarge,
+            ),
+          ),
+          DecoratedBox(
+            decoration: surface.decoration(
+              fill: theme.colorScheme.surfaceContainerHighest,
+            ),
+            child: Padding(
+              // Inside the outline, so the rows' own fill never paints over it.
+              padding: EdgeInsets.all(surface.borderWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (index, project) in projects.indexed) ...[
+                    if (index > 0) const _RowRule(),
+                    _ProjectTile(project: project),
+                  ],
+                ],
               ),
-            );
-          }
-          return _ProjectTile(project: projects[index - 1]);
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// One project, as a card.
+/// The rule between two rows of a grouped list: the outline's ink on paper,
+/// a cut in the page's colour on dark, which draws no light lines.
+class _RowRule extends StatelessWidget {
+  const _RowRule();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: appRuleWidth(context),
+      child: ColoredBox(color: appRuleColor(context)),
+    );
+  }
+}
+
+/// One project, as a row of the library's grouped list.
 ///
 /// Everything needed to choose between two similar recordings is on the face of
 /// it — when it was imported, how long it runs, what it costs on disk — because
@@ -433,14 +470,12 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
         ref.watch(projectMediaBytesProvider(widget.project.id)).value;
     final duration = ref.watch(projectDurationProvider(widget.project.id));
 
+    // A row of the grouped list: no outline or shadow of its own -- the box
+    // round the list has those -- but it still sinks under the finger.
     return PressableSurface(
       selected: _pressed,
       fill: theme.colorScheme.surfaceContainerHighest,
-      border: true,
-      // Raised at rest, like every other card, and sinks onto the page while
-      // held rather than merely losing its shadow.
-      raised: true,
-      borderRadius: surface.borderRadius,
+      borderRadius: BorderRadius.zero,
       child: InkWell(
         borderRadius: surface.borderRadius,
         // The press itself is `PressableSurface`'s job -- the row sinking in
@@ -457,15 +492,13 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
         child: Container(
           padding: const EdgeInsets.all(AppSpacing.md),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // A square outlined tile for the icon, as the reference's rows.
               Container(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: surface.decoration(
                   fill: theme.colorScheme.surface,
-                  // Inside an already-raised card. Nesting one offset shadow
-                  // in another is what turns this style into noise.
-                  raised: false,
                 ),
                 child: const Icon(Icons.movie_outlined, size: 22),
               ),
@@ -946,6 +979,64 @@ class _ThemeModeControlState extends ConsumerState<_ThemeModeControl> {
   }
 }
 
+/// The action colour: every call to action in the app takes it, and the
+/// user picks it here, beside Light and Dark, from presets or the spectrum.
+///
+/// The picker previews under the finger and applies on release, so the whole
+/// app repaints once per choice rather than on every frame of a drag.
+class _AccentColorControl extends ConsumerWidget {
+  const _AccentColorControl();
+
+  /// Presets for an action colour: the default violet first, then hues that
+  /// each carry a label -- no white or near-black, which would read as a
+  /// disabled or a selected button rather than one to press.
+  static const _presets = [
+    0xFF9B6CFF,
+    0xFF116DD6,
+    0xFF00A3A3,
+    0xFF2E9E4F,
+    0xFFFFD93D,
+    0xFFFF8A3D,
+    0xFFE8485A,
+    0xFFFF6FB5,
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final accent =
+        ref.watch(accentColorSettingProvider).value ?? AppTheme.defaultAccent;
+    final setting = ref.read(accentColorSettingProvider.notifier);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.settingsAccentColor,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          // No separate "Default" cell: the default is the first preset,
+          // and two cells meaning the same colour was one too many.
+          AppColorPicker(
+            current: accent.toARGB32(),
+            swatches: _presets,
+            onChanged: (argb) =>
+                argb == null ? setting.reset() : setting.select(Color(argb)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// App-level settings.
 ///
 /// **Transcription options are deliberately not here.** Model, language,
@@ -967,7 +1058,7 @@ class _SettingsSheet extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [_ThemeModeControl()],
+          children: [_ThemeModeControl(), _AccentColorControl()],
         ),
       ),
     );

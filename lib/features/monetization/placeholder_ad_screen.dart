@@ -102,6 +102,7 @@ class _PlaceholderAdScreenState extends State<PlaceholderAdScreen> {
                   child: DecoratedBox(
                     decoration: surface.decoration(
                       fill: theme.colorScheme.surfaceContainerHighest,
+                      raised: true,
                     ),
                     child: Center(
                       child: finished

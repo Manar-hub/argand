@@ -15,11 +15,24 @@ import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
+import android.text.SpannableStringBuilder
+import android.text.TextPaint
+import android.text.style.MetricAffectingSpan
+import android.text.style.CharacterStyle
+import android.text.style.ReplacementSpan
+import android.text.style.StyleSpan
+import android.text.style.UpdateAppearance
+import android.graphics.Canvas
+import android.graphics.Paint
+import io.flutter.FlutterInjector
+import android.graphics.Matrix
+import android.graphics.Typeface
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.OverlaySettings
+import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.StaticOverlaySettings
@@ -94,14 +107,47 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
          */
         const val CAPTION_TEXT_FRACTION = 0.045f
 
-        /** Matches the preview's caption plate: black at 62%. */
-        const val CAPTION_BACKGROUND = 0x9E000000.toInt()
+        /** A look's shadow strength when it names none. */
+        const val DEFAULT_SHADOW = 0.4f
+
+        /**
+         * The shadow under words at [textSizePx] with dial [strength], as
+         * (colour, blur radius, downward offset); null for none. **Mirrors
+         * `captionShadowFor` in `lib/core/timeline/item_look.dart`.**
+         */
+        fun shadowOf(strength: Float, textSizePx: Float): Triple<Int, Float, Float>? {
+            if (strength <= 0f) return null
+            val s = min(strength, 1f)
+            val alpha = ((0.25f + 0.75f * s) * 255f).roundToInt()
+            return Triple(alpha shl 24, textSizePx * (0.12f + 0.18f * s), textSizePx * 0.06f)
+        }
+
+        /**
+         * How far a shadow reaches past its words: its offset plus the blur's
+         * visible spread (about 2.5 sigma, sigma = 0.57735 * radius + 0.5).
+         */
+        fun shadowReach(shadow: Triple<Int, Float, Float>): Int =
+            kotlin.math.ceil(shadow.third + 2.5f * (0.57735f * shadow.second + 0.5f)).toInt()
 
         /**
          * How far up from the bottom the caption sits, in normalised device
          * coordinates where -1 is the bottom edge and 1 the top.
          */
         const val CAPTION_ANCHOR_Y = -0.82f
+
+        /**
+         * A text layer's height at scale 1, as a fraction of the output's
+         * short edge. **Must match `textLayerFraction` in
+         * `lib/core/video/export_options.dart`.**
+         */
+        const val TEXT_LAYER_FRACTION = 0.06f
+
+        /**
+         * The ink of a word on a highlight box: dark, to read on any colour
+         * the box is given. **Must match `_highlightInk` in
+         * `stage_editor.dart`.**
+         */
+        const val HIGHLIGHT_INK = 0xFF111111.toInt()
 
         /** The mark drawn into a render the user has not asked to unbrand. */
         const val WATERMARK_TEXT = " Argand "
@@ -141,14 +187,24 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         private val textSizePx: Int,
     ) : TextOverlay() {
 
-        private val settings = StaticOverlaySettings.Builder()
-            .setBackgroundFrameAnchor(0f, CAPTION_ANCHOR_Y)
-            .build()
+        /**
+         * One settings object per placement, built once: every frame asks,
+         * and a new object per frame per caption is garbage for nothing.
+         */
+        private val settingsByPlacement = HashMap<Placement, OverlaySettings>()
 
         private val hidden = StaticOverlaySettings.Builder()
             .setBackgroundFrameAnchor(0f, CAPTION_ANCHOR_Y)
             .setAlphaScale(0f)
             .build()
+
+        private fun settingsFor(placement: Placement): OverlaySettings =
+            settingsByPlacement.getOrPut(placement) {
+                StaticOverlaySettings.Builder()
+                    .setBackgroundFrameAnchor(placement.x, placement.y)
+                    .setScale(placement.scale, placement.scale)
+                    .build()
+            }
 
         private fun activeAt(presentationTimeUs: Long): Caption? {
             val ms = presentationTimeUs / 1000
@@ -165,30 +221,192 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 // [getOverlaySettings] instead.
                 ?: return SpannableString(" ")
 
-            return SpannableString(caption.text).apply {
-                setSpan(
-                    ForegroundColorSpan(caption.colorArgb),
-                    0,
-                    length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            val builder = SpannableStringBuilder()
+            val boxed = caption.mode == "highlight" && caption.highlightBox
+            // Words with a background cast no shadow (`captionShadowFor`).
+            val shadow = if (caption.backgroundArgb == null) {
+                shadowOf(caption.shadow, textSizePx.toFloat())
+            } else {
+                null
+            }
+            if (shadow != null) ShadowRoomSpan.open(builder, shadowReach(shadow))
+            val textStart = builder.length
+            for ((index, run) in runsAt(caption, presentationTimeUs / 1000).withIndex()) {
+                if (index > 0) builder.append(' ')
+                val start = builder.length
+                builder.append(run.first)
+                if (shadow != null && !(boxed && run.second)) {
+                    builder.setSpan(
+                        ShadowSpan(shadow),
+                        start,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                }
+                if (!run.second) continue
+                // The word being said -- or, in karaoke, already said.
+                if (boxed) {
+                    builder.setSpan(
+                        BackgroundColorSpan(caption.highlightArgb),
+                        start,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                    builder.setSpan(
+                        ForegroundColorSpan(HIGHLIGHT_INK),
+                        start,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                } else {
+                    builder.setSpan(
+                        ForegroundColorSpan(caption.highlightArgb),
+                        start,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                }
+            }
+
+            val textEnd = builder.length
+            if (shadow != null) ShadowRoomSpan.close(builder, shadowReach(shadow))
+
+            // The caption's own colour and background carry SPAN_PRIORITY,
+            // which sorts them ahead of the per-word spans when drawing -- so
+            // a marked word's colour is applied after, and over, the
+            // caption's.
+            val whole = builder.length
+            caption.backgroundArgb?.let {
+                builder.setSpan(
+                    BackgroundColorSpan(it),
+                    textStart,
+                    textEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE or Spanned.SPAN_PRIORITY,
                 )
-                setSpan(
-                    BackgroundColorSpan(CAPTION_BACKGROUND),
-                    0,
-                    length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-                )
-                setSpan(
-                    AbsoluteSizeSpan(textSizePx),
-                    0,
-                    length,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-                )
+            }
+            builder.setSpan(
+                ForegroundColorSpan(caption.colorArgb),
+                0,
+                whole,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE or Spanned.SPAN_PRIORITY,
+            )
+            builder.setSpan(
+                AbsoluteSizeSpan(textSizePx),
+                0,
+                whole,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            caption.typeface?.let {
+                builder.setSpan(FontSpan(it), 0, whole, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            return SpannableString(builder)
+        }
+
+        /**
+         * What [caption] shows at [ms]: the runs to draw, each with whether it
+         * is marked. **Mirrors `captionRunsAt` in
+         * `lib/core/timeline/item_look.dart`**, where the rule is host-tested.
+         */
+        private fun runsAt(caption: Caption, ms: Long): List<Pair<String, Boolean>> {
+            val words = caption.words
+            if (words.isEmpty()) return listOf(caption.text to false)
+            return when (caption.mode) {
+                "karaoke" -> words.map { it.text to (it.startMs <= ms) }
+                "highlight" -> words.map { it.text to (it.startMs <= ms && ms < it.endMs) }
+                "wordByWord" -> {
+                    var current = words.first()
+                    for (word in words) if (word.startMs <= ms) current = word
+                    listOf(current.text to false)
+                }
+                else -> listOf(words.joinToString(" ") { it.text } to false)
             }
         }
 
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
+            // Each caption sits where its own transcribe layer puts it, so the
+            // settings follow whichever caption is showing.
+            val caption = activeAt(presentationTimeUs) ?: return hidden
+            return settingsFor(caption.placement)
+        }
+    }
+
+    /**
+     * One text layer's stretch over this clip: in its font and colour, on
+     * its background or over its shadow, placed, scaled and turned as the
+     * stage showed it.
+     *
+     * **One overlay per text**, not one for all of them: each has its own
+     * place in the frame, and an overlay has one set of settings per frame.
+     */
+    private class TextLayerOverlay(
+        private val item: TextItem,
+        private val textSizePx: Int,
+    ) : TextOverlay() {
+
+        private val shown = StaticOverlaySettings.Builder()
+            .setBackgroundFrameAnchor(item.placement.x, item.placement.y)
+            .setScale(item.placement.scale, item.placement.scale)
+            // Media3 turns overlays anticlockwise; the stage's clockwise
+            // degrees are negated to match.
+            .setRotationDegrees(-item.placement.rotation)
+            .build()
+
+        private val hidden = StaticOverlaySettings.Builder()
+            .setAlphaScale(0f)
+            .build()
+
+        private fun showing(presentationTimeUs: Long): Boolean {
+            val ms = presentationTimeUs / 1000
+            return ms >= item.startMs && ms < item.endMs
+        }
+
+        // Padded with spaces, as the stage pads it, so a background reaches
+        // past the first and last letters.
+        private val spanned = SpannableStringBuilder().run {
+            val shadow = if (item.backgroundArgb == null) {
+                shadowOf(item.shadow, textSizePx.toFloat())
+            } else {
+                null
+            }
+            if (shadow != null) ShadowRoomSpan.open(this, shadowReach(shadow))
+            val start = length
+            append(" ${item.text} ")
+            val end = length
+            if (shadow != null) {
+                setSpan(ShadowSpan(shadow), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                ShadowRoomSpan.close(this, shadowReach(shadow))
+            }
+            item.backgroundArgb?.let {
+                setSpan(BackgroundColorSpan(it), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            SpannableString(this)
+        }.apply {
+            setSpan(
+                ForegroundColorSpan(item.colorArgb),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            item.typeface?.let {
+                setSpan(FontSpan(it), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            // Only the default face is made bold; the bundled ones are
+            // display weights, and bolding them would smear a fake weight on.
+            if (item.bold) {
+                setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            setSpan(
+                AbsoluteSizeSpan(textSizePx),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+
+        override fun getText(presentationTimeUs: Long): SpannableString = spanned
+
         override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings =
-            if (activeAt(presentationTimeUs) == null) hidden else settings
+            if (showing(presentationTimeUs)) shown else hidden
     }
 
     /**
@@ -253,6 +471,183 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         val endMs: Long,
         val text: String,
         val colorArgb: Int,
+        val placement: Placement,
+        val words: List<TimedWord> = emptyList(),
+        val mode: String = "standard",
+        val highlightArgb: Int = 0xFFFFFFFF.toInt(),
+        val highlightBox: Boolean = true,
+        val typeface: Typeface? = null,
+        val backgroundArgb: Int? = null,
+        val shadow: Float = DEFAULT_SHADOW,
+    )
+
+    /**
+     * Casts the words' drop shadow. Only ever on words with nothing behind
+     * them: Android draws a span's background with the same paint, so a
+     * shadowed run on a box would shadow the box too.
+     */
+    private class ShadowSpan(
+        private val shadow: Triple<Int, Float, Float>,
+    ) : CharacterStyle(), UpdateAppearance {
+        override fun updateDrawState(paint: TextPaint) {
+            paint.setShadowLayer(shadow.second, 0f, shadow.third, shadow.first)
+        }
+    }
+
+    /**
+     * Invisible room at either end of the words, so their shadow is not cut
+     * off at the edge of the bitmap Media3 draws them into -- that bitmap is
+     * exactly the text's own bounds.
+     *
+     * **Symmetric**: as wide at the start as at the end, and as much above
+     * the first line as below the last, so the words' centre -- the point
+     * the overlay is anchored by -- stays where the stage puts it.
+     */
+    private class ShadowRoomSpan(
+        private val px: Int,
+        private val above: Boolean,
+    ) : ReplacementSpan() {
+        override fun getSize(
+            paint: Paint,
+            text: CharSequence?,
+            start: Int,
+            end: Int,
+            fm: Paint.FontMetricsInt?,
+        ): Int {
+            if (fm != null) {
+                paint.getFontMetricsInt(fm)
+                if (above) {
+                    fm.ascent -= px
+                    fm.top -= px
+                } else {
+                    fm.descent += px
+                    fm.bottom += px
+                }
+            }
+            return px
+        }
+
+        override fun draw(
+            canvas: Canvas,
+            text: CharSequence?,
+            start: Int,
+            end: Int,
+            x: Float,
+            top: Int,
+            y: Int,
+            bottom: Int,
+            paint: Paint,
+        ) = Unit
+
+        companion object {
+            /** An object-replacement character, standing in for the room. */
+            private const val HOLDER = "\uFFFC"
+
+            fun open(builder: SpannableStringBuilder, px: Int) = add(builder, px, true)
+
+            fun close(builder: SpannableStringBuilder, px: Int) = add(builder, px, false)
+
+            private fun add(builder: SpannableStringBuilder, px: Int, above: Boolean) {
+                val start = builder.length
+                builder.append(HOLDER)
+                builder.setSpan(
+                    ShadowRoomSpan(px, above),
+                    start,
+                    builder.length,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                )
+            }
+        }
+    }
+
+    /** A caption word, on the item's own clock. */
+    private data class TimedWord(val text: String, val startMs: Long, val endMs: Long)
+
+    /**
+     * Draws text in a bundled face. `TypefaceSpan(Typeface)` would do, but
+     * only from API 28; this works on every version the app runs on.
+     */
+    private class FontSpan(private val typeface: Typeface) : MetricAffectingSpan() {
+        override fun updateDrawState(paint: TextPaint) {
+            paint.typeface = typeface
+        }
+
+        override fun updateMeasureState(paint: TextPaint) {
+            paint.typeface = typeface
+        }
+    }
+
+    /** Bundled faces, loaded once each. */
+    private val typefaces = HashMap<String, Typeface>()
+
+    /**
+     * The face for a Flutter font [asset], read from the **same file** the
+     * preview draws with (pubspec.yaml's `fonts:`). Null for the default face
+     * or a file that cannot be read -- the caption then renders in the
+     * default rather than failing the export.
+     */
+    private fun typefaceFor(asset: String?): Typeface? {
+        if (asset.isNullOrBlank()) return null
+        typefaces[asset]?.let { return it }
+        return try {
+            val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(asset)
+            Typeface.createFromAsset(activity.assets, key).also { typefaces[asset] = it }
+        } catch (error: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Where an item sits in the frame. **Mirrors `ItemTransform` in
+     * `lib/core/timeline/item_transform.dart`**: x and y in normalised device
+     * coordinates with up positive, rotation in degrees clockwise as seen.
+     */
+    private data class Placement(
+        val x: Float = 0f,
+        val y: Float = 0f,
+        val scale: Float = 1f,
+        val rotation: Float = 0f,
+    ) {
+        val isIdentity: Boolean
+            get() = x == 0f && y == 0f && scale == 1f && rotation == 0f
+
+        /**
+         * The whole-frame map this placement applies, in NDC, for a frame
+         * [width] by [height] pixels. **Mirrors `ItemTransform.ndcMatrix`**,
+         * where the arithmetic is host-tested: the turn is done in pixels and
+         * only the result expressed in NDC, so a non-square frame is not
+         * skewed.
+         */
+        fun ndcMatrix(width: Int, height: Int): Matrix {
+            val hw = width / 2f
+            val hh = height / 2f
+            // Clockwise as seen, in a y-up space, is a negative angle.
+            val theta = Math.toRadians(-rotation.toDouble())
+            val cos = (Math.cos(theta) * scale).toFloat()
+            val sin = (Math.sin(theta) * scale).toFloat()
+
+            return Matrix().apply {
+                setValues(
+                    floatArrayOf(
+                        cos, -sin * hh / hw, x,
+                        sin * hw / hh, cos, y,
+                        0f, 0f, 1f,
+                    ),
+                )
+            }
+        }
+    }
+
+    private data class TextItem(
+        val startMs: Long,
+        val endMs: Long,
+        val text: String,
+        val placement: Placement,
+        val colorArgb: Int = 0xFFFFFFFF.toInt(),
+        val bold: Boolean = true,
+        val typeface: Typeface? = null,
+        val backgroundArgb: Int? = null,
+        val shadow: Float = DEFAULT_SHADOW,
     )
 
     private var channel: MethodChannel? = null
@@ -391,6 +786,8 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             (min(size.first, size.second) * CAPTION_TEXT_FRACTION).roundToInt()
         val watermarkSizePx =
             (min(size.first, size.second) * WATERMARK_TEXT_FRACTION).roundToInt()
+        val textLayerSizePx =
+            (min(size.first, size.second) * TEXT_LAYER_FRACTION).roundToInt()
 
         val items = clips.map { clip ->
             val path = clip["path"] as String
@@ -401,10 +798,27 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             // frame and then scale it with everything else.
             val videoEffects = mutableListOf<Effect>(presentation)
 
+            // **The clip's framing, after the fit.** Presentation has already
+            // made the frame its final size, so this moves, turns and scales
+            // the fitted picture inside that frame -- zooming in crops at the
+            // edge, zooming out leaves black -- exactly as the stage draws it.
+            // Skipped when untouched: an identity pass is a resample for
+            // nothing.
+            val framing = placementOf(clip["framing"])
+            if (!framing.isIdentity) {
+                val matrix = framing.ndcMatrix(size.first, size.second)
+                videoEffects.add(MatrixTransformation { matrix })
+            }
+
             // One effect carrying both overlays rather than two effects: each
             // OverlayEffect is its own GL pass over the frame, and there is no
             // reason for the mark to cost a second one.
             val overlays = mutableListOf<TextOverlay>()
+            // Texts before captions, so a caption drawn over a title stays
+            // readable -- the order the stage stacks them in.
+            for (item in textsOf(clip["texts"])) {
+                overlays.add(TextLayerOverlay(item, textLayerSizePx))
+            }
             if (captions.isNotEmpty()) {
                 overlays.add(CaptionOverlay(captions, textSizePx))
             }
@@ -708,8 +1122,64 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 endMs = end,
                 text = text,
                 colorArgb = (map["colorArgb"] as? Number)?.toInt() ?: -1,
+                placement = placementOf(map, defaultY = CAPTION_ANCHOR_Y),
+                words = (map["words"] as? List<*>).orEmpty().mapNotNull { raw ->
+                    val word = raw as? Map<*, *> ?: return@mapNotNull null
+                    TimedWord(
+                        text = word["text"] as? String ?: return@mapNotNull null,
+                        startMs = (word["startMs"] as? Number)?.toLong() ?: 0L,
+                        endMs = (word["endMs"] as? Number)?.toLong() ?: 0L,
+                    )
+                },
+                mode = map["mode"] as? String ?: "standard",
+                highlightArgb = (map["highlightArgb"] as? Number)?.toInt()
+                    ?: 0xFFFFFFFF.toInt(),
+                highlightBox = map["highlightBox"] != false,
+                backgroundArgb = (map["backgroundArgb"] as? Number)?.toInt(),
+                shadow = (map["shadow"] as? Number)?.toFloat() ?: DEFAULT_SHADOW,
+                typeface = typefaceFor(map["font"] as? String),
             )
         }
+    }
+
+    private fun textsOf(raw: Any?): List<TextItem> {
+        val list = raw as? List<*> ?: return emptyList()
+
+        return list.mapNotNull { entry ->
+            val map = entry as? Map<*, *> ?: return@mapNotNull null
+            val text = map["text"] as? String ?: return@mapNotNull null
+            if (text.isBlank()) return@mapNotNull null
+
+            val start = (map["startMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            val end = (map["endMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            if (end <= start) return@mapNotNull null
+
+            TextItem(
+                startMs = start,
+                endMs = end,
+                text = text,
+                placement = placementOf(map),
+                colorArgb = (map["colorArgb"] as? Number)?.toInt() ?: 0xFFFFFFFF.toInt(),
+                bold = map["bold"] != false,
+                backgroundArgb = (map["backgroundArgb"] as? Number)?.toInt(),
+                shadow = (map["shadow"] as? Number)?.toFloat() ?: DEFAULT_SHADOW,
+                typeface = typefaceFor(map["font"] as? String),
+            )
+        }
+    }
+
+    /** Reads a placement, falling back per field to the identity. */
+    private fun placementOf(raw: Any?, defaultY: Float = 0f): Placement {
+        val map = raw as? Map<*, *> ?: return Placement(y = defaultY)
+        fun read(key: String, fallback: Float) =
+            (map[key] as? Number)?.toFloat() ?: fallback
+
+        return Placement(
+            x = read("x", 0f),
+            y = read("y", defaultY),
+            scale = read("scale", 1f),
+            rotation = read("rotation", 0f),
+        )
     }
 
     /**

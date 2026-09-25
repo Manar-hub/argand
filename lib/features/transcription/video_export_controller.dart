@@ -3,6 +3,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/database/database.dart';
 import '../../core/timeline/clip_trim.dart';
+import '../../core/timeline/item_look.dart';
+import '../../core/timeline/item_transform.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/video/export_options.dart';
 import '../../core/video/video_export.dart';
@@ -140,6 +142,7 @@ class VideoExportController extends _$VideoExportController {
       timeline: timeline,
       clips: clips,
       captionsByClip: await _captionsFor(repository, clips),
+      texts: await repository.textLayersForProject(projectId),
     );
     if (request == null) {
       const empty = VideoExportEmpty();
@@ -212,19 +215,39 @@ class VideoExportController extends _$VideoExportController {
     List<MediaClip> clips,
   ) async {
     final byClip = <String, List<ExportCaption>>{};
+    final layers = {
+      for (final layer in await repository.layersForProject(projectId))
+        layer.id: layer,
+    };
 
     for (final clip in clips) {
       final transcripts = await repository.transcriptsForClip(clip.id);
       if (transcripts.isEmpty) continue;
 
-      final words = <Word>[];
+      // **Grouped per transcript**, so each caption keeps the placement of
+      // the layer it came from. Layers never overlap in time, so grouping
+      // them apart breaks no cue that grouping them together would have made.
+      final captions = <ExportCaption>[];
       for (final transcript in transcripts) {
-        words.addAll(await repository.watchWords(transcript.id).first);
+        final layer = layers[transcript.layerId];
+        captions.addAll(
+          exportCaptionsFor(
+            await repository.watchWords(transcript.id).first,
+            // Scoped to what the clip actually plays: a trimmed clip must not
+            // carry captions for audio the viewer never hears.
+            window: clipWindow(clip),
+            placement: layer == null
+                ? ItemTransform.captionDefault
+                : ItemTransform(
+                    x: layer.captionX,
+                    y: layer.captionY,
+                    scale: layer.captionScale,
+                  ),
+            look: ItemLook.decode(layer?.captionLook) ?? ItemLook.defaults,
+          ),
+        );
       }
-
-      // Scoped to what the clip actually plays: a trimmed clip must not
-      // carry captions for audio the viewer never hears.
-      final captions = exportCaptionsFor(words, window: clipWindow(clip));
+      captions.sort((a, b) => a.startMs.compareTo(b.startMs));
       if (captions.isNotEmpty) byClip[clip.id] = captions;
     }
 

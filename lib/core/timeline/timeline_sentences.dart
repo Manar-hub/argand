@@ -11,9 +11,14 @@ typedef SentenceWord = ({
   int startMs,
   int endMs,
   String? speakerId,
+  int position,
 });
 
 /// One sentence of a transcript, placed on the project's shared time axis.
+///
+/// [fromPosition] and [toPosition] are the word positions it spans in its
+/// transcript: what makes a sentence addressable -- selectable, placeable,
+/// retypeable -- on its own, though it is never stored as a row.
 typedef TimelineSentence = ({
   String transcriptId,
   String clipId,
@@ -21,6 +26,8 @@ typedef TimelineSentence = ({
   int projectEndMs,
   String text,
   int? speaker,
+  int fromPosition,
+  int toPosition,
 });
 
 /// Cuts [words] into sentences and places each on the project timeline.
@@ -71,6 +78,8 @@ List<TimelineSentence> sentencesForClip({
       // attributed to whoever began it, which is the same call the caption
       // grouper makes.
       speaker: int.tryParse(words[unit.first].speakerId ?? ''),
+      fromPosition: words[unit.first].position,
+      toPosition: words[unit.last].position,
     ));
   }
 

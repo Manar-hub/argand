@@ -618,6 +618,52 @@ class $MediaClipsTable extends MediaClips
     type: DriftSqlType.blob,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _scaleMeta = const VerificationMeta('scale');
+  @override
+  late final GeneratedColumn<double> scale = GeneratedColumn<double>(
+    'scale',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  static const VerificationMeta _rotationMeta = const VerificationMeta(
+    'rotation',
+  );
+  @override
+  late final GeneratedColumn<double> rotation = GeneratedColumn<double>(
+    'rotation',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _offsetXMeta = const VerificationMeta(
+    'offsetX',
+  );
+  @override
+  late final GeneratedColumn<double> offsetX = GeneratedColumn<double>(
+    'offset_x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _offsetYMeta = const VerificationMeta(
+    'offsetY',
+  );
+  @override
+  late final GeneratedColumn<double> offsetY = GeneratedColumn<double>(
+    'offset_y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -632,6 +678,10 @@ class $MediaClipsTable extends MediaClips
     trimEndMs,
     title,
     waveform,
+    scale,
+    rotation,
+    offsetX,
+    offsetY,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -731,6 +781,30 @@ class $MediaClipsTable extends MediaClips
         waveform.isAcceptableOrUnknown(data['waveform']!, _waveformMeta),
       );
     }
+    if (data.containsKey('scale')) {
+      context.handle(
+        _scaleMeta,
+        scale.isAcceptableOrUnknown(data['scale']!, _scaleMeta),
+      );
+    }
+    if (data.containsKey('rotation')) {
+      context.handle(
+        _rotationMeta,
+        rotation.isAcceptableOrUnknown(data['rotation']!, _rotationMeta),
+      );
+    }
+    if (data.containsKey('offset_x')) {
+      context.handle(
+        _offsetXMeta,
+        offsetX.isAcceptableOrUnknown(data['offset_x']!, _offsetXMeta),
+      );
+    }
+    if (data.containsKey('offset_y')) {
+      context.handle(
+        _offsetYMeta,
+        offsetY.isAcceptableOrUnknown(data['offset_y']!, _offsetYMeta),
+      );
+    }
     return context;
   }
 
@@ -788,6 +862,22 @@ class $MediaClipsTable extends MediaClips
         DriftSqlType.blob,
         data['${effectivePrefix}waveform'],
       ),
+      scale: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}scale'],
+      )!,
+      rotation: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rotation'],
+      )!,
+      offsetX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}offset_x'],
+      )!,
+      offsetY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}offset_y'],
+      )!,
     );
   }
 
@@ -857,6 +947,23 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   /// CPU, whereas this is ~1.2KB per audio-minute and would otherwise be
   /// recomputed every time the timeline opened.
   final Uint8List? waveform;
+
+  /// How the picture sits in the output frame: moved, turned and scaled on
+  /// top of the fit the render already does. See `ItemTransform`.
+  ///
+  /// **Defaults, not nulls.** Unlike the trim points, "untouched" and "at the
+  /// identity" are the same thing here -- a clip nobody has framed is exactly
+  /// one at scale 1, turned 0 degrees, centred -- so the columns carry that
+  /// value and every existing clip gets it without a backfill.
+  final double scale;
+
+  /// Degrees, clockwise as seen.
+  final double rotation;
+
+  /// The picture's centre, in shares of the frame's half-width and
+  /// half-height from the middle; up is positive.
+  final double offsetX;
+  final double offsetY;
   const MediaClip({
     required this.id,
     required this.createdAt,
@@ -870,6 +977,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     this.trimEndMs,
     required this.title,
     this.waveform,
+    required this.scale,
+    required this.rotation,
+    required this.offsetX,
+    required this.offsetY,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -896,6 +1007,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     if (!nullToAbsent || waveform != null) {
       map['waveform'] = Variable<Uint8List>(waveform);
     }
+    map['scale'] = Variable<double>(scale);
+    map['rotation'] = Variable<double>(rotation);
+    map['offset_x'] = Variable<double>(offsetX);
+    map['offset_y'] = Variable<double>(offsetY);
     return map;
   }
 
@@ -923,6 +1038,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       waveform: waveform == null && nullToAbsent
           ? const Value.absent()
           : Value(waveform),
+      scale: Value(scale),
+      rotation: Value(rotation),
+      offsetX: Value(offsetX),
+      offsetY: Value(offsetY),
     );
   }
 
@@ -944,6 +1063,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       trimEndMs: serializer.fromJson<int?>(json['trimEndMs']),
       title: serializer.fromJson<String>(json['title']),
       waveform: serializer.fromJson<Uint8List?>(json['waveform']),
+      scale: serializer.fromJson<double>(json['scale']),
+      rotation: serializer.fromJson<double>(json['rotation']),
+      offsetX: serializer.fromJson<double>(json['offsetX']),
+      offsetY: serializer.fromJson<double>(json['offsetY']),
     );
   }
   @override
@@ -962,6 +1085,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       'trimEndMs': serializer.toJson<int?>(trimEndMs),
       'title': serializer.toJson<String>(title),
       'waveform': serializer.toJson<Uint8List?>(waveform),
+      'scale': serializer.toJson<double>(scale),
+      'rotation': serializer.toJson<double>(rotation),
+      'offsetX': serializer.toJson<double>(offsetX),
+      'offsetY': serializer.toJson<double>(offsetY),
     };
   }
 
@@ -978,6 +1105,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     Value<int?> trimEndMs = const Value.absent(),
     String? title,
     Value<Uint8List?> waveform = const Value.absent(),
+    double? scale,
+    double? rotation,
+    double? offsetX,
+    double? offsetY,
   }) => MediaClip(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -991,6 +1122,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     trimEndMs: trimEndMs.present ? trimEndMs.value : this.trimEndMs,
     title: title ?? this.title,
     waveform: waveform.present ? waveform.value : this.waveform,
+    scale: scale ?? this.scale,
+    rotation: rotation ?? this.rotation,
+    offsetX: offsetX ?? this.offsetX,
+    offsetY: offsetY ?? this.offsetY,
   );
   MediaClip copyWithCompanion(MediaClipsCompanion data) {
     return MediaClip(
@@ -1010,6 +1145,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       trimEndMs: data.trimEndMs.present ? data.trimEndMs.value : this.trimEndMs,
       title: data.title.present ? data.title.value : this.title,
       waveform: data.waveform.present ? data.waveform.value : this.waveform,
+      scale: data.scale.present ? data.scale.value : this.scale,
+      rotation: data.rotation.present ? data.rotation.value : this.rotation,
+      offsetX: data.offsetX.present ? data.offsetX.value : this.offsetX,
+      offsetY: data.offsetY.present ? data.offsetY.value : this.offsetY,
     );
   }
 
@@ -1027,7 +1166,11 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           ..write('trimStartMs: $trimStartMs, ')
           ..write('trimEndMs: $trimEndMs, ')
           ..write('title: $title, ')
-          ..write('waveform: $waveform')
+          ..write('waveform: $waveform, ')
+          ..write('scale: $scale, ')
+          ..write('rotation: $rotation, ')
+          ..write('offsetX: $offsetX, ')
+          ..write('offsetY: $offsetY')
           ..write(')'))
         .toString();
   }
@@ -1046,6 +1189,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     trimEndMs,
     title,
     $driftBlobEquality.hash(waveform),
+    scale,
+    rotation,
+    offsetX,
+    offsetY,
   );
   @override
   bool operator ==(Object other) =>
@@ -1062,7 +1209,11 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           other.trimStartMs == this.trimStartMs &&
           other.trimEndMs == this.trimEndMs &&
           other.title == this.title &&
-          $driftBlobEquality.equals(other.waveform, this.waveform));
+          $driftBlobEquality.equals(other.waveform, this.waveform) &&
+          other.scale == this.scale &&
+          other.rotation == this.rotation &&
+          other.offsetX == this.offsetX &&
+          other.offsetY == this.offsetY);
 }
 
 class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
@@ -1078,6 +1229,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
   final Value<int?> trimEndMs;
   final Value<String> title;
   final Value<Uint8List?> waveform;
+  final Value<double> scale;
+  final Value<double> rotation;
+  final Value<double> offsetX;
+  final Value<double> offsetY;
   final Value<int> rowid;
   const MediaClipsCompanion({
     this.id = const Value.absent(),
@@ -1092,6 +1247,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     this.trimEndMs = const Value.absent(),
     this.title = const Value.absent(),
     this.waveform = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.offsetX = const Value.absent(),
+    this.offsetY = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MediaClipsCompanion.insert({
@@ -1107,6 +1266,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     this.trimEndMs = const Value.absent(),
     required String title,
     this.waveform = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.offsetX = const Value.absent(),
+    this.offsetY = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -1128,6 +1291,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Expression<int>? trimEndMs,
     Expression<String>? title,
     Expression<Uint8List>? waveform,
+    Expression<double>? scale,
+    Expression<double>? rotation,
+    Expression<double>? offsetX,
+    Expression<double>? offsetY,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1143,6 +1310,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       if (trimEndMs != null) 'trim_end_ms': trimEndMs,
       if (title != null) 'title': title,
       if (waveform != null) 'waveform': waveform,
+      if (scale != null) 'scale': scale,
+      if (rotation != null) 'rotation': rotation,
+      if (offsetX != null) 'offset_x': offsetX,
+      if (offsetY != null) 'offset_y': offsetY,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1160,6 +1331,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Value<int?>? trimEndMs,
     Value<String>? title,
     Value<Uint8List?>? waveform,
+    Value<double>? scale,
+    Value<double>? rotation,
+    Value<double>? offsetX,
+    Value<double>? offsetY,
     Value<int>? rowid,
   }) {
     return MediaClipsCompanion(
@@ -1175,6 +1350,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       trimEndMs: trimEndMs ?? this.trimEndMs,
       title: title ?? this.title,
       waveform: waveform ?? this.waveform,
+      scale: scale ?? this.scale,
+      rotation: rotation ?? this.rotation,
+      offsetX: offsetX ?? this.offsetX,
+      offsetY: offsetY ?? this.offsetY,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1218,6 +1397,18 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     if (waveform.present) {
       map['waveform'] = Variable<Uint8List>(waveform.value);
     }
+    if (scale.present) {
+      map['scale'] = Variable<double>(scale.value);
+    }
+    if (rotation.present) {
+      map['rotation'] = Variable<double>(rotation.value);
+    }
+    if (offsetX.present) {
+      map['offset_x'] = Variable<double>(offsetX.value);
+    }
+    if (offsetY.present) {
+      map['offset_y'] = Variable<double>(offsetY.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1239,6 +1430,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
           ..write('trimEndMs: $trimEndMs, ')
           ..write('title: $title, ')
           ..write('waveform: $waveform, ')
+          ..write('scale: $scale, ')
+          ..write('rotation: $rotation, ')
+          ..write('offsetX: $offsetX, ')
+          ..write('offsetY: $offsetY, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1339,6 +1534,53 @@ class $TranscribeLayersTable extends TranscribeLayers
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _captionXMeta = const VerificationMeta(
+    'captionX',
+  );
+  @override
+  late final GeneratedColumn<double> captionX = GeneratedColumn<double>(
+    'caption_x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _captionYMeta = const VerificationMeta(
+    'captionY',
+  );
+  @override
+  late final GeneratedColumn<double> captionY = GeneratedColumn<double>(
+    'caption_y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(-0.82),
+  );
+  static const VerificationMeta _captionScaleMeta = const VerificationMeta(
+    'captionScale',
+  );
+  @override
+  late final GeneratedColumn<double> captionScale = GeneratedColumn<double>(
+    'caption_scale',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  static const VerificationMeta _captionLookMeta = const VerificationMeta(
+    'captionLook',
+  );
+  @override
+  late final GeneratedColumn<String> captionLook = GeneratedColumn<String>(
+    'caption_look',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1349,6 +1591,10 @@ class $TranscribeLayersTable extends TranscribeLayers
     startMs,
     endMs,
     trackIndex,
+    captionX,
+    captionY,
+    captionScale,
+    captionLook,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1419,6 +1665,36 @@ class $TranscribeLayersTable extends TranscribeLayers
         trackIndex.isAcceptableOrUnknown(data['track_index']!, _trackIndexMeta),
       );
     }
+    if (data.containsKey('caption_x')) {
+      context.handle(
+        _captionXMeta,
+        captionX.isAcceptableOrUnknown(data['caption_x']!, _captionXMeta),
+      );
+    }
+    if (data.containsKey('caption_y')) {
+      context.handle(
+        _captionYMeta,
+        captionY.isAcceptableOrUnknown(data['caption_y']!, _captionYMeta),
+      );
+    }
+    if (data.containsKey('caption_scale')) {
+      context.handle(
+        _captionScaleMeta,
+        captionScale.isAcceptableOrUnknown(
+          data['caption_scale']!,
+          _captionScaleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('caption_look')) {
+      context.handle(
+        _captionLookMeta,
+        captionLook.isAcceptableOrUnknown(
+          data['caption_look']!,
+          _captionLookMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1460,6 +1736,22 @@ class $TranscribeLayersTable extends TranscribeLayers
         DriftSqlType.int,
         data['${effectivePrefix}track_index'],
       )!,
+      captionX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}caption_x'],
+      )!,
+      captionY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}caption_y'],
+      )!,
+      captionScale: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}caption_scale'],
+      )!,
+      captionLook: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption_look'],
+      ),
     );
   }
 
@@ -1486,6 +1778,25 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
   /// happens when two layers claim the same audio" a question nobody has to
   /// answer.
   final int trackIndex;
+
+  /// Where this layer's captions sit in the frame, and how large.
+  ///
+  /// **Per layer, not per project**, so two layers -- two speakers, two
+  /// languages -- can be placed apart. Moving several at once is a matter of
+  /// selecting them together, not of a shared setting.
+  ///
+  /// The default is where captions have always rendered: centred, near the
+  /// bottom (`CAPTION_ANCHOR_Y` in `VideoExportChannel.kt`).
+  final double captionX;
+  final double captionY;
+  final double captionScale;
+
+  /// How this layer's captions look, as `ItemLook` JSON. Null is the default
+  /// look captions have always had.
+  ///
+  /// **JSON in one column** rather than a column per option, so the next
+  /// style option costs no migration.
+  final String? captionLook;
   const TranscribeLayer({
     required this.id,
     required this.createdAt,
@@ -1495,6 +1806,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     required this.startMs,
     required this.endMs,
     required this.trackIndex,
+    required this.captionX,
+    required this.captionY,
+    required this.captionScale,
+    this.captionLook,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1509,6 +1824,12 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     map['start_ms'] = Variable<int>(startMs);
     map['end_ms'] = Variable<int>(endMs);
     map['track_index'] = Variable<int>(trackIndex);
+    map['caption_x'] = Variable<double>(captionX);
+    map['caption_y'] = Variable<double>(captionY);
+    map['caption_scale'] = Variable<double>(captionScale);
+    if (!nullToAbsent || captionLook != null) {
+      map['caption_look'] = Variable<String>(captionLook);
+    }
     return map;
   }
 
@@ -1524,6 +1845,12 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       startMs: Value(startMs),
       endMs: Value(endMs),
       trackIndex: Value(trackIndex),
+      captionX: Value(captionX),
+      captionY: Value(captionY),
+      captionScale: Value(captionScale),
+      captionLook: captionLook == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captionLook),
     );
   }
 
@@ -1541,6 +1868,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       startMs: serializer.fromJson<int>(json['startMs']),
       endMs: serializer.fromJson<int>(json['endMs']),
       trackIndex: serializer.fromJson<int>(json['trackIndex']),
+      captionX: serializer.fromJson<double>(json['captionX']),
+      captionY: serializer.fromJson<double>(json['captionY']),
+      captionScale: serializer.fromJson<double>(json['captionScale']),
+      captionLook: serializer.fromJson<String?>(json['captionLook']),
     );
   }
   @override
@@ -1555,6 +1886,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       'startMs': serializer.toJson<int>(startMs),
       'endMs': serializer.toJson<int>(endMs),
       'trackIndex': serializer.toJson<int>(trackIndex),
+      'captionX': serializer.toJson<double>(captionX),
+      'captionY': serializer.toJson<double>(captionY),
+      'captionScale': serializer.toJson<double>(captionScale),
+      'captionLook': serializer.toJson<String?>(captionLook),
     };
   }
 
@@ -1567,6 +1902,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     int? startMs,
     int? endMs,
     int? trackIndex,
+    double? captionX,
+    double? captionY,
+    double? captionScale,
+    Value<String?> captionLook = const Value.absent(),
   }) => TranscribeLayer(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -1576,6 +1915,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     startMs: startMs ?? this.startMs,
     endMs: endMs ?? this.endMs,
     trackIndex: trackIndex ?? this.trackIndex,
+    captionX: captionX ?? this.captionX,
+    captionY: captionY ?? this.captionY,
+    captionScale: captionScale ?? this.captionScale,
+    captionLook: captionLook.present ? captionLook.value : this.captionLook,
   );
   TranscribeLayer copyWithCompanion(TranscribeLayersCompanion data) {
     return TranscribeLayer(
@@ -1589,6 +1932,14 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       trackIndex: data.trackIndex.present
           ? data.trackIndex.value
           : this.trackIndex,
+      captionX: data.captionX.present ? data.captionX.value : this.captionX,
+      captionY: data.captionY.present ? data.captionY.value : this.captionY,
+      captionScale: data.captionScale.present
+          ? data.captionScale.value
+          : this.captionScale,
+      captionLook: data.captionLook.present
+          ? data.captionLook.value
+          : this.captionLook,
     );
   }
 
@@ -1602,7 +1953,11 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
           ..write('projectId: $projectId, ')
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
-          ..write('trackIndex: $trackIndex')
+          ..write('trackIndex: $trackIndex, ')
+          ..write('captionX: $captionX, ')
+          ..write('captionY: $captionY, ')
+          ..write('captionScale: $captionScale, ')
+          ..write('captionLook: $captionLook')
           ..write(')'))
         .toString();
   }
@@ -1617,6 +1972,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     startMs,
     endMs,
     trackIndex,
+    captionX,
+    captionY,
+    captionScale,
+    captionLook,
   );
   @override
   bool operator ==(Object other) =>
@@ -1629,7 +1988,11 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
           other.projectId == this.projectId &&
           other.startMs == this.startMs &&
           other.endMs == this.endMs &&
-          other.trackIndex == this.trackIndex);
+          other.trackIndex == this.trackIndex &&
+          other.captionX == this.captionX &&
+          other.captionY == this.captionY &&
+          other.captionScale == this.captionScale &&
+          other.captionLook == this.captionLook);
 }
 
 class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
@@ -1641,6 +2004,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
   final Value<int> startMs;
   final Value<int> endMs;
   final Value<int> trackIndex;
+  final Value<double> captionX;
+  final Value<double> captionY;
+  final Value<double> captionScale;
+  final Value<String?> captionLook;
   final Value<int> rowid;
   const TranscribeLayersCompanion({
     this.id = const Value.absent(),
@@ -1651,6 +2018,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     this.startMs = const Value.absent(),
     this.endMs = const Value.absent(),
     this.trackIndex = const Value.absent(),
+    this.captionX = const Value.absent(),
+    this.captionY = const Value.absent(),
+    this.captionScale = const Value.absent(),
+    this.captionLook = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TranscribeLayersCompanion.insert({
@@ -1662,6 +2033,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     required int startMs,
     required int endMs,
     this.trackIndex = const Value.absent(),
+    this.captionX = const Value.absent(),
+    this.captionY = const Value.absent(),
+    this.captionScale = const Value.absent(),
+    this.captionLook = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -1678,6 +2053,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     Expression<int>? startMs,
     Expression<int>? endMs,
     Expression<int>? trackIndex,
+    Expression<double>? captionX,
+    Expression<double>? captionY,
+    Expression<double>? captionScale,
+    Expression<String>? captionLook,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1689,6 +2068,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
       if (startMs != null) 'start_ms': startMs,
       if (endMs != null) 'end_ms': endMs,
       if (trackIndex != null) 'track_index': trackIndex,
+      if (captionX != null) 'caption_x': captionX,
+      if (captionY != null) 'caption_y': captionY,
+      if (captionScale != null) 'caption_scale': captionScale,
+      if (captionLook != null) 'caption_look': captionLook,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1702,6 +2085,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     Value<int>? startMs,
     Value<int>? endMs,
     Value<int>? trackIndex,
+    Value<double>? captionX,
+    Value<double>? captionY,
+    Value<double>? captionScale,
+    Value<String?>? captionLook,
     Value<int>? rowid,
   }) {
     return TranscribeLayersCompanion(
@@ -1713,6 +2100,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
       startMs: startMs ?? this.startMs,
       endMs: endMs ?? this.endMs,
       trackIndex: trackIndex ?? this.trackIndex,
+      captionX: captionX ?? this.captionX,
+      captionY: captionY ?? this.captionY,
+      captionScale: captionScale ?? this.captionScale,
+      captionLook: captionLook ?? this.captionLook,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1744,6 +2135,18 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     if (trackIndex.present) {
       map['track_index'] = Variable<int>(trackIndex.value);
     }
+    if (captionX.present) {
+      map['caption_x'] = Variable<double>(captionX.value);
+    }
+    if (captionY.present) {
+      map['caption_y'] = Variable<double>(captionY.value);
+    }
+    if (captionScale.present) {
+      map['caption_scale'] = Variable<double>(captionScale.value);
+    }
+    if (captionLook.present) {
+      map['caption_look'] = Variable<String>(captionLook.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1761,6 +2164,10 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
           ..write('trackIndex: $trackIndex, ')
+          ..write('captionX: $captionX, ')
+          ..write('captionY: $captionY, ')
+          ..write('captionScale: $captionScale, ')
+          ..write('captionLook: $captionLook, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2651,6 +3058,50 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _captionXMeta = const VerificationMeta(
+    'captionX',
+  );
+  @override
+  late final GeneratedColumn<double> captionX = GeneratedColumn<double>(
+    'caption_x',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _captionYMeta = const VerificationMeta(
+    'captionY',
+  );
+  @override
+  late final GeneratedColumn<double> captionY = GeneratedColumn<double>(
+    'caption_y',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _captionScaleMeta = const VerificationMeta(
+    'captionScale',
+  );
+  @override
+  late final GeneratedColumn<double> captionScale = GeneratedColumn<double>(
+    'caption_scale',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _captionLookMeta = const VerificationMeta(
+    'captionLook',
+  );
+  @override
+  late final GeneratedColumn<String> captionLook = GeneratedColumn<String>(
+    'caption_look',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2663,6 +3114,10 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
     startMs,
     endMs,
     speakerId,
+    captionX,
+    captionY,
+    captionScale,
+    captionLook,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2752,6 +3207,36 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
         speakerId.isAcceptableOrUnknown(data['speaker_id']!, _speakerIdMeta),
       );
     }
+    if (data.containsKey('caption_x')) {
+      context.handle(
+        _captionXMeta,
+        captionX.isAcceptableOrUnknown(data['caption_x']!, _captionXMeta),
+      );
+    }
+    if (data.containsKey('caption_y')) {
+      context.handle(
+        _captionYMeta,
+        captionY.isAcceptableOrUnknown(data['caption_y']!, _captionYMeta),
+      );
+    }
+    if (data.containsKey('caption_scale')) {
+      context.handle(
+        _captionScaleMeta,
+        captionScale.isAcceptableOrUnknown(
+          data['caption_scale']!,
+          _captionScaleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('caption_look')) {
+      context.handle(
+        _captionLookMeta,
+        captionLook.isAcceptableOrUnknown(
+          data['caption_look']!,
+          _captionLookMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2801,6 +3286,22 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
         DriftSqlType.string,
         data['${effectivePrefix}speaker_id'],
       ),
+      captionX: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}caption_x'],
+      ),
+      captionY: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}caption_y'],
+      ),
+      captionScale: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}caption_scale'],
+      ),
+      captionLook: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption_look'],
+      ),
     );
   }
 
@@ -2826,6 +3327,23 @@ class Word extends DataClass implements Insertable<Word> {
 
   /// Populated by diarization in a later phase.
   final String? speakerId;
+
+  /// Where this word's sentence sits as a caption, when it has been placed
+  /// on its own. **Null means "wherever its layer puts captions"**, which is
+  /// every word until the user moves its sentence.
+  ///
+  /// Kept on the word rather than on a sentence row because sentences are
+  /// derived, never stored: every word of a placed sentence carries the same
+  /// values, so a caption finds its placement from its own first word however
+  /// the sentence is later cut into cues.
+  final double? captionX;
+  final double? captionY;
+  final double? captionScale;
+
+  /// How this word's sentence looks as a caption when styled on its own --
+  /// font, colour, karaoke and the like, as `ItemLook` JSON. Null follows the
+  /// layer, the same bargain as the placement above.
+  final String? captionLook;
   const Word({
     required this.id,
     required this.createdAt,
@@ -2837,6 +3355,10 @@ class Word extends DataClass implements Insertable<Word> {
     required this.startMs,
     required this.endMs,
     this.speakerId,
+    this.captionX,
+    this.captionY,
+    this.captionScale,
+    this.captionLook,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2854,6 +3376,18 @@ class Word extends DataClass implements Insertable<Word> {
     map['end_ms'] = Variable<int>(endMs);
     if (!nullToAbsent || speakerId != null) {
       map['speaker_id'] = Variable<String>(speakerId);
+    }
+    if (!nullToAbsent || captionX != null) {
+      map['caption_x'] = Variable<double>(captionX);
+    }
+    if (!nullToAbsent || captionY != null) {
+      map['caption_y'] = Variable<double>(captionY);
+    }
+    if (!nullToAbsent || captionScale != null) {
+      map['caption_scale'] = Variable<double>(captionScale);
+    }
+    if (!nullToAbsent || captionLook != null) {
+      map['caption_look'] = Variable<String>(captionLook);
     }
     return map;
   }
@@ -2874,6 +3408,18 @@ class Word extends DataClass implements Insertable<Word> {
       speakerId: speakerId == null && nullToAbsent
           ? const Value.absent()
           : Value(speakerId),
+      captionX: captionX == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captionX),
+      captionY: captionY == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captionY),
+      captionScale: captionScale == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captionScale),
+      captionLook: captionLook == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captionLook),
     );
   }
 
@@ -2893,6 +3439,10 @@ class Word extends DataClass implements Insertable<Word> {
       startMs: serializer.fromJson<int>(json['startMs']),
       endMs: serializer.fromJson<int>(json['endMs']),
       speakerId: serializer.fromJson<String?>(json['speakerId']),
+      captionX: serializer.fromJson<double?>(json['captionX']),
+      captionY: serializer.fromJson<double?>(json['captionY']),
+      captionScale: serializer.fromJson<double?>(json['captionScale']),
+      captionLook: serializer.fromJson<String?>(json['captionLook']),
     );
   }
   @override
@@ -2909,6 +3459,10 @@ class Word extends DataClass implements Insertable<Word> {
       'startMs': serializer.toJson<int>(startMs),
       'endMs': serializer.toJson<int>(endMs),
       'speakerId': serializer.toJson<String?>(speakerId),
+      'captionX': serializer.toJson<double?>(captionX),
+      'captionY': serializer.toJson<double?>(captionY),
+      'captionScale': serializer.toJson<double?>(captionScale),
+      'captionLook': serializer.toJson<String?>(captionLook),
     };
   }
 
@@ -2923,6 +3477,10 @@ class Word extends DataClass implements Insertable<Word> {
     int? startMs,
     int? endMs,
     Value<String?> speakerId = const Value.absent(),
+    Value<double?> captionX = const Value.absent(),
+    Value<double?> captionY = const Value.absent(),
+    Value<double?> captionScale = const Value.absent(),
+    Value<String?> captionLook = const Value.absent(),
   }) => Word(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -2934,6 +3492,10 @@ class Word extends DataClass implements Insertable<Word> {
     startMs: startMs ?? this.startMs,
     endMs: endMs ?? this.endMs,
     speakerId: speakerId.present ? speakerId.value : this.speakerId,
+    captionX: captionX.present ? captionX.value : this.captionX,
+    captionY: captionY.present ? captionY.value : this.captionY,
+    captionScale: captionScale.present ? captionScale.value : this.captionScale,
+    captionLook: captionLook.present ? captionLook.value : this.captionLook,
   );
   Word copyWithCompanion(WordsCompanion data) {
     return Word(
@@ -2949,6 +3511,14 @@ class Word extends DataClass implements Insertable<Word> {
       startMs: data.startMs.present ? data.startMs.value : this.startMs,
       endMs: data.endMs.present ? data.endMs.value : this.endMs,
       speakerId: data.speakerId.present ? data.speakerId.value : this.speakerId,
+      captionX: data.captionX.present ? data.captionX.value : this.captionX,
+      captionY: data.captionY.present ? data.captionY.value : this.captionY,
+      captionScale: data.captionScale.present
+          ? data.captionScale.value
+          : this.captionScale,
+      captionLook: data.captionLook.present
+          ? data.captionLook.value
+          : this.captionLook,
     );
   }
 
@@ -2964,7 +3534,11 @@ class Word extends DataClass implements Insertable<Word> {
           ..write('word: $word, ')
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
-          ..write('speakerId: $speakerId')
+          ..write('speakerId: $speakerId, ')
+          ..write('captionX: $captionX, ')
+          ..write('captionY: $captionY, ')
+          ..write('captionScale: $captionScale, ')
+          ..write('captionLook: $captionLook')
           ..write(')'))
         .toString();
   }
@@ -2981,6 +3555,10 @@ class Word extends DataClass implements Insertable<Word> {
     startMs,
     endMs,
     speakerId,
+    captionX,
+    captionY,
+    captionScale,
+    captionLook,
   );
   @override
   bool operator ==(Object other) =>
@@ -2995,7 +3573,11 @@ class Word extends DataClass implements Insertable<Word> {
           other.word == this.word &&
           other.startMs == this.startMs &&
           other.endMs == this.endMs &&
-          other.speakerId == this.speakerId);
+          other.speakerId == this.speakerId &&
+          other.captionX == this.captionX &&
+          other.captionY == this.captionY &&
+          other.captionScale == this.captionScale &&
+          other.captionLook == this.captionLook);
 }
 
 class WordsCompanion extends UpdateCompanion<Word> {
@@ -3009,6 +3591,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
   final Value<int> startMs;
   final Value<int> endMs;
   final Value<String?> speakerId;
+  final Value<double?> captionX;
+  final Value<double?> captionY;
+  final Value<double?> captionScale;
+  final Value<String?> captionLook;
   final Value<int> rowid;
   const WordsCompanion({
     this.id = const Value.absent(),
@@ -3021,6 +3607,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
     this.startMs = const Value.absent(),
     this.endMs = const Value.absent(),
     this.speakerId = const Value.absent(),
+    this.captionX = const Value.absent(),
+    this.captionY = const Value.absent(),
+    this.captionScale = const Value.absent(),
+    this.captionLook = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   WordsCompanion.insert({
@@ -3034,6 +3624,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
     required int startMs,
     required int endMs,
     this.speakerId = const Value.absent(),
+    this.captionX = const Value.absent(),
+    this.captionY = const Value.absent(),
+    this.captionScale = const Value.absent(),
+    this.captionLook = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -3054,6 +3648,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
     Expression<int>? startMs,
     Expression<int>? endMs,
     Expression<String>? speakerId,
+    Expression<double>? captionX,
+    Expression<double>? captionY,
+    Expression<double>? captionScale,
+    Expression<String>? captionLook,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3067,6 +3665,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
       if (startMs != null) 'start_ms': startMs,
       if (endMs != null) 'end_ms': endMs,
       if (speakerId != null) 'speaker_id': speakerId,
+      if (captionX != null) 'caption_x': captionX,
+      if (captionY != null) 'caption_y': captionY,
+      if (captionScale != null) 'caption_scale': captionScale,
+      if (captionLook != null) 'caption_look': captionLook,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3082,6 +3684,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
     Value<int>? startMs,
     Value<int>? endMs,
     Value<String?>? speakerId,
+    Value<double?>? captionX,
+    Value<double?>? captionY,
+    Value<double?>? captionScale,
+    Value<String?>? captionLook,
     Value<int>? rowid,
   }) {
     return WordsCompanion(
@@ -3095,6 +3701,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
       startMs: startMs ?? this.startMs,
       endMs: endMs ?? this.endMs,
       speakerId: speakerId ?? this.speakerId,
+      captionX: captionX ?? this.captionX,
+      captionY: captionY ?? this.captionY,
+      captionScale: captionScale ?? this.captionScale,
+      captionLook: captionLook ?? this.captionLook,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3132,6 +3742,18 @@ class WordsCompanion extends UpdateCompanion<Word> {
     if (speakerId.present) {
       map['speaker_id'] = Variable<String>(speakerId.value);
     }
+    if (captionX.present) {
+      map['caption_x'] = Variable<double>(captionX.value);
+    }
+    if (captionY.present) {
+      map['caption_y'] = Variable<double>(captionY.value);
+    }
+    if (captionScale.present) {
+      map['caption_scale'] = Variable<double>(captionScale.value);
+    }
+    if (captionLook.present) {
+      map['caption_look'] = Variable<String>(captionLook.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3151,6 +3773,10 @@ class WordsCompanion extends UpdateCompanion<Word> {
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
           ..write('speakerId: $speakerId, ')
+          ..write('captionX: $captionX, ')
+          ..write('captionY: $captionY, ')
+          ..write('captionScale: $captionScale, ')
+          ..write('captionLook: $captionLook, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4722,6 +5348,795 @@ class TimelineEventsCompanion extends UpdateCompanion<TimelineEvent> {
   }
 }
 
+class $TextLayersTable extends TextLayers
+    with TableInfo<$TextLayersTable, TextLayer> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TextLayersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _scaleMeta = const VerificationMeta('scale');
+  @override
+  late final GeneratedColumn<double> scale = GeneratedColumn<double>(
+    'scale',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  static const VerificationMeta _rotationMeta = const VerificationMeta(
+    'rotation',
+  );
+  @override
+  late final GeneratedColumn<double> rotation = GeneratedColumn<double>(
+    'rotation',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _trackIndexMeta = const VerificationMeta(
+    'trackIndex',
+  );
+  @override
+  late final GeneratedColumn<int> trackIndex = GeneratedColumn<int>(
+    'track_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lookMeta = const VerificationMeta('look');
+  @override
+  late final GeneratedColumn<String> look = GeneratedColumn<String>(
+    'look',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    startMs,
+    endMs,
+    content,
+    x,
+    y,
+    scale,
+    rotation,
+    trackIndex,
+    look,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'text_layers';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TextLayer> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMsMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    }
+    if (data.containsKey('scale')) {
+      context.handle(
+        _scaleMeta,
+        scale.isAcceptableOrUnknown(data['scale']!, _scaleMeta),
+      );
+    }
+    if (data.containsKey('rotation')) {
+      context.handle(
+        _rotationMeta,
+        rotation.isAcceptableOrUnknown(data['rotation']!, _rotationMeta),
+      );
+    }
+    if (data.containsKey('track_index')) {
+      context.handle(
+        _trackIndexMeta,
+        trackIndex.isAcceptableOrUnknown(data['track_index']!, _trackIndexMeta),
+      );
+    }
+    if (data.containsKey('look')) {
+      context.handle(
+        _lookMeta,
+        look.isAcceptableOrUnknown(data['look']!, _lookMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TextLayer map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TextLayer(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      )!,
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      )!,
+      scale: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}scale'],
+      )!,
+      rotation: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rotation'],
+      )!,
+      trackIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track_index'],
+      )!,
+      look: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}look'],
+      ),
+    );
+  }
+
+  @override
+  $TextLayersTable createAlias(String alias) {
+    return $TextLayersTable(attachedDatabase, alias);
+  }
+}
+
+class TextLayer extends DataClass implements Insertable<TextLayer> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String projectId;
+  final int startMs;
+  final int endMs;
+  final String content;
+
+  /// The text's centre, in shares of the frame's half-size; up is positive.
+  final double x;
+  final double y;
+  final double scale;
+
+  /// Degrees, clockwise as seen.
+  final double rotation;
+
+  /// Which stacked text track it sits on. Always 0 today; carried for the
+  /// same reason [TranscribeLayers.trackIndex] is.
+  final int trackIndex;
+
+  /// Font and colour, as `ItemLook` JSON; null is bold white in the default
+  /// face.
+  final String? look;
+  const TextLayer({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.projectId,
+    required this.startMs,
+    required this.endMs,
+    required this.content,
+    required this.x,
+    required this.y,
+    required this.scale,
+    required this.rotation,
+    required this.trackIndex,
+    this.look,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['project_id'] = Variable<String>(projectId);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    map['content'] = Variable<String>(content);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['scale'] = Variable<double>(scale);
+    map['rotation'] = Variable<double>(rotation);
+    map['track_index'] = Variable<int>(trackIndex);
+    if (!nullToAbsent || look != null) {
+      map['look'] = Variable<String>(look);
+    }
+    return map;
+  }
+
+  TextLayersCompanion toCompanion(bool nullToAbsent) {
+    return TextLayersCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      projectId: Value(projectId),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      content: Value(content),
+      x: Value(x),
+      y: Value(y),
+      scale: Value(scale),
+      rotation: Value(rotation),
+      trackIndex: Value(trackIndex),
+      look: look == null && nullToAbsent ? const Value.absent() : Value(look),
+    );
+  }
+
+  factory TextLayer.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TextLayer(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      content: serializer.fromJson<String>(json['content']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      scale: serializer.fromJson<double>(json['scale']),
+      rotation: serializer.fromJson<double>(json['rotation']),
+      trackIndex: serializer.fromJson<int>(json['trackIndex']),
+      look: serializer.fromJson<String?>(json['look']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'projectId': serializer.toJson<String>(projectId),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'content': serializer.toJson<String>(content),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'scale': serializer.toJson<double>(scale),
+      'rotation': serializer.toJson<double>(rotation),
+      'trackIndex': serializer.toJson<int>(trackIndex),
+      'look': serializer.toJson<String?>(look),
+    };
+  }
+
+  TextLayer copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? projectId,
+    int? startMs,
+    int? endMs,
+    String? content,
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+    int? trackIndex,
+    Value<String?> look = const Value.absent(),
+  }) => TextLayer(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    projectId: projectId ?? this.projectId,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    content: content ?? this.content,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    scale: scale ?? this.scale,
+    rotation: rotation ?? this.rotation,
+    trackIndex: trackIndex ?? this.trackIndex,
+    look: look.present ? look.value : this.look,
+  );
+  TextLayer copyWithCompanion(TextLayersCompanion data) {
+    return TextLayer(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      content: data.content.present ? data.content.value : this.content,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      scale: data.scale.present ? data.scale.value : this.scale,
+      rotation: data.rotation.present ? data.rotation.value : this.rotation,
+      trackIndex: data.trackIndex.present
+          ? data.trackIndex.value
+          : this.trackIndex,
+      look: data.look.present ? data.look.value : this.look,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TextLayer(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('content: $content, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('scale: $scale, ')
+          ..write('rotation: $rotation, ')
+          ..write('trackIndex: $trackIndex, ')
+          ..write('look: $look')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    startMs,
+    endMs,
+    content,
+    x,
+    y,
+    scale,
+    rotation,
+    trackIndex,
+    look,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TextLayer &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.projectId == this.projectId &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.content == this.content &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.scale == this.scale &&
+          other.rotation == this.rotation &&
+          other.trackIndex == this.trackIndex &&
+          other.look == this.look);
+}
+
+class TextLayersCompanion extends UpdateCompanion<TextLayer> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> projectId;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<String> content;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> scale;
+  final Value<double> rotation;
+  final Value<int> trackIndex;
+  final Value<String?> look;
+  final Value<int> rowid;
+  const TextLayersCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.content = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.trackIndex = const Value.absent(),
+    this.look = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TextLayersCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String projectId,
+    required int startMs,
+    required int endMs,
+    required String content,
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.trackIndex = const Value.absent(),
+    this.look = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       projectId = Value(projectId),
+       startMs = Value(startMs),
+       endMs = Value(endMs),
+       content = Value(content);
+  static Insertable<TextLayer> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? projectId,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<String>? content,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? scale,
+    Expression<double>? rotation,
+    Expression<int>? trackIndex,
+    Expression<String>? look,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (projectId != null) 'project_id': projectId,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (content != null) 'content': content,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (scale != null) 'scale': scale,
+      if (rotation != null) 'rotation': rotation,
+      if (trackIndex != null) 'track_index': trackIndex,
+      if (look != null) 'look': look,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TextLayersCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? projectId,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<String>? content,
+    Value<double>? x,
+    Value<double>? y,
+    Value<double>? scale,
+    Value<double>? rotation,
+    Value<int>? trackIndex,
+    Value<String?>? look,
+    Value<int>? rowid,
+  }) {
+    return TextLayersCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      projectId: projectId ?? this.projectId,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      content: content ?? this.content,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      scale: scale ?? this.scale,
+      rotation: rotation ?? this.rotation,
+      trackIndex: trackIndex ?? this.trackIndex,
+      look: look ?? this.look,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (scale.present) {
+      map['scale'] = Variable<double>(scale.value);
+    }
+    if (rotation.present) {
+      map['rotation'] = Variable<double>(rotation.value);
+    }
+    if (trackIndex.present) {
+      map['track_index'] = Variable<int>(trackIndex.value);
+    }
+    if (look.present) {
+      map['look'] = Variable<String>(look.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TextLayersCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('content: $content, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('scale: $scale, ')
+          ..write('rotation: $rotation, ')
+          ..write('trackIndex: $trackIndex, ')
+          ..write('look: $look, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4735,6 +6150,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SettingsTable settings = $SettingsTable(this);
   late final $EditEventsTable editEvents = $EditEventsTable(this);
   late final $TimelineEventsTable timelineEvents = $TimelineEventsTable(this);
+  late final $TextLayersTable textLayers = $TextLayersTable(this);
   late final Index mediaClipsProjectPosition = Index(
     'media_clips_project_position',
     'CREATE INDEX media_clips_project_position ON media_clips (project_id, position)',
@@ -4755,6 +6171,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'edit_events_transcript_seq',
     'CREATE INDEX edit_events_transcript_seq ON edit_events (transcript_id, sequence)',
   );
+  late final Index textLayersProjectStart = Index(
+    'text_layers_project_start',
+    'CREATE INDEX text_layers_project_start ON text_layers (project_id, start_ms)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4768,11 +6188,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     settings,
     editEvents,
     timelineEvents,
+    textLayers,
     mediaClipsProjectPosition,
     transcribeLayersProjectStart,
     wordsTranscriptStart,
     settingsKey,
     editEventsTranscriptSeq,
+    textLayersProjectStart,
   ];
 }
 
@@ -4870,6 +6292,24 @@ final class $$ProjectsTableReferences
     ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_timelineEventsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TextLayersTable, List<TextLayer>>
+  _textLayersRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.textLayers,
+    aliasName: 'projects__id__text_layers__project_id',
+  );
+
+  $$TextLayersTableProcessedTableManager get textLayersRefs {
+    final manager = $$TextLayersTableTableManager(
+      $_db,
+      $_db.textLayers,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_textLayersRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -5011,6 +6451,31 @@ class $$ProjectsTableFilterComposer
           }) => $$TimelineEventsTableFilterComposer(
             $db: $db,
             $table: $db.timelineEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> textLayersRefs(
+    Expression<bool> Function($$TextLayersTableFilterComposer f) f,
+  ) {
+    final $$TextLayersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.textLayers,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TextLayersTableFilterComposer(
+            $db: $db,
+            $table: $db.textLayers,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5197,6 +6662,31 @@ class $$ProjectsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> textLayersRefs<T extends Object>(
+    Expression<T> Function($$TextLayersTableAnnotationComposer a) f,
+  ) {
+    final $$TextLayersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.textLayers,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TextLayersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.textLayers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableTableManager
@@ -5217,6 +6707,7 @@ class $$ProjectsTableTableManager
             bool transcribeLayersRefs,
             bool transcriptsRefs,
             bool timelineEventsRefs,
+            bool textLayersRefs,
           })
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
@@ -5284,6 +6775,7 @@ class $$ProjectsTableTableManager
                 transcribeLayersRefs = false,
                 transcriptsRefs = false,
                 timelineEventsRefs = false,
+                textLayersRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -5292,6 +6784,7 @@ class $$ProjectsTableTableManager
                     if (transcribeLayersRefs) db.transcribeLayers,
                     if (transcriptsRefs) db.transcripts,
                     if (timelineEventsRefs) db.timelineEvents,
+                    if (textLayersRefs) db.textLayers,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -5380,6 +6873,27 @@ class $$ProjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (textLayersRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          TextLayer
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._textLayersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).textLayersRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5405,6 +6919,7 @@ typedef $$ProjectsTableProcessedTableManager =
         bool transcribeLayersRefs,
         bool transcriptsRefs,
         bool timelineEventsRefs,
+        bool textLayersRefs,
       })
     >;
 typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
@@ -5420,6 +6935,10 @@ typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
   Value<int?> trimEndMs,
   required String title,
   Value<Uint8List?> waveform,
+  Value<double> scale,
+  Value<double> rotation,
+  Value<double> offsetX,
+  Value<double> offsetY,
   Value<int> rowid,
 });
 typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
@@ -5435,6 +6954,10 @@ typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
   Value<int?> trimEndMs,
   Value<String> title,
   Value<Uint8List?> waveform,
+  Value<double> scale,
+  Value<double> rotation,
+  Value<double> offsetX,
+  Value<double> offsetY,
   Value<int> rowid,
 });
 
@@ -5539,6 +7062,26 @@ class $$MediaClipsTableFilterComposer
 
   ColumnFilters<Uint8List> get waveform => $composableBuilder(
     column: $table.waveform,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rotation => $composableBuilder(
+    column: $table.rotation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get offsetX => $composableBuilder(
+    column: $table.offsetX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get offsetY => $composableBuilder(
+    column: $table.offsetY,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5655,6 +7198,26 @@ class $$MediaClipsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rotation => $composableBuilder(
+    column: $table.rotation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get offsetX => $composableBuilder(
+    column: $table.offsetX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get offsetY => $composableBuilder(
+    column: $table.offsetY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProjectsTableOrderingComposer get projectId {
     final $$ProjectsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -5724,6 +7287,18 @@ class $$MediaClipsTableAnnotationComposer
 
   GeneratedColumn<Uint8List> get waveform =>
       $composableBuilder(column: $table.waveform, builder: (column) => column);
+
+  GeneratedColumn<double> get scale =>
+      $composableBuilder(column: $table.scale, builder: (column) => column);
+
+  GeneratedColumn<double> get rotation =>
+      $composableBuilder(column: $table.rotation, builder: (column) => column);
+
+  GeneratedColumn<double> get offsetX =>
+      $composableBuilder(column: $table.offsetX, builder: (column) => column);
+
+  GeneratedColumn<double> get offsetY =>
+      $composableBuilder(column: $table.offsetY, builder: (column) => column);
 
   $$ProjectsTableAnnotationComposer get projectId {
     final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
@@ -5814,6 +7389,10 @@ class $$MediaClipsTableTableManager
                 Value<int?> trimEndMs = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<Uint8List?> waveform = const Value.absent(),
+                Value<double> scale = const Value.absent(),
+                Value<double> rotation = const Value.absent(),
+                Value<double> offsetX = const Value.absent(),
+                Value<double> offsetY = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaClipsCompanion(
                 id: id,
@@ -5828,6 +7407,10 @@ class $$MediaClipsTableTableManager
                 trimEndMs: trimEndMs,
                 title: title,
                 waveform: waveform,
+                scale: scale,
+                rotation: rotation,
+                offsetX: offsetX,
+                offsetY: offsetY,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5844,6 +7427,10 @@ class $$MediaClipsTableTableManager
                 Value<int?> trimEndMs = const Value.absent(),
                 required String title,
                 Value<Uint8List?> waveform = const Value.absent(),
+                Value<double> scale = const Value.absent(),
+                Value<double> rotation = const Value.absent(),
+                Value<double> offsetX = const Value.absent(),
+                Value<double> offsetY = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaClipsCompanion.insert(
                 id: id,
@@ -5858,6 +7445,10 @@ class $$MediaClipsTableTableManager
                 trimEndMs: trimEndMs,
                 title: title,
                 waveform: waveform,
+                scale: scale,
+                rotation: rotation,
+                offsetX: offsetX,
+                offsetY: offsetY,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5960,6 +7551,10 @@ typedef $$TranscribeLayersTableCreateCompanionBuilder =
       required int startMs,
       required int endMs,
       Value<int> trackIndex,
+      Value<double> captionX,
+      Value<double> captionY,
+      Value<double> captionScale,
+      Value<String?> captionLook,
       Value<int> rowid,
     });
 typedef $$TranscribeLayersTableUpdateCompanionBuilder =
@@ -5972,6 +7567,10 @@ typedef $$TranscribeLayersTableUpdateCompanionBuilder =
       Value<int> startMs,
       Value<int> endMs,
       Value<int> trackIndex,
+      Value<double> captionX,
+      Value<double> captionY,
+      Value<double> captionScale,
+      Value<String?> captionLook,
       Value<int> rowid,
     });
 
@@ -6061,6 +7660,26 @@ class $$TranscribeLayersTableFilterComposer
 
   ColumnFilters<int> get trackIndex => $composableBuilder(
     column: $table.trackIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get captionX => $composableBuilder(
+    column: $table.captionX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get captionY => $composableBuilder(
+    column: $table.captionY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get captionScale => $composableBuilder(
+    column: $table.captionScale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get captionLook => $composableBuilder(
+    column: $table.captionLook,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6157,6 +7776,26 @@ class $$TranscribeLayersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get captionX => $composableBuilder(
+    column: $table.captionX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get captionY => $composableBuilder(
+    column: $table.captionY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get captionScale => $composableBuilder(
+    column: $table.captionScale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get captionLook => $composableBuilder(
+    column: $table.captionLook,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProjectsTableOrderingComposer get projectId {
     final $$ProjectsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -6210,6 +7849,22 @@ class $$TranscribeLayersTableAnnotationComposer
 
   GeneratedColumn<int> get trackIndex => $composableBuilder(
     column: $table.trackIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get captionX =>
+      $composableBuilder(column: $table.captionX, builder: (column) => column);
+
+  GeneratedColumn<double> get captionY =>
+      $composableBuilder(column: $table.captionY, builder: (column) => column);
+
+  GeneratedColumn<double> get captionScale => $composableBuilder(
+    column: $table.captionScale,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get captionLook => $composableBuilder(
+    column: $table.captionLook,
     builder: (column) => column,
   );
 
@@ -6300,6 +7955,10 @@ class $$TranscribeLayersTableTableManager
                 Value<int> startMs = const Value.absent(),
                 Value<int> endMs = const Value.absent(),
                 Value<int> trackIndex = const Value.absent(),
+                Value<double> captionX = const Value.absent(),
+                Value<double> captionY = const Value.absent(),
+                Value<double> captionScale = const Value.absent(),
+                Value<String?> captionLook = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TranscribeLayersCompanion(
                 id: id,
@@ -6310,6 +7969,10 @@ class $$TranscribeLayersTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 trackIndex: trackIndex,
+                captionX: captionX,
+                captionY: captionY,
+                captionScale: captionScale,
+                captionLook: captionLook,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6322,6 +7985,10 @@ class $$TranscribeLayersTableTableManager
                 required int startMs,
                 required int endMs,
                 Value<int> trackIndex = const Value.absent(),
+                Value<double> captionX = const Value.absent(),
+                Value<double> captionY = const Value.absent(),
+                Value<double> captionScale = const Value.absent(),
+                Value<String?> captionLook = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TranscribeLayersCompanion.insert(
                 id: id,
@@ -6332,6 +7999,10 @@ class $$TranscribeLayersTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 trackIndex: trackIndex,
+                captionX: captionX,
+                captionY: captionY,
+                captionScale: captionScale,
+                captionLook: captionLook,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -7258,6 +8929,10 @@ typedef $$WordsTableCreateCompanionBuilder = WordsCompanion Function({
   required int startMs,
   required int endMs,
   Value<String?> speakerId,
+  Value<double?> captionX,
+  Value<double?> captionY,
+  Value<double?> captionScale,
+  Value<String?> captionLook,
   Value<int> rowid,
 });
 typedef $$WordsTableUpdateCompanionBuilder = WordsCompanion Function({
@@ -7271,6 +8946,10 @@ typedef $$WordsTableUpdateCompanionBuilder = WordsCompanion Function({
   Value<int> startMs,
   Value<int> endMs,
   Value<String?> speakerId,
+  Value<double?> captionX,
+  Value<double?> captionY,
+  Value<double?> captionScale,
+  Value<String?> captionLook,
   Value<int> rowid,
 });
 
@@ -7346,6 +9025,26 @@ class $$WordsTableFilterComposer extends Composer<_$AppDatabase, $WordsTable> {
 
   ColumnFilters<String> get speakerId => $composableBuilder(
     column: $table.speakerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get captionX => $composableBuilder(
+    column: $table.captionX,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get captionY => $composableBuilder(
+    column: $table.captionY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get captionScale => $composableBuilder(
+    column: $table.captionScale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get captionLook => $composableBuilder(
+    column: $table.captionLook,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7427,6 +9126,26 @@ class $$WordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get captionX => $composableBuilder(
+    column: $table.captionX,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get captionY => $composableBuilder(
+    column: $table.captionY,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get captionScale => $composableBuilder(
+    column: $table.captionScale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get captionLook => $composableBuilder(
+    column: $table.captionLook,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$TranscriptsTableOrderingComposer get transcriptId {
     final $$TranscriptsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -7486,6 +9205,22 @@ class $$WordsTableAnnotationComposer
 
   GeneratedColumn<String> get speakerId =>
       $composableBuilder(column: $table.speakerId, builder: (column) => column);
+
+  GeneratedColumn<double> get captionX =>
+      $composableBuilder(column: $table.captionX, builder: (column) => column);
+
+  GeneratedColumn<double> get captionY =>
+      $composableBuilder(column: $table.captionY, builder: (column) => column);
+
+  GeneratedColumn<double> get captionScale => $composableBuilder(
+    column: $table.captionScale,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get captionLook => $composableBuilder(
+    column: $table.captionLook,
+    builder: (column) => column,
+  );
 
   $$TranscriptsTableAnnotationComposer get transcriptId {
     final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
@@ -7549,6 +9284,10 @@ class $$WordsTableTableManager
                 Value<int> startMs = const Value.absent(),
                 Value<int> endMs = const Value.absent(),
                 Value<String?> speakerId = const Value.absent(),
+                Value<double?> captionX = const Value.absent(),
+                Value<double?> captionY = const Value.absent(),
+                Value<double?> captionScale = const Value.absent(),
+                Value<String?> captionLook = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => WordsCompanion(
                 id: id,
@@ -7561,6 +9300,10 @@ class $$WordsTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 speakerId: speakerId,
+                captionX: captionX,
+                captionY: captionY,
+                captionScale: captionScale,
+                captionLook: captionLook,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7575,6 +9318,10 @@ class $$WordsTableTableManager
                 required int startMs,
                 required int endMs,
                 Value<String?> speakerId = const Value.absent(),
+                Value<double?> captionX = const Value.absent(),
+                Value<double?> captionY = const Value.absent(),
+                Value<double?> captionScale = const Value.absent(),
+                Value<String?> captionLook = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => WordsCompanion.insert(
                 id: id,
@@ -7587,6 +9334,10 @@ class $$WordsTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 speakerId: speakerId,
+                captionX: captionX,
+                captionY: captionY,
+                captionScale: captionScale,
+                captionLook: captionLook,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -8649,6 +10400,492 @@ typedef $$TimelineEventsTableProcessedTableManager =
       TimelineEvent,
       PrefetchHooks Function({bool projectId})
     >;
+typedef $$TextLayersTableCreateCompanionBuilder = TextLayersCompanion Function({
+  required String id,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<DateTime?> deletedAt,
+  required String projectId,
+  required int startMs,
+  required int endMs,
+  required String content,
+  Value<double> x,
+  Value<double> y,
+  Value<double> scale,
+  Value<double> rotation,
+  Value<int> trackIndex,
+  Value<String?> look,
+  Value<int> rowid,
+});
+typedef $$TextLayersTableUpdateCompanionBuilder = TextLayersCompanion Function({
+  Value<String> id,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<String> projectId,
+  Value<int> startMs,
+  Value<int> endMs,
+  Value<String> content,
+  Value<double> x,
+  Value<double> y,
+  Value<double> scale,
+  Value<double> rotation,
+  Value<int> trackIndex,
+  Value<String?> look,
+  Value<int> rowid,
+});
+
+final class $$TextLayersTableReferences
+    extends BaseReferences<_$AppDatabase, $TextLayersTable, TextLayer> {
+  $$TextLayersTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('text_layers__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TextLayersTableFilterComposer
+    extends Composer<_$AppDatabase, $TextLayersTable> {
+  $$TextLayersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rotation => $composableBuilder(
+    column: $table.rotation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get trackIndex => $composableBuilder(
+    column: $table.trackIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get look => $composableBuilder(
+    column: $table.look,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TextLayersTableOrderingComposer
+    extends Composer<_$AppDatabase, $TextLayersTable> {
+  $$TextLayersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rotation => $composableBuilder(
+    column: $table.rotation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get trackIndex => $composableBuilder(
+    column: $table.trackIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get look => $composableBuilder(
+    column: $table.look,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TextLayersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TextLayersTable> {
+  $$TextLayersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get scale =>
+      $composableBuilder(column: $table.scale, builder: (column) => column);
+
+  GeneratedColumn<double> get rotation =>
+      $composableBuilder(column: $table.rotation, builder: (column) => column);
+
+  GeneratedColumn<int> get trackIndex => $composableBuilder(
+    column: $table.trackIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get look =>
+      $composableBuilder(column: $table.look, builder: (column) => column);
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TextLayersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TextLayersTable,
+          TextLayer,
+          $$TextLayersTableFilterComposer,
+          $$TextLayersTableOrderingComposer,
+          $$TextLayersTableAnnotationComposer,
+          $$TextLayersTableCreateCompanionBuilder,
+          $$TextLayersTableUpdateCompanionBuilder,
+          (TextLayer, $$TextLayersTableReferences),
+          TextLayer,
+          PrefetchHooks Function({bool projectId})
+        > {
+  $$TextLayersTableTableManager(_$AppDatabase db, $TextLayersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TextLayersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TextLayersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TextLayersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> scale = const Value.absent(),
+                Value<double> rotation = const Value.absent(),
+                Value<int> trackIndex = const Value.absent(),
+                Value<String?> look = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TextLayersCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                startMs: startMs,
+                endMs: endMs,
+                content: content,
+                x: x,
+                y: y,
+                scale: scale,
+                rotation: rotation,
+                trackIndex: trackIndex,
+                look: look,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String projectId,
+                required int startMs,
+                required int endMs,
+                required String content,
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> scale = const Value.absent(),
+                Value<double> rotation = const Value.absent(),
+                Value<int> trackIndex = const Value.absent(),
+                Value<String?> look = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TextLayersCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                startMs: startMs,
+                endMs: endMs,
+                content: content,
+                x: x,
+                y: y,
+                scale: scale,
+                rotation: rotation,
+                trackIndex: trackIndex,
+                look: look,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TextLayersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (projectId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.projectId,
+                        referencedTable: $$TextLayersTableReferences
+                            ._projectIdTable(db),
+                        referencedColumn: $$TextLayersTableReferences
+                            ._projectIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TextLayersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TextLayersTable,
+      TextLayer,
+      $$TextLayersTableFilterComposer,
+      $$TextLayersTableOrderingComposer,
+      $$TextLayersTableAnnotationComposer,
+      $$TextLayersTableCreateCompanionBuilder,
+      $$TextLayersTableUpdateCompanionBuilder,
+      (TextLayer, $$TextLayersTableReferences),
+      TextLayer,
+      PrefetchHooks Function({bool projectId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8669,4 +10906,6 @@ class $AppDatabaseManager {
       $$EditEventsTableTableManager(_db, _db.editEvents);
   $$TimelineEventsTableTableManager get timelineEvents =>
       $$TimelineEventsTableTableManager(_db, _db.timelineEvents);
+  $$TextLayersTableTableManager get textLayers =>
+      $$TextLayersTableTableManager(_db, _db.textLayers);
 }

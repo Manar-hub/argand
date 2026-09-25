@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/captions/subtitle_export.dart';
 import '../../core/database/database.dart';
 import '../../core/monetization/monetization.dart';
+import '../../core/theme/app_controls.dart';
 import '../../core/theme/app_dialog.dart';
+import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
@@ -554,46 +556,37 @@ class _ProStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final surface = theme.extension<AppSurface>()!;
 
-    return DecoratedBox(
-      decoration: surface.decoration(
-        fill: theme.colorScheme.surfaceContainerHighest,
-        raised: false,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.sm,
-          AppSpacing.sm,
-          AppSpacing.sm,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.exportProName,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+    // No box round it: it is a line of the sheet, not a card on it.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.exportProName,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
-                  Text(
-                    l10n.exportProPitch,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
+                ),
+                Text(
+                  l10n.exportProPitch,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: AppSpacing.sm),
-            // The selection colour, not the accent: the accent already fills
-            // the Export button right below, and two buttons in the same
-            // colour would read as two ways to do the same thing.
-            FilledButton(
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          // The selection colour, not the accent: the accent already fills
+          // the Export button right below, and two buttons in the same
+          // colour would read as two ways to do the same thing.
+          AppRaised(
+            child: FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: theme.colorScheme.secondary,
                 foregroundColor: theme.colorScheme.onSecondary,
@@ -601,8 +594,8 @@ class _ProStrip extends StatelessWidget {
               onPressed: onGetPro,
               child: Text(l10n.exportGetPro),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -718,62 +711,50 @@ class _ToggleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surface = theme.extension<AppSurface>()!;
     final note = this.note;
 
-    return DecoratedBox(
-      // Not raised: it sits inside a sheet that is already a card, and a second
-      // offset shadow within the first reads as noise.
-      decoration: surface.decoration(
-        fill: theme.colorScheme.surfaceContainerHighest,
-        raised: false,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.sm,
-          AppSpacing.sm,
-          AppSpacing.sm,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.textTheme.titleSmall),
-                      if (subtitle case final subtitle?)
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+    // No box round it: a setting is a line of the sheet, like the labelled
+    // rows above it.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.titleSmall),
+                    if (subtitle case final subtitle?)
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
-                    ],
-                  ),
-                ),
-                Switch(value: value, onChanged: onChanged),
-              ],
-            ),
-            if (note != null)
-              Padding(
-                padding: const EdgeInsets.only(
-                  top: AppSpacing.xs,
-                  right: AppSpacing.sm,
-                  bottom: AppSpacing.xs,
-                ),
-                child: Text(
-                  note,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
+                      ),
+                  ],
                 ),
               ),
-          ],
-        ),
+              AppToggle(value: value, onChanged: onChanged),
+            ],
+          ),
+          if (note != null)
+            Padding(
+              padding: const EdgeInsets.only(
+                top: AppSpacing.xs,
+                right: AppSpacing.sm,
+                bottom: AppSpacing.xs,
+              ),
+              child: Text(
+                note,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -834,13 +815,11 @@ class _ChipRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Wraps rather than scrolls: a preset pushed off the edge of a row is one
-    // nobody finds, and five short labels fit on two lines at any text scale.
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: children,
-    );
+    // One strip across the sheet, a rule between presets and none round each
+    // -- the same row every other set of choices uses. Labels ellipsize
+    // rather than wrap, so a large text scale shortens a word instead of
+    // pushing a preset off the row.
+    return AppStrip(onCard: true, children: children);
   }
 }
 
@@ -863,13 +842,11 @@ class _OptionChip extends StatelessWidget {
     final theme = Theme.of(context);
     final enabled = onTap != null;
 
+    // A cell of the strip: no frame of its own, a block of ink when chosen.
     final chip = PressableSurface(
       selected: selected,
-      fill: selected
-          ? theme.colorScheme.primary
-          : theme.colorScheme.surfaceContainerHighest,
-      border: true,
-      borderRadius: BorderRadius.circular(999),
+      fill: selected ? theme.colorScheme.secondary : Colors.transparent,
+      borderRadius: BorderRadius.zero,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -877,18 +854,21 @@ class _OptionChip extends StatelessWidget {
           // it is a second, conflicting kind of feedback.
           splashColor: Colors.transparent,
           highlightColor: Colors.transparent,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.zero,
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
+              horizontal: AppSpacing.xxs,
               vertical: AppSpacing.md,
             ),
             child: Text(
               label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelLarge?.copyWith(
                 color: selected
-                    ? theme.colorScheme.onPrimary
+                    ? theme.colorScheme.onSecondary
                     : theme.colorScheme.onSurface,
               ),
             ),

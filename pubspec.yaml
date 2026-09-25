@@ -97,6 +97,65 @@ flutter:
 
   assets:
     - assets/models/
+
+  # Caption and text fonts: static OFL/Apache files from the google/fonts
+  # repository, bundled rather than fetched -- the release build has no
+  # INTERNET permission, and the render loads these same files
+  # (VideoExportChannel.kt) so the export matches the preview. Licences are
+  # in assets/fonts/licenses/. One family per file, so nothing is ever
+  # synthesised bold or picked by weight. Keys: lib/core/timeline/item_look.dart.
+  fonts:
+    - family: ArgandPoppins
+      fonts:
+        - asset: assets/fonts/Poppins-Bold.ttf
+    - family: ArgandAnton
+      fonts:
+        - asset: assets/fonts/Anton-Regular.ttf
+    - family: ArgandBebasNeue
+      fonts:
+        - asset: assets/fonts/BebasNeue-Regular.ttf
+    - family: ArgandArchivoBlack
+      fonts:
+        - asset: assets/fonts/ArchivoBlack-Regular.ttf
+    - family: ArgandBangers
+      fonts:
+        - asset: assets/fonts/Bangers-Regular.ttf
+    - family: ArgandPermanentMarker
+      fonts:
+        - asset: assets/fonts/PermanentMarker-Regular.ttf
+    - family: ArgandPacifico
+      fonts:
+        - asset: assets/fonts/Pacifico-Regular.ttf
+    - family: ArgandLobster
+      fonts:
+        - asset: assets/fonts/Lobster-Regular.ttf
+    # App-UI fonts (not caption fonts). Static weights cut from the variable
+    # Roboto Flex and Plus Jakarta Sans with fontTools' instancer, so
+    # `fontWeight` picks a real file -- Flutter does not reliably drive a
+    # variable font's wght axis from fontWeight. Display: opsz 32, wdth 100;
+    # w800 is wght 850 and w900 is wght 1000.
+    - family: ArgandDisplay
+      fonts:
+        - asset: assets/fonts/RobotoFlex-W600.ttf
+          weight: 600
+        - asset: assets/fonts/RobotoFlex-W700.ttf
+          weight: 700
+        - asset: assets/fonts/RobotoFlex-W800.ttf
+          weight: 800
+        - asset: assets/fonts/RobotoFlex-W900.ttf
+          weight: 900
+    - family: ArgandText
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-W400.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-W500.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-W600.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-W700.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-W800.ttf
+          weight: 800
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

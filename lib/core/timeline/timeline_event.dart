@@ -15,7 +15,17 @@ enum TimelineEventKind {
   layerAdd('layerAdd'),
   transcribeRun('transcribeRun'),
   layerMove('layerMove'),
-  layerRemove('layerRemove');
+  layerRemove('layerRemove'),
+
+  /// One gesture's worth of moving, scaling or turning, over everything that
+  /// was selected -- so a drag of three items undoes in one step.
+  transformBatch('transformBatch'),
+  textAdd('textAdd'),
+  textEdit('textEdit'),
+  textRemove('textRemove'),
+
+  /// One restyle -- font, colour, caption mode -- over everything it touched.
+  lookBatch('lookBatch');
 
   const TimelineEventKind(this.code);
 

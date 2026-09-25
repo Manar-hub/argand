@@ -14,6 +14,10 @@ MediaClip _clip(String id, int? durationMs, {int position = 0}) {
     mediaPath: '/media/p1/$id.mp4',
     durationMs: durationMs,
     title: id,
+    scale: 1,
+    rotation: 0,
+    offsetX: 0,
+    offsetY: 0,
   );
 }
 

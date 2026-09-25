@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/theme/accent_color_controller.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_controller.dart';
 import 'core/theme/theme_reveal.dart';
@@ -19,6 +20,9 @@ class ArgandApp extends ConsumerWidget {
     // System until the stored preference loads, which is one frame and is also
     // the correct answer if nothing was ever chosen.
     final mode = ref.watch(themeModeSettingProvider).value ?? ThemeMode.system;
+    // The user's action colour, the default until it loads.
+    final accent =
+        ref.watch(accentColorSettingProvider).value ?? AppTheme.defaultAccent;
 
     return MaterialApp(
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
@@ -26,8 +30,8 @@ class ArgandApp extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       // Both defined in one place and built together -- see AppTheme for why
       // dark cannot be an afterthought with this style.
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(accent: accent),
+      darkTheme: AppTheme.dark(accent: accent),
       themeMode: mode,
       // Wraps the navigator, so a theme change can photograph whatever screen
       // is showing and wipe it away rather than cross-fading.

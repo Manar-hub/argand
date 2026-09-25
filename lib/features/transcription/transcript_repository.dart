@@ -15,6 +15,7 @@ import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
 import '../../core/timeline/clip_trim.dart';
+import '../../core/timeline/item_look.dart';
 import '../../core/timeline/layer_drag.dart';
 import '../../core/timeline/timeline_event.dart';
 import 'timeline_history.dart';
@@ -206,6 +207,181 @@ class TranscriptRepository {
   }
 
   Future<void> removeLayer(String layerId) => _db.softDeleteLayer(layerId);
+
+  /// Commits one gesture: writes every item's new placement and records the
+  /// whole set as one undoable step.
+  Future<void> applyPlacements({
+    required String projectId,
+    required List<PlacementChange> changes,
+  }) async {
+    final moved = [
+      for (final change in changes)
+        if (change.before != change.after) change,
+    ];
+    if (moved.isEmpty) return;
+
+    await _db.transaction(() async {
+      for (final change in moved) {
+        await writePlacement(
+          _db,
+          kind: change.kind,
+          id: change.id,
+          transform: change.after,
+        );
+      }
+    });
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.transformBatch,
+      payload: transformBatchPayload(moved),
+    );
+  }
+
+  /// Restyles everything in [changes] as one undoable step.
+  ///
+  /// [resetSentencesIn] names transcripts whose sentences styled on their own
+  /// should go back to following their layer -- what "all captions" means, so
+  /// the whole transcription ends up matching.
+  Future<void> applyLooks({
+    required String projectId,
+    required List<LookChange> changes,
+    List<String> resetSentencesIn = const [],
+  }) async {
+    final wordLooks = <String, String?>{
+      for (final word in await _db.wordsWithOwnLook(resetSentencesIn))
+        word.id: word.captionLook,
+    };
+    final changed = [
+      for (final change in changes)
+        if (change.before != change.after) change,
+    ];
+    if (changed.isEmpty && wordLooks.isEmpty) return;
+
+    await _db.transaction(() async {
+      if (wordLooks.isNotEmpty) {
+        await _db.setWordLooks({for (final id in wordLooks.keys) id: null});
+      }
+      for (final change in changed) {
+        await writeLook(_db, kind: change.kind, id: change.id, look: change.after);
+      }
+    });
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.lookBatch,
+      payload: lookBatchPayload(changed, wordLooks: wordLooks),
+    );
+  }
+
+  /// The look of the layer a transcript came from, or null for the default.
+  Future<ItemLook?> layerLookOfTranscript(String transcriptId) async {
+    final transcript = await _db.findTranscript(transcriptId);
+    final layerId = transcript?.layerId;
+    if (layerId == null) return null;
+    return (await _db.findLayer(layerId))?.look;
+  }
+
+  /// The look a sentence has of its own, or null while it follows its layer.
+  Future<ItemLook?> sentenceLook({
+    required String transcriptId,
+    required int fromPosition,
+  }) async =>
+      (await _db.wordAt(transcriptId: transcriptId, position: fromPosition))
+          ?.ownLook;
+
+  /// A project's text layers, in timeline order.
+  Stream<List<TextLayer>> watchTextLayers(String projectId) =>
+      _db.watchTextLayers(projectId);
+
+  Future<List<TextLayer>> textLayersForProject(String projectId) =>
+      _db.textLayersForProject(projectId);
+
+  /// Puts [content] on the picture for [startMs]–[endMs], centred.
+  Future<String?> addTextLayer({
+    required String projectId,
+    required int startMs,
+    required int endMs,
+    required String content,
+  }) async {
+    final words = content.trim();
+    if (endMs <= startMs || words.isEmpty) return null;
+
+    // **The first row it fits on.** Two texts at the same moment on one row
+    // would draw one block over the other, and the one underneath could not
+    // be reached to select it.
+    final existing = await _db.textLayersForProject(projectId);
+    var row = 0;
+    while (existing.any((t) =>
+        t.trackIndex == row && t.startMs < endMs && t.endMs > startMs)) {
+      row++;
+    }
+
+    final id = newId();
+    await _db.insertTextLayer(
+      id: id,
+      projectId: projectId,
+      startMs: startMs,
+      endMs: endMs,
+      content: words,
+      trackIndex: row,
+    );
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.textAdd,
+      payload: textAddPayload(id: id),
+    );
+    return id;
+  }
+
+  /// Changes a text's words or timing; what is not given stays as it is.
+  Future<void> editTextLayer({
+    required String id,
+    String? content,
+    int? startMs,
+    int? endMs,
+  }) async {
+    final before = await _db.findTextLayer(id);
+    if (before == null) return;
+
+    final words = content?.trim();
+    final nextContent = (words == null || words.isEmpty) ? before.content : words;
+    final nextStart = startMs ?? before.startMs;
+    final nextEnd = endMs ?? before.endMs;
+    if (nextEnd <= nextStart) return;
+    if (nextContent == before.content &&
+        nextStart == before.startMs &&
+        nextEnd == before.endMs) {
+      return;
+    }
+
+    await _db.updateTextLayer(
+      id: id,
+      content: nextContent,
+      startMs: nextStart,
+      endMs: nextEnd,
+    );
+    await recordTimelineEvent(
+      projectId: before.projectId,
+      kind: TimelineEventKind.textEdit,
+      payload: textEditPayload(
+        before: before,
+        content: nextContent,
+        startMs: nextStart,
+        endMs: nextEnd,
+      ),
+    );
+  }
+
+  Future<void> removeTextLayer(String id) async {
+    final text = await _db.findTextLayer(id);
+    if (text == null || text.deletedAt != null) return;
+
+    await _db.setTextLayerRetired(id: id, retired: true);
+    await recordTimelineEvent(
+      projectId: text.projectId,
+      kind: TimelineEventKind.textRemove,
+      payload: textRemovePayload(id: id),
+    );
+  }
 
   /// Discards what a layer produced, keeping the layer itself.
   ///
@@ -1255,6 +1431,11 @@ Stream<List<TranscribeLayer>> projectLayers(Ref ref, String projectId) =>
 
 /// A project's clips in timeline order. Empty for a project nobody has added
 /// media to yet, which is the state "Create project" leaves behind.
+/// A project's text layers in timeline order.
+@riverpod
+Stream<List<TextLayer>> projectTextLayers(Ref ref, String projectId) =>
+    ref.watch(transcriptRepositoryProvider).watchTextLayers(projectId);
+
 @riverpod
 Stream<List<MediaClip>> projectClips(Ref ref, String projectId) =>
     ref.watch(transcriptRepositoryProvider).watchClips(projectId);
@@ -1328,6 +1509,7 @@ List<TimelineSentence> projectSentences(Ref ref, String projectId) {
               startMs: word.startMs,
               endMs: word.endMs,
               speakerId: word.speakerId,
+              position: word.position,
             ),
         ],
       ));

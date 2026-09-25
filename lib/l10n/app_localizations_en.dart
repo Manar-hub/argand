@@ -281,6 +281,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeModeDark => 'Dark';
 
   @override
+  String get settingsAccentColor => 'Action colour';
+
+  @override
   String get openAction => 'Open';
 
   @override
@@ -390,6 +393,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trackKindAudio => 'Audio';
 
   @override
+  String get trackKindTextDetail => 'Words on the picture, at the playhead.';
+
+  @override
+  String zoomPercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
   String get trackKindText => 'Text';
 
   @override
@@ -404,6 +415,120 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get timelineCaptionsLabel => 'Captions';
+
+  @override
+  String get timelineToolZoom => 'Zoom';
+
+  @override
+  String get timelineToolRotate => 'Rotate';
+
+  @override
+  String selectionCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get selectionDelete => 'Delete';
+
+  @override
+  String get selectionDone => 'Done';
+
+  @override
+  String get selectionHint => 'Tap to edit · hold to select several';
+
+  @override
+  String get textSelected => 'Text selected.';
+
+  @override
+  String get textEdit => 'Edit text';
+
+  @override
+  String get sentenceSelected => 'Sentence selected.';
+
+  @override
+  String get textPlaceholder => 'Text';
+
+  @override
+  String get clipSelected => 'Clip selected.';
+
+  @override
+  String clipRemoveManyTitle(int count) {
+    return 'Remove $count clips?';
+  }
+
+  @override
+  String get timelineToolStyle => 'Style';
+
+  @override
+  String get styleFont => 'Font';
+
+  @override
+  String get styleColor => 'Colour';
+
+  @override
+  String get styleCaption => 'Animation';
+
+  @override
+  String get styleHighlight => 'Highlight';
+
+  @override
+  String get styleScopeAll => 'All captions';
+
+  @override
+  String get styleNothing => 'Select a text or caption to style it.';
+
+  @override
+  String get styleColorSpeaker => 'Speaker';
+
+  @override
+  String get styleColorDefault => 'Default';
+
+  @override
+  String get styleModeStandard => 'Standard';
+
+  @override
+  String get styleModeKaraoke => 'Karaoke';
+
+  @override
+  String get styleModeWordByWord => 'Word';
+
+  @override
+  String get styleModeHighlight => 'Highlight';
+
+  @override
+  String get styleHighlightBox => 'Box';
+
+  @override
+  String get styleHighlightLetters => 'Letters';
+
+  @override
+  String styleScopeSelected(int count) {
+    return 'Selected ($count)';
+  }
+
+  @override
+  String get styleShadow => 'Shadow';
+
+  @override
+  String get styleShadowNone => 'None';
+
+  @override
+  String get styleShadowOnBackground => 'Words on a background have no shadow.';
+
+  @override
+  String get styleColorText => 'Text';
+
+  @override
+  String get styleColorBackground => 'Background';
+
+  @override
+  String get styleColorNone => 'None';
+
+  @override
+  String get styleHue => 'Hue';
+
+  @override
+  String get styleShade => 'Shade';
 
   @override
   String get timelineToolSplit => 'Split';

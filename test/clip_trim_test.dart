@@ -22,6 +22,10 @@ MediaClip clip({
       trimStartMs: trimStartMs,
       trimEndMs: trimEndMs,
       title: id,
+      scale: 1,
+      rotation: 0,
+      offsetX: 0,
+      offsetY: 0,
     );
 
 void main() {
@@ -262,6 +266,10 @@ void main() {
         durationMs: 14000,
         trimStartMs: 6000,
         title: 'X',
+        scale: 1,
+        rotation: 0,
+        offsetX: 0,
+        offsetY: 0,
       );
       expect(sharesACut(left(), other), isFalse);
     });

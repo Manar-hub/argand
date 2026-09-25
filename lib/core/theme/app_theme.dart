@@ -1,56 +1,58 @@
 import 'package:flutter/material.dart';
 
+import 'app_controls.dart';
 import 'app_spacing.dart';
 import 'app_surface.dart';
 
 /// The app's light and dark themes, built together.
 ///
-/// **Together, not light-then-dark.** The style leans on a dark outline and a
-/// hard offset shadow over a light ground; on a near-black ground the shadow
-/// disappears and the outline has to invert. Adding dark afterwards means
-/// rebuilding it, so both are defined here side by side and every value that
-/// differs is visible as a pair.
+/// **Sharp-corner neo-brutalism** (reference: the Bruddle kit, 2026-09-25):
+/// square corners everywhere, a thin near-black outline on paper and none on
+/// dark, a hard down-right shadow only on what a screen is about, selection
+/// as a solid block of ink, and one **action colour the user picks** for
+/// every call to action.
+///
+/// **Together, not light-then-dark.** Both are defined here side by side and
+/// every value that differs is visible as a pair.
 ///
 /// Direction and constraints → `docs/design-direction.md`.
 abstract final class AppTheme {
-  /// Warm paper. Pure white beside a 2px black outline glares, and every
-  /// reference sits on a paper tone; cards are a shade lighter again so the
-  /// list does not read as one flat wall.
-  static const _lightGround = Color(0xFFFFF1E8);
-  static const _lightCard = Color(0xFFFFFAF5);
+  /// Warm off-white paper, cards the same tone: on paper the outline is what
+  /// draws a card's edge, as in the reference.
+  static const _lightGround = Color(0xFFF8F4EF);
+  static const _lightCard = Color(0xFFF8F4EF);
   static const _lightInk = Color(0xFF141414);
 
-  static const _darkGround = Color(0xFF161616);
-  static const _darkCard = Color(0xFF1F1F1F);
+  /// Near-black with a card one clear step lighter: dark draws no outline, so
+  /// the tone is the edge.
+  static const _darkGround = Color(0xFF111111);
+  static const _darkCard = Color(0xFF1E1E1E);
   static const _darkInk = Color(0xFFF2F0EA);
 
-  /// Two colours, and the themes trade them.
+  /// The action colour until the user picks one: the reference's violet.
   ///
-  /// Yellow is the call to action on paper and the blue is the call to action
-  /// on near-black — the same yellow over a dark ground is a floodlight. What
-  /// each theme does *not* spend on its import panel, it spends on selection,
-  /// so the two roles are always told apart by hue and never compete.
-  ///
-  /// The blue takes white ink at 5.0:1 and would only manage 4.2:1 with black,
-  /// which is why [inkOn] measures rather than assuming a single ink.
-  static const _yellow = Color(0xFFFFD93D);
-  static const _blue = Color(0xFF116DD6);
+  /// Every call to action takes the user's colour (`AccentColorSetting`), so
+  /// this is only where it starts.
+  static const defaultAccent = Color(0xFF9B6CFF);
 
   /// A soft highlight, used where something is emphasised but not chosen:
   /// the word under the playhead, a pending range.
   static const highlight = Color(0xFFEB99DD);
 
+  /// The UI's two families (pubspec.yaml): Roboto Flex for headlines and
+  /// anything meant to hit hard, Plus Jakarta Sans for everything read.
+  static const displayFamily = 'ArgandDisplay';
+  static const textFamily = 'ArgandText';
+
   /// Text and icons on a filled accent, chosen from the fill rather than fixed.
   ///
-  /// A single constant does not survive these fills, and the test is what said
-  /// so: black reads 15:1 on the yellow but only 4.2:1 on the blue, where white
-  /// reaches 5.0:1.
+  /// The action colour is the user's, so no single ink survives it: black
+  /// reads on a yellow, white on a deep blue.
   ///
   /// Deliberately **not** `ThemeData.estimateBrightnessForColor`. Its threshold
   /// sits at a relative luminance of about 0.34, so a mid-tone fill gets called
   /// "dark" and handed light ink that is *worse* than the black it rejected.
-  /// Measuring both and taking the winner cannot make that mistake, and stays
-  /// right if a fill is ever retuned.
+  /// Measuring both and taking the winner cannot make that mistake.
   static Color inkOn(Color fill) {
     const dark = Color(0xFF141414);
     const light = Color(0xFFF7F5F0);
@@ -64,31 +66,25 @@ abstract final class AppTheme {
     return la > lb ? la / lb : lb / la;
   }
 
-  /// The light theme's call-to-action fill, for anything that needs the value
-  /// without a `BuildContext`.
-  static const accent = _yellow;
-
   /// Reserved for genuine destruction — deleting a project. Also outside the
   /// speaker set, so it cannot be mistaken for an attribution.
   static const danger = Color(0xFFE03131);
 
-  static ThemeData light() => _build(
+  static ThemeData light({Color accent = defaultAccent}) => _build(
         brightness: Brightness.light,
         ground: _lightGround,
         card: _lightCard,
         ink: _lightInk,
-        accent: _yellow,
-        selected: _blue,
+        accent: accent,
         surface: AppSurface.light(),
       );
 
-  static ThemeData dark() => _build(
+  static ThemeData dark({Color accent = defaultAccent}) => _build(
         brightness: Brightness.dark,
         ground: _darkGround,
         card: _darkCard,
         ink: _darkInk,
-        accent: _blue,
-        selected: _yellow,
+        accent: accent,
         surface: AppSurface.dark(),
       );
 
@@ -98,22 +94,25 @@ abstract final class AppTheme {
     required Color card,
     required Color ink,
     required Color accent,
-    required Color selected,
     required AppSurface surface,
   }) {
-    // Written out rather than generated from a seed. `ColorScheme.fromSeed`
-    // produces tonal, slightly-tinted surfaces, which is the opposite of a flat
-    // ground with a hard outline — every value here is a decision.
+    const square = BorderRadius.zero;
+
+    // Written out rather than generated from a seed: every value here is a
+    // decision.
     final scheme = ColorScheme(
       brightness: brightness,
+      // Every call to action: the user's colour.
       primary: accent,
       onPrimary: inkOn(accent),
       // The playhead highlight and other soft emphasis.
       primaryContainer: highlight.withValues(alpha: 0.35),
       onPrimaryContainer: ink,
-      // Selection, everywhere it appears.
-      secondary: selected,
-      onSecondary: inkOn(selected),
+      // Selection, everywhere it appears: a solid block of ink, as the
+      // reference's chosen tab. Never the action colour, so a chosen option
+      // and a button to press are always told apart.
+      secondary: ink,
+      onSecondary: ground,
       error: danger,
       onError: Colors.white,
       surface: ground,
@@ -124,16 +123,23 @@ abstract final class AppTheme {
     );
 
     final text = _typography(ink);
+    final shape = RoundedRectangleBorder(
+      borderRadius: square,
+      side: surface.side,
+    );
 
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: ground,
+      // Not `ThemeData.fontFamily`: that re-applies one family over the whole
+      // text theme and would erase the display face on the headlines. Every
+      // style names its own family instead.
       textTheme: text,
+      primaryTextTheme: text.apply(bodyColor: ink, displayColor: ink),
       extensions: [surface],
 
-      // Flat, outlined, and part of the page rather than floating above it.
       appBarTheme: AppBarTheme(
         backgroundColor: ground,
         foregroundColor: ink,
@@ -144,26 +150,20 @@ abstract final class AppTheme {
         titleTextStyle: text.titleLarge,
       ),
 
-      // Elevation is expressed by the offset shadow, never by a blur, so every
-      // Material default that would add one is turned off.
+      // Material's own elevation is off everywhere: depth is the hard offset
+      // shadow, drawn by `AppSurface.decoration`, never a blur.
       cardTheme: CardThemeData(
         color: card,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(
-          borderRadius: surface.borderRadius,
-          side: BorderSide(color: surface.outline, width: surface.borderWidth),
-        ),
+        shape: shape,
       ),
 
       dialogTheme: DialogThemeData(
         backgroundColor: card,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: surface.borderRadius,
-          side: BorderSide(color: surface.outline, width: surface.borderWidth),
-        ),
+        shape: shape,
         titleTextStyle: text.titleMedium,
         contentTextStyle: text.bodyMedium,
       ),
@@ -172,12 +172,15 @@ abstract final class AppTheme {
         backgroundColor: card,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(surface.radius),
-          ),
-          side: BorderSide(color: surface.outline, width: surface.borderWidth),
-        ),
+        shape: shape,
+      ),
+
+      popupMenuTheme: PopupMenuThemeData(
+        color: card,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: shape,
+        textStyle: text.bodyMedium,
       ),
 
       snackBarTheme: SnackBarThemeData(
@@ -185,7 +188,7 @@ abstract final class AppTheme {
         contentTextStyle: text.bodyMedium?.copyWith(color: ground),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: surface.borderRadius),
+        shape: const RoundedRectangleBorder(borderRadius: square),
       ),
 
       listTileTheme: ListTileThemeData(
@@ -200,11 +203,11 @@ abstract final class AppTheme {
 
       chipTheme: ChipThemeData(
         backgroundColor: card,
-        selectedColor: selected,
-        checkmarkColor: ink,
+        selectedColor: ink,
+        checkmarkColor: ground,
         labelStyle: text.labelLarge,
-        side: BorderSide(color: surface.outline, width: surface.borderWidth),
-        shape: RoundedRectangleBorder(borderRadius: surface.borderRadius),
+        side: surface.side,
+        shape: const RoundedRectangleBorder(borderRadius: square),
         showCheckmark: false,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
@@ -215,18 +218,15 @@ abstract final class AppTheme {
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
           textStyle: WidgetStatePropertyAll(text.labelLarge),
-          side: WidgetStatePropertyAll(
-            BorderSide(color: surface.outline, width: surface.borderWidth),
-          ),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: surface.borderRadius),
+          side: WidgetStatePropertyAll(surface.side),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: square),
           ),
           backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.selected) ? selected : card,
+            (states) => states.contains(WidgetState.selected) ? ink : card,
           ),
           foregroundColor: WidgetStateProperty.resolveWith(
-            (states) =>
-                states.contains(WidgetState.selected) ? inkOn(selected) : ink,
+            (states) => states.contains(WidgetState.selected) ? ground : ink,
           ),
         ),
       ),
@@ -241,10 +241,10 @@ abstract final class AppTheme {
             horizontal: AppSpacing.lg,
             vertical: AppSpacing.md,
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: surface.borderRadius,
-            side: BorderSide(color: surface.outline, width: surface.borderWidth),
-          ),
+          shape: shape,
+          // The box is the button, with no invisible touch margin round it,
+          // so `AppRaised`'s shadow falls from the button's own edge.
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),
 
@@ -252,7 +252,13 @@ abstract final class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: ink,
           textStyle: text.labelLarge,
-          shape: RoundedRectangleBorder(borderRadius: surface.borderRadius),
+          shape: const RoundedRectangleBorder(borderRadius: square),
+        ),
+      ),
+
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          shape: const RoundedRectangleBorder(borderRadius: square),
         ),
       ),
 
@@ -264,10 +270,7 @@ abstract final class AppTheme {
         hoverElevation: 0,
         highlightElevation: 0,
         extendedTextStyle: text.labelLarge,
-        shape: RoundedRectangleBorder(
-          borderRadius: surface.borderRadius,
-          side: BorderSide(color: surface.outline, width: surface.borderWidth),
-        ),
+        shape: shape,
       ),
 
       inputDecorationTheme: InputDecorationTheme(
@@ -275,22 +278,43 @@ abstract final class AppTheme {
         fillColor: brightness == Brightness.light ? ground : _darkGround,
         contentPadding: const EdgeInsets.all(AppSpacing.md),
         border: OutlineInputBorder(
-          borderRadius: surface.borderRadius,
-          borderSide: BorderSide(color: surface.outline, width: surface.borderWidth),
+          borderRadius: square,
+          borderSide: surface.side,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: surface.borderRadius,
-          borderSide: BorderSide(color: surface.outline, width: surface.borderWidth),
+          borderRadius: square,
+          borderSide: surface.side,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: surface.borderRadius,
-          borderSide: BorderSide(color: accent, width: surface.borderWidth),
+          borderRadius: square,
+          borderSide: BorderSide(color: accent, width: 2),
         ),
       ),
 
-      switchTheme: SwitchThemeData(
-        trackOutlineColor: WidgetStatePropertyAll(surface.outline),
-        trackOutlineWidth: const WidgetStatePropertyAll(2),
+      checkboxTheme: CheckboxThemeData(
+        shape: const RoundedRectangleBorder(borderRadius: square),
+        side: BorderSide(color: ink, width: 1.5),
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? ink : Colors.transparent,
+        ),
+        checkColor: WidgetStatePropertyAll(ground),
+      ),
+
+      // Square thumb on a straight track, the thumb standing on the app's
+      // hard shadow.
+      sliderTheme: SliderThemeData(
+        trackHeight: 4,
+        trackShape: const RectangularSliderTrackShape(),
+        activeTrackColor: ink,
+        inactiveTrackColor: ink.withValues(alpha: 0.18),
+        thumbColor: accent,
+        overlayShape: SliderComponentShape.noOverlay,
+        thumbShape: AppSquareThumb(
+          outline: surface.outlined ? surface.outline : null,
+          shadow: surface.shadow,
+          offset: surface.offset / 2,
+        ),
       ),
 
       progressIndicatorTheme: ProgressIndicatorThemeData(
@@ -298,8 +322,12 @@ abstract final class AppTheme {
         linearTrackColor: surface.outline.withValues(alpha: 0.15),
       ),
 
+      // Without an outline (dark) a divider in full ink would be the one
+      // white line left on the page, so it drops to the hairline.
       dividerTheme: DividerThemeData(
-        color: surface.outline,
+        color: surface.outlined
+            ? surface.outline
+            : surface.outline.withValues(alpha: 0.18),
         thickness: 1,
         space: 1,
       ),
@@ -308,77 +336,52 @@ abstract final class AppTheme {
 
   /// Heavy display against plain body.
   ///
-  /// The weight contrast is what carries the style — it does the job colour
-  /// usually would, which is exactly what lets the palette stay quiet enough
-  /// for `SpeakerPalette` to remain the loudest thing on screen.
-  ///
-  /// The platform font, for now. Bundling a grotesk is an app-size and
-  /// licensing decision, it is purely additive, and it is better made once the
-  /// structure is agreed.
+  /// Roboto Flex at its heaviest for headlines and anything meant to hit
+  /// hard; Plus Jakarta Sans, set for reading, for everything else. The
+  /// weight contrast carries the hierarchy, which is what lets the palette
+  /// stay quiet enough for `SpeakerPalette` to remain the loudest thing on
+  /// screen.
   static TextTheme _typography(Color ink) {
+    TextStyle display(double size, FontWeight weight, double tracking,
+            double height) =>
+        TextStyle(
+          fontFamily: displayFamily,
+          fontSize: size,
+          height: height,
+          fontWeight: weight,
+          letterSpacing: tracking,
+          color: ink,
+        );
+    TextStyle body(double size, FontWeight weight, double height,
+            {double tracking = 0, Color? color}) =>
+        TextStyle(
+          fontFamily: textFamily,
+          fontSize: size,
+          height: height,
+          fontWeight: weight,
+          letterSpacing: tracking,
+          color: color ?? ink,
+        );
+
     return TextTheme(
-      headlineLarge: TextStyle(
-        fontSize: 32,
-        height: 1.05,
-        fontWeight: FontWeight.w900,
-        letterSpacing: -0.8,
-        color: ink,
-      ),
-      titleLarge: TextStyle(
-        fontSize: 22,
-        height: 1.15,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.4,
-        color: ink,
-      ),
-      titleMedium: TextStyle(
-        fontSize: 17,
-        height: 1.25,
-        fontWeight: FontWeight.w700,
-        color: ink,
-      ),
-      titleSmall: TextStyle(
-        fontSize: 15,
-        height: 1.3,
-        fontWeight: FontWeight.w700,
-        color: ink,
-      ),
+      displayLarge: display(57, FontWeight.w900, -1.5, 1.0),
+      displayMedium: display(45, FontWeight.w900, -1.2, 1.0),
+      displaySmall: display(36, FontWeight.w900, -1.0, 1.05),
+      headlineLarge: display(32, FontWeight.w900, -1.0, 1.05),
+      headlineMedium: display(28, FontWeight.w900, -0.8, 1.1),
+      headlineSmall: display(24, FontWeight.w800, -0.6, 1.1),
+      titleLarge: display(22, FontWeight.w900, -0.5, 1.15),
+      titleMedium: display(17, FontWeight.w800, -0.2, 1.25),
+      titleSmall: display(15, FontWeight.w700, -0.1, 1.3),
       // The transcript. The most-read surface in the app, so it is set for
       // reading rather than for style: generous line height, normal weight.
-      bodyLarge: TextStyle(
-        fontSize: 16,
-        height: 1.5,
-        fontWeight: FontWeight.w400,
-        color: ink,
-      ),
-      bodyMedium: TextStyle(
-        fontSize: 14,
-        height: 1.45,
-        fontWeight: FontWeight.w400,
-        color: ink,
-      ),
-      bodySmall: TextStyle(
-        fontSize: 12.5,
-        height: 1.4,
-        fontWeight: FontWeight.w400,
-        color: ink.withValues(alpha: 0.75),
-      ),
-      // Uppercase-adjacent tracking on labels, which is where the style shows
-      // without costing legibility in running text.
-      labelLarge: TextStyle(
-        fontSize: 13,
-        height: 1.2,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.3,
-        color: ink,
-      ),
-      labelMedium: TextStyle(
-        fontSize: 12,
-        height: 1.2,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
-        color: ink,
-      ),
+      bodyLarge: body(16, FontWeight.w400, 1.5),
+      bodyMedium: body(14, FontWeight.w400, 1.45),
+      bodySmall: body(12.5, FontWeight.w400, 1.4,
+          color: ink.withValues(alpha: 0.7)),
+      labelLarge: body(13, FontWeight.w700, 1.2, tracking: 0.2),
+      labelMedium: body(12, FontWeight.w600, 1.2, tracking: 0.2),
+      labelSmall: body(11, FontWeight.w600, 1.2, tracking: 0.2),
     );
   }
 }

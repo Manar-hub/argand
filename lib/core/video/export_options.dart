@@ -140,6 +140,19 @@ enum WatermarkCorner {
 /// mark in the preview is the size it will be in the file.
 const double watermarkTextFraction = 0.030;
 
+/// A caption's text height at scale 1, as a share of the output's short edge.
+///
+/// **Must match `CAPTION_TEXT_FRACTION` in `VideoExportChannel.kt`**, for the
+/// same reason as [watermarkTextFraction]: the stage draws captions at the
+/// size the file will have them.
+const double captionTextFraction = 0.045;
+
+/// A text layer's height at scale 1. Larger than a caption: a text is a
+/// title or a label, placed on purpose, not a running subtitle.
+///
+/// **Must match `TEXT_LAYER_FRACTION` in `VideoExportChannel.kt`.**
+const double textLayerFraction = 0.06;
+
 /// Everything the export sheet collects.
 ///
 /// [waiver] is what leaves the watermark off. **It is a waiver rather than a

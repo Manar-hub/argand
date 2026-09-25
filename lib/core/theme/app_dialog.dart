@@ -86,6 +86,7 @@ class AppDialog extends StatelessWidget {
         child: DecoratedBox(
           decoration: surface.decoration(
             fill: theme.colorScheme.surfaceContainerHighest,
+            raised: true,
           ),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -141,7 +142,7 @@ class AppDialogButton extends StatelessWidget {
       AppDialogEmphasis.danger => (AppTheme.danger, Colors.white),
     };
 
-    return SizedBox(
+    final button = SizedBox(
       width: double.infinity,
       child: FilledButton(
         // Only the colours are overridden: the outline and the corner radius
@@ -154,5 +155,10 @@ class AppDialogButton extends StatelessWidget {
         child: Text(action.label),
       ),
     );
+    // An action stands on the hard shadow; a secondary choice sits flat.
+    return action.emphasis == AppDialogEmphasis.secondary ||
+            action.onPressed == null
+        ? button
+        : AppRaised(child: button);
   }
 }

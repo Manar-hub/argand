@@ -198,6 +198,8 @@ void main() {
                       height: 200,
                       child: ProjectStageCanvas(
                         projectId: projectId,
+                        clipId: null,
+                        mediaPositionMs: 0,
                         sourceSize: const Size(1920, 1080),
                         picture: const ColoredBox(
                           key: Key('picture'),

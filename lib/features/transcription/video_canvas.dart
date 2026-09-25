@@ -31,6 +31,7 @@ class VideoCanvas extends StatelessWidget {
     required this.ratio,
     required this.picture,
     this.overlay,
+    this.foreground,
     this.watermark,
     this.pickCorner,
     this.pickedCorner,
@@ -44,6 +45,11 @@ class VideoCanvas extends StatelessWidget {
   /// Drawn along the bottom of the frame -- the captions, where they will be
   /// burned in.
   final Widget? overlay;
+
+  /// Fills the frame over the picture and under the watermark: the stage's
+  /// texts, captions and editing handles. Under the mark because that is the
+  /// order the render composites them in.
+  final Widget? foreground;
 
   /// Where to draw the watermark, or null to leave it off.
   final WatermarkCorner? watermark;
@@ -94,6 +100,7 @@ class VideoCanvas extends StatelessWidget {
                   picture,
                   if (overlay case final overlay?)
                     Positioned(left: 0, right: 0, bottom: 0, child: overlay),
+                  ?foreground,
                   if (pickCorner != null)
                     for (final target in WatermarkCorner.values)
                       if (target != picked)
@@ -167,11 +174,9 @@ class _CornerGhost extends StatelessWidget {
     return DecoratedBox(
       position: DecorationPosition.foreground,
       decoration: BoxDecoration(
-        // White over any footage: these sit on the picture, not the theme.
-        border: Border.all(
-          color: firm ? const Color(0xF2FFFFFF) : const Color(0x99FFFFFF),
-          width: firm ? 2 : 1,
-        ),
+        // A soft frosted patch over any footage, not a frame: these sit on
+        // the picture, not the theme.
+        color: firm ? const Color(0x59FFFFFF) : const Color(0x26FFFFFF),
       ),
       child: Visibility(
         visible: false,
@@ -401,6 +406,8 @@ class _ProjectFramePreviewState extends ConsumerState<ProjectFramePreview> {
                 child: DecoratedBox(
                   decoration: surface.decoration(
                     fill: theme.colorScheme.surfaceContainerHighest,
+                    // The picture is what the editor is about: raised.
+                    raised: true,
                   ),
                   child: ClipRRect(
                     borderRadius: surface.borderRadius,

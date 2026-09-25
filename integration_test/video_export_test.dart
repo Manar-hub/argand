@@ -7,6 +7,8 @@ import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/timeline/project_timeline.dart';
 import 'package:argand/core/monetization/monetization.dart';
 import 'package:argand/core/video/export_options.dart';
+import 'package:argand/core/timeline/item_look.dart';
+import 'package:argand/core/timeline/item_transform.dart';
 import 'package:argand/core/video/video_export.dart';
 import 'package:argand/features/transcription/transcript_repository.dart';
 import 'package:argand/features/transcription/video_export_controller.dart';
@@ -103,6 +105,8 @@ void main() {
           startMs: 0,
           endMs: clips.first.durationMs ?? 0,
           captions: const <ExportCaption>[],
+          texts: const <ExportText>[],
+          framing: ItemTransform.identity,
         ),
       ],
       fileName: exportFileName(projectTitle: 'single clip', at: DateTime.now()),
@@ -150,6 +154,8 @@ void main() {
             startMs: 0,
             endMs: clip.durationMs ?? 0,
             captions: const <ExportCaption>[],
+            texts: const <ExportText>[],
+            framing: ItemTransform.identity,
           ),
       ],
       fileName: exportFileName(projectTitle: 'joined', at: DateTime.now()),
@@ -277,6 +283,11 @@ void main() {
     endMs: 6000,
     text: 'FRAMING CHECK',
     colorArgb: 0xFFFFD54F,
+    x: 0.0,
+    y: -0.82,
+    scale: 1.0,
+    words: <TimedText>[],
+    look: ItemLook.defaults,
   );
 
   /// Six seconds is enough to see the crop and cheap enough to encode on the
@@ -295,6 +306,8 @@ void main() {
           startMs: 0,
           endMs: windowMs,
           captions: const <ExportCaption>[caption],
+          texts: const <ExportText>[],
+          framing: ItemTransform.identity,
         ),
       ],
       fileName: exportFileName(projectTitle: title, at: DateTime.now()),
@@ -365,6 +378,8 @@ void main() {
           startMs: 0,
           endMs: clips.first.durationMs ?? windowMs,
           captions: const <ExportCaption>[],
+          texts: const <ExportText>[],
+          framing: ItemTransform.identity,
         ),
       ],
       // Deliberately findable from the host: the check this test cannot make

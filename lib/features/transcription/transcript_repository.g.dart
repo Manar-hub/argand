@@ -1005,12 +1005,100 @@ final class ProjectLayersFamily extends $Family
 
 /// A project's clips in timeline order. Empty for a project nobody has added
 /// media to yet, which is the state "Create project" leaves behind.
+/// A project's text layers in timeline order.
 
-@ProviderFor(projectClips)
-final projectClipsProvider = ProjectClipsFamily._();
+@ProviderFor(projectTextLayers)
+final projectTextLayersProvider = ProjectTextLayersFamily._();
 
 /// A project's clips in timeline order. Empty for a project nobody has added
 /// media to yet, which is the state "Create project" leaves behind.
+/// A project's text layers in timeline order.
+
+final class ProjectTextLayersProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<TextLayer>>,
+          List<TextLayer>,
+          Stream<List<TextLayer>>
+        >
+    with $FutureModifier<List<TextLayer>>, $StreamProvider<List<TextLayer>> {
+  /// A project's clips in timeline order. Empty for a project nobody has added
+  /// media to yet, which is the state "Create project" leaves behind.
+  /// A project's text layers in timeline order.
+  ProjectTextLayersProvider._({
+    required ProjectTextLayersFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectTextLayersProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectTextLayersHash();
+
+  @override
+  String toString() {
+    return r'projectTextLayersProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<TextLayer>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<TextLayer>> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectTextLayers(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectTextLayersProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectTextLayersHash() => r'c85afd72a9d93ac671b18405853d7c3195db4533';
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+/// A project's text layers in timeline order.
+
+final class ProjectTextLayersFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<TextLayer>>, String> {
+  ProjectTextLayersFamily._()
+    : super(
+        retry: null,
+        name: r'projectTextLayersProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's clips in timeline order. Empty for a project nobody has added
+  /// media to yet, which is the state "Create project" leaves behind.
+  /// A project's text layers in timeline order.
+
+  ProjectTextLayersProvider call(String projectId) =>
+      ProjectTextLayersProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectTextLayersProvider';
+}
+
+@ProviderFor(projectClips)
+final projectClipsProvider = ProjectClipsFamily._();
 
 final class ProjectClipsProvider
     extends
@@ -1020,8 +1108,6 @@ final class ProjectClipsProvider
           Stream<List<MediaClip>>
         >
     with $FutureModifier<List<MediaClip>>, $StreamProvider<List<MediaClip>> {
-  /// A project's clips in timeline order. Empty for a project nobody has added
-  /// media to yet, which is the state "Create project" leaves behind.
   ProjectClipsProvider._({
     required ProjectClipsFamily super.from,
     required String super.argument,
@@ -1068,9 +1154,6 @@ final class ProjectClipsProvider
 
 String _$projectClipsHash() => r'a7d7b988b97250e4aba927803acb6a82e3545406';
 
-/// A project's clips in timeline order. Empty for a project nobody has added
-/// media to yet, which is the state "Create project" leaves behind.
-
 final class ProjectClipsFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<MediaClip>>, String> {
   ProjectClipsFamily._()
@@ -1081,9 +1164,6 @@ final class ProjectClipsFamily extends $Family
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
-
-  /// A project's clips in timeline order. Empty for a project nobody has added
-  /// media to yet, which is the state "Create project" leaves behind.
 
   ProjectClipsProvider call(String projectId) =>
       ProjectClipsProvider._(argument: projectId, from: this);
@@ -1412,7 +1492,7 @@ final class ProjectSentencesProvider
   }
 }
 
-String _$projectSentencesHash() => r'8c886a78526a1341d185117e4917e3a34efdc233';
+String _$projectSentencesHash() => r'32375b10dd7629782b2dea7716ba55061af9945b';
 
 /// Every transcribed sentence in a project, in timeline order.
 ///

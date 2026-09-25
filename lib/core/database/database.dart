@@ -118,6 +118,23 @@ class MediaClips extends Table with _RecordColumns {
   /// recomputed every time the timeline opened.
   BlobColumn get waveform => blob().nullable()();
 
+  /// How the picture sits in the output frame: moved, turned and scaled on
+  /// top of the fit the render already does. See `ItemTransform`.
+  ///
+  /// **Defaults, not nulls.** Unlike the trim points, "untouched" and "at the
+  /// identity" are the same thing here -- a clip nobody has framed is exactly
+  /// one at scale 1, turned 0 degrees, centred -- so the columns carry that
+  /// value and every existing clip gets it without a backfill.
+  RealColumn get scale => real().withDefault(const Constant(1.0))();
+
+  /// Degrees, clockwise as seen.
+  RealColumn get rotation => real().withDefault(const Constant(0.0))();
+
+  /// The picture's centre, in shares of the frame's half-width and
+  /// half-height from the middle; up is positive.
+  RealColumn get offsetX => real().withDefault(const Constant(0.0))();
+  RealColumn get offsetY => real().withDefault(const Constant(0.0))();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
@@ -156,6 +173,63 @@ class TranscribeLayers extends Table with _RecordColumns {
   /// happens when two layers claim the same audio" a question nobody has to
   /// answer.
   IntColumn get trackIndex => integer().withDefault(const Constant(0))();
+
+  /// Where this layer's captions sit in the frame, and how large.
+  ///
+  /// **Per layer, not per project**, so two layers -- two speakers, two
+  /// languages -- can be placed apart. Moving several at once is a matter of
+  /// selecting them together, not of a shared setting.
+  ///
+  /// The default is where captions have always rendered: centred, near the
+  /// bottom (`CAPTION_ANCHOR_Y` in `VideoExportChannel.kt`).
+  RealColumn get captionX => real().withDefault(const Constant(0.0))();
+  RealColumn get captionY => real().withDefault(const Constant(-0.82))();
+  RealColumn get captionScale => real().withDefault(const Constant(1.0))();
+
+  /// How this layer's captions look, as `ItemLook` JSON. Null is the default
+  /// look captions have always had.
+  ///
+  /// **JSON in one column** rather than a column per option, so the next
+  /// style option costs no migration.
+  TextColumn get captionLook => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Words the user put on the picture, for a stretch of the project.
+///
+/// Timed in **project** milliseconds, like [TranscribeLayers], so a text sits
+/// over whatever is playing at that moment rather than belonging to a clip:
+/// reordering clips underneath does not drag the title along with one of them.
+///
+/// Placed with the same four numbers a clip's picture uses (see
+/// `ItemTransform`), so the stage moves, scales and turns every kind of item
+/// the same way.
+@TableIndex(name: 'text_layers_project_start', columns: {#projectId, #startMs})
+class TextLayers extends Table with _RecordColumns {
+  TextColumn get projectId => text().references(Projects, #id)();
+
+  IntColumn get startMs => integer()();
+  IntColumn get endMs => integer()();
+
+  TextColumn get content => text()();
+
+  /// The text's centre, in shares of the frame's half-size; up is positive.
+  RealColumn get x => real().withDefault(const Constant(0.0))();
+  RealColumn get y => real().withDefault(const Constant(0.0))();
+  RealColumn get scale => real().withDefault(const Constant(1.0))();
+
+  /// Degrees, clockwise as seen.
+  RealColumn get rotation => real().withDefault(const Constant(0.0))();
+
+  /// Which stacked text track it sits on. Always 0 today; carried for the
+  /// same reason [TranscribeLayers.trackIndex] is.
+  IntColumn get trackIndex => integer().withDefault(const Constant(0))();
+
+  /// Font and colour, as `ItemLook` JSON; null is bold white in the default
+  /// face.
+  TextColumn get look => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -239,6 +313,23 @@ class Words extends Table with _RecordColumns {
 
   /// Populated by diarization in a later phase.
   TextColumn get speakerId => text().nullable()();
+
+  /// Where this word's sentence sits as a caption, when it has been placed
+  /// on its own. **Null means "wherever its layer puts captions"**, which is
+  /// every word until the user moves its sentence.
+  ///
+  /// Kept on the word rather than on a sentence row because sentences are
+  /// derived, never stored: every word of a placed sentence carries the same
+  /// values, so a caption finds its placement from its own first word however
+  /// the sentence is later cut into cues.
+  RealColumn get captionX => real().nullable()();
+  RealColumn get captionY => real().nullable()();
+  RealColumn get captionScale => real().nullable()();
+
+  /// How this word's sentence looks as a caption when styled on its own --
+  /// font, colour, karaoke and the like, as `ItemLook` JSON. Null follows the
+  /// layer, the same bargain as the placement above.
+  TextColumn get captionLook => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -337,20 +428,25 @@ class TimelineEvents extends Table with _RecordColumns {
   Settings,
   EditEvents,
   TimelineEvents,
+  TextLayers,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 12;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
   /// [Transcripts.clipId], moving media off the project row, 5 -> 6 added
   /// [TranscribeLayers] and the range columns on [Transcripts], 6 -> 7 added
   /// [MediaClips.waveform], 7 -> 8 added [MediaClips.trimStartMs] and
-  /// [MediaClips.trimEndMs], 8 -> 9 added [TimelineEvents].
+  /// [MediaClips.trimEndMs], 8 -> 9 added [TimelineEvents], 9 -> 10 added
+  /// the framing columns on [MediaClips], the caption placement on
+  /// [TranscribeLayers], and [TextLayers], 10 -> 11 added the per-sentence
+  /// caption placement on [Words], 11 -> 12 added the looks (font, colour,
+  /// caption mode) on [TranscribeLayers], [Words] and [TextLayers].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -413,6 +509,47 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(mediaClips, mediaClips.trimStartMs);
             await migrator.addColumn(mediaClips, mediaClips.trimEndMs);
           }
+          // Paired with 5, the version that created `media_clips`, and with
+          // 6 for `transcribe_layers`, for the reason given above. Their
+          // defaults are the identity and today's caption position, so no
+          // row needs writing.
+          if (from >= 5 && from < 10) {
+            await migrator.addColumn(mediaClips, mediaClips.scale);
+            await migrator.addColumn(mediaClips, mediaClips.rotation);
+            await migrator.addColumn(mediaClips, mediaClips.offsetX);
+            await migrator.addColumn(mediaClips, mediaClips.offsetY);
+          }
+          if (from >= 6 && from < 10) {
+            await migrator.addColumn(transcribeLayers, transcribeLayers.captionX);
+            await migrator.addColumn(transcribeLayers, transcribeLayers.captionY);
+            await migrator.addColumn(
+              transcribeLayers,
+              transcribeLayers.captionScale,
+            );
+          }
+          if (from < 10) {
+            await migrator.createTable(textLayers);
+          }
+          // `words` has existed since schema 1, so every upgrade adds these.
+          // Null is "follows its layer", so nothing is back-filled.
+          if (from < 11) {
+            await migrator.addColumn(words, words.captionX);
+            await migrator.addColumn(words, words.captionY);
+            await migrator.addColumn(words, words.captionScale);
+          }
+          // Each paired with the version that created its table, as above.
+          if (from < 12) {
+            await migrator.addColumn(words, words.captionLook);
+          }
+          if (from >= 6 && from < 12) {
+            await migrator.addColumn(
+              transcribeLayers,
+              transcribeLayers.captionLook,
+            );
+          }
+          if (from >= 10 && from < 12) {
+            await migrator.addColumn(textLayers, textLayers.look);
+          }
 
           // **`createTable` does not create a table's declared indexes.**
           // `createAll()` does, so a fresh install had them and every upgraded
@@ -438,6 +575,7 @@ class AppDatabase extends _$AppDatabase {
             wordsTranscriptStart,
             settingsKey,
             editEventsTranscriptSeq,
+            textLayersProjectStart,
           ]) {
             final sql = index.createStatementsByDialect[SqlDialect.sqlite];
             if (sql == null) continue;
@@ -1051,6 +1189,226 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Where a layer's captions sit.
+  Future<void> setLayerCaptionPlacement({
+    required String layerId,
+    required double x,
+    required double y,
+    required double scale,
+  }) {
+    return (update(transcribeLayers)..where((t) => t.id.equals(layerId)))
+        .write(
+      TranscribeLayersCompanion(
+        captionX: Value(x),
+        captionY: Value(y),
+        captionScale: Value(scale),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// How a clip's picture sits in the frame.
+  Future<void> setClipFraming({
+    required String clipId,
+    required double x,
+    required double y,
+    required double scale,
+    required double rotation,
+  }) {
+    return (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+      MediaClipsCompanion(
+        offsetX: Value(x),
+        offsetY: Value(y),
+        scale: Value(scale),
+        rotation: Value(rotation),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// A project's text layers in timeline order.
+  Stream<List<TextLayer>> watchTextLayers(String projectId) {
+    return (select(textLayers)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.startMs)]))
+        .watch();
+  }
+
+  Future<List<TextLayer>> textLayersForProject(String projectId) {
+    return (select(textLayers)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.startMs)]))
+        .get();
+  }
+
+  /// A text layer, retired or not -- undo has to reach retired ones.
+  Future<TextLayer?> findTextLayer(String id) {
+    return (select(textLayers)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<void> insertTextLayer({
+    required String id,
+    required String projectId,
+    required int startMs,
+    required int endMs,
+    required String content,
+    int trackIndex = 0,
+  }) {
+    final now = DateTime.now();
+    return into(textLayers).insert(
+      TextLayersCompanion.insert(
+        id: id,
+        createdAt: now,
+        updatedAt: now,
+        projectId: projectId,
+        startMs: startMs,
+        endMs: endMs,
+        content: content,
+        trackIndex: Value(trackIndex),
+      ),
+    );
+  }
+
+  /// Writes whichever of a text layer's words, timing and placement are given.
+  Future<void> updateTextLayer({
+    required String id,
+    String? content,
+    int? startMs,
+    int? endMs,
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+  }) {
+    Value<T> maybe<T>(T? value) =>
+        value == null ? const Value.absent() : Value(value);
+
+    return (update(textLayers)..where((t) => t.id.equals(id))).write(
+      TextLayersCompanion(
+        content: maybe(content),
+        startMs: maybe(startMs),
+        endMs: maybe(endMs),
+        x: maybe(x),
+        y: maybe(y),
+        scale: maybe(scale),
+        rotation: maybe(rotation),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Retires a text layer, or brings it back. Soft, per CLAUDE.md §5, and
+  /// what lets adding and removing one be undone.
+  Future<void> setTextLayerRetired({required String id, required bool retired}) {
+    final now = DateTime.now();
+    return (update(textLayers)..where((t) => t.id.equals(id))).write(
+      TextLayersCompanion(
+        deletedAt: Value(retired ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Places one sentence's captions -- the words at [fromPosition] to
+  /// [toPosition] -- or, with nulls, hands them back to their layer.
+  Future<void> setSentencePlacement({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+    required double? x,
+    required double? y,
+    required double? scale,
+  }) {
+    return (update(words)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.position.isBetweenValues(fromPosition, toPosition)))
+        .write(
+      WordsCompanion(
+        captionX: Value(x),
+        captionY: Value(y),
+        captionScale: Value(scale),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Styles one sentence's captions, or with null hands them back to their
+  /// layer's look.
+  Future<void> setSentenceLook({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+    required String? look,
+  }) {
+    return (update(words)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.position.isBetweenValues(fromPosition, toPosition)))
+        .write(
+      WordsCompanion(
+        captionLook: Value(look),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Sets words' looks one by one: what undoing "style all captions" puts
+  /// back, since each sentence styled on its own had its own.
+  Future<void> setWordLooks(Map<String, String?> looks) async {
+    final now = DateTime.now();
+    await transaction(() async {
+      for (final MapEntry(key: id, value: look) in looks.entries) {
+        await (update(words)..where((t) => t.id.equals(id))).write(
+          WordsCompanion(captionLook: Value(look), updatedAt: Value(now)),
+        );
+      }
+    });
+  }
+
+  /// The live words in [transcriptIds] that carry a look of their own.
+  Future<List<Word>> wordsWithOwnLook(List<String> transcriptIds) {
+    if (transcriptIds.isEmpty) return Future.value(const []);
+    return (select(words)
+          ..where((t) =>
+              t.transcriptId.isIn(transcriptIds) &
+              t.deletedAt.isNull() &
+              t.captionLook.isNotNull()))
+        .get();
+  }
+
+  /// The first live word of a sentence, for reading the sentence's own look.
+  Future<Word?> wordAt({required String transcriptId, required int position}) {
+    return (select(words)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.position.equals(position)))
+        .getSingleOrNull();
+  }
+
+  Future<void> setLayerCaptionLook({
+    required String layerId,
+    required String? look,
+  }) {
+    return (update(transcribeLayers)..where((t) => t.id.equals(layerId)))
+        .write(
+      TranscribeLayersCompanion(
+        captionLook: Value(look),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> setTextLook({required String id, required String? look}) {
+    return (update(textLayers)..where((t) => t.id.equals(id))).write(
+      TextLayersCompanion(look: Value(look), updatedAt: Value(DateTime.now())),
+    );
+  }
+
   /// Removes a layer, and with it the transcripts its run produced.
   ///
   /// The words are left live but unreachable, the same bargain
@@ -1133,6 +1491,30 @@ class AppDatabase extends _$AppDatabase {
             startMs: layer.startMs,
             endMs: layer.endMs,
             trackIndex: Value(layer.trackIndex),
+            captionX: Value(layer.captionX),
+            captionY: Value(layer.captionY),
+            captionScale: Value(layer.captionScale),
+            captionLook: Value(layer.captionLook),
+          ),
+        );
+      }
+
+      for (final text in await textLayersForProject(sourceProjectId)) {
+        await into(textLayers).insert(
+          TextLayersCompanion.insert(
+            id: newId(),
+            createdAt: now,
+            updatedAt: now,
+            projectId: newProjectId,
+            startMs: text.startMs,
+            endMs: text.endMs,
+            content: text.content,
+            x: Value(text.x),
+            y: Value(text.y),
+            scale: Value(text.scale),
+            rotation: Value(text.rotation),
+            trackIndex: Value(text.trackIndex),
+            look: Value(text.look),
           ),
         );
       }
@@ -1157,6 +1539,10 @@ class AppDatabase extends _$AppDatabase {
             // same media file, so the readings are identical by construction
             // and re-deriving them would mean decoding every clip again.
             waveform: Value(clip.waveform),
+            scale: Value(clip.scale),
+            rotation: Value(clip.rotation),
+            offsetX: Value(clip.offsetX),
+            offsetY: Value(clip.offsetY),
           ),
         );
 
@@ -1201,6 +1587,10 @@ class AppDatabase extends _$AppDatabase {
                   startMs: word.startMs,
                   endMs: word.endMs,
                   speakerId: Value(word.speakerId),
+                  captionX: Value(word.captionX),
+                  captionY: Value(word.captionY),
+                  captionScale: Value(word.captionScale),
+                  captionLook: Value(word.captionLook),
                 ),
             ]);
           });
@@ -1449,6 +1839,9 @@ class AppDatabase extends _$AppDatabase {
         from: fromPosition,
         to: toPosition,
       );
+      // A sentence placed on its own stays where it was put when its words
+      // are retyped: the new words take the placement the old ones had.
+      final placed = existing.firstOrNull;
 
       final claimed = {
         for (final row in replacements)
@@ -1529,6 +1922,28 @@ class AppDatabase extends _$AppDatabase {
             deletedAt: const Value(null),
             updatedAt: Value(now),
           ),
+        );
+      }
+
+      if (placed != null && placed.captionX != null && replacements.isNotEmpty) {
+        await setSentencePlacement(
+          transcriptId: transcriptId,
+          fromPosition: fromPosition,
+          toPosition: fromPosition + replacements.length - 1,
+          x: placed.captionX,
+          y: placed.captionY,
+          scale: placed.captionScale,
+        );
+      }
+      // Its look is kept the same way.
+      if (placed != null &&
+          placed.captionLook != null &&
+          replacements.isNotEmpty) {
+        await setSentenceLook(
+          transcriptId: transcriptId,
+          fromPosition: fromPosition,
+          toPosition: fromPosition + replacements.length - 1,
+          look: placed.captionLook,
         );
       }
     });

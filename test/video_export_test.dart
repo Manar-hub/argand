@@ -1,3 +1,5 @@
+import 'package:argand/core/timeline/item_transform.dart';
+import 'package:drift/drift.dart' show Value;
 import 'dart:ui' show Color;
 
 import 'package:argand/core/captions/speaker_palette.dart';
@@ -15,6 +17,10 @@ MediaClip clip(String id, int durationMs, int position) => MediaClip(
       mediaPath: '/media/$id.mp4',
       durationMs: durationMs,
       title: id,
+      scale: 1,
+      rotation: 0,
+      offsetX: 0,
+      offsetY: 0,
     );
 
 
@@ -316,6 +322,71 @@ void main() {
       ]);
 
       expect(captions.single.startMs, 5000);
+    });
+  });
+
+  group('exportTextsFor', () {
+    TextLayer text(int startMs, int endMs) => TextLayer(
+          id: 't',
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+          projectId: 'p',
+          startMs: startMs,
+          endMs: endMs,
+          content: 'Title',
+          x: 0.1,
+          y: 0.2,
+          scale: 1.5,
+          rotation: 10,
+          trackIndex: 0,
+        );
+
+    test("a text inside a clip keeps its time, on the clip's clock", () {
+      final texts =
+          exportTextsFor([text(3000, 5000)], startMs: 2000, durationMs: 4000);
+
+      expect(texts.single.startMs, 1000);
+      expect(texts.single.endMs, 3000);
+      expect(texts.single.placement.scale, 1.5);
+    });
+
+    test('a text across a cut is shown in both clips', () {
+      final title = [text(3000, 7000)];
+
+      final before = exportTextsFor(title, startMs: 0, durationMs: 5000);
+      final after = exportTextsFor(title, startMs: 5000, durationMs: 5000);
+
+      expect((before.single.startMs, before.single.endMs), (3000, 5000));
+      expect((after.single.startMs, after.single.endMs), (0, 2000));
+    });
+
+    test('a text elsewhere on the timeline is not on this clip', () {
+      expect(
+        exportTextsFor([text(8000, 9000)], startMs: 0, durationMs: 5000),
+        isEmpty,
+      );
+    });
+  });
+
+  group('caption placement', () {
+    test('a sentence placed on its own overrides its layer', () {
+      final placed = [
+        word('Hello', 0, 400, position: 0)
+            .copyWith(captionX: const Value(0.3), captionY: const Value(0.5)),
+        word('there.', 400, 800, position: 1)
+            .copyWith(captionX: const Value(0.3), captionY: const Value(0.5)),
+        word('Bye', 1200, 1600, position: 2),
+        word('now.', 1600, 2000, position: 3),
+      ];
+
+      final captions = exportCaptionsFor(
+        placed,
+        placement: const ItemTransform(y: -0.6),
+      );
+
+      expect((captions.first.x, captions.first.y), (0.3, 0.5));
+      expect((captions.last.x, captions.last.y), (0.0, -0.6),
+          reason: 'the other sentence follows its layer');
     });
   });
 }

@@ -550,6 +550,12 @@ abstract class AppLocalizations {
   /// **'Dark'**
   String get themeModeDark;
 
+  /// Settings label for the colour every call-to-action button takes
+  ///
+  /// In en, this message translates to:
+  /// **'Action colour'**
+  String get settingsAccentColor;
+
   /// Menu entry that opens a project
   ///
   /// In en, this message translates to:
@@ -742,6 +748,18 @@ abstract class AppLocalizations {
   /// **'Audio'**
   String get trackKindAudio;
 
+  /// Explanation under the Text track kind
+  ///
+  /// In en, this message translates to:
+  /// **'Words on the picture, at the playhead.'**
+  String get trackKindTextDetail;
+
+  /// The zoom slider's current value
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String zoomPercent(int percent);
+
   /// Track kind: text overlaid on the video
   ///
   /// In en, this message translates to:
@@ -771,6 +789,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Captions'**
   String get timelineCaptionsLabel;
+
+  /// Bottom toolbar button that scales the selected clip's picture
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom'**
+  String get timelineToolZoom;
+
+  /// Bottom toolbar button that turns the selected clip's picture a quarter turn
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate'**
+  String get timelineToolRotate;
+
+  /// Shown under the tracks while several timeline items are selected
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String selectionCount(int count);
+
+  /// Deletes every selected timeline item
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get selectionDelete;
+
+  /// Ends multi-select and clears the selection
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get selectionDone;
+
+  /// Shown under the tracks when nothing is selected, explaining tap versus long press
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to edit · hold to select several'**
+  String get selectionHint;
+
+  /// Shown under the tracks when one text layer is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Text selected.'**
+  String get textSelected;
+
+  /// Opens the words of the selected text layer for editing
+  ///
+  /// In en, this message translates to:
+  /// **'Edit text'**
+  String get textEdit;
+
+  /// Shown under the tracks when one transcribed sentence is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Sentence selected.'**
+  String get sentenceSelected;
+
+  /// The word a new text layer starts with, selected so typing replaces it
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get textPlaceholder;
+
+  /// Shown under the tracks when one clip is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Clip selected.'**
+  String get clipSelected;
+
+  /// Heading of the dialog confirming removal of several clips
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {count} clips?'**
+  String clipRemoveManyTitle(int count);
+
+  /// Bottom toolbar button that opens fonts, colours and caption styles
+  ///
+  /// In en, this message translates to:
+  /// **'Style'**
+  String get timelineToolStyle;
+
+  /// Style panel item: the typeface
+  ///
+  /// In en, this message translates to:
+  /// **'Font'**
+  String get styleFont;
+
+  /// Style panel item: the colour of the words
+  ///
+  /// In en, this message translates to:
+  /// **'Colour'**
+  String get styleColor;
+
+  /// Style panel item: how a caption's words appear as they are spoken
+  ///
+  /// In en, this message translates to:
+  /// **'Animation'**
+  String get styleCaption;
+
+  /// Style panel item: the colour the spoken word takes
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight'**
+  String get styleHighlight;
+
+  /// Style panel scope: every caption in the project
+  ///
+  /// In en, this message translates to:
+  /// **'All captions'**
+  String get styleScopeAll;
+
+  /// Style panel, when there is nothing it can style
+  ///
+  /// In en, this message translates to:
+  /// **'Select a text or caption to style it.'**
+  String get styleNothing;
+
+  /// Colour choice meaning each caption takes its speaker's colour
+  ///
+  /// In en, this message translates to:
+  /// **'Speaker'**
+  String get styleColorSpeaker;
+
+  /// Colour choice meaning the default colour
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get styleColorDefault;
+
+  /// Caption animation: the whole line at once
+  ///
+  /// In en, this message translates to:
+  /// **'Standard'**
+  String get styleModeStandard;
+
+  /// Caption animation: words fill with colour as they are spoken
+  ///
+  /// In en, this message translates to:
+  /// **'Karaoke'**
+  String get styleModeKaraoke;
+
+  /// Caption animation: one word at a time
+  ///
+  /// In en, this message translates to:
+  /// **'Word'**
+  String get styleModeWordByWord;
+
+  /// Caption animation: the spoken word is picked out
+  ///
+  /// In en, this message translates to:
+  /// **'Highlight'**
+  String get styleModeHighlight;
+
+  /// Highlight drawn as a box behind the word
+  ///
+  /// In en, this message translates to:
+  /// **'Box'**
+  String get styleHighlightBox;
+
+  /// Highlight drawn as the word's own colour
+  ///
+  /// In en, this message translates to:
+  /// **'Letters'**
+  String get styleHighlightLetters;
+
+  /// Style panel scope: only the selected items
+  ///
+  /// In en, this message translates to:
+  /// **'Selected ({count})'**
+  String styleScopeSelected(int count);
+
+  /// Style panel item: the drop shadow under the words
+  ///
+  /// In en, this message translates to:
+  /// **'Shadow'**
+  String get styleShadow;
+
+  /// Shadow strength readout at zero
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get styleShadowNone;
+
+  /// Shown under the shadow dial when the words have a background colour
+  ///
+  /// In en, this message translates to:
+  /// **'Words on a background have no shadow.'**
+  String get styleShadowOnBackground;
+
+  /// Colour target: the words themselves
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get styleColorText;
+
+  /// Colour target: a colour behind the words
+  ///
+  /// In en, this message translates to:
+  /// **'Background'**
+  String get styleColorBackground;
+
+  /// Background colour option: no background
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get styleColorNone;
+
+  /// Accessibility label for the colour spectrum slider
+  ///
+  /// In en, this message translates to:
+  /// **'Hue'**
+  String get styleHue;
+
+  /// Accessibility label for the dark-to-light slider
+  ///
+  /// In en, this message translates to:
+  /// **'Shade'**
+  String get styleShade;
 
   /// Timeline toolbar action that cuts the selected clip in two at the playhead
   ///

@@ -1,3 +1,4 @@
+import 'package:argand/core/theme/app_controls.dart';
 import 'package:argand/core/captions/subtitle_export.dart';
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/media/media_converter.dart';
@@ -170,9 +171,9 @@ void main() {
   uiTest('offline, the watermark cannot be switched off', (tester) async {
     final sheet = await open(tester, await seedTranscribed(), online: false);
 
-    await tapVisible(tester, find.byType(Switch));
+    await tapVisible(tester, find.byType(AppToggle));
 
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(tester.widget<AppToggle>(find.byType(AppToggle)).value, isFalse);
     expect(
       find.text("Couldn't load the ad — the watermark stays on."),
       findsOneWidget,
@@ -186,7 +187,7 @@ void main() {
       (tester) async {
     final sheet = await open(tester, await seedTranscribed());
 
-    await tapVisible(tester, find.byType(Switch));
+    await tapVisible(tester, find.byType(AppToggle));
     expect(primaryButton('Watch ad, then export'), findsOneWidget);
 
     await tapVisible(tester, primaryButton('Watch ad, then export'));
@@ -203,7 +204,7 @@ void main() {
       watchesToEnd: false,
     );
 
-    await tapVisible(tester, find.byType(Switch));
+    await tapVisible(tester, find.byType(AppToggle));
     await tapVisible(tester, primaryButton('Watch ad, then export'));
 
     expect(sheet.shown(), 1);
@@ -256,13 +257,13 @@ void main() {
     await tester.tap(find.text('open'));
     await settle(tester);
 
-    await tapVisible(tester, find.byType(Switch));
+    await tapVisible(tester, find.byType(AppToggle));
     online = false;
     await tapVisible(tester, primaryButton('Watch ad, then export'));
 
     expect(shown, 0);
     expect(result, isNull);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+    expect(tester.widget<AppToggle>(find.byType(AppToggle)).value, isFalse);
   });
 
   uiTest('SRT carries the chosen line length', (tester) async {

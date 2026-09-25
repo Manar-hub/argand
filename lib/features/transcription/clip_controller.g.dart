@@ -366,7 +366,7 @@ final class TimelineSelectionProvider
   }
 }
 
-String _$timelineSelectionHash() => r'df4e07d83938284d5ef533638de3a5feee94d81d';
+String _$timelineSelectionHash() => r'ca8bda6a68e599438f74f3b59364b0a3d245453a';
 
 /// Everything the editing tools will act on.
 ///
@@ -440,6 +440,131 @@ abstract class _$TimelineSelection extends $Notifier<Set<TimelineItem>> {
             as $ClassProviderElement<
               AnyNotifier<Set<TimelineItem>, Set<TimelineItem>>,
               Set<TimelineItem>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
+/// Whether taps on the timeline add to the selection rather than replace it.
+///
+/// Entered by a long press and left when the selection empties or the user
+/// says Done. Its own provider rather than a field on [TimelineSelection],
+/// whose value is the set that dozens of call sites already read.
+
+@ProviderFor(TimelineMultiSelect)
+final timelineMultiSelectProvider = TimelineMultiSelectFamily._();
+
+/// Whether taps on the timeline add to the selection rather than replace it.
+///
+/// Entered by a long press and left when the selection empties or the user
+/// says Done. Its own provider rather than a field on [TimelineSelection],
+/// whose value is the set that dozens of call sites already read.
+final class TimelineMultiSelectProvider
+    extends $NotifierProvider<TimelineMultiSelect, bool> {
+  /// Whether taps on the timeline add to the selection rather than replace it.
+  ///
+  /// Entered by a long press and left when the selection empties or the user
+  /// says Done. Its own provider rather than a field on [TimelineSelection],
+  /// whose value is the set that dozens of call sites already read.
+  TimelineMultiSelectProvider._({
+    required TimelineMultiSelectFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'timelineMultiSelectProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$timelineMultiSelectHash();
+
+  @override
+  String toString() {
+    return r'timelineMultiSelectProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  TimelineMultiSelect create() => TimelineMultiSelect();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TimelineMultiSelectProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$timelineMultiSelectHash() =>
+    r'313dd76af9271a5a2d76527fb601b0066d595f2e';
+
+/// Whether taps on the timeline add to the selection rather than replace it.
+///
+/// Entered by a long press and left when the selection empties or the user
+/// says Done. Its own provider rather than a field on [TimelineSelection],
+/// whose value is the set that dozens of call sites already read.
+
+final class TimelineMultiSelectFamily extends $Family
+    with $ClassFamilyOverride<TimelineMultiSelect, bool, bool, bool, String> {
+  TimelineMultiSelectFamily._()
+    : super(
+        retry: null,
+        name: r'timelineMultiSelectProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Whether taps on the timeline add to the selection rather than replace it.
+  ///
+  /// Entered by a long press and left when the selection empties or the user
+  /// says Done. Its own provider rather than a field on [TimelineSelection],
+  /// whose value is the set that dozens of call sites already read.
+
+  TimelineMultiSelectProvider call(String projectId) =>
+      TimelineMultiSelectProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'timelineMultiSelectProvider';
+}
+
+/// Whether taps on the timeline add to the selection rather than replace it.
+///
+/// Entered by a long press and left when the selection empties or the user
+/// says Done. Its own provider rather than a field on [TimelineSelection],
+/// whose value is the set that dozens of call sites already read.
+
+abstract class _$TimelineMultiSelect extends $Notifier<bool> {
+  late final _$args = ref.$arg as String;
+  String get projectId => _$args;
+
+  bool build(String projectId);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
               Object?,
               Object?
             >;

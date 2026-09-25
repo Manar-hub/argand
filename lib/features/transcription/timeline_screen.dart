@@ -1,21 +1,22 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/audio/waveform.dart';
-import '../../core/captions/caption_controller.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/media/thumbnail_service.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/timeline/clip_trim.dart';
+import '../../core/timeline/item_transform.dart';
 import '../../core/timeline/layer_drag.dart';
 import '../../core/timeline/pinch_tracker.dart';
 import '../../core/timeline/project_timeline.dart';
@@ -29,6 +30,9 @@ import 'layer_transcription_controller.dart';
 import 'import_controller.dart' show ImportStage;
 import 'media_player_controller.dart';
 import 'project_screen.dart' show CaptionOverlay, HistoryControls;
+import 'stage_editor.dart';
+import 'style_panel.dart';
+import 'timeline_history.dart';
 import 'transcript_repository.dart';
 import 'transcription_options.dart';
 import 'video_settings_panel.dart';
@@ -57,7 +61,7 @@ const double _playheadWidth = 2;
 /// "+" tile, layer rectangles. Deliberately tighter than the theme's card
 /// radius and deliberately one constant: when these were specified separately
 /// they drifted to 14, 6 and 4, and the row read as three unrelated shapes.
-final BorderRadius _tileRadius = BorderRadius.circular(6);
+final BorderRadius _tileRadius = BorderRadius.zero;
 
 /// Timeline mode: the clip/track view of the editing screen.
 ///
@@ -94,10 +98,6 @@ class TimelineBody extends ConsumerStatefulWidget {
 }
 
 class _TimelineBodyState extends ConsumerState<TimelineBody> {
-  /// A visualisation toggle over caption data the app already computes, not a
-  /// new editing capability -- see the Captions case in [_BottomToolbar].
-  bool _showCaptions = false;
-
   /// The stack, top to bottom, and which lanes are drawn.
   ///
   /// Neither is a property of the data -- hiding a track removes nothing and
@@ -108,11 +108,91 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
   /// composite in stacking order and captions burn over the picture, so a
   /// transcribe lane drawn underneath would contradict what it does at export.
   List<_TrackId> _trackOrder = [
+    _TrackId.texts,
     _TrackId.layers,
     _TrackId.clips,
     _TrackId.audio,
   ];
   final Set<_TrackId> _hiddenTracks = {};
+
+  /// Whether the zoom slider is showing above the toolbar.
+  bool _zoomOpen = false;
+
+  /// Whether the style panel is showing above the toolbar.
+  bool _styleOpen = false;
+
+  /// The clips the Zoom and Rotate tools act on: the selected ones, or -- with
+  /// none selected -- the clip on the stage, which is then selected so its
+  /// outline shows what the tool is touching.
+  List<String> _toolClips(String? clipOnStage, {bool select = true}) {
+    final projectId = widget.project.id;
+    final chosen = idsOfKind(
+      ref.read(timelineSelectionProvider(projectId)),
+      TimelineItemKind.clip,
+    ).toList();
+    if (chosen.isNotEmpty || clipOnStage == null) return chosen;
+
+    if (select) {
+      ref
+          .read(timelineSelectionProvider(projectId).notifier)
+          .selectOnly((kind: TimelineItemKind.clip, id: clipOnStage));
+    }
+    return [clipOnStage];
+  }
+
+  /// A quarter turn clockwise on each clip the tool acts on, as one step.
+  Future<void> _rotate(String? clipOnStage) async {
+    final projectId = widget.project.id;
+    final clips = ref.read(projectClipsProvider(projectId)).value ?? const [];
+    final changes = <PlacementChange>[
+      for (final id in _toolClips(clipOnStage))
+        if (clips.where((c) => c.id == id).firstOrNull case final clip?)
+          (
+            kind: TimelineItemKind.clip,
+            id: id,
+            before: clip.framing,
+            after: clip.framing.quarterTurned(),
+          ),
+    ];
+    await ref
+        .read(transcriptRepositoryProvider)
+        .applyPlacements(projectId: projectId, changes: changes);
+  }
+
+  /// Puts a text on the picture at the playhead and opens it for typing.
+  ///
+  /// **No dialog.** The text appears where it will be seen, with its word
+  /// selected and the keyboard up, so typing replaces it in place -- the way
+  /// every phone editor adds a title. Left empty, it is removed again.
+  Future<void> _addText() async {
+    final projectId = widget.project.id;
+    final words = AppLocalizations.of(context).textPlaceholder;
+
+    final timeline = ref.read(projectTimelineProvider(projectId));
+    final playheadMs = ref.read(timelinePlayheadProvider(projectId));
+    // Three seconds from the playhead, pulled back from the end so a text
+    // added there is still long enough to read.
+    final total = timeline.totalMs;
+    var start = playheadMs;
+    if (total > 0 && start + _defaultTextMs > total) {
+      start = math.max(0, total - _defaultTextMs);
+    }
+
+    final id = await ref.read(transcriptRepositoryProvider).addTextLayer(
+          projectId: projectId,
+          startMs: start,
+          endMs: start + _defaultTextMs,
+          content: words,
+        );
+    if (id == null || !mounted) return;
+
+    setState(() => _hiddenTracks.remove(_TrackId.texts));
+    final item = (kind: TimelineItemKind.text, id: id);
+    ref.read(timelineSelectionProvider(projectId).notifier).selectOnly(item);
+    ref
+        .read(stageEditingProvider(projectId).notifier)
+        .start(item, fresh: true);
+  }
 
   void _moveTrack(_TrackId id, int delta) {
     final from = _trackOrder.indexOf(id);
@@ -194,6 +274,12 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
             atProjectMs: projectMs,
           );
           made == null ? refused++ : cut++;
+
+        case TimelineItemKind.text:
+        case TimelineItemKind.sentence:
+          // A text is short and placed by hand, and a sentence is cut by
+          // retyping it; neither is something Split is asked to do.
+          continue;
       }
     }
 
@@ -209,6 +295,43 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
               ? l10n.splitTooClose
               : l10n.splitNotUnderPlayhead,
     );
+  }
+
+  /// The Transcribe tool: runs the selected transcribe layer, or draws one
+  /// over the selected clip -- or the clip on screen -- and runs that.
+  ///
+  /// **One button for the whole job.** Transcribing used to take two steps in
+  /// two places: add a layer in the strip under the tracks, then press
+  /// Transcribe beside it. The layer is still made and still editable
+  /// afterwards; it is simply not a separate chore any more.
+  Future<void> _transcribeHere(String? clipOnStage) async {
+    final projectId = widget.project.id;
+    final selection = ref.read(timelineSelectionProvider(projectId));
+
+    // A layer already under the playhead is the one to run: drawing a second
+    // over it would only fail against the overlap rule.
+    final playheadMs = ref.read(timelinePlayheadProvider(projectId));
+    final underPlayhead = (ref.read(projectLayersProvider(projectId)).value ??
+            const <TranscribeLayer>[])
+        .where((l) => l.startMs <= playheadMs && playheadMs < l.endMs)
+        .firstOrNull
+        ?.id;
+
+    final layerId = idsOfKind(selection, TimelineItemKind.layer).firstOrNull ??
+        underPlayhead ??
+        await _addLayer(
+          context,
+          ref,
+          projectId: projectId,
+          clipId: idsOfKind(selection, TimelineItemKind.clip).firstOrNull ??
+              clipOnStage,
+        );
+    if (layerId == null || !mounted) return;
+
+    ref
+        .read(timelineSelectionProvider(projectId).notifier)
+        .selectOnly((kind: TimelineItemKind.layer, id: layerId));
+    await _transcribeLayer(context, ref, layerId);
   }
 
   void _say(String message) {
@@ -291,6 +414,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                               // reveal it, or the button would appear to do nothing.
                               onAddTrack: () =>
                                   setState(() => _hiddenTracks.remove(_TrackId.layers)),
+                              onAddText: _addText,
                               onTrackUnavailable: _placeholder,
                               trackOrder: _trackOrder,
                               hiddenTracks: _hiddenTracks,
@@ -302,32 +426,50 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                                   idsOfKind(selection, TimelineItemKind.layer),
                             ),
                           ),
-                          _LayerStrip(
-                            projectId: projectId,
-                            selectedClipId: selectedId,
-                            // The panel acts on one layer; the selection can hold
-                            // several. The first is the one it speaks for.
-                            selectedLayerId:
-                                idsOfKind(selection, TimelineItemKind.layer).firstOrNull,
-                            onCreated: (id) => ref
-                                .read(timelineSelectionProvider(projectId).notifier)
-                                .selectOnly((kind: TimelineItemKind.layer, id: id)),
-                            onRemoved: () => ref
-                                .read(timelineSelectionProvider(projectId).notifier)
-                                .clear(),
-                          ),
-                          if (_showCaptions && transcript != null)
-                            _CaptionStrip(transcriptId: transcript.id),
                         ],
                       ),
                     ),
                   ),
+                  // **Pinned, not scrolled with the tracks.** With a few text
+                  // rows the tracks outgrow the screen, and a strip at their
+                  // foot took Delete and Done out of sight just when several
+                  // things were selected.
+                  _SelectionStrip(projectId: projectId),
+                  AnimatedSize(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.bottomCenter,
+                    // One docked panel at a time: Zoom and Style each put
+                    // the other away.
+                    child: _zoomOpen
+                        ? _ZoomBar(
+                            projectId: projectId,
+                            clipIds: _toolClips(selectedId, select: false),
+                          )
+                        : _styleOpen
+                            ? StylePanel(projectId: projectId)
+                            : const SizedBox(width: double.infinity),
+                  ),
                   _BottomToolbar(
-                    showCaptions: _showCaptions,
-                    onToggleCaptions: () =>
-                        setState(() => _showCaptions = !_showCaptions),
                     onSplit: () => _splitSelection(playheadMs),
-                    onPlaceholder: _placeholder,
+                    zoomOpen: _zoomOpen,
+                    styleOpen: _styleOpen,
+                    onZoom: () {
+                      if (!_zoomOpen) _toolClips(selectedId);
+                      setState(() {
+                        _zoomOpen = !_zoomOpen;
+                        _styleOpen = false;
+                      });
+                    },
+                    onStyle: () => setState(() {
+                      _styleOpen = !_styleOpen;
+                      _zoomOpen = false;
+                    }),
+                    onRotate: () => _rotate(selectedId),
+                    onText: _addText,
+                    onTranscribe: () => _transcribeHere(selectedId),
                   ),
                 ],
               ),
@@ -514,20 +656,16 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
                       color: theme.colorScheme.surfaceContainerHighest,
                       child: Padding(
                         padding: const EdgeInsets.all(AppSpacing.sm),
+                        // Captions and texts are drawn inside the frame where
+                        // they will be burned in -- but as live widgets here,
+                        // never rasterized (docs/engine-architecture.md).
                         child: ProjectStageCanvas(
                           projectId: widget.projectId,
+                          clipId: widget.clipId,
                           sourceSize: value.size,
                           picture: VideoPlayer(widget.controller),
-                          // The same overlay Script mode draws, from the same
-                          // cues, inside the frame where it will be burned in
-                          // -- but live widgets here, never rasterized
-                          // (docs/engine-architecture.md).
-                          overlay: transcriptId == null
-                              ? null
-                              : CaptionOverlay(
-                                  transcriptId: transcriptId,
-                                  positionMs: value.position.inMilliseconds,
-                                ),
+                          mediaPositionMs: value.position.inMilliseconds,
+                          editable: true,
                         ),
                       ),
                     )
@@ -680,6 +818,7 @@ class _TimelineTrack extends ConsumerStatefulWidget {
     required this.selectedId,
     required this.onAddClip,
     required this.onAddTrack,
+    required this.onAddText,
     required this.onTrackUnavailable,
     required this.trackOrder,
     required this.hiddenTracks,
@@ -693,6 +832,9 @@ class _TimelineTrack extends ConsumerStatefulWidget {
   final String? selectedId;
   final VoidCallback onAddClip;
   final VoidCallback onAddTrack;
+
+  /// Adds a text layer at the playhead, as the Text tool does.
+  final VoidCallback onAddText;
   final ValueChanged<String> onTrackUnavailable;
 
   /// The stack, top to bottom. Every track the project can have appears here
@@ -1111,8 +1253,10 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
             ),
             onTap: () => ref
                 .read(timelineSelectionProvider(widget.projectId).notifier)
-                .toggle((kind: TimelineItemKind.clip, id: clip.id)),
-            onLongPress: () => _showActions(clip, index),
+                .tap((kind: TimelineItemKind.clip, id: clip.id)),
+            onLongPress: () => _longPress(
+              (kind: TimelineItemKind.clip, id: clip.id),
+            ),
             onTrimStart: (edge) => _startTrim(clip, edge),
             onTrimUpdate: (delta) => _updateTrim(clip, delta),
             onTrimEnd: () => _endTrim(clip),
@@ -1150,96 +1294,13 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
     );
   }
 
-  Future<void> _showActions(MediaClip clip, int index) async {
-    final l10n = AppLocalizations.of(context);
-    final editor = ref.read(clipEditorProvider);
-    final clips = widget.clips;
-
-    // A sheet rather than a drag. Reordering by dragging a variable-width tile
-    // inside a horizontally scrolling strip fights the scroll gesture, and
-    // long-press is already spoken for by removal -- so both operations are
-    // offered explicitly, where they can also be labelled.
-    final action = await showModalBottomSheet<_ClipAction>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.arrow_back),
-              title: Text(l10n.clipMoveEarlier),
-              enabled: index > 0,
-              onTap: () => Navigator.of(context).pop(_ClipAction.earlier),
-            ),
-            ListTile(
-              leading: const Icon(Icons.arrow_forward),
-              title: Text(l10n.clipMoveLater),
-              enabled: index < clips.length - 1,
-              onTap: () => Navigator.of(context).pop(_ClipAction.later),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: Text(l10n.clipRemove),
-              onTap: () => Navigator.of(context).pop(_ClipAction.remove),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (action == null || !mounted) return;
-
-    switch (action) {
-      case _ClipAction.earlier:
-        await editor.move(
-          projectId: widget.projectId,
-          clips: clips,
-          from: index,
-          to: index - 1,
-        );
-      case _ClipAction.later:
-        await editor.move(
-          projectId: widget.projectId,
-          clips: clips,
-          from: index,
-          to: index + 1,
-        );
-      case _ClipAction.remove:
-        await _confirmRemove(clip);
-    }
-  }
-
-  Future<void> _confirmRemove(MediaClip clip) async {
-    final l10n = AppLocalizations.of(context);
-
-    // Confirmed because it is not recoverable: the media is hard-deleted, the
-    // same bargain `deleteProject` makes and says out loud.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AppDialog(
-        title: l10n.clipRemoveTitle,
-        content: Text(l10n.clipRemoveMessage),
-        actions: [
-          AppDialogAction(
-            label: l10n.clipRemove,
-            emphasis: AppDialogEmphasis.danger,
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-          AppDialogAction(
-            label: l10n.editCancel,
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    await ref.read(clipEditorProvider).remove(clip.id);
-    if (!mounted) return;
-    // The removed clip may have been the selection; clearing lets the timeline
-    // fall back to the first remaining one rather than pointing at a tombstone.
-    if (ref.read(selectedClipProvider(widget.projectId)) == clip.id) {
-      ref.read(selectedClipProvider(widget.projectId).notifier).clear();
-    }
+  /// A long press: the item joins a multi-selection, with a tick of haptic
+  /// feedback so the hold is felt to have landed.
+  void _longPress(TimelineItem item) {
+    HapticFeedback.selectionClick();
+    ref
+        .read(timelineSelectionProvider(widget.projectId).notifier)
+        .longPress(item);
   }
 
   @override
@@ -1388,6 +1449,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                       const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                   child: _AddTrackRow(
                     onAdd: widget.onAddTrack,
+                    onAddText: widget.onAddText,
                     onUnavailable: widget.onTrackUnavailable,
                   ),
                 ),
@@ -1431,6 +1493,28 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
             visible: !widget.hiddenTracks.contains(id),
             build: _audioRow,
           ));
+        case _TrackId.texts:
+          final texts =
+              ref.watch(projectTextLayersProvider(widget.projectId)).value ??
+                  const <TextLayer>[];
+          if (texts.isEmpty) continue;
+          final rows = texts.fold<int>(
+                0,
+                (most, t) => math.max(most, t.trackIndex),
+              ) +
+              1;
+          specs.add(_TrackSpec(
+            id: id,
+            height: _textTrackHeight * rows,
+            visible: !widget.hiddenTracks.contains(id),
+            build: () => _TextTrack(
+              projectId: widget.projectId,
+              texts: texts,
+              width: trackWidth,
+              totalMs: timeline.totalMs,
+              pixelsPerSecond: _pps,
+            ),
+          ));
         case _TrackId.layers:
           if (layers.isEmpty) continue;
           specs.add(_TrackSpec(
@@ -1454,14 +1538,13 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   }
 }
 
-enum _ClipAction { earlier, later, remove }
 
 /// The tracks a project can stack.
 ///
 /// An enum rather than free-form ids because the set is closed and the order
 /// is persisted view state: a typo'd string would silently drop a track from
 /// the timeline rather than failing to compile.
-enum _TrackId { layers, clips, audio }
+enum _TrackId { texts, layers, clips, audio }
 
 /// One lane, as both the gutter and the track column need to see it.
 ///
@@ -1505,86 +1588,312 @@ int _filmstripSlots(double width) =>
 /// would be no way to fix it.
 const int _defaultLayerMs = 10000;
 
-/// Adding a layer, and acting on the selected one.
+/// Draws a transcribe layer over [clipId] -- or, with no clip, over the first
+/// free stretch -- and returns its id, or null if there was no room.
 ///
-/// **Transcribing what a layer spans is Stage C** — the audio slicing it needs
-/// does not exist yet — so the action here is deliberately absent rather than
-/// present and inert. A button that looked ready and did nothing would be
-/// worse than no button.
-class _LayerStrip extends ConsumerWidget {
-  const _LayerStrip({
-    required this.projectId,
-    required this.selectedClipId,
-    required this.selectedLayerId,
-    required this.onCreated,
-    required this.onRemoved,
-  });
+/// **Spans the clip when it can.** Transcribing a whole clip is the common
+/// case by a wide margin, and a layer that had to be resized to reach the end
+/// of one would make the ordinary thing the fiddly thing.
+Future<String?> _addLayer(
+  BuildContext context,
+  WidgetRef ref, {
+  required String projectId,
+  required String? clipId,
+}) async {
+  final l10n = AppLocalizations.of(context);
+  final repository = ref.read(transcriptRepositoryProvider);
+  final timeline = ref.read(projectTimelineProvider(projectId));
+  final layers = ref.read(projectLayersProvider(projectId)).value ?? const [];
 
-  final String projectId;
-  final String? selectedClipId;
+  final placement = clipId == null ? null : timeline.placementOf(clipId);
+  final wanted = placement == null
+      ? _defaultLayerMs
+      : placement.durationMs.clamp(_defaultLayerMs, 1 << 31);
 
-  /// The layer the panel speaks for: the first of whatever is selected.
-  final String? selectedLayerId;
+  // Dropped into the first gap that fits rather than always at zero, so
+  // adding a second layer does not silently fail against the overlap rule.
+  var start = placement?.startMs ?? 0;
+  for (final layer in [...layers]..sort((a, b) => a.startMs - b.startMs)) {
+    if (layer.startMs - start >= wanted) break;
+    if (layer.endMs > start) start = layer.endMs;
+  }
 
-  final ValueChanged<String> onCreated;
-  final VoidCallback onRemoved;
-
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
-    final l10n = AppLocalizations.of(context);
-    final repository = ref.read(transcriptRepositoryProvider);
-    final timeline = ref.read(projectTimelineProvider(projectId));
-    final layers = ref.read(projectLayersProvider(projectId)).value ?? const [];
-
-    // **Spans the selected clip when it can.** Transcribing a whole clip is
-    // the common case by a wide margin, and a layer that had to be resized to
-    // reach the end of one would make the ordinary thing the fiddly thing.
-    final placement =
-        selectedClipId == null ? null : timeline.placementOf(selectedClipId!);
-    final wanted = placement == null
-        ? _defaultLayerMs
-        : placement.durationMs.clamp(_defaultLayerMs, 1 << 31);
-
-    // Dropped into the first gap that fits rather than always at zero, so
-    // adding a second layer does not silently fail against the overlap rule.
-    var start = placement?.startMs ?? 0;
-    for (final layer in [...layers]..sort((a, b) => a.startMs - b.startMs)) {
-      if (layer.startMs - start >= wanted) break;
-      if (layer.endMs > start) start = layer.endMs;
-    }
-
-    // Never past the end of the project: a layer hanging off the end covers
-    // audio that does not exist and would only be trimmed on the first run.
-    final end = timeline.totalMs > 0
-        ? math.min(start + wanted, timeline.totalMs)
-        : start + wanted;
-    if (timeline.totalMs > 0 && start >= timeline.totalMs) {
-      if (!context.mounted) return;
+  // Never past the end of the project: a layer hanging off the end covers
+  // audio that does not exist and would only be trimmed on the first run.
+  if (timeline.totalMs > 0 && start >= timeline.totalMs) {
+    if (context.mounted) {
       ScaffoldMessenger.of(context)
         ..clearSnackBars()
         ..showSnackBar(SnackBar(content: Text(l10n.layerNoRoom)));
-      return;
+    }
+    return null;
+  }
+  final end = timeline.totalMs > 0
+      ? math.min(start + wanted, timeline.totalMs)
+      : start + wanted;
+
+  return repository.addLayer(projectId: projectId, startMs: start, endMs: end);
+}
+
+/// Runs [layerId], confirming first if it would replace an earlier run.
+Future<void> _transcribeLayer(
+  BuildContext context,
+  WidgetRef ref,
+  String layerId,
+) async {
+  final l10n = AppLocalizations.of(context);
+
+  final existing =
+      await ref.read(transcriptRepositoryProvider).transcriptsForLayer(layerId);
+  if (!context.mounted) return;
+
+  // The options come first, every time -- this is the moment they apply to.
+  //
+  // **Re-running is offered rather than refused**, but never silently: it
+  // discards word corrections and speaker names, which are the parts the
+  // user typed rather than the parts the engine produced. That warning rides
+  // inside this dialog instead of being a second one, because two modals in
+  // a row for a single decision is one too many.
+  final confirmed = await showTranscriptionOptions(
+    context,
+    warning: existing.isEmpty ? null : l10n.layerRerunBody,
+  );
+  if (!confirmed) return;
+
+  // **Read now, not before the dialog.** The controller is auto-disposed:
+  // one fetched while nothing was listening -- the Transcribe tool draws the
+  // layer and asks straight away -- could be thrown away while the options
+  // were open, and the run then went to a controller that no longer existed.
+  final controller =
+      ref.read(layerTranscriptionControllerProvider(layerId).notifier);
+  if (existing.isEmpty) {
+    await controller.transcribe();
+  } else {
+    await controller.rerun();
+  }
+}
+
+/// What can be done with the selection, one line under the tracks.
+///
+/// **Actions follow what is selected**, the way a contextual toolbar does:
+/// a clip offers moving and deleting, a transcribe layer offers running it, a
+/// multi-selection offers acting on all of it and a way out. Moving a clip
+/// used to hide behind a long press on it, which is now how multi-select
+/// starts.
+class _SelectionStrip extends ConsumerWidget {
+  const _SelectionStrip({required this.projectId});
+
+  final String projectId;
+
+  TimelineSelection _selection(WidgetRef ref) =>
+      ref.read(timelineSelectionProvider(projectId).notifier);
+
+  Future<void> _moveClip(WidgetRef ref, String clipId, int delta) async {
+    final clips = ref.read(projectClipsProvider(projectId)).value ?? const [];
+    final from = clips.indexWhere((clip) => clip.id == clipId);
+    final to = from + delta;
+    if (from < 0 || to < 0 || to >= clips.length) return;
+
+    await ref.read(clipEditorProvider).move(
+          projectId: projectId,
+          clips: clips,
+          from: from,
+          to: to,
+        );
+  }
+
+  /// Deletes everything selected, confirming first when a clip is among it:
+  /// a clip's media is deleted outright, which cannot be undone.
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    Set<TimelineItem> selection,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final clipIds = idsOfKind(selection, TimelineItemKind.clip);
+
+    if (clipIds.isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AppDialog(
+          title: clipIds.length == 1
+              ? l10n.clipRemoveTitle
+              : l10n.clipRemoveManyTitle(clipIds.length),
+          content: Text(l10n.clipRemoveMessage),
+          actions: [
+            AppDialogAction(
+              label: l10n.clipRemove,
+              emphasis: AppDialogEmphasis.danger,
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+            AppDialogAction(
+              label: l10n.editCancel,
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
     }
 
-    final id = await repository.addLayer(
-      projectId: projectId,
-      startMs: start,
-      endMs: end,
-    );
-    if (id != null) onCreated(id);
+    final repository = ref.read(transcriptRepositoryProvider);
+    for (final id in idsOfKind(selection, TimelineItemKind.layer)) {
+      await repository.removeLayer(id);
+    }
+    for (final id in idsOfKind(selection, TimelineItemKind.text)) {
+      await repository.removeTextLayer(id);
+    }
+    for (final id in clipIds) {
+      await ref.read(clipEditorProvider).remove(id);
+      // The removed clip may have been the one on show; clearing lets both
+      // modes fall back to one that still exists.
+      if (ref.read(selectedClipProvider(projectId)) == id) {
+        ref.read(selectedClipProvider(projectId).notifier).clear();
+      }
+    }
+    _selection(ref).clear();
   }
+
+  /// Opens [item]'s words for typing on the stage, where they stand.
+  void _type(WidgetRef ref, TimelineItem item) =>
+      ref.read(stageEditingProvider(projectId).notifier).start(item);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final selected = selectedLayerId;
+    final selection = ref.watch(timelineSelectionProvider(projectId));
+    final multi = ref.watch(timelineMultiSelectProvider(projectId));
+    final only = selection.length == 1 ? selection.first : null;
+    final layerId =
+        only?.kind == TimelineItemKind.layer ? only!.id : null;
 
-    // The engine's state for the selected layer. Watched rather than read so
+    // The engine's state for a selected layer. Watched rather than read so
     // the strip follows a run that is already under way -- returning to the
     // screen mid-transcription must not look idle.
-    final status = selected == null
+    final status = layerId == null
         ? const LayerTranscriptionIdle()
-        : ref.watch(layerTranscriptionControllerProvider(selected));
+        : ref.watch(layerTranscriptionControllerProvider(layerId));
+
+    final hint = theme.textTheme.bodySmall;
+
+    final Widget content = switch (status) {
+      LayerTranscriptionRunning(:final stage, :final percent) => Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(stageLabel(l10n, stage, percent), style: hint),
+            ),
+          ],
+        ),
+      LayerTranscriptionFailed() => Row(
+          children: [
+            Expanded(child: Text(l10n.clipTranscribeFailed, style: hint)),
+            TextButton(
+              onPressed: () => ref
+                  .read(layerTranscriptionControllerProvider(layerId!)
+                      .notifier)
+                  .transcribe(),
+              child: Text(l10n.retryAction),
+            ),
+          ],
+        ),
+      _ when multi || selection.length > 1 => Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.selectionCount(selection.length),
+                style: theme.textTheme.labelLarge,
+              ),
+            ),
+            if (selection.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => _delete(context, ref, selection),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: Text(l10n.selectionDelete),
+              ),
+            const SizedBox(width: AppSpacing.xs),
+            AppRaised(
+              child: FilledButton(
+                onPressed: () => _selection(ref).clear(),
+                child: Text(l10n.selectionDone),
+              ),
+            ),
+          ],
+        ),
+      _ when only?.kind == TimelineItemKind.clip => Row(
+          children: [
+            Expanded(child: Text(l10n.clipSelected, style: hint)),
+            IconButton(
+              tooltip: l10n.clipMoveEarlier,
+              onPressed: () => _moveClip(ref, only!.id, -1),
+              icon: const Icon(Icons.arrow_back),
+            ),
+            IconButton(
+              tooltip: l10n.clipMoveLater,
+              onPressed: () => _moveClip(ref, only!.id, 1),
+              icon: const Icon(Icons.arrow_forward),
+            ),
+            IconButton(
+              tooltip: l10n.clipRemove,
+              onPressed: () => _delete(context, ref, selection),
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
+      _ when only?.kind == TimelineItemKind.text => Row(
+          children: [
+            Expanded(child: Text(l10n.textSelected, style: hint)),
+            TextButton(
+              onPressed: () => _delete(context, ref, selection),
+              child: Text(l10n.selectionDelete),
+            ),
+            AppRaised(
+              child: FilledButton(
+                onPressed: () => _type(ref, only!),
+                child: Text(l10n.textEdit),
+              ),
+            ),
+          ],
+        ),
+      _ when only?.kind == TimelineItemKind.sentence => Row(
+          children: [
+            Expanded(child: Text(l10n.sentenceSelected, style: hint)),
+            AppRaised(
+              child: FilledButton(
+                onPressed: () => _type(ref, only!),
+                child: Text(l10n.textEdit),
+              ),
+            ),
+          ],
+        ),
+      _ when layerId != null => Row(
+          children: [
+            Expanded(child: Text(l10n.layerSelected, style: hint)),
+            TextButton(
+              onPressed: () => _delete(context, ref, selection),
+              child: Text(l10n.layerRemove),
+            ),
+            AppRaised(
+              child: FilledButton(
+                onPressed: () => _transcribeLayer(context, ref, layerId),
+                child: Text(l10n.clipTranscribe),
+              ),
+            ),
+          ],
+        ),
+      _ => Row(
+          children: [
+            Expanded(child: Text(l10n.selectionHint, style: hint)),
+          ],
+        ),
+    };
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -1592,106 +1901,10 @@ class _LayerStrip extends ConsumerWidget {
         AppSpacing.md,
         0,
       ),
-      child: switch (status) {
-        LayerTranscriptionRunning(:final stage, :final percent) => Row(
-            children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  stageLabel(l10n, stage, percent),
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-            ],
-          ),
-        LayerTranscriptionFailed() => Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.clipTranscribeFailed,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              TextButton(
-                onPressed: () => ref
-                    .read(layerTranscriptionControllerProvider(selected!)
-                        .notifier)
-                    .transcribe(),
-                child: Text(l10n.retryAction),
-              ),
-            ],
-          ),
-        _ => Row(
-            children: [
-              Expanded(
-                child: Text(
-                  selected == null ? l10n.layerHint : l10n.layerSelected,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              if (selected != null) ...[
-                TextButton(
-                  onPressed: () async {
-                    await ref
-                        .read(transcriptRepositoryProvider)
-                        .removeLayer(selected);
-                    onRemoved();
-                  },
-                  child: Text(l10n.layerRemove),
-                ),
-                FilledButton(
-                  onPressed: () => _transcribe(context, ref, selected),
-                  child: Text(l10n.clipTranscribe),
-                ),
-              ] else
-                TextButton.icon(
-                  onPressed: () => _add(context, ref),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text(l10n.layerAdd),
-                ),
-            ],
-          ),
-      },
+      // One height whatever it holds, so the tracks above do not jump as the
+      // selection changes what the strip says.
+      child: SizedBox(height: 48, child: content),
     );
-  }
-
-  /// Runs the layer, confirming first if it would replace an earlier run.
-  Future<void> _transcribe(
-    BuildContext context,
-    WidgetRef ref,
-    String layerId,
-  ) async {
-    final l10n = AppLocalizations.of(context);
-    final controller =
-        ref.read(layerTranscriptionControllerProvider(layerId).notifier);
-
-    final existing =
-        await ref.read(transcriptRepositoryProvider).transcriptsForLayer(layerId);
-    if (!context.mounted) return;
-
-    // The options come first, every time -- this is the moment they apply to.
-    //
-    // **Re-running is offered rather than refused**, but never silently: it
-    // discards word corrections and speaker names, which are the parts the
-    // user typed rather than the parts the engine produced. That warning rides
-    // inside this dialog instead of being a second one, because two modals in
-    // a row for a single decision is one too many.
-    final confirmed = await showTranscriptionOptions(
-      context,
-      warning: existing.isEmpty ? null : l10n.layerRerunBody,
-    );
-    if (!confirmed) return;
-
-    if (existing.isEmpty) {
-      await controller.transcribe();
-    } else {
-      await controller.rerun();
-    }
   }
 }
 
@@ -1727,10 +1940,9 @@ class _WaveLane extends ConsumerWidget {
         // No outline. A box drawn round every lane turned the stack into a
         // grid of frames, and the frames read louder than the content inside
         // them. Where one clip meets the next, a single divider does the whole
-        // job the outline was there for.
-        border: first
-            ? null
-            : Border(left: BorderSide(color: surface.outline)),
+        // job the outline was there for -- in the outline's ink on paper, and
+        // as a cut in the page's colour on dark, which draws no light lines.
+        border: first ? null : Border(left: _clipDivider(theme, surface)),
       ),
       clipBehavior: Clip.antiAlias,
       child: CustomPaint(
@@ -1825,13 +2037,9 @@ const double _gripArrowSize = 14;
 
 /// The grip's corner rounding, applied to its **inner** edge only.
 ///
-/// Square where it meets the end of the clip and rounded where it meets the
-/// picture, so it reads as the edge of the tile thickening into something to
-/// hold -- rather than as a separate chip sitting on top of it.
-BorderRadius _gripRadius({required bool atStart}) => BorderRadius.horizontal(
-      left: Radius.circular(atStart ? 0 : 4),
-      right: Radius.circular(atStart ? 4 : 0),
-    );
+/// Square, like every corner in the sharp-corner style: the edge of the tile
+/// thickening into something to hold.
+BorderRadius _gripRadius({required bool atStart}) => BorderRadius.zero;
 
 /// The transcribe track: one band per layer, with the sentences it produced
 /// drawn inside it.
@@ -1884,10 +2092,18 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
   LayerGrip _grip = LayerGrip.whole;
   double _dragPixels = 0;
 
-  /// Adds or removes a layer from the selection the tools act on.
+  /// Picks a layer (or toggles it while multi-selecting).
   void _toggle(String layerId) => ref
       .read(timelineSelectionProvider(widget.projectId).notifier)
-      .toggle((kind: TimelineItemKind.layer, id: layerId));
+      .tap((kind: TimelineItemKind.layer, id: layerId));
+
+  /// Starts (or extends) a multi-selection with this layer.
+  void _hold(String layerId) {
+    HapticFeedback.selectionClick();
+    ref
+        .read(timelineSelectionProvider(widget.projectId).notifier)
+        .longPress((kind: TimelineItemKind.layer, id: layerId));
+  }
 
   void _startDrag(TranscribeLayer layer, LayerGrip grip) {
     setState(() {
@@ -1957,16 +2173,6 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
   double _handleWidth(double barWidth) =>
       math.max(8, math.min(_layerHandleWidth, barWidth / 2));
 
-  /// The layer covering [projectMs], if any.
-  String? _layerAt(List<TranscribeLayer> layers, int projectMs) {
-    for (final layer in layers) {
-      if (projectMs >= layer.startMs && projectMs < layer.endMs) {
-        return layer.id;
-      }
-    }
-    return null;
-  }
-
   /// Where a layer is drawn, which is its dragged position while one is under
   /// way and its stored position otherwise.
   LayerBounds _boundsOf(TranscribeLayer layer) =>
@@ -1977,10 +2183,10 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surface = context.surface;
     final layers =
         ref.watch(projectLayersProvider(widget.projectId)).value ?? const [];
     final sentences = ref.watch(projectSentencesProvider(widget.projectId));
+    final selection = ref.watch(timelineSelectionProvider(widget.projectId));
 
     double x(int ms) => ms / 1000 * widget.pixelsPerSecond;
 
@@ -2017,6 +2223,7 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
                 bottom: 0,
                 child: GestureDetector(
                   onTap: () => _toggle(layer.id),
+                  onLongPress: () => _hold(layer.id),
                   onHorizontalDragStart: widget.selectedLayerIds.contains(layer.id)
                       ? (_) => _startDrag(layer, LayerGrip.whole)
                       : null,
@@ -2038,7 +2245,7 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
                       border: widget.selectedLayerIds.contains(layer.id)
                           ? Border.all(
                               color: theme.colorScheme.primary,
-                              width: surface.borderWidth,
+                              width: 2,
                             )
                           : null,
                     ),
@@ -2077,12 +2284,25 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
                 // starts in the layer before the one being tapped -- which
                 // selected the neighbour instead, and read as the two layers
                 // overlapping.
-                onTapAtOffset: (dx) {
-                  final tappedMs = sentence.projectStartMs +
-                      (dx / widget.pixelsPerSecond * 1000).round();
-                  final layerId = _layerAt(layers, tappedMs);
-                  if (layerId != null) _toggle(layerId);
-                  widget.onSeek(sentence);
+                // **Each sentence is its own item.** A tap picks just this
+                // sentence -- to move, size or retype on the stage without
+                // touching the rest. **It leaves the playhead where it is**,
+                // like tapping a text or a clip does: selecting is not
+                // seeking. The layer itself is picked from its handles or
+                // from the gaps between sentences.
+                selected: selection.contains(_sentenceItemOf(sentence)),
+                onTapAtOffset: (_) {
+                  ref
+                      .read(timelineSelectionProvider(widget.projectId)
+                          .notifier)
+                      .tap(_sentenceItemOf(sentence));
+                },
+                onLongPressAtOffset: (_) {
+                  HapticFeedback.selectionClick();
+                  ref
+                      .read(timelineSelectionProvider(widget.projectId)
+                          .notifier)
+                      .longPress(_sentenceItemOf(sentence));
                 },
               ),
             ),
@@ -2120,6 +2340,7 @@ class _LayerTrackState extends ConsumerState<_LayerTrack> {
                         // cover the whole band, and a handle that only
                         // listened for drags made it impossible to deselect.
                         onTap: () => _toggle(layer.id),
+                        onLongPress: () => _hold(layer.id),
                         onHorizontalDragStart: (_) => _startDrag(layer, grip),
                         onHorizontalDragUpdate: (details) =>
                             _updateDrag(layer, layers, details.delta.dx),
@@ -2341,9 +2562,14 @@ class _SentenceBox extends StatelessWidget {
     required this.joinedLeft,
     required this.joinedRight,
     required this.onTapAtOffset,
+    required this.onLongPressAtOffset,
+    this.selected = false,
   });
 
   final TimelineSentence sentence;
+
+  /// Picked on its own, which draws it with a heavy outline.
+  final bool selected;
   final bool joinedLeft;
   final bool joinedRight;
 
@@ -2353,6 +2579,10 @@ class _SentenceBox extends StatelessWidget {
   /// to know which one was actually pressed.
   final ValueChanged<double> onTapAtOffset;
 
+  /// A hold on the sentence, where it landed -- the same layer lookup as a
+  /// tap, for multi-select.
+  final ValueChanged<double> onLongPressAtOffset;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2361,10 +2591,12 @@ class _SentenceBox extends StatelessWidget {
       fallback: theme.colorScheme.secondary,
     );
 
-    const corner = Radius.circular(6);
+    const corner = Radius.zero;
 
     return GestureDetector(
       onTapUp: (details) => onTapAtOffset(details.localPosition.dx),
+      onLongPressStart: (details) =>
+          onLongPressAtOffset(details.localPosition.dx),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: fill,
@@ -2374,7 +2606,9 @@ class _SentenceBox extends StatelessWidget {
           ),
           // Drawn on the left edge only, so two neighbours share one line
           // rather than each drawing its own and doubling its weight.
-          border: joinedLeft
+          border: selected
+              ? Border.all(color: theme.colorScheme.primary, width: 2)
+              : joinedLeft
               ? Border(
                   left: BorderSide(
                     color: theme.colorScheme.surface.withValues(alpha: 0.75),
@@ -2386,6 +2620,20 @@ class _SentenceBox extends StatelessWidget {
     );
   }
 }
+/// Where one clip meets the next: a line in the outline's ink when the theme
+/// draws outlines, else a cut in the page's own colour.
+BorderSide _clipDivider(ThemeData theme, AppSurface surface) =>
+    surface.outlined
+        ? BorderSide(color: surface.outline)
+        : BorderSide(color: theme.colorScheme.surface, width: 2);
+
+/// The selectable item a timeline sentence stands for.
+TimelineItem _sentenceItemOf(TimelineSentence sentence) => sentenceItem(
+      transcriptId: sentence.transcriptId,
+      fromPosition: sentence.fromPosition,
+      toPosition: sentence.toPosition,
+    );
+
 /// Height the ruler occupies: ticks plus the labels beneath them.
 const double _rulerHeight = 28;
 
@@ -2547,7 +2795,6 @@ class _ClipTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final surface = context.surface;
 
     final duration = Duration(milliseconds: window.endMs - window.startMs);
 
@@ -2599,11 +2846,13 @@ class _ClipTile extends ConsumerWidget {
                     border: selected
                         ? Border.all(
                             color: theme.colorScheme.primary,
-                            width: surface.borderWidth,
+                            width: 2,
                           )
                         : first
                             ? null
-                            : Border(left: BorderSide(color: surface.outline)),
+                            : Border(
+                                left: _clipDivider(theme, context.surface),
+                              ),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: frames.isEmpty
@@ -2752,9 +3001,14 @@ enum _TrackKind { transcribe, audio, text, image, video }
 /// Sits outside the horizontal scroll: this adds a track, it is not one, so it
 /// stays put while the timeline moves beneath the playhead.
 class _AddTrackRow extends StatelessWidget {
-  const _AddTrackRow({required this.onAdd, required this.onUnavailable});
+  const _AddTrackRow({
+    required this.onAdd,
+    required this.onAddText,
+    required this.onUnavailable,
+  });
 
   final VoidCallback onAdd;
+  final VoidCallback onAddText;
   final ValueChanged<String> onUnavailable;
 
   Future<void> _choose(BuildContext context) async {
@@ -2769,7 +3023,12 @@ class _AddTrackRow extends StatelessWidget {
         l10n.trackKindTranscribeDetail,
       ),
       (_TrackKind.audio, Icons.music_note, l10n.trackKindAudio, ''),
-      (_TrackKind.text, Icons.title, l10n.trackKindText, ''),
+      (
+        _TrackKind.text,
+        Icons.title,
+        l10n.trackKindText,
+        l10n.trackKindTextDetail,
+      ),
       (_TrackKind.image, Icons.image_outlined, l10n.trackKindImage, ''),
       (_TrackKind.video, Icons.movie_outlined, l10n.trackKindVideo, ''),
     ];
@@ -2795,13 +3054,11 @@ class _AddTrackRow extends StatelessWidget {
             ),
             for (final (kind, icon, label, detail) in entries)
               ListTile(
-                enabled: kind == _TrackKind.transcribe,
+                enabled: detail.isNotEmpty,
                 leading: Icon(icon),
                 title: Text(label),
                 subtitle: Text(
-                  kind == _TrackKind.transcribe
-                      ? detail
-                      : l10n.trackKindUnavailable,
+                  detail.isNotEmpty ? detail : l10n.trackKindUnavailable,
                 ),
                 onTap: () => Navigator.of(context).pop(kind),
               ),
@@ -2814,6 +3071,10 @@ class _AddTrackRow extends StatelessWidget {
     if (chosen == null) return;
     if (chosen == _TrackKind.transcribe) {
       onAdd();
+      return;
+    }
+    if (chosen == _TrackKind.text) {
+      onAddText();
       return;
     }
     onUnavailable(chosen.name);
@@ -2833,10 +3094,14 @@ class _AddTrackRow extends StatelessWidget {
           vertical: AppSpacing.sm,
           horizontal: AppSpacing.md,
         ),
+        // Outlined where the theme draws outlines; on dark, which does not,
+        // the card's fill takes the outline's place.
         decoration: BoxDecoration(
           borderRadius: surface.borderRadius,
-          border:
-              Border.all(color: surface.outline, width: surface.borderWidth),
+          border: surface.border,
+          color: surface.outlined
+              ? null
+              : theme.colorScheme.surfaceContainerHighest,
         ),
         child: Row(
           children: [
@@ -2850,67 +3115,341 @@ class _AddTrackRow extends StatelessWidget {
   }
 }
 
-class _CaptionStrip extends ConsumerWidget {
-  const _CaptionStrip({required this.transcriptId});
+/// How long a text added with the Text tool stays on screen.
+const int _defaultTextMs = 3000;
 
-  final String transcriptId;
+/// The text track's lane: shorter than a clip's, since it holds a word or two
+/// rather than a filmstrip.
+const double _textTrackHeight = 40;
+
+/// The zoom slider, docked above the toolbar while Zoom is on.
+///
+/// **Live while dragging, saved once on release** -- the same bargain the
+/// stage's pinch makes (see `StageLive`), so one slide is one undo step.
+class _ZoomBar extends ConsumerStatefulWidget {
+  const _ZoomBar({required this.projectId, required this.clipIds});
+
+  final String projectId;
+
+  /// What the slider scales.
+  final List<String> clipIds;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ZoomBar> createState() => _ZoomBarState();
+}
+
+class _ZoomBarState extends ConsumerState<_ZoomBar> {
+  Map<String, ItemTransform>? _start;
+
+  Map<String, ItemTransform> _stored() {
+    final clips =
+        ref.read(projectClipsProvider(widget.projectId)).value ?? const [];
+    return {
+      for (final clip in clips)
+        if (widget.clipIds.contains(clip.id)) clip.id: clip.framing,
+    };
+  }
+
+  void _slide(double scale) {
+    final start = _start ??= _stored();
+    ref.read(stageLiveProvider(widget.projectId).notifier).show({
+      for (final MapEntry(key: id, value: from) in start.entries)
+        (kind: TimelineItemKind.clip, id: id): from.copyWith(scale: scale),
+    });
+  }
+
+  Future<void> _release(double scale) async {
+    final start = _start ?? _stored();
+    _start = null;
+    await ref.read(transcriptRepositoryProvider).applyPlacements(
+      projectId: widget.projectId,
+      changes: [
+        for (final MapEntry(key: id, value: from) in start.entries)
+          (
+            kind: TimelineItemKind.clip,
+            id: id,
+            before: from,
+            after: from.copyWith(scale: scale),
+          ),
+      ],
+    );
+    if (mounted) {
+      ref.read(stageLiveProvider(widget.projectId).notifier).clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final cues = ref.watch(captionCuesProvider(transcriptId)).value;
+    final surface = context.surface;
+    final live = ref.watch(stageLiveProvider(widget.projectId));
+    final clips =
+        ref.watch(projectClipsProvider(widget.projectId)).value ?? const [];
 
-    if (cues == null || cues.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Text(l10n.transcriptEmpty, style: theme.textTheme.bodySmall),
-      );
-    }
+    final first = widget.clipIds.firstOrNull;
+    final clip = clips.where((c) => c.id == first).firstOrNull;
+    final scale = (first == null
+            ? null
+            : live[(kind: TimelineItemKind.clip, id: first)]?.scale) ??
+        clip?.scale ??
+        1;
+    const lowest = 0.5;
+    const highest = ItemTransform.maxScale;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
-        0,
+        AppSpacing.xs,
         AppSpacing.md,
-        AppSpacing.md,
+        AppSpacing.xs,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l10n.timelineCaptionsLabel, style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          for (final cue in cues)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
-              child: Text(
-                '${_formatPosition(Duration(milliseconds: cue.startMs))}  '
-                '${cue.text}',
-                style: theme.textTheme.bodySmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+      child: DecoratedBox(
+        // Flat, like the other docked panels: a control, not an action.
+        decoration: surface.decoration(
+          fill: theme.colorScheme.surfaceContainerHighest,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Row(
+            children: [
+              const Icon(Icons.zoom_out, size: 20),
+              Expanded(
+                child: Slider(
+                  value: scale.clamp(lowest, highest).toDouble(),
+                  min: lowest,
+                  max: highest,
+                  onChanged: widget.clipIds.isEmpty ? null : _slide,
+                  onChangeEnd: widget.clipIds.isEmpty ? null : _release,
+                ),
               ),
-            ),
-        ],
+              const Icon(Icons.zoom_in, size: 20),
+              SizedBox(
+                width: 52,
+                child: Text(
+                  l10n.zoomPercent((scale * 100).round()),
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.labelLarge,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-/// The seven icon-over-label buttons at the foot of the screen.
-class _BottomToolbar extends StatelessWidget {
-  const _BottomToolbar({
-    required this.showCaptions,
-    required this.onToggleCaptions,
-    required this.onSplit,
-    required this.onPlaceholder,
+/// The text track: one block per text layer, on the same axis as the clips.
+///
+/// Tap picks a text, a hold adds it to a multi-selection, and a selected
+/// block drags along the axis to retime it -- from its middle to move it,
+/// from either end to stretch it.
+class _TextTrack extends ConsumerStatefulWidget {
+  const _TextTrack({
+    required this.projectId,
+    required this.texts,
+    required this.width,
+    required this.totalMs,
+    required this.pixelsPerSecond,
   });
 
-  final bool showCaptions;
-  final VoidCallback onToggleCaptions;
+  final String projectId;
+  final List<TextLayer> texts;
+  final double width;
+  final int totalMs;
+  final double pixelsPerSecond;
+
+  @override
+  ConsumerState<_TextTrack> createState() => _TextTrackState();
+}
+
+class _TextTrackState extends ConsumerState<_TextTrack> {
+  String? _draggingId;
+  LayerGrip _grip = LayerGrip.whole;
+  LayerBounds? _dragged;
+  double _dragPixels = 0;
+
+  double _x(int ms) => ms / 1000 * widget.pixelsPerSecond;
+
+  void _start(TextLayer text, double localX, double blockWidth) {
+    // The outer fifth of a block, or 16 points, whichever is less, is its
+    // end: enough to catch with a thumb on a short block without making a
+    // long one impossible to move from anywhere but its centre.
+    final edge = math.min(16.0, blockWidth / 5);
+    setState(() {
+      _draggingId = text.id;
+      _dragPixels = 0;
+      _grip = localX <= edge
+          ? LayerGrip.start
+          : localX >= blockWidth - edge
+              ? LayerGrip.end
+              : LayerGrip.whole;
+      _dragged = (startMs: text.startMs, endMs: text.endMs);
+    });
+  }
+
+  void _update(TextLayer text, double dx) {
+    _dragPixels += dx;
+    setState(() {
+      _dragged = applyLayerDrag(
+        layer: (startMs: text.startMs, endMs: text.endMs),
+        grip: _grip,
+        deltaMs: (_dragPixels / widget.pixelsPerSecond * 1000).round(),
+        lowerBoundMs: 0,
+        upperBoundMs: widget.totalMs > 0 ? widget.totalMs : text.endMs,
+        pixelsPerSecond: widget.pixelsPerSecond,
+        snapTargets: [ref.read(timelinePlayheadProvider(widget.projectId))],
+      );
+    });
+  }
+
+  Future<void> _end(TextLayer text) async {
+    final bounds = _dragged;
+    setState(() {
+      _draggingId = null;
+      _dragged = null;
+    });
+    if (bounds == null) return;
+    await ref.read(transcriptRepositoryProvider).editTextLayer(
+          id: text.id,
+          startMs: bounds.startMs,
+          endMs: bounds.endMs,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final selection = ref.watch(timelineSelectionProvider(widget.projectId));
+
+    return SizedBox(
+      width: widget.width,
+      child: Stack(
+        children: [
+          for (final text in widget.texts)
+            if ((text.id == _draggingId ? _dragged : null) ??
+                    (startMs: text.startMs, endMs: text.endMs)
+                case final bounds)
+              Positioned(
+                left: _x(bounds.startMs),
+                width: math.max(_x(bounds.endMs - bounds.startMs), 12),
+                // One row per level of overlap; see `addTextLayer`.
+                top: text.trackIndex * _textTrackHeight,
+                height: _textTrackHeight,
+                child: _textBlock(
+                  text,
+                  theme: theme,
+                  selected: selection
+                      .contains((kind: TimelineItemKind.text, id: text.id)),
+                  width: math.max(_x(bounds.endMs - bounds.startMs), 12),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _textBlock(
+    TextLayer text, {
+    required ThemeData theme,
+    required bool selected,
+    required double width,
+  }) {
+    final item = (kind: TimelineItemKind.text, id: text.id);
+    final selection =
+        ref.read(timelineSelectionProvider(widget.projectId).notifier);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => selection.tap(item),
+      onLongPress: () {
+        HapticFeedback.selectionClick();
+        selection.longPress(item);
+      },
+      // Only a selected block drags, so a swipe across the track still
+      // scrolls the timeline instead of catching on whatever it passes.
+      onHorizontalDragStart: selected
+          ? (details) => _start(text, details.localPosition.dx, width)
+          : null,
+      onHorizontalDragUpdate:
+          selected ? (details) => _update(text, details.delta.dx) : null,
+      onHorizontalDragEnd: selected ? (_) => _end(text) : null,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 1),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHighest,
+          border: context.surface.outlined
+              ? Border.all(
+                  color: context.surface.outline,
+                  width: selected ? 2 : 1,
+                )
+              : null,
+          borderRadius: _tileRadius,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.title,
+              size: 14,
+              color: selected
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurface,
+            ),
+            const SizedBox(width: AppSpacing.xxs),
+            Expanded(
+              child: Text(
+                text.content,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: selected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The tools at the foot of the screen, each one working.
+///
+/// **No placeholders.** Audio, Effects, Overlay and Filter were buttons that
+/// only said "coming soon", which costs a tap to learn nothing. The row now
+/// holds what the editor actually does: cut, frame the picture, add words,
+/// transcribe.
+class _BottomToolbar extends StatelessWidget {
+  const _BottomToolbar({
+    required this.onSplit,
+    required this.onZoom,
+    required this.onRotate,
+    required this.onText,
+    required this.onStyle,
+    required this.onTranscribe,
+    this.zoomOpen = false,
+    this.styleOpen = false,
+  });
 
   final VoidCallback onSplit;
-  final void Function(String feature) onPlaceholder;
+  final VoidCallback onZoom;
+  final VoidCallback onRotate;
+  final VoidCallback onText;
+  final VoidCallback onStyle;
+  final VoidCallback onTranscribe;
+
+  /// Whether the style panel is showing, which the Style button reflects.
+  final bool styleOpen;
+
+  /// Whether the zoom slider is showing, which the Zoom button reflects.
+  final bool zoomOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -2930,61 +3469,41 @@ class _BottomToolbar extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xxs,
+            horizontal: AppSpacing.sm,
             vertical: AppSpacing.xs,
           ),
-          child: Row(
+          // One strip with a rule between tools, not a box round each.
+          child: AppStrip(
             children: [
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.content_cut,
-                  label: l10n.timelineToolSplit,
-                  onTap: onSplit,
+              for (final (icon, label, onTap, active) in [
+                (Icons.content_cut, l10n.timelineToolSplit, onSplit, false),
+                (Icons.zoom_in, l10n.timelineToolZoom, onZoom, zoomOpen),
+                (
+                  Icons.rotate_90_degrees_cw_outlined,
+                  l10n.timelineToolRotate,
+                  onRotate,
+                  false,
                 ),
-              ),
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.audiotrack_outlined,
-                  label: l10n.timelineToolAudio,
-                  onTap: () => onPlaceholder(l10n.timelineToolAudio),
+                (Icons.text_fields, l10n.timelineToolText, onText, false),
+                (
+                  Icons.palette_outlined,
+                  l10n.timelineToolStyle,
+                  onStyle,
+                  styleOpen,
                 ),
-              ),
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.text_fields,
-                  label: l10n.timelineToolText,
-                  onTap: () => onPlaceholder(l10n.timelineToolText),
+                (
+                  Icons.subtitles_outlined,
+                  l10n.clipTranscribe,
+                  onTranscribe,
+                  false,
                 ),
-              ),
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.auto_fix_high_outlined,
-                  label: l10n.timelineToolEffects,
-                  onTap: () => onPlaceholder(l10n.timelineToolEffects),
+              ])
+                _ToolbarButton(
+                  icon: icon,
+                  label: label,
+                  active: active,
+                  onTap: onTap,
                 ),
-              ),
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.layers_outlined,
-                  label: l10n.timelineToolOverlay,
-                  onTap: () => onPlaceholder(l10n.timelineToolOverlay),
-                ),
-              ),
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.subtitles_outlined,
-                  label: l10n.timelineToolCaptions,
-                  active: showCaptions,
-                  onTap: onToggleCaptions,
-                ),
-              ),
-              Expanded(
-                child: _ToolbarButton(
-                  icon: Icons.tune,
-                  label: l10n.timelineToolFilter,
-                  onTap: () => onPlaceholder(l10n.timelineToolFilter),
-                ),
-              ),
             ],
           ),
         ),
@@ -3019,19 +3538,20 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fill = widget.active
-        ? theme.colorScheme.primary
-        : theme.colorScheme.surfaceContainerHighest;
+    // The tool that is open is a chosen state, so it takes the selection
+    // ink, not the action colour.
+    final fill =
+        widget.active ? theme.colorScheme.secondary : Colors.transparent;
     final ink = widget.active
-        ? theme.colorScheme.onPrimary
+        ? theme.colorScheme.onSecondary
         : theme.colorScheme.onSurface;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxs),
+      padding: EdgeInsets.zero,
       child: PressableSurface(
         selected: _pressed || widget.active,
         fill: fill,
-        border: true,
+        borderRadius: BorderRadius.zero,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(

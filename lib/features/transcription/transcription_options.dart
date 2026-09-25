@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/diarization/diarization_controller.dart';
+import '../../core/theme/app_controls.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/whisper/transcription_language_controller.dart';
@@ -72,25 +73,25 @@ class TranscriptionOptions extends ConsumerWidget {
                 .select(option),
           ),
         const Divider(),
-        SwitchListTile(
+        _ToggleTile(
           dense: dense,
           // Falls back to the declared default only for the instant before
           // the stored value has been read; `onChanged` stays null until
           // then so a tap cannot race the load and write the wrong value.
           value: skipSilence ?? SilenceSkippingEnabled.defaultEnabled,
-          title: Text(l10n.silenceSkippingTitle),
-          subtitle: Text(l10n.silenceSkippingHint),
+          title: l10n.silenceSkippingTitle,
+          subtitle: l10n.silenceSkippingHint,
           onChanged: skipSilence == null
               ? null
               : (value) => ref
                   .read(silenceSkippingEnabledProvider.notifier)
                   .setEnabled(value),
         ),
-        SwitchListTile(
+        _ToggleTile(
           dense: dense,
           value: diarize ?? SpeakerDiarizationEnabled.defaultEnabled,
-          title: Text(l10n.diarizationTitle),
-          subtitle: Text(l10n.diarizationHint),
+          title: l10n.diarizationTitle,
+          subtitle: l10n.diarizationHint,
           onChanged: diarize == null
               ? null
               : (value) => ref
@@ -274,4 +275,37 @@ Future<bool> showTranscriptionOptions(
   );
 
   return confirmed == true;
+}
+
+/// A setting that is on or off: the whole row toggles it, with the square
+/// `AppToggle` in place of Material's pill switch.
+class _ToggleTile extends StatelessWidget {
+  const _ToggleTile({
+    required this.dense,
+    required this.value,
+    required this.title,
+    required this.subtitle,
+    required this.onChanged,
+  });
+
+  final bool dense;
+  final bool value;
+  final String title;
+  final String subtitle;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final onChanged = this.onChanged;
+    return MergeSemantics(
+      child: ListTile(
+        dense: dense,
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: AppToggle(value: value, onChanged: onChanged),
+        enabled: onChanged != null,
+        onTap: onChanged == null ? null : () => onChanged(!value),
+      ),
+    );
+  }
 }

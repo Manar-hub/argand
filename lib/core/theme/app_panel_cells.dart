@@ -25,11 +25,33 @@ class AppStrip extends StatelessWidget {
     required this.children,
     this.expand = true,
     this.onCard = false,
+    this.edgeToEdge = false,
+    this.bare = false,
+    this.bottomOpening,
+    this.flex,
   });
 
+  /// Leaves the bottom line open between these two points (from the strip's
+  /// left), where a link from below meets it.
+  final (double, double)? bottomOpening;
+
+  /// Draws no box of its own -- only the rules between cells -- for a strip
+  /// that fills an [AppLinkedPanel]'s frame, which is its box.
+  final bool bare;
+
   final List<Widget> children;
+
+  /// With [expand], each cell's share of the width -- a text cell beside a
+  /// run of colour swatches needs more than one swatch's worth. Even when
+  /// null.
+  final List<int>? flex;
   final bool expand;
   final bool onCard;
+
+  /// Runs the full width of the screen: lines above and below only, none at
+  /// the ends, so the first and last cells -- and their chosen and pressed
+  /// fills -- reach the screen's edges. The timeline toolbar.
+  final bool edgeToEdge;
 
   @override
   Widget build(BuildContext context) {
@@ -51,22 +73,341 @@ class AppStrip extends StatelessWidget {
               width: appRuleWidth(context),
               child: ColoredBox(color: rule),
             ),
-          if (expand) Expanded(child: child) else child,
+          if (expand)
+            Expanded(flex: flex?[index] ?? 1, child: child)
+          else
+            child,
         ],
       ],
     );
 
-    return DecoratedBox(
-      decoration: BoxDecoration(color: fill, border: surface.border),
+    final side = surface.side;
+    final opening = bottomOpening;
+    final framedByPainter = opening != null && surface.outlined && !bare;
+    final box = DecoratedBox(
+      decoration: BoxDecoration(
+        color: fill,
+        border: !surface.outlined || bare || framedByPainter
+            ? null
+            : Border(
+                top: side,
+                bottom: side,
+                left: edgeToEdge ? BorderSide.none : side,
+                right: edgeToEdge ? BorderSide.none : side,
+              ),
+      ),
       child: Padding(
         // Inside the outline, so a chosen cell's fill never paints over it.
-        padding: EdgeInsets.all(surface.borderWidth),
+        padding: bare
+            ? EdgeInsets.zero
+            : EdgeInsets.fromLTRB(
+                edgeToEdge ? 0 : surface.borderWidth,
+                surface.borderWidth,
+                edgeToEdge ? 0 : surface.borderWidth,
+                surface.borderWidth,
+              ),
         // The rules need a height to stretch to; one intrinsic pass on a
         // short row keeps them full-height at any text scale.
         child: IntrinsicHeight(child: row),
       ),
     );
+    if (!framedByPainter) return box;
+    return CustomPaint(
+      foregroundPainter: AppOpenFramePainter(
+        edges: (_) => opening,
+        repaintKey: opening,
+        openTop: false,
+        line: surface.outline,
+        width: surface.borderWidth,
+      ),
+      child: box,
+    );
   }
+}
+
+/// A row of items with the chosen item's options beside it, **linked like a
+/// folder tab**.
+///
+/// The options sit in their own rectangle, a small gap from the items. Two
+/// lines run from the chosen item's edges to that rectangle, and the
+/// rectangle's facing edge runs only as far as them: between the two lines it
+/// is open, so item, lines and rectangle read as one outline -- the options
+/// belong to that item. The lines glide to the next item when it is chosen.
+///
+/// [upward] puts the options *above* the items, for a panel that grows up
+/// from the toolbar; otherwise they hang below. [itemsOpening] opens the
+/// items row's own bottom edge between two points, for when the items are
+/// themselves the options of something below (the toolbar's Style button).
+///
+/// On dark, which draws no light lines, the same shape is drawn in tone
+/// instead: the rectangle in the card's tone, and the channel between the
+/// item and the rectangle filled with it.
+///
+/// [child] draws no box of its own: the rectangle is its box. A single row
+/// of choices is a bare [AppStrip]; anything more pads itself.
+class AppLinkedPanel extends StatelessWidget {
+  const AppLinkedPanel({
+    super.key,
+    required this.items,
+    required this.selected,
+    required this.child,
+    this.gap = 12,
+    this.upward = false,
+    this.itemsOpening,
+  });
+
+  /// The cells of the items row.
+  final List<Widget> items;
+
+  /// Which of [items] is open.
+  final int selected;
+
+  final Widget child;
+
+  /// The space between the items and the rectangle, which the lines cross.
+  final double gap;
+
+  final bool upward;
+
+  final (double, double)? itemsOpening;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final surface = context.surface;
+    final motion = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+    final count = items.length;
+    final rule = appRuleWidth(context);
+    final line = surface.outlined ? surface.outline : null;
+    final tone = theme.colorScheme.surfaceContainerHighest;
+
+    final strip = AppStrip(bottomOpening: itemsOpening, children: items);
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: selected.toDouble()),
+      duration: motion,
+      curve: Curves.easeOutCubic,
+      child: DecoratedBox(
+        // Filled, so nothing the panel floats over shows through the
+        // opening: the page's colour on paper, the card's tone on dark,
+        // where the tone is the rectangle's only edge.
+        decoration: BoxDecoration(
+          color: line == null ? tone : theme.colorScheme.surface,
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(surface.borderWidth),
+          child: child,
+        ),
+      ),
+      builder: (context, at, framed) {
+        (double, double) edges(double width) => appLinkEdgesAt(
+              width: width,
+              count: count,
+              at: at,
+              border: surface.borderWidth,
+              rule: rule,
+            );
+        final channel = AppLinkChannel(
+          height: gap,
+          edges: edges,
+          repaintKey: at,
+        );
+        final rectangle = CustomPaint(
+          foregroundPainter: line == null
+              ? null
+              : AppOpenFramePainter(
+                  edges: edges,
+                  repaintKey: at,
+                  openTop: !upward,
+                  line: line,
+                  width: surface.borderWidth,
+                ),
+          child: framed,
+        );
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: upward
+              ? [rectangle, channel, strip]
+              : [strip, channel, rectangle],
+        );
+      },
+    );
+  }
+}
+
+/// Where cell [index] of a row of [count] cells has its two edges, across a
+/// row [width] wide: the centres of the lines either side of it, as
+/// [AppStrip] lays its cells out -- its outer line at the ends ([border]),
+/// the rules between cells ([rule]) elsewhere.
+(double, double) appLinkEdges({
+  required double width,
+  required int count,
+  required int index,
+  required double border,
+  required double rule,
+}) {
+  final cell = (width - 2 * border - (count - 1) * rule) / count;
+  final start = border + index * (cell + rule);
+  final left = index == 0 ? border / 2 : start - rule / 2;
+  final right =
+      index == count - 1 ? width - border / 2 : start + cell + rule / 2;
+  return (left, right);
+}
+
+/// [appLinkEdges] at a fractional index, between two cells while the link
+/// glides from one to the next.
+(double, double) appLinkEdgesAt({
+  required double width,
+  required int count,
+  required double at,
+  required double border,
+  required double rule,
+}) {
+  final from = at.floor().clamp(0, count - 1);
+  final to = at.ceil().clamp(0, count - 1);
+  final t = at - at.floor();
+  final a = appLinkEdges(
+    width: width,
+    count: count,
+    index: from,
+    border: border,
+    rule: rule,
+  );
+  final b = appLinkEdges(
+    width: width,
+    count: count,
+    index: to,
+    border: border,
+    rule: rule,
+  );
+  return (a.$1 + (b.$1 - a.$1) * t, a.$2 + (b.$2 - a.$2) * t);
+}
+
+/// The gap a link crosses: two lines at [edges] -- or, on dark, the channel
+/// between them filled with the card's tone -- on the page's colour, so
+/// nothing behind shows through.
+class AppLinkChannel extends StatelessWidget {
+  const AppLinkChannel({
+    super.key,
+    required this.height,
+    required this.edges,
+    required this.repaintKey,
+  });
+
+  final double height;
+
+  /// Where the two lines fall, given the channel's width.
+  final (double, double) Function(double width) edges;
+
+  /// Changes whenever [edges] would answer differently.
+  final Object repaintKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final surface = context.surface;
+    return Container(
+      height: height,
+      color: theme.colorScheme.surface,
+      child: CustomPaint(
+        painter: _ChannelPainter(
+          edges: edges,
+          repaintKey: repaintKey,
+          line: surface.outlined ? surface.outline : null,
+          width: surface.borderWidth,
+          tone: theme.colorScheme.surfaceContainerHighest,
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelPainter extends CustomPainter {
+  _ChannelPainter({
+    required this.edges,
+    required this.repaintKey,
+    required this.line,
+    required this.width,
+    required this.tone,
+  });
+
+  final (double, double) Function(double width) edges;
+  final Object repaintKey;
+  final Color? line;
+  final double width;
+  final Color tone;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final (left, right) = edges(size.width);
+    if (line == null) {
+      canvas.drawRect(
+        Rect.fromLTRB(left, 0, right, size.height),
+        Paint()..color = tone,
+      );
+      return;
+    }
+    final paint = Paint()
+      ..color = line!
+      ..strokeWidth = width;
+    canvas.drawLine(Offset(left, 0), Offset(left, size.height), paint);
+    canvas.drawLine(Offset(right, 0), Offset(right, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChannelPainter old) =>
+      old.repaintKey != repaintKey || old.line != line || old.tone != tone;
+}
+
+/// A rectangle's outline with one edge -- the top when [openTop], else the
+/// bottom -- open between the two points [edges] gives, where a link's lines
+/// meet it.
+class AppOpenFramePainter extends CustomPainter {
+  AppOpenFramePainter({
+    required this.edges,
+    required this.repaintKey,
+    required this.openTop,
+    required this.line,
+    required this.width,
+  });
+
+  final (double, double) Function(double width) edges;
+  final Object repaintKey;
+  final bool openTop;
+  final Color line;
+  final double width;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final (left, right) = edges(size.width);
+    final half = width / 2;
+    final paint = Paint()
+      ..color = line
+      ..strokeWidth = width
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.square;
+    final near = openTop ? half : size.height - half;
+    final far = openTop ? size.height - half : half;
+    // From the first link line out round the rectangle and back along the
+    // open edge to the second: everything but the opening.
+    final path = Path()
+      ..moveTo(left, near)
+      ..lineTo(half, near)
+      ..lineTo(half, far)
+      ..lineTo(size.width - half, far)
+      ..lineTo(size.width - half, near)
+      ..lineTo(right, near);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant AppOpenFramePainter old) =>
+      old.repaintKey != repaintKey ||
+      old.line != line ||
+      old.openTop != openTop;
 }
 
 /// The thickness of the rule between two rows or cells: a hairline of ink on

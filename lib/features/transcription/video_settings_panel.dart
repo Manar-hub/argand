@@ -5,9 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/theme/app_panel_cells.dart';
-import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/theme/app_surface.dart';
 import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
 import 'editor_mode_controller.dart';
@@ -242,8 +240,6 @@ class _PanelBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final surface = theme.extension<AppSurface>()!;
     final panel = ref.watch(videoSettingsPanelControllerProvider(projectId));
     final controller =
         ref.read(videoSettingsPanelControllerProvider(projectId).notifier);
@@ -267,9 +263,13 @@ class _PanelBody extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // One strip, a rule between items, like the timeline's toolbar.
-          AppStrip(
-            children: [
+          // The chosen item's options in a rectangle below, linked to it
+          // like a folder tab: two lines drop from the item's edges, and
+          // the rectangle's top is open between them.
+          AppLinkedPanel(
+            // The mode switch comes first, so the settings start at 1.
+            selected: 1 + panel.item.index,
+            items: [
               AppPanelItem(
                 icon: other == EditorMode.script
                     ? Icons.notes
@@ -309,16 +309,7 @@ class _PanelBody extends ConsumerWidget {
                   onTap: () => controller.show(item),
                 ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          DecoratedBox(
-            // No frame and no shadow: the rows inside are strips with their
-            // own box. Only the card's tone, which on paper is the page's.
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-            ),
-            child: ClipRRect(
-              borderRadius: surface.borderRadius,
+            child: ClipRect(
               child: AnimatedSize(
                 duration: _motionFor(context),
                 curve: Curves.easeOutCubic,
@@ -351,7 +342,7 @@ class _PanelBody extends ConsumerWidget {
                   child: KeyedSubtree(
                     key: ValueKey(panel.item),
                     child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
+                      padding: EdgeInsets.zero,
                       child: switch (panel.item) {
                         VideoSettingsItem.aspect => _AspectOptions(
                             settings: settings,
@@ -391,7 +382,7 @@ class _AspectOptions extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return AppStrip(
-      onCard: true,
+      bare: true,
       children: [
         for (final (aspect, label) in <(ExportAspect, String)>[
           (ExportAspect.source, l10n.exportAspectSource),
@@ -473,7 +464,7 @@ class _ResolutionOptions extends ConsumerWidget {
     final effective = settings.quality.fitTo(shortEdge);
 
     return AppStrip(
-      onCard: true,
+      bare: true,
       children: [
         for (final (quality, label) in <(ExportQuality, String)>[
           (ExportQuality.p720, l10n.exportQuality720),
@@ -512,24 +503,34 @@ class _WatermarkOptions extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    return Row(
+    // The same hanging strip as the other two items: what the row is
+    // about, then its two choices.
+    return AppStrip(
+      bare: true,
+      flex: const [2, 1, 1],
       children: [
-        Text(
-          l10n.videoSettingsWatermarkPreview,
-          style: theme.textTheme.labelLarge,
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: AppSegmentRow<bool>(
-            selected: settings.previewWatermark,
-            items: {
-              true: l10n.videoSettingsVisible,
-              false: l10n.videoSettingsHidden,
-            },
-            onSelected: (visible) =>
-                onChanged(settings.copyWith(previewWatermark: visible)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              l10n.videoSettingsWatermarkPreview,
+              style: theme.textTheme.labelLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
+        for (final (visible, label) in [
+          (true, l10n.videoSettingsVisible),
+          (false, l10n.videoSettingsHidden),
+        ])
+          AppChoice(
+            selected: settings.previewWatermark == visible,
+            onTap: () =>
+                onChanged(settings.copyWith(previewWatermark: visible)),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
       ],
     );
   }

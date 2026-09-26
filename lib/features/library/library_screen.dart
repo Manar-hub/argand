@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/media/shared_media.dart';
+import '../../core/monetization/monetization.dart';
 import '../../core/theme/accent_color_controller.dart';
 import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_dialog.dart';
@@ -15,6 +16,7 @@ import '../../core/theme/app_surface.dart';
 import '../../core/theme/theme_mode_controller.dart';
 import '../../core/theme/theme_reveal.dart';
 import '../../l10n/app_localizations.dart';
+import '../monetization/pro_offer.dart';
 import '../transcription/transcription_options.dart';
 import '../transcription/editor_mode_controller.dart';
 import '../transcription/import_controller.dart';
@@ -994,11 +996,9 @@ class _AccentColorControl extends ConsumerWidget {
     0xFF9B6CFF,
     0xFF116DD6,
     0xFF00A3A3,
-    0xFF2E9E4F,
     0xFFFFD93D,
     0xFFFF8A3D,
     0xFFE8485A,
-    0xFFFF6FB5,
   ];
 
   @override
@@ -1037,6 +1037,26 @@ class _AccentColorControl extends ConsumerWidget {
   }
 }
 
+/// The Pro offer, as the export sheet makes it: gone once Pro is owned.
+class _ProSettingsRow extends ConsumerWidget {
+  const _ProSettingsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pro = ref.watch(proUnlockedProvider).value ?? false;
+    if (pro) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.sm,
+      ),
+      child: ProOfferRow(onGetPro: () => showProComingSoon(context)),
+    );
+  }
+}
+
 /// App-level settings.
 ///
 /// **Transcription options are deliberately not here.** Model, language,
@@ -1058,7 +1078,11 @@ class _SettingsSheet extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [_ThemeModeControl(), _AccentColorControl()],
+          children: [
+            _ThemeModeControl(),
+            _AccentColorControl(),
+            _ProSettingsRow(),
+          ],
         ),
       ),
     );

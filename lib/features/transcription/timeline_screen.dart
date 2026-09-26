@@ -449,7 +449,14 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                             clipIds: _toolClips(selectedId, select: false),
                           )
                         : _styleOpen
-                            ? StylePanel(projectId: projectId)
+                            ? StylePanel(
+                                projectId: projectId,
+                                // Linked down to the toolbar's Style button.
+                                anchor: (
+                                  count: _BottomToolbar.toolCount,
+                                  index: _BottomToolbar.styleIndex,
+                                ),
+                              )
                             : const SizedBox(width: double.infinity),
                   ),
                   _BottomToolbar(
@@ -3427,6 +3434,12 @@ class _TextTrackState extends ConsumerState<_TextTrack> {
 /// holds what the editor actually does: cut, frame the picture, add words,
 /// transcribe.
 class _BottomToolbar extends StatelessWidget {
+  /// How many tools the strip holds, and where Style sits among them -- what
+  /// the Style panel's link down to its button is measured from. Keep in step
+  /// with the list in [build].
+  static const toolCount = 6;
+  static const styleIndex = 4;
+
   const _BottomToolbar({
     required this.onSplit,
     required this.onZoom,
@@ -3456,24 +3469,18 @@ class _BottomToolbar extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.outline.withValues(alpha: 0.18),
-          ),
-        ),
-      ),
+    return ColoredBox(
+      color: theme.colorScheme.surface,
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          // One strip with a rule between tools, not a box round each.
+          // No space above: a panel linked to a tool draws its lines right
+          // down to the strip's top line.
+          padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+          // One strip with a rule between tools, not a box round each, running
+          // to the screen's edges with no line at either end.
           child: AppStrip(
+            edgeToEdge: true,
             children: [
               for (final (icon, label, onTap, active) in [
                 (Icons.content_cut, l10n.timelineToolSplit, onSplit, false),

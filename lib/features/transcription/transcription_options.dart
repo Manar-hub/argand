@@ -55,7 +55,6 @@ class TranscriptionOptions extends ConsumerWidget {
               dense: dense,
               selected: model == selectedModel,
               title: _labelFor(l10n, model),
-              subtitle: _hintFor(l10n, model),
               onTap: () =>
                   ref.read(selectedWhisperModelProvider.notifier).select(model),
             ),
@@ -67,7 +66,6 @@ class TranscriptionOptions extends ConsumerWidget {
             dense: dense,
             selected: option == language,
             title: _languageLabel(l10n, option),
-            subtitle: _languageHint(l10n, option),
             onTap: () => ref
                 .read(selectedTranscriptionLanguageProvider.notifier)
                 .select(option),
@@ -140,14 +138,12 @@ class _ChoiceTile extends StatelessWidget {
   const _ChoiceTile({
     required this.selected,
     required this.title,
-    required this.subtitle,
     required this.onTap,
     this.dense = false,
   });
 
   final bool selected;
   final String title;
-  final String subtitle;
   final VoidCallback onTap;
   final bool dense;
 
@@ -174,7 +170,6 @@ class _ChoiceTile extends StatelessWidget {
             ? theme.textTheme.titleSmall
             : theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500),
       ),
-      subtitle: Text(subtitle),
       onTap: onTap,
     );
   }
@@ -193,13 +188,6 @@ String _labelFor(AppLocalizations l10n, WhisperModelDescriptor model) {
   };
 }
 
-String _hintFor(AppLocalizations l10n, WhisperModelDescriptor model) {
-  return switch (model.id) {
-    'base' => l10n.modelHintFaster,
-    _ => l10n.modelHintAccurate,
-  };
-}
-
 /// Exhaustive over [TranscriptionLanguage] rather than falling back to the
 /// code, unlike the model labels above: this enum is closed and every entry is
 /// one this build deliberately offers, so a missing string is a bug the
@@ -208,13 +196,6 @@ String _languageLabel(AppLocalizations l10n, TranscriptionLanguage language) {
   return switch (language) {
     TranscriptionLanguage.auto => l10n.languageAuto,
     TranscriptionLanguage.english => l10n.languageEnglish,
-  };
-}
-
-String _languageHint(AppLocalizations l10n, TranscriptionLanguage language) {
-  return switch (language) {
-    TranscriptionLanguage.auto => l10n.languageAutoHint,
-    TranscriptionLanguage.english => l10n.languageEnglishHint,
   };
 }
 

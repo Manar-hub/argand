@@ -238,18 +238,6 @@ abstract class AppLocalizations {
   /// **'Small (quantized)'**
   String get modelNameSmallQ51;
 
-  /// Subtitle describing the smaller, quicker model
-  ///
-  /// In en, this message translates to:
-  /// **'Faster, less accurate'**
-  String get modelHintFaster;
-
-  /// Subtitle describing the larger, more accurate model
-  ///
-  /// In en, this message translates to:
-  /// **'Slower, more accurate'**
-  String get modelHintAccurate;
-
   /// Pipeline stage: running speaker diarization over the extracted audio
   ///
   /// In en, this message translates to:
@@ -286,23 +274,11 @@ abstract class AppLocalizations {
   /// **'Detect automatically'**
   String get languageAuto;
 
-  /// Subtitle for the automatic language-detection option
-  ///
-  /// In en, this message translates to:
-  /// **'The model identifies the language'**
-  String get languageAutoHint;
-
   /// Language option pinning transcription to English
   ///
   /// In en, this message translates to:
   /// **'English'**
   String get languageEnglish;
-
-  /// Subtitle for the pinned-English language option
-  ///
-  /// In en, this message translates to:
-  /// **'Skip detection, assume English'**
-  String get languageEnglishHint;
 
   /// Header of the settings section toggling voice activity detection
   ///
@@ -313,7 +289,7 @@ abstract class AppLocalizations {
   /// Subtitle explaining what the silence-skipping toggle does
   ///
   /// In en, this message translates to:
-  /// **'Transcribe speech only. Faster, and avoids invented words over silence.'**
+  /// **'Faster when there are pauses. Can be slower on non-stop speech.'**
   String get silenceSkippingHint;
 
   /// Header of the settings section toggling speaker diarization
@@ -325,7 +301,7 @@ abstract class AppLocalizations {
   /// Subtitle explaining what the speaker-identification toggle does
   ///
   /// In en, this message translates to:
-  /// **'Label who is speaking. Slower, and skipped on very long recordings.'**
+  /// **'Slower. Skipped on very long recordings.'**
   String get diarizationHint;
 
   /// Tooltip on the app bar control that switches the transcript from playback into editing

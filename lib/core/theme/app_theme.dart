@@ -66,6 +66,11 @@ abstract final class AppTheme {
     return la > lb ? la / lb : lb / la;
   }
 
+  /// Pro's own colour, a vivid "cyber gold": every Get Pro button takes it,
+  /// whatever the user's action colour, so the offer looks the same
+  /// wherever it appears.
+  static const proGold = Color(0xFFFFC300);
+
   /// Reserved for genuine destruction — deleting a project. Also outside the
   /// speaker set, so it cannot be mistaken for an attribution.
   static const danger = Color(0xFFE03131);

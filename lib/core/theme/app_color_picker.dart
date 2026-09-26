@@ -8,18 +8,14 @@ import 'app_surface.dart';
 // A colour picker shared by the Style panel (caption and text colours) and
 // the settings sheet (the action colour), so both pick colours the same way.
 
-/// Colours offered as one-tap presets, beside the spectrum: white and black,
-/// and the hues a caption is usually set in.
+/// Colours offered as one-tap presets, beside the spectrum -- few enough to
+/// fit the strip without scrolling; the spectrum reaches everything else.
 const List<int> appColorSwatches = [
   0xFFFFFFFF,
   0xFF111111,
   0xFFFFE14D,
-  0xFFFF8A3D,
   0xFFFF4D4D,
-  0xFFFF6FB5,
-  0xFFA78BFA,
   0xFF4DA3FF,
-  0xFF4DD0E1,
   0xFF5BE37D,
 ];
 
@@ -94,31 +90,37 @@ class _AppColorPickerState extends State<AppColorPicker> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // One strip, a rule between colours, and the chosen colour filling
-        // its whole cell -- the same pattern as every other row of choices.
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: AppStrip(
-            expand: false,
-            onCard: true,
-            children: [
-              if (defaultLabel != null)
-                AppChoice(
-                  selected: widget.current == null && _dragging == null,
-                  onTap: () => widget.onChanged(null),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                  ),
-                  child: Text(defaultLabel, maxLines: 1),
+        // One strip across the full width, a rule between colours, and the
+        // chosen colour filling its whole cell -- the same pattern as every
+        // other row of choices.
+        AppStrip(
+          onCard: true,
+          // A word needs about two swatches' width.
+          flex: [
+            if (defaultLabel != null) 2,
+            for (final _ in widget.swatches) 1,
+          ],
+          children: [
+            if (defaultLabel != null)
+              AppChoice(
+                selected: widget.current == null && _dragging == null,
+                onTap: () => widget.onChanged(null),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
                 ),
-              for (final argb in widget.swatches)
-                _Swatch(
-                  color: Color(argb),
-                  selected: argb == widget.current && _dragging == null,
-                  onTap: () => widget.onChanged(argb),
+                child: Text(
+                  defaultLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-            ],
-          ),
+              ),
+            for (final argb in widget.swatches)
+              _Swatch(
+                color: Color(argb),
+                selected: argb == widget.current && _dragging == null,
+                onTap: () => widget.onChanged(argb),
+              ),
+          ],
         ),
         const SizedBox(height: AppSpacing.md),
         _SpectrumTrack(
@@ -172,7 +174,6 @@ class _Swatch extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  static const double _width = 42;
   static const double _height = 38;
   static const double _dot = 18;
 
@@ -191,21 +192,29 @@ class _Swatch extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: SizedBox(
-          width: _width,
           height: _height,
-          child: Center(
-            child: AnimatedContainer(
-              duration: motion,
-              curve: Curves.easeOutCubic,
-              width: selected ? _width : _dot,
-              height: selected ? _height : _dot,
-              decoration: BoxDecoration(
+          // Painted rather than laid out: the cell's width comes from the
+          // strip, and the strip measures its height intrinsically, which a
+          // LayoutBuilder cannot answer.
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: selected ? 1 : 0),
+            duration: motion,
+            curve: Curves.easeOutCubic,
+            builder: (context, grown, _) => CustomPaint(
+              size: Size.infinite,
+              painter: _SwatchPainter(
                 color: color,
-                // A fine line round the small square on paper, so white
-                // still shows on the off-white strip; none once it fills.
-                border: surface.outlined && !selected
-                    ? Border.all(color: surface.outline, width: 1)
-                    : null,
+                grown: grown,
+                dot: _dot,
+                // A fine edge round the small square, so a swatch the colour
+                // of its cell still shows -- white on paper, black on dark --
+                // gone once it fills. On dark it is faint ink, not a frame.
+                outline: surface.outlined
+                    ? surface.outline
+                    : Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -213,6 +222,45 @@ class _Swatch extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A swatch [grown] from a small centred square (0) to its whole cell (1).
+class _SwatchPainter extends CustomPainter {
+  _SwatchPainter({
+    required this.color,
+    required this.grown,
+    required this.dot,
+    required this.outline,
+  });
+
+  final Color color;
+  final double grown;
+  final double dot;
+  final Color? outline;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final small = Rect.fromCenter(
+      center: size.center(Offset.zero),
+      width: dot,
+      height: dot,
+    );
+    final rect = Rect.lerp(small, Offset.zero & size, grown)!;
+    canvas.drawRect(rect, Paint()..color = color);
+    if (outline != null && grown < 1) {
+      canvas.drawRect(
+        rect.deflate(0.5),
+        Paint()
+          ..color = outline!.withValues(alpha: 1 - grown)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SwatchPainter old) =>
+      old.color != color || old.grown != grown || old.outline != outline;
 }
 
 /// A gradient track with a thumb: the spectrum's two sliders.

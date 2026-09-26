@@ -59,9 +59,14 @@ enum _StyleScope { selected, all }
 /// thing, and every cell keeps a tone of its own against what it sits on
 /// even on dark, which draws no outlines.
 class StylePanel extends ConsumerStatefulWidget {
-  const StylePanel({super.key, required this.projectId});
+  const StylePanel({super.key, required this.projectId, this.anchor});
 
   final String projectId;
+
+  /// The toolbar cell that opened the panel -- the toolbar's cell count and
+  /// which one -- when the panel sits directly above that toolbar. The panel
+  /// then links down to it the same way its own options link to its items.
+  final ({int count, int index})? anchor;
 
   @override
   ConsumerState<StylePanel> createState() => _StylePanelState();
@@ -217,179 +222,253 @@ class _StylePanelState extends ConsumerState<StylePanel> {
       _apply(targets, all, edit);
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.md,
-        AppSpacing.xs,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Only when there is a choice: with captions selected, style
-          // just them or the whole transcription.
-          if (captions && selected.isNotEmpty) ...[
-            AppSegmentRow<_StyleScope>(
-              selected: _scope,
-              items: {
-                _StyleScope.selected:
-                    l10n.styleScopeSelected(selected.length),
-                _StyleScope.all: l10n.styleScopeAll,
-              },
-              onSelected: (scope) => setState(() => _scope = scope),
+    // **Grows up from the toolbar**: the Style button, a link up to the row
+    // of items, the chosen item, a link up to its options. Each child sits
+    // above its parent, joined to it like a folder tab.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final anchor = widget.anchor;
+        // Where the toolbar's Style cell has its edges, across the full
+        // width -- the toolbar runs edge to edge, with no outer line.
+        final toolbarEdges = anchor == null
+            ? null
+            : appLinkEdges(
+                width: constraints.maxWidth,
+                count: anchor.count,
+                index: anchor.index,
+                border: 0,
+                rule: appRuleWidth(context),
+              );
+        // The same two points in the items row's own frame, inset by the
+        // panel's side margin.
+        final itemsOpening = toolbarEdges == null
+            ? null
+            : (
+                toolbarEdges.$1 - AppSpacing.md,
+                toolbarEdges.$2 - AppSpacing.md,
+              );
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.md,
+                0,
+              ),
+              child: _body(
+                context,
+                l10n: l10n,
+                theme: theme,
+                captions: captions,
+                selected: selected,
+                targets: targets,
+                items: items,
+                item: item,
+                current: current,
+                change: change,
+                itemsOpening: itemsOpening,
+              ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            if (toolbarEdges != null)
+              AppLinkChannel(
+                height: AppSpacing.sm,
+                edges: (_) => toolbarEdges,
+                repaintKey: toolbarEdges,
+              )
+            else
+              const SizedBox(height: AppSpacing.xs),
           ],
-          if (targets.isEmpty)
-            DecoratedBox(
-              // No frame and no shadow: the rows inside are strips with
-              // their own box, and a box round them read as boxes in a box.
-              // Only the card's tone, which on paper is the page's own.
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Text(
-                  l10n.styleNothing,
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          else ...[
-            AppStrip(
-              children: [
-                for (final (value, icon, label) in items)
-                  AppPanelItem(
-                    icon: icon,
-                    label: label,
-                    selected: item == value,
-                    onTap: () => setState(() => _item = value),
-                  ),
-              ],
+        );
+      },
+    );
+  }
+
+  Widget _body(
+    BuildContext context, {
+    required AppLocalizations l10n,
+    required ThemeData theme,
+    required bool captions,
+    required List<TimelineItem> selected,
+    required List<TimelineItem> targets,
+    required List<(_StyleItem, IconData, String)> items,
+    required _StyleItem item,
+    required ItemLook current,
+    required void Function(ItemLook Function(ItemLook)) change,
+    required (double, double)? itemsOpening,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Only when there is a choice: with captions selected, style
+        // just them or the whole transcription.
+        if (captions && selected.isNotEmpty) ...[
+          AppSegmentRow<_StyleScope>(
+            selected: _scope,
+            items: {
+              _StyleScope.selected:
+                  l10n.styleScopeSelected(selected.length),
+              _StyleScope.all: l10n.styleScopeAll,
+            },
+            onSelected: (scope) => setState(() => _scope = scope),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        if (targets.isEmpty)
+          DecoratedBox(
+            // No frame and no shadow: the rows inside are strips with
+            // their own box, and a box round them read as boxes in a box.
+            // Only the card's tone, which on paper is the page's own.
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
             ),
-            const SizedBox(height: AppSpacing.sm),
-            DecoratedBox(
-              // No frame and no shadow: the rows inside are strips with
-              // their own box, and a box round them read as boxes in a box.
-              // Only the card's tone, which on paper is the page's own.
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Text(
+                l10n.styleNothing,
+                style: theme.textTheme.bodySmall,
+                textAlign: TextAlign.center,
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: AnimatedSize(
-                  duration: _motion,
-                  curve: Curves.easeOutCubic,
-                  alignment: Alignment.topCenter,
-                  child: AnimatedSwitcher(
-                    duration: _motion,
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child: KeyedSubtree(
-                      key: ValueKey(item),
-                      child: switch (item) {
-                        _StyleItem.font => _FontOptions(
-                            current: current.font,
-                            onChanged: (font) =>
-                                change((look) => look.copyWith(font: font)),
-                          ),
-                        _StyleItem.color => Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AppSegmentRow<bool>(
-                                selected: _background,
-                                items: {
-                                  false: l10n.styleColorText,
-                                  true: l10n.styleColorBackground,
-                                },
-                                onSelected: (background) =>
-                                    setState(() => _background = background),
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              AnimatedSwitcher(
-                                duration: _motion,
-                                child: _background
-                                    ? AppColorPicker(
-                                        key: const ValueKey('background'),
-                                        current: current.backgroundArgb,
-                                        defaultLabel: l10n.styleColorNone,
-                                        onChanged: (argb) => change(
-                                          (look) => look.copyWith(
-                                            backgroundArgb: () => argb,
-                                          ),
-                                        ),
-                                      )
-                                    : AppColorPicker(
-                                        key: const ValueKey('text'),
-                                        current: current.colorArgb,
-                                        // A caption's default colour is its
-                                        // speaker's.
-                                        defaultLabel: captions
-                                            ? l10n.styleColorSpeaker
-                                            : l10n.styleColorDefault,
-                                        onChanged: (argb) => change(
-                                          (look) => look.copyWith(
-                                            colorArgb: () => argb,
-                                          ),
+            ),
+          )
+        else ...[
+          // The chosen item's options in a rectangle below, linked to it
+          // like a folder tab -- the same panel as the video settings.
+          AppLinkedPanel(
+            // Options above, items below, the whole panel above the
+            // toolbar: each child over its parent.
+            upward: true,
+            itemsOpening: itemsOpening,
+            selected: items.indexWhere((entry) => entry.$1 == item),
+            items: [
+              for (final (value, icon, label) in items)
+                AppPanelItem(
+                  icon: icon,
+                  label: label,
+                  selected: item == value,
+                  onTap: () => setState(() => _item = value),
+                ),
+            ],
+            child: AnimatedSize(
+              duration: _motion,
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: AnimatedSwitcher(
+                duration: _motion,
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: KeyedSubtree(
+                  key: ValueKey(item),
+                  child: switch (item) {
+                    _StyleItem.font => _FontOptions(
+                        current: current.font,
+                        onChanged: (font) =>
+                            change((look) => look.copyWith(font: font)),
+                      ),
+                    _StyleItem.color => Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            AppSegmentRow<bool>(
+                              selected: _background,
+                              items: {
+                                false: l10n.styleColorText,
+                                true: l10n.styleColorBackground,
+                              },
+                              onSelected: (background) =>
+                                  setState(() => _background = background),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            AnimatedSwitcher(
+                              duration: _motion,
+                              child: _background
+                                  ? AppColorPicker(
+                                      key: const ValueKey('background'),
+                                      current: current.backgroundArgb,
+                                      defaultLabel: l10n.styleColorNone,
+                                      onChanged: (argb) => change(
+                                        (look) => look.copyWith(
+                                          backgroundArgb: () => argb,
                                         ),
                                       ),
-                              ),
-                            ],
-                          ),
-                        _StyleItem.shadow => _ShadowDial(
-                            current: current.shadow,
-                            onBackground: current.backgroundArgb != null,
-                            onChanged: (shadow) => change(
-                              (look) => look.copyWith(shadow: shadow),
+                                    )
+                                  : AppColorPicker(
+                                      key: const ValueKey('text'),
+                                      current: current.colorArgb,
+                                      // A caption's default colour is its
+                                      // speaker's.
+                                      defaultLabel: captions
+                                          ? l10n.styleColorSpeaker
+                                          : l10n.styleColorDefault,
+                                      onChanged: (argb) => change(
+                                        (look) => look.copyWith(
+                                          colorArgb: () => argb,
+                                        ),
+                                      ),
+                                    ),
                             ),
+                          ],
+                        ),
+                      ),
+                    _StyleItem.shadow => Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: _ShadowDial(
+                          current: current.shadow,
+                          onBackground: current.backgroundArgb != null,
+                          onChanged: (shadow) => change(
+                            (look) => look.copyWith(shadow: shadow),
                           ),
-                        _StyleItem.mode => _ModeOptions(
-                            current: current.mode,
-                            onChanged: (mode) =>
-                                change((look) => look.copyWith(mode: mode)),
-                          ),
-                        _StyleItem.highlight => Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AppColorPicker(
-                                current: current.highlightArgb,
-                                onChanged: (argb) => change(
-                                  (look) => look.copyWith(
-                                    highlightArgb:
-                                        argb ?? ItemLook.defaultHighlight,
-                                  ),
+                        ),
+                      ),
+                    _StyleItem.mode => _ModeOptions(
+                        current: current.mode,
+                        onChanged: (mode) =>
+                            change((look) => look.copyWith(mode: mode)),
+                      ),
+                    _StyleItem.highlight => Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            AppColorPicker(
+                              current: current.highlightArgb,
+                              onChanged: (argb) => change(
+                                (look) => look.copyWith(
+                                  highlightArgb:
+                                      argb ?? ItemLook.defaultHighlight,
                                 ),
                               ),
-                              if (current.mode == CaptionMode.highlight) ...[
-                                const SizedBox(height: AppSpacing.sm),
-                                AppSegmentRow<bool>(
-                                  selected: current.highlightBox,
-                                  items: {
-                                    true: l10n.styleHighlightBox,
-                                    false: l10n.styleHighlightLetters,
-                                  },
-                                  onSelected: (box) => change(
-                                    (look) => look.copyWith(highlightBox: box),
-                                  ),
+                            ),
+                            if (current.mode == CaptionMode.highlight) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              AppSegmentRow<bool>(
+                                selected: current.highlightBox,
+                                items: {
+                                  true: l10n.styleHighlightBox,
+                                  false: l10n.styleHighlightLetters,
+                                },
+                                onSelected: (box) => change(
+                                  (look) => look.copyWith(highlightBox: box),
                                 ),
-                              ],
+                              ),
                             ],
-                          ),
-                      },
-                    ),
-                  ),
+                          ],
+                        ),
+                      ),
+                  },
                 ),
               ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -408,6 +487,7 @@ class _FontOptions extends StatelessWidget {
       child: AppStrip(
         expand: false,
         onCard: true,
+        bare: true,
         children: [
           for (final font in LookFont.values)
             SizedBox(
@@ -563,6 +643,7 @@ class _ModeOptions extends StatelessWidget {
 
     return AppStrip(
       onCard: true,
+      bare: true,
       children: [
         for (final (mode, label) in <(CaptionMode, String)>[
           (CaptionMode.standard, l10n.styleModeStandard),

@@ -345,11 +345,9 @@ void main() {
       AppTheme.defaultAccent,
       Color(0xFF116DD6),
       Color(0xFF00A3A3),
-      Color(0xFF2E9E4F),
       Color(0xFFFFD93D),
       Color(0xFFFF8A3D),
       Color(0xFFE8485A),
-      Color(0xFFFF6FB5),
     ];
 
     double contrast(Color a, Color b) {

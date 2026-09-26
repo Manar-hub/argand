@@ -96,12 +96,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelNameSmallQ51 => 'Small (quantized)';
 
   @override
-  String get modelHintFaster => 'Faster, less accurate';
-
-  @override
-  String get modelHintAccurate => 'Slower, more accurate';
-
-  @override
   String get stageIdentifyingSpeakers => 'Identifying speakers';
 
   @override
@@ -122,27 +116,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageAuto => 'Detect automatically';
 
   @override
-  String get languageAutoHint => 'The model identifies the language';
-
-  @override
   String get languageEnglish => 'English';
-
-  @override
-  String get languageEnglishHint => 'Skip detection, assume English';
 
   @override
   String get silenceSkippingTitle => 'Skip silence';
 
   @override
   String get silenceSkippingHint =>
-      'Transcribe speech only. Faster, and avoids invented words over silence.';
+      'Faster when there are pauses. Can be slower on non-stop speech.';
 
   @override
   String get diarizationTitle => 'Identify speakers';
 
   @override
-  String get diarizationHint =>
-      'Label who is speaking. Slower, and skipped on very long recordings.';
+  String get diarizationHint => 'Slower. Skipped on very long recordings.';
 
   @override
   String get editModeEnable => 'Edit transcript';

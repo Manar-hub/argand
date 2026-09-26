@@ -82,11 +82,7 @@
   "modelNameSmallQ51": "Small (quantized)",
   "@modelNameSmallQ51": { "description": "Display name of the bundled small-q5_1 Whisper model" },
 
-  "modelHintFaster": "Faster, less accurate",
-  "@modelHintFaster": { "description": "Subtitle describing the smaller, quicker model" },
 
-  "modelHintAccurate": "Slower, more accurate",
-  "@modelHintAccurate": { "description": "Subtitle describing the larger, more accurate model" },
 
   "stageIdentifyingSpeakers": "Identifying speakers",
   "@stageIdentifyingSpeakers": { "description": "Pipeline stage: running speaker diarization over the extracted audio" },
@@ -109,25 +105,21 @@
   "languageAuto": "Detect automatically",
   "@languageAuto": { "description": "Language option letting the engine identify the spoken language itself" },
 
-  "languageAutoHint": "The model identifies the language",
-  "@languageAutoHint": { "description": "Subtitle for the automatic language-detection option" },
 
   "languageEnglish": "English",
   "@languageEnglish": { "description": "Language option pinning transcription to English" },
 
-  "languageEnglishHint": "Skip detection, assume English",
-  "@languageEnglishHint": { "description": "Subtitle for the pinned-English language option" },
 
   "silenceSkippingTitle": "Skip silence",
   "@silenceSkippingTitle": { "description": "Header of the settings section toggling voice activity detection" },
 
-  "silenceSkippingHint": "Transcribe speech only. Faster, and avoids invented words over silence.",
+  "silenceSkippingHint": "Faster when there are pauses. Can be slower on non-stop speech.",
   "@silenceSkippingHint": { "description": "Subtitle explaining what the silence-skipping toggle does" },
 
   "diarizationTitle": "Identify speakers",
   "@diarizationTitle": { "description": "Header of the settings section toggling speaker diarization" },
 
-  "diarizationHint": "Label who is speaking. Slower, and skipped on very long recordings.",
+  "diarizationHint": "Slower. Skipped on very long recordings.",
   "@diarizationHint": { "description": "Subtitle explaining what the speaker-identification toggle does" },
 
   "editModeEnable": "Edit transcript",

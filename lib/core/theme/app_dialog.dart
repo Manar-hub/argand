@@ -18,6 +18,9 @@ enum AppDialogEmphasis {
 
   /// Genuine destruction, in the one red the app reserves for it.
   danger,
+
+  /// Buying Pro, in Pro's own gold.
+  pro,
 }
 
 /// One button in a dialog's action row.
@@ -50,9 +53,9 @@ class AppDialogAction {
 /// target on the screen; a stack gives each one the full width of the card and
 /// puts the one being offered where the thumb already is.
 ///
-/// The shadow comes from [AppSurface] rather than from elevation, and the
-/// buttons inside deliberately cast none of their own — nesting one offset
-/// shadow inside another is the noise that class's documentation warns about.
+/// The shadow comes from [AppSurface] rather than from elevation. Its action
+/// buttons stand on the same hard shadow, as every action in the app does;
+/// a secondary choice sits flat.
 class AppDialog extends StatelessWidget {
   const AppDialog({
     super.key,
@@ -76,6 +79,11 @@ class AppDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+      // No shape of its own: the theme's dialog shape carries the outline,
+      // and on this transparent shell it drew a second frame round the card
+      // *and* its shadow gutter -- a step at the top-right corner and the
+      // shadow boxed into a thick band.
+      shape: const RoundedRectangleBorder(),
       insetPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
         vertical: AppSpacing.xl,
@@ -140,6 +148,10 @@ class AppDialogButton extends StatelessWidget {
           scheme.onSurface,
         ),
       AppDialogEmphasis.danger => (AppTheme.danger, Colors.white),
+      AppDialogEmphasis.pro => (
+          AppTheme.proGold,
+          AppTheme.inkOn(AppTheme.proGold),
+        ),
     };
 
     final button = SizedBox(

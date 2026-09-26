@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'app_spacing.dart';
-import 'app_surface.dart';
 
 /// The hairline the transcript screen rules everything with.
 ///
@@ -30,6 +29,10 @@ const double appHairlineWidth = 1;
 /// block is the only thing drawn, so a row of three reads as one choice made
 /// rather than three boxes.
 ///
+/// **The block slides.** Choosing another tab moves the one block of ink
+/// across to it, rather than one fading out and another fading in, so the eye
+/// follows the choice from where it was to where it is.
+///
 /// Generic over the value so the next one of these is a map literal, not a
 /// second copy of this widget.
 class AppSegmentRow<T> extends StatelessWidget {
@@ -46,24 +49,47 @@ class AppSegmentRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final entries = items.entries.toList();
+    final count = entries.length;
+    final index = entries.indexWhere((entry) => entry.key == selected);
+    final motion = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
 
-    // The row's height comes from its tallest label; one intrinsic pass on a
-    // short row keeps every block full-height at any text scale.
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final entry in entries)
-            Expanded(
-              child: _Segment(
-                label: entry.value,
-                selected: entry.key == selected,
-                onTap: () => onSelected(entry.key),
+    return Stack(
+      children: [
+        // The block, behind the labels, gliding to whichever is chosen.
+        if (index >= 0)
+          Positioned.fill(
+            child: AnimatedAlign(
+              duration: motion,
+              curve: Curves.easeOutCubic,
+              alignment: Alignment(
+                count == 1 ? 0 : -1 + 2 * index / (count - 1),
+                0,
+              ),
+              child: FractionallySizedBox(
+                widthFactor: 1 / count,
+                heightFactor: 1,
+                child: ColoredBox(color: theme.colorScheme.secondary),
               ),
             ),
-        ],
-      ),
+          ),
+        Row(
+          children: [
+            for (final entry in entries)
+              Expanded(
+                child: _Segment(
+                  label: entry.value,
+                  selected: entry.key == selected,
+                  motion: motion,
+                  onTap: () => onSelected(entry.key),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -72,50 +98,48 @@ class _Segment extends StatelessWidget {
   const _Segment({
     required this.label,
     required this.selected,
+    required this.motion,
     required this.onTap,
   });
 
   final String label;
   final bool selected;
+  final Duration motion;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return PressableSurface(
+    return Semantics(
       selected: selected,
-      // Selection is a block of ink, never the action colour: a chosen tab
-      // and a button to press are always told apart.
-      fill: selected ? theme.colorScheme.secondary : Colors.transparent,
-      borderRadius: BorderRadius.zero,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          // `PressableSurface` already shows the press; Material's own
-          // splash/highlight would be a second, conflicting kind of feedback
-          // on top of it.
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.md,
-            ),
-            child: Center(
+      button: true,
+      child: InkWell(
+        // The sliding block is the feedback; Material's splash on top of it
+        // would be a second, conflicting kind.
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.md,
+          ),
+          child: Center(
+            // The label's colour crosses over as the block arrives under it.
+            child: AnimatedDefaultTextStyle(
+              duration: motion,
+              curve: Curves.easeOutCubic,
+              style: theme.textTheme.labelLarge!.copyWith(
+                color: selected
+                    ? theme.colorScheme.onSecondary
+                    : theme.colorScheme.onSurface,
+              ),
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                // Bold, as the reference's tabs: the block carries the choice,
-                // the label only names it.
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: selected
-                      ? theme.colorScheme.onSecondary
-                      : theme.colorScheme.onSurface,
-                ),
               ),
             ),
           ),

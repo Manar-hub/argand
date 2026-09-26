@@ -15,6 +15,7 @@ import '../../core/theme/app_surface.dart';
 import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
 import '../monetization/placeholder_ad_screen.dart';
+import '../monetization/pro_offer.dart';
 import 'transcript_repository.dart';
 import 'video_canvas.dart';
 import 'video_export_controller.dart';
@@ -388,7 +389,7 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
       // export here yet; the button says so rather than doing nothing.
       _ExportTab.pro => AppDialogAction(
           label: pro ? l10n.exportProComing : l10n.exportGetPro,
-          emphasis: AppDialogEmphasis.primary,
+          emphasis: AppDialogEmphasis.pro,
           onPressed: pro ? null : _getPro,
         ),
     };
@@ -475,23 +476,8 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
   /// A dialog rather than a snackbar: a snackbar raised from inside a modal
   /// sheet appears on the page underneath it, behind the sheet, where nobody
   /// sees it.
-  Future<void> _getPro() {
-    final l10n = AppLocalizations.of(context);
-    return showDialog<void>(
-      context: context,
-      builder: (context) => AppDialog(
-        title: l10n.exportProName,
-        content: Text(l10n.exportProSoon),
-        actions: [
-          AppDialogAction(
-            label: l10n.gotItAction,
-            emphasis: AppDialogEmphasis.primary,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<void> _getPro() => showProComingSoon(context);
+
 }
 
 /// The part of the sheet that never scrolls away: the Pro offer and the
@@ -536,66 +522,12 @@ class _ExportFooter extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (showProStrip) ...[
-              _ProStrip(onGetPro: onGetPro),
+              ProOfferRow(onGetPro: onGetPro),
               const SizedBox(height: AppSpacing.md),
             ],
             AppDialogButton(action: primary),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ProStrip extends StatelessWidget {
-  const _ProStrip({required this.onGetPro});
-
-  final VoidCallback onGetPro;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    // No box round it: it is a line of the sheet, not a card on it.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.exportProName,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  l10n.exportProPitch,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          // The selection colour, not the accent: the accent already fills
-          // the Export button right below, and two buttons in the same
-          // colour would read as two ways to do the same thing.
-          AppRaised(
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.colorScheme.secondary,
-                foregroundColor: theme.colorScheme.onSecondary,
-              ),
-              onPressed: onGetPro,
-              child: Text(l10n.exportGetPro),
-            ),
-          ),
-        ],
       ),
     );
   }

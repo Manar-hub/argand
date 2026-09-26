@@ -101,3 +101,60 @@ class ProOfferRow extends StatelessWidget {
     );
   }
 }
+
+/// Get Pro as one big button, the offer written on it: full width, taller
+/// than an ordinary button, the pitch inside rather than beside it. For the
+/// main settings, where it is the only thing on offer; the export sheet keeps
+/// the compact [ProOfferRow] beside its own Export button.
+class ProBanner extends StatelessWidget {
+  const ProBanner({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final ink = AppTheme.inkOn(AppTheme.proGold);
+
+    return AppRaised(
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppTheme.proGold,
+            foregroundColor: ink,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.lg,
+            ),
+          ),
+          onPressed: onPressed,
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.exportGetPro,
+                      style: theme.textTheme.titleLarge?.copyWith(color: ink),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      l10n.exportProPitch,
+                      style: theme.textTheme.bodyMedium?.copyWith(color: ink),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Icon(Icons.arrow_forward, color: ink),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -309,7 +309,11 @@ class _PanelBody extends ConsumerWidget {
                   onTap: () => controller.show(item),
                 ),
             ],
+            // Clipped at the sides only: the rows' rules end in a T on the
+            // rectangle's edge line, just outside this box, and a plain clip
+            // cut the Ts off.
             child: ClipRect(
+              clipper: const AppSideClipper(bleed: 4),
               child: AnimatedSize(
                 duration: _motionFor(context),
                 curve: Curves.easeOutCubic,
@@ -535,6 +539,10 @@ class _WatermarkOptions extends StatelessWidget {
     );
   }
 }
+
+/// Height of the preview stage in both modes, Script and Timeline, so the
+/// picture is the same size whichever one is showing.
+const double stageHeight = 300;
 
 /// The stage's picture in the project's frame, as both modes draw it.
 ///

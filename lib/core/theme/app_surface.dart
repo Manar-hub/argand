@@ -379,9 +379,64 @@ class AppRaised extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final surface = context.surface;
+    // Pressed, the button travels onto its own shadow -- the shadow stays
+    // where it is and the button covers it -- then springs back.
     return DecoratedBox(
-      decoration: BoxDecoration(boxShadow: [context.surface.hardShadow]),
-      child: child,
+      decoration: BoxDecoration(boxShadow: [surface.hardShadow]),
+      child: AppPressDown(travel: surface.offset, child: child),
+    );
+  }
+}
+
+/// Makes [child] give under the finger: it moves by [travel] while pressed
+/// and springs back on release, the same feel as a pressed library row.
+///
+/// Listens alongside the button rather than replacing its tap handling, so
+/// the button behaves exactly as before; this only moves it.
+///
+/// [travel] defaults to the app's press depth, straight down -- a flat
+/// button sinking into the page. [AppRaised] passes the shadow's own offset,
+/// so a raised button lands on its shadow.
+class AppPressDown extends StatefulWidget {
+  const AppPressDown({super.key, required this.child, this.travel});
+
+  final Widget child;
+  final Offset? travel;
+
+  @override
+  State<AppPressDown> createState() => _AppPressDownState();
+}
+
+class _AppPressDownState extends State<AppPressDown> {
+  bool _down = false;
+
+  void _set(bool down) {
+    if (down != _down) setState(() => _down = down);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = context.surface;
+    final travel = widget.travel ?? Offset(0, surface.pressDepth);
+    final still = MediaQuery.disableAnimationsOf(context);
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _set(true),
+      onPointerUp: (_) => _set(false),
+      onPointerCancel: (_) => _set(false),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: _down ? 1 : 0),
+        // Quick going in, a small spring coming back, as `PressableSurface`.
+        duration: still
+            ? Duration.zero
+            : Duration(milliseconds: _down ? 90 : 220),
+        curve: _down ? Curves.easeOut : Curves.easeOutBack,
+        child: widget.child,
+        builder: (context, t, child) =>
+            Transform.translate(offset: travel * t, child: child),
+      ),
     );
   }
 }

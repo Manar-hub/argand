@@ -46,13 +46,16 @@ import 'video_settings_panel.dart';
 /// puts a floor under the lane: the controls beside a track stack an eye above
 /// a drag handle, and a lane shorter than those two icons plus their gap
 /// overflows its own gutter.
-const double _trackHeight = 56;
+///
+/// Tall enough to hit with a thumb on a phone: 56 was a fingertip's width
+/// short of comfortable.
+const double _trackHeight = 68;
 
 /// Height of the preview stage, in every state it can be in.
 ///
 /// Loading, failed, video and audio all reserve this, so nothing below the
 /// preview moves as a clip loads or as the selection changes.
-const double _stageHeight = 300;
+const double _stageHeight = stageHeight;
 
 /// Width of the fixed playhead line.
 const double _playheadWidth = 2;
@@ -1801,12 +1804,14 @@ class _SelectionStrip extends ConsumerWidget {
       LayerTranscriptionFailed() => Row(
           children: [
             Expanded(child: Text(l10n.clipTranscribeFailed, style: hint)),
-            TextButton(
-              onPressed: () => ref
-                  .read(layerTranscriptionControllerProvider(layerId!)
-                      .notifier)
-                  .transcribe(),
-              child: Text(l10n.retryAction),
+            AppPressDown(
+              child: TextButton(
+                onPressed: () => ref
+                    .read(layerTranscriptionControllerProvider(layerId!)
+                        .notifier)
+                    .transcribe(),
+                child: Text(l10n.retryAction),
+              ),
             ),
           ],
         ),
@@ -1819,10 +1824,12 @@ class _SelectionStrip extends ConsumerWidget {
               ),
             ),
             if (selection.isNotEmpty)
-              TextButton.icon(
-                onPressed: () => _delete(context, ref, selection),
-                icon: const Icon(Icons.delete_outline, size: 18),
-                label: Text(l10n.selectionDelete),
+              AppPressDown(
+                child: TextButton.icon(
+                  onPressed: () => _delete(context, ref, selection),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: Text(l10n.selectionDelete),
+                ),
               ),
             const SizedBox(width: AppSpacing.xs),
             AppRaised(
@@ -1856,9 +1863,11 @@ class _SelectionStrip extends ConsumerWidget {
       _ when only?.kind == TimelineItemKind.text => Row(
           children: [
             Expanded(child: Text(l10n.textSelected, style: hint)),
-            TextButton(
-              onPressed: () => _delete(context, ref, selection),
-              child: Text(l10n.selectionDelete),
+            AppPressDown(
+              child: TextButton(
+                onPressed: () => _delete(context, ref, selection),
+                child: Text(l10n.selectionDelete),
+              ),
             ),
             AppRaised(
               child: FilledButton(
@@ -1882,9 +1891,11 @@ class _SelectionStrip extends ConsumerWidget {
       _ when layerId != null => Row(
           children: [
             Expanded(child: Text(l10n.layerSelected, style: hint)),
-            TextButton(
-              onPressed: () => _delete(context, ref, selection),
-              child: Text(l10n.layerRemove),
+            AppPressDown(
+              child: TextButton(
+                onPressed: () => _delete(context, ref, selection),
+                child: Text(l10n.layerRemove),
+              ),
             ),
             AppRaised(
               child: FilledButton(
@@ -3127,7 +3138,7 @@ const int _defaultTextMs = 3000;
 
 /// The text track's lane: shorter than a clip's, since it holds a word or two
 /// rather than a filmstrip.
-const double _textTrackHeight = 40;
+const double _textTrackHeight = 52;
 
 /// The zoom slider, docked above the toolbar while Zoom is on.
 ///
@@ -3553,8 +3564,11 @@ class _ToolbarButtonState extends State<_ToolbarButton> {
         ? theme.colorScheme.onSecondary
         : theme.colorScheme.onSurface;
 
-    return Padding(
-      padding: EdgeInsets.zero,
+    // The open tool's block reaches over the strip's lines, like every
+    // chosen cell.
+    return AppSelectedBleed(
+      selected: widget.active,
+      color: fill,
       child: PressableSurface(
         selected: _pressed || widget.active,
         fill: fill,

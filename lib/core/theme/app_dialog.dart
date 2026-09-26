@@ -132,9 +132,12 @@ class AppDialog extends StatelessWidget {
 /// and the windows it leads to have to look like one flow, and a sheet with a
 /// differently-shaped confirm button is where that falls apart.
 class AppDialogButton extends StatelessWidget {
-  const AppDialogButton({super.key, required this.action});
+  const AppDialogButton({super.key, required this.action, this.height});
 
   final AppDialogAction action;
+
+  /// A taller button, for the one action a whole sheet leads up to (Export).
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -162,15 +165,16 @@ class AppDialogButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: fill,
           foregroundColor: ink,
+          minimumSize: height == null ? null : Size.fromHeight(height!),
         ),
         onPressed: action.onPressed,
         child: Text(action.label),
       ),
     );
     // An action stands on the hard shadow; a secondary choice sits flat.
-    return action.emphasis == AppDialogEmphasis.secondary ||
-            action.onPressed == null
-        ? button
+    if (action.onPressed == null) return button;
+    return action.emphasis == AppDialogEmphasis.secondary
+        ? AppPressDown(child: button)
         : AppRaised(child: button);
   }
 }

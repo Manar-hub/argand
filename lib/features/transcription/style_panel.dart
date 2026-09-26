@@ -353,14 +353,40 @@ class _StylePanelState extends ConsumerState<StylePanel> {
                   onTap: () => setState(() => _item = value),
                 ),
             ],
+            // **Anchored at the bottom**, where the panel is anchored: it
+            // grows up from the toolbar, so a change of height has to move
+            // its top edge, not its bottom. Top-anchored, the old options
+            // vanished and the new ones dropped in from above.
             child: AnimatedSize(
               duration: _motion,
               curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
+              alignment: Alignment.bottomCenter,
               child: AnimatedSwitcher(
                 duration: _motion,
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
+                // Only the arriving options take space; the leaving ones fade
+                // out pinned to the same bottom edge rather than being centred
+                // over them.
+                layoutBuilder: (current, previous) => Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    for (final child in previous)
+                      Positioned(left: 0, right: 0, bottom: 0, child: child),
+                    ?current,
+                  ],
+                ),
+                // A short rise as they fade in, from the items below.
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, 0.04),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
                 child: KeyedSubtree(
                   key: ValueKey(item),
                   child: switch (item) {
@@ -482,8 +508,9 @@ class _FontOptions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    // Clipped only at the sides, so the rules' bars can reach the frame's
+    // edge line above and below the row.
+    return AppSideClippedScroller(
       child: AppStrip(
         expand: false,
         onCard: true,

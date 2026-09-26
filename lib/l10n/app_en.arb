@@ -73,7 +73,7 @@
   "errorTitle": "Something went wrong",
   "@errorTitle": { "description": "Headline shown when the import pipeline fails" },
 
-  "transcriptionModelTitle": "Transcription model",
+  "transcriptionModelTitle": "Model",
   "@transcriptionModelTitle": { "description": "Header of the menu that selects which Whisper model transcribes" },
 
   "modelNameBase": "Base",

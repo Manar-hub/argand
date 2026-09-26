@@ -209,6 +209,9 @@ class _Swatch extends StatelessWidget {
                 // A fine edge round the small square, so a swatch the colour
                 // of its cell still shows -- white on paper, black on dark --
                 // gone once it fills. On dark it is faint ink, not a frame.
+                // Grown, it reaches over the strip's lines like every chosen
+                // cell.
+                bleed: surface.outlined ? surface.borderWidth : 0,
                 outline: surface.outlined
                     ? surface.outline
                     : Theme.of(context)
@@ -230,12 +233,14 @@ class _SwatchPainter extends CustomPainter {
     required this.color,
     required this.grown,
     required this.dot,
+    required this.bleed,
     required this.outline,
   });
 
   final Color color;
   final double grown;
   final double dot;
+  final double bleed;
   final Color? outline;
 
   @override
@@ -245,7 +250,8 @@ class _SwatchPainter extends CustomPainter {
       width: dot,
       height: dot,
     );
-    final rect = Rect.lerp(small, Offset.zero & size, grown)!;
+    final full = Rect.fromLTRB(0, -bleed, size.width, size.height + bleed);
+    final rect = Rect.lerp(small, full, grown)!;
     canvas.drawRect(rect, Paint()..color = color);
     if (outline != null && grown < 1) {
       canvas.drawRect(

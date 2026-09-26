@@ -87,7 +87,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorTitle => 'Something went wrong';
 
   @override
-  String get transcriptionModelTitle => 'Transcription model';
+  String get transcriptionModelTitle => 'Model';
 
   @override
   String get modelNameBase => 'Base';

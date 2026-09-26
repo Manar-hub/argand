@@ -325,44 +325,49 @@ class _ImportPanel extends StatelessWidget {
       button: true,
       enabled: !busy,
       label: headline,
-      child: InkWell(
-        borderRadius: surface.borderRadius,
-        onTap: busy ? null : onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.lg,
-          ),
-          decoration: surface.decoration(
-            fill: busy
-                ? theme.colorScheme.surfaceContainerHighest
-                : theme.colorScheme.primary,
-            // One of the two things this screen is for: raised.
-            raised: true,
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 30, color: ink),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      headline,
-                      style: theme.textTheme.titleMedium?.copyWith(color: ink),
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      subhead,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: ink.withValues(alpha: 0.75)),
-                    ),
-                  ],
+      // An action, so it stands on the hard shadow and lands on it when
+      // pressed, as every action button does (`AppRaised`).
+      child: AppRaised(
+        child: InkWell(
+          borderRadius: surface.borderRadius,
+          // The card moving is the feedback; no ripple on top of it.
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          onTap: busy ? null : onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.lg,
+            ),
+            decoration: surface.decoration(
+              fill: busy
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : theme.colorScheme.primary,
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 30, color: ink),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        headline,
+                        style: theme.textTheme.titleMedium?.copyWith(color: ink),
+                      ),
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        subhead,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: ink.withValues(alpha: 0.75)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -829,9 +834,12 @@ class _ImportError extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () => ref.read(importControllerProvider.notifier).reset(),
-              child: Text(l10n.retryAction),
+            child: AppPressDown(
+              child: TextButton(
+                onPressed: () =>
+                    ref.read(importControllerProvider.notifier).reset(),
+                child: Text(l10n.retryAction),
+              ),
             ),
           ),
         ],
@@ -1037,7 +1045,8 @@ class _AccentColorControl extends ConsumerWidget {
   }
 }
 
-/// The Pro offer, as the export sheet makes it: gone once Pro is owned.
+/// The Pro offer, as one big gold button with the pitch written on it: gone
+/// once Pro is owned.
 class _ProSettingsRow extends ConsumerWidget {
   const _ProSettingsRow();
 
@@ -1052,7 +1061,7 @@ class _ProSettingsRow extends ConsumerWidget {
         AppSpacing.lg,
         AppSpacing.sm,
       ),
-      child: ProOfferRow(onGetPro: () => showProComingSoon(context)),
+      child: ProBanner(onPressed: () => showProComingSoon(context)),
     );
   }
 }

@@ -403,10 +403,13 @@ class _EditScopeBanner extends ConsumerWidget {
                 // Only reachable while a half-made selection exists, which is the
                 // only time there is anything to cancel.
                 if (scope == TranscriptEditScope.speakers && anchor != null)
-                  TextButton(
-                    onPressed: () =>
-                        ref.read(speakerRangeAnchorProvider.notifier).clear(),
-                    child: Text(l10n.editCancel),
+                  AppPressDown(
+                    child: TextButton(
+                      onPressed: () => ref
+                          .read(speakerRangeAnchorProvider.notifier)
+                          .clear(),
+                      child: Text(l10n.editCancel),
+                    ),
                   ),
               ],
             ),
@@ -843,7 +846,9 @@ class _Player extends ConsumerWidget {
             // background beside a narrow portrait video, which looks like a
             // stray tooltip rather than a caption.
             SizedBox(
-              height: hasVideo ? 240 : 120,
+              // The same stage as the timeline's, so switching modes does not
+              // shrink the picture.
+              height: hasVideo ? stageHeight : 120,
               width: double.infinity,
               // **The output's frame, as the timeline draws it.** Both
               // modes show the same picture: the project's shape, cropped the
@@ -1718,8 +1723,11 @@ class _CueLineState extends State<_CueLine> {
     final theme = Theme.of(context);
     final scaler = MediaQuery.textScalerOf(context);
 
+    // Baseline-aligned, so the smaller timestamp sits on the same line as
+    // the first line of words -- a fixed nudge put it visibly above them.
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
         GestureDetector(
           // Opaque, so the whole gutter is the target rather than the five
@@ -1729,9 +1737,7 @@ class _CueLineState extends State<_CueLine> {
           child: SizedBox(
             width: scaler.scale(_stampWidth),
             child: Padding(
-              // Nudged down so the smaller timestamp sits with the first line
-              // of transcript rather than above it.
-              padding: const EdgeInsets.only(top: 3),
+              padding: EdgeInsets.zero,
               child: Text(
                 _formatPosition(Duration(milliseconds: widget.cue.startMs)),
                 style: theme.textTheme.labelMedium?.copyWith(
@@ -1761,6 +1767,12 @@ class _CueLineState extends State<_CueLine> {
     );
   }
 
+  /// The words' style: larger than body text and with room between lines,
+  /// because every word here is something to tap, and a finger needs more
+  /// than a reading size to land on one.
+  TextStyle _lineStyle(ThemeData theme) =>
+      theme.textTheme.bodyLarge!.copyWith(fontSize: 19, height: 1.7);
+
   /// Either the cue's words, or a field standing in for the part being
   /// retyped.
   ///
@@ -1781,7 +1793,7 @@ class _CueLineState extends State<_CueLine> {
         key: widget.inlineFieldKey,
         sessionKey: (open.from, open.to),
         initial: words.map((w) => w.word).join(' '),
-        style: theme.textTheme.bodyLarge!,
+        style: _lineStyle(theme),
         onCommit: widget.onCommit,
       );
     }
@@ -1809,7 +1821,7 @@ class _CueLineState extends State<_CueLine> {
   }
 
   List<InlineSpan> _spans(ThemeData theme) {
-    final base = theme.textTheme.bodyLarge!;
+    final base = _lineStyle(theme);
     final words = widget.cue.words;
     final spans = <InlineSpan>[];
 

@@ -71,7 +71,16 @@ class AppStrip extends StatelessWidget {
           if (index > 0)
             SizedBox(
               width: appRuleWidth(context),
-              child: ColoredBox(color: rule),
+              child: CustomPaint(
+                painter: _RulePainter(
+                  color: rule,
+                  // On paper the rule runs on through the strip's edge line
+                  // and ends in a short crossbar there -- lost in the line
+                  // where the line is drawn, a T where a link leaves it
+                  // open. Dark draws no lines, so no bars.
+                  bar: surface.outlined ? surface.borderWidth : 0,
+                ),
+              ),
             ),
           if (expand)
             Expanded(flex: flex?[index] ?? 1, child: child)
@@ -98,8 +107,12 @@ class AppStrip extends StatelessWidget {
       ),
       child: Padding(
         // Inside the outline, so a chosen cell's fill never paints over it.
+        // A bare strip still owns the band its frame's line runs along,
+        // above and below it: its rules end in their Ts there, inside its
+        // own box, so they appear and animate with the row rather than
+        // being clipped away until an animation settles.
         padding: bare
-            ? EdgeInsets.zero
+            ? EdgeInsets.symmetric(vertical: surface.borderWidth)
             : EdgeInsets.fromLTRB(
                 edgeToEdge ? 0 : surface.borderWidth,
                 surface.borderWidth,
@@ -197,7 +210,9 @@ class AppLinkedPanel extends StatelessWidget {
           color: line == null ? tone : theme.colorScheme.surface,
         ),
         child: Padding(
-          padding: EdgeInsets.all(surface.borderWidth),
+          // Sides only: a row inside owns the top and bottom bands the
+          // frame's line runs along (see `AppStrip.bare`).
+          padding: EdgeInsets.symmetric(horizontal: surface.borderWidth),
           child: child,
         ),
       ),
@@ -410,6 +425,90 @@ class AppOpenFramePainter extends CustomPainter {
       old.openTop != openTop;
 }
 
+/// A rule between two cells, and -- when [bar] is set -- its ends carried
+/// out through the strip's edge line, each finished with a short crossbar as
+/// thick as that line.
+///
+/// Painted past its own box on purpose: the edge line lies outside the
+/// cells' area, and the bar has to sit exactly on it to vanish where the line
+/// is drawn.
+class _RulePainter extends CustomPainter {
+  _RulePainter({required this.color, required this.bar});
+
+  final Color color;
+
+  /// The edge line's thickness, or 0 for a plain rule.
+  final double bar;
+
+  static const double _barHalf = 6;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    if (bar == 0) {
+      canvas.drawRect(Offset.zero & size, paint);
+      return;
+    }
+    canvas.drawRect(
+      Rect.fromLTRB(0, -bar, size.width, size.height + bar),
+      paint,
+    );
+    final centre = size.width / 2;
+    canvas.drawRect(
+      Rect.fromLTRB(centre - _barHalf, -bar, centre + _barHalf, 0),
+      paint,
+    );
+    canvas.drawRect(
+      Rect.fromLTRB(
+        centre - _barHalf,
+        size.height,
+        centre + _barHalf,
+        size.height + bar,
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RulePainter old) =>
+      old.color != color || old.bar != bar;
+}
+
+/// A horizontal scroller that clips only at its sides, so a strip inside it
+/// can still draw on the edge line just above and below it (its rules' bars).
+class AppSideClippedScroller extends StatelessWidget {
+  const AppSideClippedScroller({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      clipper: const AppSideClipper(),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Clips at the sides only, letting [bleed] through above and below -- for a
+/// strip's rules to reach an edge line just outside the clipped box.
+class AppSideClipper extends CustomClipper<Rect> {
+  const AppSideClipper({this.bleed = 8});
+
+  final double bleed;
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -bleed, size.width, size.height + bleed);
+
+  @override
+  bool shouldReclip(covariant AppSideClipper old) => old.bleed != bleed;
+}
+
 /// The thickness of the rule between two rows or cells: a hairline of ink on
 /// paper, a slightly wider cut on dark so the gap reads.
 double appRuleWidth(BuildContext context) =>
@@ -449,35 +548,39 @@ class AppPanelItem extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      child: PressableSurface(
+      child: AppSelectedBleed(
         selected: selected,
-        fill: selected ? theme.colorScheme.secondary : Colors.transparent,
-        borderRadius: BorderRadius.zero,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            splashColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xxs,
-                vertical: AppSpacing.sm,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: ink, size: 22),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelSmall?.copyWith(color: ink),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+        color: theme.colorScheme.secondary,
+        child: PressableSurface(
+          selected: selected,
+          fill: selected ? theme.colorScheme.secondary : Colors.transparent,
+          borderRadius: BorderRadius.zero,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              splashColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xxs,
+                  vertical: AppSpacing.sm,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, color: ink, size: 22),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      label,
+                      style: theme.textTheme.labelSmall?.copyWith(color: ink),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -530,26 +633,30 @@ class AppChoice extends StatelessWidget {
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
             : const Duration(milliseconds: 220),
-        child: PressableSurface(
+        child: AppSelectedBleed(
           selected: selected,
-          fill: selected
-              ? selectedFill ?? theme.colorScheme.secondary
-              : Colors.transparent,
-          borderRadius: BorderRadius.zero,
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              onTap: onTap,
-              child: Padding(
-                padding: padding,
-                child: Center(
-                  child: DefaultTextStyle.merge(
-                    style: theme.textTheme.labelMedium?.copyWith(color: ink),
-                    child: IconTheme.merge(
-                      data: IconThemeData(color: ink),
-                      child: child,
+          color: selectedFill ?? theme.colorScheme.secondary,
+          child: PressableSurface(
+            selected: selected,
+            fill: selected
+                ? selectedFill ?? theme.colorScheme.secondary
+                : Colors.transparent,
+            borderRadius: BorderRadius.zero,
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                onTap: onTap,
+                child: Padding(
+                  padding: padding,
+                  child: Center(
+                    child: DefaultTextStyle.merge(
+                      style: theme.textTheme.labelMedium?.copyWith(color: ink),
+                      child: IconTheme.merge(
+                        data: IconThemeData(color: ink),
+                        child: child,
+                      ),
                     ),
                   ),
                 ),
@@ -560,4 +667,52 @@ class AppChoice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A chosen cell's fill carried out over the frame's line above and below
+/// it -- the band the row owns for that line -- so the choice fills the
+/// whole frame rather than stopping short of it. Where the line is drawn the
+/// two are the same ink; where a link leaves it open, the fill closes the gap
+/// to the T beside it. Never past the frame: the band is inside the row's box.
+class AppSelectedBleed extends StatelessWidget {
+  const AppSelectedBleed({
+    super.key,
+    required this.selected,
+    required this.color,
+    required this.child,
+  });
+
+  final bool selected;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = context.surface;
+    final bleed = surface.outlined ? surface.borderWidth : 0.0;
+    if (!selected || bleed == 0) return child;
+    return CustomPaint(
+      painter: _BleedPainter(color: color, bleed: bleed),
+      child: child,
+    );
+  }
+}
+
+class _BleedPainter extends CustomPainter {
+  _BleedPainter({required this.color, required this.bleed});
+
+  final Color color;
+  final double bleed;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Rect.fromLTRB(0, -bleed, size.width, size.height + bleed),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BleedPainter old) =>
+      old.color != color || old.bleed != bleed;
 }

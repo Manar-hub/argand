@@ -525,7 +525,8 @@ class _ExportFooter extends StatelessWidget {
               ProOfferRow(onGetPro: onGetPro),
               const SizedBox(height: AppSpacing.md),
             ],
-            AppDialogButton(action: primary),
+            // Taller than a dialog's buttons: the one thing the sheet is for.
+            AppDialogButton(action: primary, height: 60),
           ],
         ),
       ),
@@ -774,8 +775,12 @@ class _OptionChip extends StatelessWidget {
     final theme = Theme.of(context);
     final enabled = onTap != null;
 
-    // A cell of the strip: no frame of its own, a block of ink when chosen.
-    final chip = PressableSurface(
+    // A cell of the strip: no frame of its own, a block of ink when chosen,
+    // reaching over the strip's lines.
+    final chip = AppSelectedBleed(
+      selected: selected,
+      color: theme.colorScheme.secondary,
+      child: PressableSurface(
       selected: selected,
       fill: selected ? theme.colorScheme.secondary : Colors.transparent,
       borderRadius: BorderRadius.zero,
@@ -807,6 +812,7 @@ class _OptionChip extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
 
     return Semantics(

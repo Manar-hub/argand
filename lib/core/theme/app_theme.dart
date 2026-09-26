@@ -250,6 +250,10 @@ abstract final class AppTheme {
           // The box is the button, with no invisible touch margin round it,
           // so `AppRaised`'s shadow falls from the button's own edge.
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          // The button moving under the finger is the feedback
+          // (`AppPressDown`); a ripple on top would be a second kind.
+          splashFactory: NoSplash.splashFactory,
+          overlayColor: Colors.transparent,
         ),
       ),
 
@@ -257,6 +261,8 @@ abstract final class AppTheme {
         style: TextButton.styleFrom(
           foregroundColor: ink,
           textStyle: text.labelLarge,
+          splashFactory: NoSplash.splashFactory,
+          overlayColor: Colors.transparent,
           shape: const RoundedRectangleBorder(borderRadius: square),
         ),
       ),

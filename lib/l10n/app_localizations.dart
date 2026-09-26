@@ -223,7 +223,7 @@ abstract class AppLocalizations {
   /// Header of the menu that selects which Whisper model transcribes
   ///
   /// In en, this message translates to:
-  /// **'Transcription model'**
+  /// **'Model'**
   String get transcriptionModelTitle;
 
   /// Display name of the bundled base Whisper model

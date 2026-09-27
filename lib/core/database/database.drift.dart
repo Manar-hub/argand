@@ -6137,6 +6137,721 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
   }
 }
 
+class $TranslationLinesTable extends TranslationLines
+    with TableInfo<$TranslationLinesTable, TranslationLine> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranslationLinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transcriptIdMeta = const VerificationMeta(
+    'transcriptId',
+  );
+  @override
+  late final GeneratedColumn<String> transcriptId = GeneratedColumn<String>(
+    'transcript_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES transcripts (id)',
+    ),
+  );
+  static const VerificationMeta _languageMeta = const VerificationMeta(
+    'language',
+  );
+  @override
+  late final GeneratedColumn<String> language = GeneratedColumn<String>(
+    'language',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _firstWordMeta = const VerificationMeta(
+    'firstWord',
+  );
+  @override
+  late final GeneratedColumn<int> firstWord = GeneratedColumn<int>(
+    'first_word',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastWordMeta = const VerificationMeta(
+    'lastWord',
+  );
+  @override
+  late final GeneratedColumn<int> lastWord = GeneratedColumn<int>(
+    'last_word',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    transcriptId,
+    language,
+    position,
+    firstWord,
+    lastWord,
+    startMs,
+    endMs,
+    content,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'translation_lines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TranslationLine> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('transcript_id')) {
+      context.handle(
+        _transcriptIdMeta,
+        transcriptId.isAcceptableOrUnknown(
+          data['transcript_id']!,
+          _transcriptIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_transcriptIdMeta);
+    }
+    if (data.containsKey('language')) {
+      context.handle(
+        _languageMeta,
+        language.isAcceptableOrUnknown(data['language']!, _languageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_languageMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    if (data.containsKey('first_word')) {
+      context.handle(
+        _firstWordMeta,
+        firstWord.isAcceptableOrUnknown(data['first_word']!, _firstWordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_firstWordMeta);
+    }
+    if (data.containsKey('last_word')) {
+      context.handle(
+        _lastWordMeta,
+        lastWord.isAcceptableOrUnknown(data['last_word']!, _lastWordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_lastWordMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMsMeta);
+    }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_contentMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TranslationLine map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TranslationLine(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      transcriptId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transcript_id'],
+      )!,
+      language: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}language'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      firstWord: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}first_word'],
+      )!,
+      lastWord: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_word'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
+    );
+  }
+
+  @override
+  $TranslationLinesTable createAlias(String alias) {
+    return $TranslationLinesTable(attachedDatabase, alias);
+  }
+}
+
+class TranslationLine extends DataClass implements Insertable<TranslationLine> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String transcriptId;
+
+  /// The language translated into, as its two-letter code.
+  final String language;
+
+  /// Which sentence of the transcript, from 0.
+  final int position;
+  final int firstWord;
+  final int lastWord;
+  final int startMs;
+  final int endMs;
+  final String content;
+  const TranslationLine({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.transcriptId,
+    required this.language,
+    required this.position,
+    required this.firstWord,
+    required this.lastWord,
+    required this.startMs,
+    required this.endMs,
+    required this.content,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['transcript_id'] = Variable<String>(transcriptId);
+    map['language'] = Variable<String>(language);
+    map['position'] = Variable<int>(position);
+    map['first_word'] = Variable<int>(firstWord);
+    map['last_word'] = Variable<int>(lastWord);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    map['content'] = Variable<String>(content);
+    return map;
+  }
+
+  TranslationLinesCompanion toCompanion(bool nullToAbsent) {
+    return TranslationLinesCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      transcriptId: Value(transcriptId),
+      language: Value(language),
+      position: Value(position),
+      firstWord: Value(firstWord),
+      lastWord: Value(lastWord),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      content: Value(content),
+    );
+  }
+
+  factory TranslationLine.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TranslationLine(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      transcriptId: serializer.fromJson<String>(json['transcriptId']),
+      language: serializer.fromJson<String>(json['language']),
+      position: serializer.fromJson<int>(json['position']),
+      firstWord: serializer.fromJson<int>(json['firstWord']),
+      lastWord: serializer.fromJson<int>(json['lastWord']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      content: serializer.fromJson<String>(json['content']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'transcriptId': serializer.toJson<String>(transcriptId),
+      'language': serializer.toJson<String>(language),
+      'position': serializer.toJson<int>(position),
+      'firstWord': serializer.toJson<int>(firstWord),
+      'lastWord': serializer.toJson<int>(lastWord),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'content': serializer.toJson<String>(content),
+    };
+  }
+
+  TranslationLine copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? transcriptId,
+    String? language,
+    int? position,
+    int? firstWord,
+    int? lastWord,
+    int? startMs,
+    int? endMs,
+    String? content,
+  }) => TranslationLine(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    transcriptId: transcriptId ?? this.transcriptId,
+    language: language ?? this.language,
+    position: position ?? this.position,
+    firstWord: firstWord ?? this.firstWord,
+    lastWord: lastWord ?? this.lastWord,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    content: content ?? this.content,
+  );
+  TranslationLine copyWithCompanion(TranslationLinesCompanion data) {
+    return TranslationLine(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      transcriptId: data.transcriptId.present
+          ? data.transcriptId.value
+          : this.transcriptId,
+      language: data.language.present ? data.language.value : this.language,
+      position: data.position.present ? data.position.value : this.position,
+      firstWord: data.firstWord.present ? data.firstWord.value : this.firstWord,
+      lastWord: data.lastWord.present ? data.lastWord.value : this.lastWord,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      content: data.content.present ? data.content.value : this.content,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationLine(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('transcriptId: $transcriptId, ')
+          ..write('language: $language, ')
+          ..write('position: $position, ')
+          ..write('firstWord: $firstWord, ')
+          ..write('lastWord: $lastWord, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('content: $content')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    transcriptId,
+    language,
+    position,
+    firstWord,
+    lastWord,
+    startMs,
+    endMs,
+    content,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TranslationLine &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.transcriptId == this.transcriptId &&
+          other.language == this.language &&
+          other.position == this.position &&
+          other.firstWord == this.firstWord &&
+          other.lastWord == this.lastWord &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.content == this.content);
+}
+
+class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> transcriptId;
+  final Value<String> language;
+  final Value<int> position;
+  final Value<int> firstWord;
+  final Value<int> lastWord;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<String> content;
+  final Value<int> rowid;
+  const TranslationLinesCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.transcriptId = const Value.absent(),
+    this.language = const Value.absent(),
+    this.position = const Value.absent(),
+    this.firstWord = const Value.absent(),
+    this.lastWord = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.content = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TranslationLinesCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String transcriptId,
+    required String language,
+    required int position,
+    required int firstWord,
+    required int lastWord,
+    required int startMs,
+    required int endMs,
+    required String content,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       transcriptId = Value(transcriptId),
+       language = Value(language),
+       position = Value(position),
+       firstWord = Value(firstWord),
+       lastWord = Value(lastWord),
+       startMs = Value(startMs),
+       endMs = Value(endMs),
+       content = Value(content);
+  static Insertable<TranslationLine> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? transcriptId,
+    Expression<String>? language,
+    Expression<int>? position,
+    Expression<int>? firstWord,
+    Expression<int>? lastWord,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<String>? content,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (transcriptId != null) 'transcript_id': transcriptId,
+      if (language != null) 'language': language,
+      if (position != null) 'position': position,
+      if (firstWord != null) 'first_word': firstWord,
+      if (lastWord != null) 'last_word': lastWord,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (content != null) 'content': content,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TranslationLinesCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? transcriptId,
+    Value<String>? language,
+    Value<int>? position,
+    Value<int>? firstWord,
+    Value<int>? lastWord,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<String>? content,
+    Value<int>? rowid,
+  }) {
+    return TranslationLinesCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      transcriptId: transcriptId ?? this.transcriptId,
+      language: language ?? this.language,
+      position: position ?? this.position,
+      firstWord: firstWord ?? this.firstWord,
+      lastWord: lastWord ?? this.lastWord,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      content: content ?? this.content,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (transcriptId.present) {
+      map['transcript_id'] = Variable<String>(transcriptId.value);
+    }
+    if (language.present) {
+      map['language'] = Variable<String>(language.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (firstWord.present) {
+      map['first_word'] = Variable<int>(firstWord.value);
+    }
+    if (lastWord.present) {
+      map['last_word'] = Variable<int>(lastWord.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationLinesCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('transcriptId: $transcriptId, ')
+          ..write('language: $language, ')
+          ..write('position: $position, ')
+          ..write('firstWord: $firstWord, ')
+          ..write('lastWord: $lastWord, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('content: $content, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6151,6 +6866,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $EditEventsTable editEvents = $EditEventsTable(this);
   late final $TimelineEventsTable timelineEvents = $TimelineEventsTable(this);
   late final $TextLayersTable textLayers = $TextLayersTable(this);
+  late final $TranslationLinesTable translationLines = $TranslationLinesTable(
+    this,
+  );
   late final Index mediaClipsProjectPosition = Index(
     'media_clips_project_position',
     'CREATE INDEX media_clips_project_position ON media_clips (project_id, position)',
@@ -6175,6 +6893,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'text_layers_project_start',
     'CREATE INDEX text_layers_project_start ON text_layers (project_id, start_ms)',
   );
+  late final Index translationLinesTranscript = Index(
+    'translation_lines_transcript',
+    'CREATE INDEX translation_lines_transcript ON translation_lines (transcript_id, position)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6189,12 +6911,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     editEvents,
     timelineEvents,
     textLayers,
+    translationLines,
     mediaClipsProjectPosition,
     transcribeLayersProjectStart,
     wordsTranscriptStart,
     settingsKey,
     editEventsTranscriptSeq,
     textLayersProjectStart,
+    translationLinesTranscript,
   ];
 }
 
@@ -8220,6 +8944,26 @@ final class $$TranscriptsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$TranslationLinesTable, List<TranslationLine>>
+  _translationLinesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.translationLines,
+    aliasName: 'transcripts__id__translation_lines__transcript_id',
+  );
+
+  $$TranslationLinesTableProcessedTableManager get translationLinesRefs {
+    final manager = $$TranslationLinesTableTableManager(
+      $_db,
+      $_db.translationLines,
+    ).filter((f) => f.transcriptId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _translationLinesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TranscriptsTableFilterComposer
@@ -8386,6 +9130,31 @@ class $$TranscriptsTableFilterComposer
           }) => $$EditEventsTableFilterComposer(
             $db: $db,
             $table: $db.editEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> translationLinesRefs(
+    Expression<bool> Function($$TranslationLinesTableFilterComposer f) f,
+  ) {
+    final $$TranslationLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.translationLines,
+      getReferencedColumn: (t) => t.transcriptId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranslationLinesTableFilterComposer(
+            $db: $db,
+            $table: $db.translationLines,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -8678,6 +9447,31 @@ class $$TranscriptsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> translationLinesRefs<T extends Object>(
+    Expression<T> Function($$TranslationLinesTableAnnotationComposer a) f,
+  ) {
+    final $$TranslationLinesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.translationLines,
+      getReferencedColumn: (t) => t.transcriptId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranslationLinesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.translationLines,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TranscriptsTableTableManager
@@ -8699,6 +9493,7 @@ class $$TranscriptsTableTableManager
             bool layerId,
             bool wordsRefs,
             bool editEventsRefs,
+            bool translationLinesRefs,
           })
         > {
   $$TranscriptsTableTableManager(_$AppDatabase db, $TranscriptsTable table)
@@ -8787,12 +9582,14 @@ class $$TranscriptsTableTableManager
                 layerId = false,
                 wordsRefs = false,
                 editEventsRefs = false,
+                translationLinesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (wordsRefs) db.words,
                     if (editEventsRefs) db.editEvents,
+                    if (translationLinesRefs) db.translationLines,
                   ],
                   addJoins:
                       <
@@ -8890,6 +9687,27 @@ class $$TranscriptsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (translationLinesRefs)
+                        await $_getPrefetchedData<
+                          Transcript,
+                          $TranscriptsTable,
+                          TranslationLine
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TranscriptsTableReferences
+                              ._translationLinesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TranscriptsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).translationLinesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.transcriptId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8916,6 +9734,7 @@ typedef $$TranscriptsTableProcessedTableManager =
         bool layerId,
         bool wordsRefs,
         bool editEventsRefs,
+        bool translationLinesRefs,
       })
     >;
 typedef $$WordsTableCreateCompanionBuilder = WordsCompanion Function({
@@ -10886,6 +11705,462 @@ typedef $$TextLayersTableProcessedTableManager =
       TextLayer,
       PrefetchHooks Function({bool projectId})
     >;
+typedef $$TranslationLinesTableCreateCompanionBuilder =
+    TranslationLinesCompanion Function({
+      required String id,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      required String transcriptId,
+      required String language,
+      required int position,
+      required int firstWord,
+      required int lastWord,
+      required int startMs,
+      required int endMs,
+      required String content,
+      Value<int> rowid,
+    });
+typedef $$TranslationLinesTableUpdateCompanionBuilder =
+    TranslationLinesCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> transcriptId,
+      Value<String> language,
+      Value<int> position,
+      Value<int> firstWord,
+      Value<int> lastWord,
+      Value<int> startMs,
+      Value<int> endMs,
+      Value<String> content,
+      Value<int> rowid,
+    });
+
+final class $$TranslationLinesTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $TranslationLinesTable, TranslationLine> {
+  $$TranslationLinesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $TranscriptsTable _transcriptIdTable(_$AppDatabase db) => db
+      .transcripts
+      .createAlias('translation_lines__transcript_id__transcripts__id');
+
+  $$TranscriptsTableProcessedTableManager get transcriptId {
+    final $_column = $_itemColumn<String>('transcript_id')!;
+
+    final manager = $$TranscriptsTableTableManager(
+      $_db,
+      $_db.transcripts,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_transcriptIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TranslationLinesTableFilterComposer
+    extends Composer<_$AppDatabase, $TranslationLinesTable> {
+  $$TranslationLinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get firstWord => $composableBuilder(
+    column: $table.firstWord,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastWord => $composableBuilder(
+    column: $table.lastWord,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$TranscriptsTableFilterComposer get transcriptId {
+    final $$TranscriptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transcriptId,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableFilterComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranslationLinesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranslationLinesTable> {
+  $$TranslationLinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get language => $composableBuilder(
+    column: $table.language,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get firstWord => $composableBuilder(
+    column: $table.firstWord,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastWord => $composableBuilder(
+    column: $table.lastWord,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$TranscriptsTableOrderingComposer get transcriptId {
+    final $$TranscriptsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transcriptId,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableOrderingComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranslationLinesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranslationLinesTable> {
+  $$TranslationLinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get language =>
+      $composableBuilder(column: $table.language, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<int> get firstWord =>
+      $composableBuilder(column: $table.firstWord, builder: (column) => column);
+
+  GeneratedColumn<int> get lastWord =>
+      $composableBuilder(column: $table.lastWord, builder: (column) => column);
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  $$TranscriptsTableAnnotationComposer get transcriptId {
+    final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transcriptId,
+      referencedTable: $db.transcripts,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TranscriptsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transcripts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TranslationLinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranslationLinesTable,
+          TranslationLine,
+          $$TranslationLinesTableFilterComposer,
+          $$TranslationLinesTableOrderingComposer,
+          $$TranslationLinesTableAnnotationComposer,
+          $$TranslationLinesTableCreateCompanionBuilder,
+          $$TranslationLinesTableUpdateCompanionBuilder,
+          (TranslationLine, $$TranslationLinesTableReferences),
+          TranslationLine,
+          PrefetchHooks Function({bool transcriptId})
+        > {
+  $$TranslationLinesTableTableManager(
+    _$AppDatabase db,
+    $TranslationLinesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranslationLinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranslationLinesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TranslationLinesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> transcriptId = const Value.absent(),
+                Value<String> language = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> firstWord = const Value.absent(),
+                Value<int> lastWord = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<String> content = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationLinesCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                transcriptId: transcriptId,
+                language: language,
+                position: position,
+                firstWord: firstWord,
+                lastWord: lastWord,
+                startMs: startMs,
+                endMs: endMs,
+                content: content,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String transcriptId,
+                required String language,
+                required int position,
+                required int firstWord,
+                required int lastWord,
+                required int startMs,
+                required int endMs,
+                required String content,
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationLinesCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                transcriptId: transcriptId,
+                language: language,
+                position: position,
+                firstWord: firstWord,
+                lastWord: lastWord,
+                startMs: startMs,
+                endMs: endMs,
+                content: content,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TranslationLinesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({transcriptId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (transcriptId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.transcriptId,
+                        referencedTable: $$TranslationLinesTableReferences
+                            ._transcriptIdTable(db),
+                        referencedColumn: $$TranslationLinesTableReferences
+                            ._transcriptIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TranslationLinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranslationLinesTable,
+      TranslationLine,
+      $$TranslationLinesTableFilterComposer,
+      $$TranslationLinesTableOrderingComposer,
+      $$TranslationLinesTableAnnotationComposer,
+      $$TranslationLinesTableCreateCompanionBuilder,
+      $$TranslationLinesTableUpdateCompanionBuilder,
+      (TranslationLine, $$TranslationLinesTableReferences),
+      TranslationLine,
+      PrefetchHooks Function({bool transcriptId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10908,4 +12183,6 @@ class $AppDatabaseManager {
       $$TimelineEventsTableTableManager(_db, _db.timelineEvents);
   $$TextLayersTableTableManager get textLayers =>
       $$TextLayersTableTableManager(_db, _db.textLayers);
+  $$TranslationLinesTableTableManager get translationLines =>
+      $$TranslationLinesTableTableManager(_db, _db.translationLines);
 }

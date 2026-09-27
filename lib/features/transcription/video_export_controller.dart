@@ -8,6 +8,7 @@ import '../../core/timeline/item_transform.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/video/export_options.dart';
 import '../../core/video/video_export.dart';
+import 'clip_controller.dart';
 import 'transcript_repository.dart';
 
 part 'video_export_controller.g.dart';
@@ -138,11 +139,26 @@ class VideoExportController extends _$VideoExportController {
     final clips = await repository.clipsForProject(projectId);
     final timeline = ProjectTimeline.fromClips(clips);
 
+    // What the gutter's eyes hid is left out, as the preview leaves it out.
+    final hidden = ref.read(hiddenTracksProvider(projectId));
+
     final request = exportRequestFor(
       timeline: timeline,
       clips: clips,
-      captionsByClip: await _captionsFor(repository, clips),
-      texts: await repository.textLayersForProject(projectId),
+      captionsByClip: hidden.contains(TimelineTrack.layers)
+          ? const {}
+          : await _captionsFor(repository, clips),
+      texts: [
+        if (!hidden.contains(TimelineTrack.texts))
+          ...await repository.textLayersForProject(projectId),
+        // Burned in exactly as the stage shows it.
+        if (!hidden.contains(TimelineTrack.translation))
+          ...await repository.translationTextsForProject(
+            projectId: projectId,
+            timeline: timeline,
+            clips: clips,
+          ),
+      ],
     );
     if (request == null) {
       const empty = VideoExportEmpty();
@@ -161,6 +177,8 @@ class VideoExportController extends _$VideoExportController {
         clips: request.clips,
         fileName: fileName,
         options: options,
+        hideVideo: hidden.contains(TimelineTrack.clips),
+        muteAudio: hidden.contains(TimelineTrack.audio),
         onProgress: (percent) {
           // Dropped if the controller has already finished or been torn down:
           // progress can arrive one poll after completion, and `state` itself

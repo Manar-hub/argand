@@ -8,7 +8,9 @@ import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
+import 'clip_controller.dart';
 import 'editor_mode_controller.dart';
+import 'media_player_controller.dart';
 import 'stage_editor.dart';
 import 'video_canvas.dart';
 import 'video_settings.dart';
@@ -587,13 +589,27 @@ class ProjectStageCanvas extends ConsumerWidget {
     final panel = ref.watch(videoSettingsPanelControllerProvider(projectId));
     final picking = panel.open && panel.item == VideoSettingsItem.watermark;
 
+    // The gutter's eyes reach the preview: hidden video leaves the frame
+    // black, hidden audio plays silent -- as the export will.
+    final hidden = ref.watch(hiddenTracksProvider(projectId));
+    final muted = hidden.contains(TimelineTrack.audio);
+    final player = clipId == null
+        ? null
+        : ref.watch(mediaPlayerProvider(clipId!)).value;
+    if (player != null && player.value.volume != (muted ? 0.0 : 1.0)) {
+      player.setVolume(muted ? 0 : 1);
+    }
+
     return VideoCanvas(
       ratio: settings.aspect.ratio ?? sourceSize.width / sourceSize.height,
       picture: StagePicture(
         projectId: projectId,
         clipId: clipId,
         sourceSize: sourceSize,
-        picture: picture,
+        picture: Opacity(
+          opacity: hidden.contains(TimelineTrack.clips) ? 0 : 1,
+          child: picture,
+        ),
       ),
       foreground: StageEditor(
         projectId: projectId,

@@ -9,6 +9,13 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!--
+        Only to download translation language packs (ML Kit). Translation
+        itself, like transcription, runs on the device: no audio, video or
+        transcript text is ever sent.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="argand"
         android:name="${applicationName}"

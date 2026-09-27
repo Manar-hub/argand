@@ -37,6 +37,16 @@ Future<EditorMode?> readStoredEditorMode(AppDatabase db, String projectId) async
 /// point that was tapped (import-and-edit vs. transcribe) or, for a project
 /// reopened from the library list, from whichever mode was last recorded for
 /// it via [select].
+/// Whether Script mode shows each sentence's translation under it. Off until
+/// asked for; kept for the session, across projects.
+@Riverpod(keepAlive: true)
+class ShowTranslation extends _$ShowTranslation {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
 @riverpod
 class SessionEditorMode extends _$SessionEditorMode {
   @override

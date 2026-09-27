@@ -311,6 +311,8 @@ class VideoExporter {
     required String fileName,
     ExportOptions options = ExportOptions.defaults,
     void Function(int percent)? onProgress,
+    bool hideVideo = false,
+    bool muteAudio = false,
   }) async {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'progress' && onProgress != null) {
@@ -376,6 +378,10 @@ class VideoExporter {
             },
         ],
         'fileName': fileName,
+        // The timeline's hidden video and audio tracks: black picture (the
+        // overlays still drawn on it), and silence.
+        'hideVideo': hideVideo,
+        'muteAudio': muteAudio,
         // Spread rather than nested, so the native side reads one flat map and
         // an option added later needs no new unwrapping on the way down.
         ...options.encode(),

@@ -7,6 +7,7 @@ import '../../core/database/database.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/timeline/timeline_event.dart';
 import 'timeline_history.dart';
+import '../../core/translation/translator.dart';
 import 'import_controller.dart' show ImportStage;
 import 'transcript_repository.dart';
 import 'transcription_run.dart';
@@ -212,6 +213,20 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
       }
 
       await _record(repository, layer.projectId, written);
+
+      // The Transcribe sheet's "Translate to". Never fails the run: the
+      // words are saved, and Translate on the captions is the retry.
+      final to = await ref.read(translationTargetProvider.future);
+      if (to != null && written.isNotEmpty) {
+        state = const LayerTranscriptionRunning(ImportStage.translating);
+        final failure = await repository.translateAll(
+          transcriptIds: written,
+          to: to,
+          translator: ref.read(translatorProvider),
+        );
+        if (failure != null) debugPrint('Translation after run: $failure');
+      }
+
       state = const LayerTranscriptionIdle();
     } catch (error, stackTrace) {
       // Recorded even when the run died part-way. Whatever committed is on

@@ -16,9 +16,11 @@ part of 'editor_mode_controller.dart';
 /// point that was tapped (import-and-edit vs. transcribe) or, for a project
 /// reopened from the library list, from whichever mode was last recorded for
 /// it via [select].
+/// Whether Script mode shows each sentence's translation under it. Off until
+/// asked for; kept for the session, across projects.
 
-@ProviderFor(SessionEditorMode)
-final sessionEditorModeProvider = SessionEditorModeFamily._();
+@ProviderFor(ShowTranslation)
+final showTranslationProvider = ShowTranslationProvider._();
 
 /// Which mode [projectId]'s editing screen is currently showing.
 ///
@@ -28,8 +30,10 @@ final sessionEditorModeProvider = SessionEditorModeFamily._();
 /// point that was tapped (import-and-edit vs. transcribe) or, for a project
 /// reopened from the library list, from whichever mode was last recorded for
 /// it via [select].
-final class SessionEditorModeProvider
-    extends $NotifierProvider<SessionEditorMode, EditorMode> {
+/// Whether Script mode shows each sentence's translation under it. Off until
+/// asked for; kept for the session, across projects.
+final class ShowTranslationProvider
+    extends $NotifierProvider<ShowTranslation, bool> {
   /// Which mode [projectId]'s editing screen is currently showing.
   ///
   /// Starts at [EditorMode.script] -- the least surprising default, and the
@@ -38,6 +42,71 @@ final class SessionEditorModeProvider
   /// point that was tapped (import-and-edit vs. transcribe) or, for a project
   /// reopened from the library list, from whichever mode was last recorded for
   /// it via [select].
+  /// Whether Script mode shows each sentence's translation under it. Off until
+  /// asked for; kept for the session, across projects.
+  ShowTranslationProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'showTranslationProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$showTranslationHash();
+
+  @$internal
+  @override
+  ShowTranslation create() => ShowTranslation();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+}
+
+String _$showTranslationHash() => r'6a52d08137aa69f562184f784984aa05b8c4dc7d';
+
+/// Which mode [projectId]'s editing screen is currently showing.
+///
+/// Starts at [EditorMode.script] -- the least surprising default, and the
+/// only mode every project opened in before Timeline mode existed.
+/// `ProjectScreen` overrides this once, in `initState`, either from the entry
+/// point that was tapped (import-and-edit vs. transcribe) or, for a project
+/// reopened from the library list, from whichever mode was last recorded for
+/// it via [select].
+/// Whether Script mode shows each sentence's translation under it. Off until
+/// asked for; kept for the session, across projects.
+
+abstract class _$ShowTranslation extends $Notifier<bool> {
+  bool build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(SessionEditorMode)
+final sessionEditorModeProvider = SessionEditorModeFamily._();
+
+final class SessionEditorModeProvider
+    extends $NotifierProvider<SessionEditorMode, EditorMode> {
   SessionEditorModeProvider._({
     required SessionEditorModeFamily super.from,
     required String super.argument,
@@ -84,15 +153,6 @@ final class SessionEditorModeProvider
 
 String _$sessionEditorModeHash() => r'20dfeea1d7290af808bb6bc398938e9267ae600f';
 
-/// Which mode [projectId]'s editing screen is currently showing.
-///
-/// Starts at [EditorMode.script] -- the least surprising default, and the
-/// only mode every project opened in before Timeline mode existed.
-/// `ProjectScreen` overrides this once, in `initState`, either from the entry
-/// point that was tapped (import-and-edit vs. transcribe) or, for a project
-/// reopened from the library list, from whichever mode was last recorded for
-/// it via [select].
-
 final class SessionEditorModeFamily extends $Family
     with
         $ClassFamilyOverride<
@@ -111,30 +171,12 @@ final class SessionEditorModeFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Which mode [projectId]'s editing screen is currently showing.
-  ///
-  /// Starts at [EditorMode.script] -- the least surprising default, and the
-  /// only mode every project opened in before Timeline mode existed.
-  /// `ProjectScreen` overrides this once, in `initState`, either from the entry
-  /// point that was tapped (import-and-edit vs. transcribe) or, for a project
-  /// reopened from the library list, from whichever mode was last recorded for
-  /// it via [select].
-
   SessionEditorModeProvider call(String projectId) =>
       SessionEditorModeProvider._(argument: projectId, from: this);
 
   @override
   String toString() => r'sessionEditorModeProvider';
 }
-
-/// Which mode [projectId]'s editing screen is currently showing.
-///
-/// Starts at [EditorMode.script] -- the least surprising default, and the
-/// only mode every project opened in before Timeline mode existed.
-/// `ProjectScreen` overrides this once, in `initState`, either from the entry
-/// point that was tapped (import-and-edit vs. transcribe) or, for a project
-/// reopened from the library list, from whichever mode was last recorded for
-/// it via [select].
 
 abstract class _$SessionEditorMode extends $Notifier<EditorMode> {
   late final _$args = ref.$arg as String;

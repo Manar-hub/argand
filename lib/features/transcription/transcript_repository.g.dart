@@ -587,6 +587,95 @@ final class ProjectListProvider
 
 String _$projectListHash() => r'9b2123ac6cf9d09b6b226692fbcf8161352e6074';
 
+/// The library's search results for [query]: projects by title or by what
+/// their transcripts say. See `AppDatabase.searchLibrary`.
+
+@ProviderFor(librarySearch)
+final librarySearchProvider = LibrarySearchFamily._();
+
+/// The library's search results for [query]: projects by title or by what
+/// their transcripts say. See `AppDatabase.searchLibrary`.
+
+final class LibrarySearchProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<LibraryHit>>,
+          List<LibraryHit>,
+          Stream<List<LibraryHit>>
+        >
+    with $FutureModifier<List<LibraryHit>>, $StreamProvider<List<LibraryHit>> {
+  /// The library's search results for [query]: projects by title or by what
+  /// their transcripts say. See `AppDatabase.searchLibrary`.
+  LibrarySearchProvider._({
+    required LibrarySearchFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'librarySearchProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$librarySearchHash();
+
+  @override
+  String toString() {
+    return r'librarySearchProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<LibraryHit>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<LibraryHit>> create(Ref ref) {
+    final argument = this.argument as String;
+    return librarySearch(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is LibrarySearchProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$librarySearchHash() => r'e525f274371e6555078f36a05249b32837554ce1';
+
+/// The library's search results for [query]: projects by title or by what
+/// their transcripts say. See `AppDatabase.searchLibrary`.
+
+final class LibrarySearchFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<LibraryHit>>, String> {
+  LibrarySearchFamily._()
+    : super(
+        retry: null,
+        name: r'librarySearchProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// The library's search results for [query]: projects by title or by what
+  /// their transcripts say. See `AppDatabase.searchLibrary`.
+
+  LibrarySearchProvider call(String query) =>
+      LibrarySearchProvider._(argument: query, from: this);
+
+  @override
+  String toString() => r'librarySearchProvider';
+}
+
 @ProviderFor(projectById)
 final projectByIdProvider = ProjectByIdFamily._();
 
@@ -1005,13 +1094,200 @@ final class ProjectLayersFamily extends $Family
 
 /// A project's clips in timeline order. Empty for a project nobody has added
 /// media to yet, which is the state "Create project" leaves behind.
+/// A transcript's translation, one line per sentence; empty when it has none.
+
+@ProviderFor(transcriptTranslation)
+final transcriptTranslationProvider = TranscriptTranslationFamily._();
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+/// A transcript's translation, one line per sentence; empty when it has none.
+
+final class TranscriptTranslationProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<TranslationLine>>,
+          List<TranslationLine>,
+          Stream<List<TranslationLine>>
+        >
+    with
+        $FutureModifier<List<TranslationLine>>,
+        $StreamProvider<List<TranslationLine>> {
+  /// A project's clips in timeline order. Empty for a project nobody has added
+  /// media to yet, which is the state "Create project" leaves behind.
+  /// A transcript's translation, one line per sentence; empty when it has none.
+  TranscriptTranslationProvider._({
+    required TranscriptTranslationFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'transcriptTranslationProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$transcriptTranslationHash();
+
+  @override
+  String toString() {
+    return r'transcriptTranslationProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<TranslationLine>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<TranslationLine>> create(Ref ref) {
+    final argument = this.argument as String;
+    return transcriptTranslation(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TranscriptTranslationProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$transcriptTranslationHash() =>
+    r'494f483c65f0aeb1c574e1d34b7e8dbd3a0b8c24';
+
+/// A project's clips in timeline order. Empty for a project nobody has added
+/// media to yet, which is the state "Create project" leaves behind.
+/// A transcript's translation, one line per sentence; empty when it has none.
+
+final class TranscriptTranslationFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<TranslationLine>>, String> {
+  TranscriptTranslationFamily._()
+    : super(
+        retry: null,
+        name: r'transcriptTranslationProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's clips in timeline order. Empty for a project nobody has added
+  /// media to yet, which is the state "Create project" leaves behind.
+  /// A transcript's translation, one line per sentence; empty when it has none.
+
+  TranscriptTranslationProvider call(String transcriptId) =>
+      TranscriptTranslationProvider._(argument: transcriptId, from: this);
+
+  @override
+  String toString() => r'transcriptTranslationProvider';
+}
+
+/// Every translation line in a project as a text over the picture, for the
+/// stage. See `translation_texts.dart`.
+
+@ProviderFor(projectTranslationTexts)
+final projectTranslationTextsProvider = ProjectTranslationTextsFamily._();
+
+/// Every translation line in a project as a text over the picture, for the
+/// stage. See `translation_texts.dart`.
+
+final class ProjectTranslationTextsProvider
+    extends
+        $FunctionalProvider<List<TextLayer>, List<TextLayer>, List<TextLayer>>
+    with $Provider<List<TextLayer>> {
+  /// Every translation line in a project as a text over the picture, for the
+  /// stage. See `translation_texts.dart`.
+  ProjectTranslationTextsProvider._({
+    required ProjectTranslationTextsFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectTranslationTextsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectTranslationTextsHash();
+
+  @override
+  String toString() {
+    return r'projectTranslationTextsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<List<TextLayer>> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  List<TextLayer> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectTranslationTexts(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<TextLayer> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<TextLayer>>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectTranslationTextsProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectTranslationTextsHash() =>
+    r'a20081c54e90020e1a8aa6c0bf8b9c04123db339';
+
+/// Every translation line in a project as a text over the picture, for the
+/// stage. See `translation_texts.dart`.
+
+final class ProjectTranslationTextsFamily extends $Family
+    with $FunctionalFamilyOverride<List<TextLayer>, String> {
+  ProjectTranslationTextsFamily._()
+    : super(
+        retry: null,
+        name: r'projectTranslationTextsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Every translation line in a project as a text over the picture, for the
+  /// stage. See `translation_texts.dart`.
+
+  ProjectTranslationTextsProvider call(String projectId) =>
+      ProjectTranslationTextsProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectTranslationTextsProvider';
+}
+
 /// A project's text layers in timeline order.
 
 @ProviderFor(projectTextLayers)
 final projectTextLayersProvider = ProjectTextLayersFamily._();
 
-/// A project's clips in timeline order. Empty for a project nobody has added
-/// media to yet, which is the state "Create project" leaves behind.
 /// A project's text layers in timeline order.
 
 final class ProjectTextLayersProvider
@@ -1022,8 +1298,6 @@ final class ProjectTextLayersProvider
           Stream<List<TextLayer>>
         >
     with $FutureModifier<List<TextLayer>>, $StreamProvider<List<TextLayer>> {
-  /// A project's clips in timeline order. Empty for a project nobody has added
-  /// media to yet, which is the state "Create project" leaves behind.
   /// A project's text layers in timeline order.
   ProjectTextLayersProvider._({
     required ProjectTextLayersFamily super.from,
@@ -1071,8 +1345,6 @@ final class ProjectTextLayersProvider
 
 String _$projectTextLayersHash() => r'c85afd72a9d93ac671b18405853d7c3195db4533';
 
-/// A project's clips in timeline order. Empty for a project nobody has added
-/// media to yet, which is the state "Create project" leaves behind.
 /// A project's text layers in timeline order.
 
 final class ProjectTextLayersFamily extends $Family
@@ -1086,8 +1358,6 @@ final class ProjectTextLayersFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// A project's clips in timeline order. Empty for a project nobody has added
-  /// media to yet, which is the state "Create project" leaves behind.
   /// A project's text layers in timeline order.
 
   ProjectTextLayersProvider call(String projectId) =>

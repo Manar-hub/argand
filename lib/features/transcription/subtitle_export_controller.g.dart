@@ -74,7 +74,7 @@ final class SubtitleExporterProvider
   }
 }
 
-String _$subtitleExporterHash() => r'ac199158c353a6270ae69a2206f74f896e37eb13';
+String _$subtitleExporterHash() => r'7bc7c90bd9cc560475192861852e7fd9b732c092';
 
 /// Writes a transcript out as a subtitle file.
 ///

@@ -5,11 +5,13 @@ import '../../core/diarization/diarization_controller.dart';
 import '../../core/theme/app_controls.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/translation/translator.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_catalog.dart';
 import '../../core/whisper/whisper_model_controller.dart';
 import '../../l10n/app_localizations.dart';
+import 'translate_sheet.dart';
 
 /// The choices that shape a transcription run: model, language, silence
 /// skipping and diarization.
@@ -41,6 +43,16 @@ class TranscriptionOptions extends ConsumerWidget {
     final language = ref.watch(selectedTranscriptionLanguageProvider).value;
     final skipSilence = ref.watch(silenceSkippingEnabledProvider).value;
     final diarize = ref.watch(speakerDiarizationEnabledProvider).value;
+    final translateTo = ref.watch(translationTargetProvider).value;
+    final translateName = translateTo == null
+        ? l10n.translateOff
+        : ref
+                .watch(translatorProvider)
+                .languages
+                .where((language) => language.code == translateTo)
+                .firstOrNull
+                ?.name ??
+            translateTo;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -70,6 +82,42 @@ class TranscriptionOptions extends ConsumerWidget {
                 .read(selectedTranscriptionLanguageProvider.notifier)
                 .select(option),
           ),
+        // Also translate what comes back, beside the transcription. Off
+        // unless chosen; the choice carries to the next run like the rest.
+        ListTile(
+          dense: dense,
+          contentPadding: dense
+              ? const EdgeInsets.symmetric(horizontal: AppSpacing.xs)
+              : null,
+          leading: const Icon(Icons.translate),
+          title: Text(
+            l10n.translateToOption,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(translateName),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+          onTap: () async {
+            final pick = await pickTranslationLanguage(
+              context,
+              current: translateTo,
+              noneLabel: l10n.translateOff,
+            );
+            final target = ref.read(translationTargetProvider.notifier);
+            switch (pick) {
+              case TranslateInto(:final code):
+                await target.select(code);
+              case TranslateNone():
+                await target.select(null);
+              case null:
+                break;
+            }
+          },
+        ),
         const Divider(),
         _ToggleTile(
           dense: dense,

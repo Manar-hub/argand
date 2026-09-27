@@ -8,6 +8,8 @@ import '../../core/captions/caption_cue.dart';
 import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
+import '../../core/theme/app_controls.dart';
+import '../../core/timeline/translation_texts.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
@@ -31,7 +33,12 @@ import 'video_export_controller.dart';
 /// One project: its media, and either the transcript as tappable words
 /// (Script mode) or the clip/track view (Timeline mode).
 class ProjectScreen extends ConsumerStatefulWidget {
-  const ProjectScreen({required this.projectId, this.initialMode, super.key});
+  const ProjectScreen({
+    required this.projectId,
+    this.initialMode,
+    this.initialSeek,
+    super.key,
+  });
 
   final String projectId;
 
@@ -41,14 +48,27 @@ class ProjectScreen extends ConsumerStatefulWidget {
   /// it, falling back to [EditorMode.script] if nothing was ever recorded.
   final EditorMode? initialMode;
 
+  /// Where to put the playhead once the media is ready: a clip and a time in
+  /// its own media, as a library search that found words hands over. Null
+  /// opens wherever the project normally opens.
+  final ({String clipId, int startMs})? initialSeek;
+
   @override
   ConsumerState<ProjectScreen> createState() => _ProjectScreenState();
 }
 
 class _ProjectScreenState extends ConsumerState<ProjectScreen> {
+  ProviderSubscription<AsyncValue<VideoPlayerController>>? _seekOnReady;
+
   @override
   void initState() {
     super.initState();
+
+    if (widget.initialSeek case final at?) {
+      Future.microtask(() {
+        if (mounted) _openAt(at);
+      });
+    }
 
     final initial = widget.initialMode;
     if (initial != null) {
@@ -73,6 +93,39 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     // with the first frame is fine -- Script mode is the default either way,
     // and this only nudges the mode if the stored value differs from it.
     _restoreLastMode();
+  }
+
+  /// Shows [at]'s clip and, once its player has loaded, moves both the media
+  /// and the timeline's playhead onto that moment.
+  ///
+  /// Listened for rather than awaited: the player loads when the screen first
+  /// builds it, and holding the subscription keeps it alive until then.
+  void _openAt(({String clipId, int startMs}) at) {
+    ref.read(selectedClipProvider(widget.projectId).notifier).select(at.clipId);
+    _seekOnReady = ref.listenManual(
+      mediaPlayerProvider(at.clipId),
+      (_, next) {
+        if (!next.hasValue) return;
+        _seekOnReady?.close();
+        _seekOnReady = null;
+        ref.read(mediaPlayerProvider(at.clipId).notifier).seekToWord(at.startMs);
+        final projectMs = ref
+            .read(projectTimelineProvider(widget.projectId))
+            .projectMsOf(clipId: at.clipId, clipMs: at.startMs);
+        if (projectMs != null) {
+          ref
+              .read(timelinePlayheadProvider(widget.projectId).notifier)
+              .moveTo(projectMs);
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  void dispose() {
+    _seekOnReady?.close();
+    super.dispose();
   }
 
   Future<void> _restoreLastMode() async {
@@ -248,6 +301,7 @@ class _ExportButton extends ConsumerWidget {
           :final format,
           :final includeSpeakers,
           :final lineLength,
+          :final includeTranslation,
         ):
         await ref.read(subtitleExporterProvider.notifier).export(
               projectId: projectId,
@@ -259,6 +313,7 @@ class _ExportButton extends ConsumerWidget {
               defaultSpeakerLabel: includeSpeakers
                   ? (speaker) => l10n.speakerLabel(speaker + 1)
                   : null,
+              includeTranslation: includeTranslation,
             );
     }
   }
@@ -1325,6 +1380,26 @@ class _WordFlowContent extends ConsumerWidget {
 
     final turns = groupIntoSpeakerTurns(words);
 
+    // Each transcript's translation, by the position of the last word of the
+    // sentence it sits over -- where the script puts it. Translated sentences
+    // need not match the source one for one, so two landing on the same
+    // sentence are read together.
+    final translations = <String, Map<int, String>>{};
+    for (final transcriptId in {for (final w in words) w.transcriptId}) {
+      final byLastWord = translations[transcriptId] = <int, String>{};
+      for (final line in ref
+              .watch(transcriptTranslationProvider(transcriptId))
+              .value ??
+          const <TranslationLine>[]) {
+        final before = byLastWord[line.lastWord];
+        byLastWord[line.lastWord] =
+            before == null ? line.content : '$before ${line.content}';
+      }
+    }
+    final hasTranslation = translations.values.any((m) => m.isNotEmpty);
+    final showTranslation =
+        hasTranslation && ref.watch(showTranslationProvider);
+
     final speakers = <int>{
       for (final word in words)
         if (int.tryParse(word.speakerId ?? '') case final int speaker) speaker,
@@ -1343,14 +1418,47 @@ class _WordFlowContent extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(
-              heading,
-              style: Theme.of(context).textTheme.labelMedium,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    heading,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+                // Only once there is something to show.
+                if (hasTranslation)
+                  MergeSemantics(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => ref
+                          .read(showTranslationProvider.notifier)
+                          .set(!showTranslation),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            AppLocalizations.of(context).showTranslation,
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          AppToggle(
+                            value: showTranslation,
+                            onChanged: (value) => ref
+                                .read(showTranslationProvider.notifier)
+                                .set(value),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           ..._cueRows(
             context,
             ref,
+            translations: showTranslation ? translations : const {},
             turns: turns,
             speakers: speakers,
             activeIndex: activeIndex,
@@ -1388,6 +1496,7 @@ bool _covers(({int from, int to})? open, CaptionCue cue) =>
 List<Widget> _cueRows(
       BuildContext context,
       WidgetRef ref, {
+      required Map<String, Map<int, String>> translations,
       required List<SpeakerTurn> turns,
       required List<int> speakers,
       required int activeIndex,
@@ -1457,6 +1566,16 @@ List<Widget> _cueRows(
           ),
         );
         offset += cue.words.length;
+
+        // A sentence's translation goes under the line that ends it.
+        final byLastWord = translations[cue.words.first.transcriptId];
+        if (byLastWord != null) {
+          for (final word in cue.words) {
+            if (byLastWord[word.position] case final text?) {
+              rows.add(_TranslationLine(text: text));
+            }
+          }
+        }
       }
     }
 
@@ -1609,6 +1728,44 @@ List<Widget> _cueRows(
 /// chips and a playhead highlight; a solid rule between every line would
 /// out-shout both and turn the transcript back into a grid. This should read
 /// as a seam, not as a border.
+/// A sentence's translation, under the line that ends the sentence: a short
+/// rule, then the translated text in the quieter ink, set in the words'
+/// column so it reads as belonging to them.
+class _TranslationLine extends StatelessWidget {
+  const _TranslationLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final indent = MediaQuery.textScalerOf(context).scale(_CueLineState._stampWidth);
+
+    return Padding(
+      padding: EdgeInsets.only(left: indent, top: AppSpacing.xs),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ColoredBox(
+            color: appHairline(theme),
+            child: const SizedBox(height: appHairlineWidth, width: 32),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            text,
+            textDirection: translationDirectionOf(text),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontSize: 17,
+              height: 1.5,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CueRule extends StatelessWidget {
   const _CueRule();
 

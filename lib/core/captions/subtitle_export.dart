@@ -93,6 +93,7 @@ String formatSubtitles(
   required SubtitleFormat format,
   String Function(CaptionCue cue)? speakerLabel,
   SubtitleOptions options = const SubtitleOptions(),
+  String? Function(CaptionCue cue)? translation,
 }) {
   final buffer = StringBuffer();
   if (format == SubtitleFormat.vtt) buffer.writeln('WEBVTT\n');
@@ -113,6 +114,11 @@ String formatSubtitles(
       '${_timestamp(start, separator)} --> ${_timestamp(end, separator)}',
     );
     buffer.writeln(body);
+    // A translation goes on the line under the cue's own words: the usual
+    // shape of a bilingual subtitle, and one every player can show.
+    if (translation?.call(cue) case final line? when line.trim().isNotEmpty) {
+      buffer.writeln(line.trim());
+    }
     buffer.writeln();
   }
 

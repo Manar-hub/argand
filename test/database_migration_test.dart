@@ -183,7 +183,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 12);
+      expect(row, 13);
     });
 
     test('an upgraded clip is framed as it always was', () async {
@@ -224,6 +224,13 @@ void main() {
       addTearDown(db.close);
 
       expect(await db.textLayersForProject('p1'), isEmpty);
+    });
+
+    test('translations arrive, and are empty', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      expect(await db.translationLinesFor('t1'), isEmpty);
     });
 
     test('gives the existing transcript the layer its clip always implied',

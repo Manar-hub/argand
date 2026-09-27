@@ -33,7 +33,9 @@ import 'project_screen.dart' show CaptionOverlay, HistoryControls;
 import 'stage_editor.dart';
 import 'style_panel.dart';
 import 'timeline_history.dart';
+import '../../core/timeline/translation_texts.dart';
 import 'transcript_repository.dart';
+import 'translate_sheet.dart';
 import 'transcription_options.dart';
 import 'video_settings_panel.dart';
 
@@ -110,13 +112,13 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
   /// **Text starts above the video**, because that is where it ends up: tracks
   /// composite in stacking order and captions burn over the picture, so a
   /// transcribe lane drawn underneath would contradict what it does at export.
-  List<_TrackId> _trackOrder = [
-    _TrackId.texts,
-    _TrackId.layers,
-    _TrackId.clips,
-    _TrackId.audio,
+  List<TimelineTrack> _trackOrder = [
+    TimelineTrack.texts,
+    TimelineTrack.translation,
+    TimelineTrack.layers,
+    TimelineTrack.clips,
+    TimelineTrack.audio,
   ];
-  final Set<_TrackId> _hiddenTracks = {};
 
   /// Whether the zoom slider is showing above the toolbar.
   bool _zoomOpen = false;
@@ -189,7 +191,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
         );
     if (id == null || !mounted) return;
 
-    setState(() => _hiddenTracks.remove(_TrackId.texts));
+    ref.read(hiddenTracksProvider(projectId).notifier).show(TimelineTrack.texts);
     final item = (kind: TimelineItemKind.text, id: id);
     ref.read(timelineSelectionProvider(projectId).notifier).selectOnly(item);
     ref
@@ -197,7 +199,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
         .start(item, fresh: true);
   }
 
-  void _moveTrack(_TrackId id, int delta) {
+  void _moveTrack(TimelineTrack id, int delta) {
     final from = _trackOrder.indexOf(id);
     final to = from + delta;
     if (from < 0 || to < 0 || to >= _trackOrder.length) return;
@@ -415,15 +417,17 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                               onAddClip: _addClip,
                               // Adding the transcribe track while it is hidden has to
                               // reveal it, or the button would appear to do nothing.
-                              onAddTrack: () =>
-                                  setState(() => _hiddenTracks.remove(_TrackId.layers)),
+                              onAddTrack: () => ref
+                                  .read(hiddenTracksProvider(projectId).notifier)
+                                  .show(TimelineTrack.layers),
                               onAddText: _addText,
                               onTrackUnavailable: _placeholder,
                               trackOrder: _trackOrder,
-                              hiddenTracks: _hiddenTracks,
-                              onToggleTrack: (id) => setState(() {
-                                if (!_hiddenTracks.remove(id)) _hiddenTracks.add(id);
-                              }),
+                              hiddenTracks:
+                                  ref.watch(hiddenTracksProvider(projectId)),
+                              onToggleTrack: (id) => ref
+                                  .read(hiddenTracksProvider(projectId).notifier)
+                                  .toggle(id),
                               onMoveTrack: _moveTrack,
                               selectedLayerIds:
                                   idsOfKind(selection, TimelineItemKind.layer),
@@ -850,16 +854,16 @@ class _TimelineTrack extends ConsumerStatefulWidget {
   /// The stack, top to bottom. Every track the project can have appears here
   /// whether or not it currently has anything on it; what is actually drawn
   /// is decided per track.
-  final List<_TrackId> trackOrder;
+  final List<TimelineTrack> trackOrder;
 
   /// Tracks whose content is not drawn. Their lane stays, because the eye
   /// that unhides them lives beside it.
-  final Set<_TrackId> hiddenTracks;
+  final Set<TimelineTrack> hiddenTracks;
 
-  final ValueChanged<_TrackId> onToggleTrack;
+  final ValueChanged<TimelineTrack> onToggleTrack;
 
   /// Moves a track by a number of places in the stack.
-  final void Function(_TrackId id, int delta) onMoveTrack;
+  final void Function(TimelineTrack id, int delta) onMoveTrack;
 
   final Set<String> selectedLayerIds;
 
@@ -964,11 +968,14 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   /// offset *is* the playhead, so scrolling there drives the seek, the clip
   /// selection and the ruler together. Seeking the player on its own would
   /// leave the track showing somewhere else.
-  void _seekToSentence(TimelineSentence sentence) {
+  void _seekToSentence(TimelineSentence sentence) =>
+      _seekToMs(sentence.projectStartMs);
+
+  void _seekToMs(int projectMs) {
     if (!_scroll.hasClients) return;
 
     final target = offsetForAnchor(
-      anchorMs: sentence.projectStartMs,
+      anchorMs: projectMs,
       pixelsPerSecond: _pps,
       maxScrollExtent: _scroll.position.maxScrollExtent,
     );
@@ -1379,6 +1386,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                       topInset: _rulerHeight + AppSpacing.xs,
                       onToggleVisible: widget.onToggleTrack,
                       onMove: widget.onMoveTrack,
+                      onSelectAll: _selectTrack,
                     ),
                     Expanded(
                       child: Stack(
@@ -1426,8 +1434,17 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                                         // than collapsing it. Collapsing would
                                         // take the eye that unhides it away
                                         // along with the content.
+                                        // A long press on an empty spot
+                                        // selects the whole track; one on an
+                                        // item is that item's own.
                                         child: track.visible
-                                            ? track.build()
+                                            ? GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.translucent,
+                                                onLongPress: () =>
+                                                    _selectTrack(track.id),
+                                                child: track.build(),
+                                              )
                                             : null,
                                       ),
                                     ),
@@ -1471,6 +1488,34 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
     );
   }
 
+  /// Selects everything on [track]: every clip for the video and audio
+  /// lanes, every layer, every text. The translation has nothing selectable.
+  void _selectTrack(TimelineTrack track) {
+    final projectId = widget.projectId;
+    final Set<TimelineItem> items = switch (track) {
+      TimelineTrack.clips || TimelineTrack.audio => {
+          for (final clip in widget.clips)
+            (kind: TimelineItemKind.clip, id: clip.id),
+        },
+      TimelineTrack.layers => {
+          for (final layer
+              in ref.read(projectLayersProvider(projectId)).value ?? const [])
+            (kind: TimelineItemKind.layer, id: layer.id),
+        },
+      TimelineTrack.texts => {
+          for (final text in ref
+                  .read(projectTextLayersProvider(projectId))
+                  .value ??
+              const <TextLayer>[])
+            (kind: TimelineItemKind.text, id: text.id),
+        },
+      TimelineTrack.translation => const {},
+    };
+    if (items.isEmpty) return;
+    HapticFeedback.selectionClick();
+    ref.read(timelineSelectionProvider(projectId).notifier).selectAll(items);
+  }
+
   /// The lanes to draw, in the order the user has put them.
   ///
   /// **A track with nothing on it is not a track.** The transcribe lane
@@ -1486,14 +1531,14 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 
     for (final id in widget.trackOrder) {
       switch (id) {
-        case _TrackId.clips:
+        case TimelineTrack.clips:
           specs.add(_TrackSpec(
             id: id,
             height: _trackHeight,
             visible: !widget.hiddenTracks.contains(id),
             build: _clipRow,
           ));
-        case _TrackId.audio:
+        case TimelineTrack.audio:
           // No clips, no audio. An empty lane is a rectangle that explains
           // nothing -- the same reason the transcribe lane waits for a layer.
           if (widget.clips.isEmpty) continue;
@@ -1503,7 +1548,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
             visible: !widget.hiddenTracks.contains(id),
             build: _audioRow,
           ));
-        case _TrackId.texts:
+        case TimelineTrack.texts:
           final texts =
               ref.watch(projectTextLayersProvider(widget.projectId)).value ??
                   const <TextLayer>[];
@@ -1525,7 +1570,23 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
               pixelsPerSecond: _pps,
             ),
           ));
-        case _TrackId.layers:
+        case TimelineTrack.translation:
+          // Only once something is translated, like the transcribe lane.
+          final lines =
+              ref.watch(projectTranslationTextsProvider(widget.projectId));
+          if (lines.isEmpty) continue;
+          specs.add(_TrackSpec(
+            id: id,
+            height: _textTrackHeight,
+            visible: !widget.hiddenTracks.contains(id),
+            build: () => _TranslationTrack(
+              lines: lines,
+              width: trackWidth,
+              pixelsPerSecond: _pps,
+              onSeek: _seekToMs,
+            ),
+          ));
+        case TimelineTrack.layers:
           if (layers.isEmpty) continue;
           specs.add(_TrackSpec(
             id: id,
@@ -1554,7 +1615,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 /// An enum rather than free-form ids because the set is closed and the order
 /// is persisted view state: a typo'd string would silently drop a track from
 /// the timeline rather than failing to compile.
-enum _TrackId { texts, layers, clips, audio }
 
 /// One lane, as both the gutter and the track column need to see it.
 ///
@@ -1569,7 +1629,7 @@ class _TrackSpec {
     required this.build,
   });
 
-  final _TrackId id;
+  final TimelineTrack id;
   final double height;
   final bool visible;
   final Widget Function() build;
@@ -1698,18 +1758,48 @@ class _SelectionStrip extends ConsumerWidget {
   TimelineSelection _selection(WidgetRef ref) =>
       ref.read(timelineSelectionProvider(projectId).notifier);
 
-  Future<void> _moveClip(WidgetRef ref, String clipId, int delta) async {
-    final clips = ref.read(projectClipsProvider(projectId)).value ?? const [];
-    final from = clips.indexWhere((clip) => clip.id == clipId);
-    final to = from + delta;
-    if (from < 0 || to < 0 || to >= clips.length) return;
+  /// The transcriptions the selected captions belong to: each selected
+  /// layer's, and each selected sentence's.
+  Future<List<String>> _transcriptsOf(
+    WidgetRef ref,
+    Set<TimelineItem> selection,
+  ) async {
+    final repository = ref.read(transcriptRepositoryProvider);
+    final ids = <String>{};
+    for (final item in selection) {
+      if (item.kind == TimelineItemKind.layer) {
+        for (final t in await repository.transcriptsForLayer(item.id)) {
+          ids.add(t.id);
+        }
+      } else if (sentenceOf(item) case final sentence?) {
+        ids.add(sentence.transcriptId);
+      }
+    }
+    return ids.toList();
+  }
 
-    await ref.read(clipEditorProvider).move(
-          projectId: projectId,
-          clips: clips,
-          from: from,
-          to: to,
-        );
+  /// Translates [transcriptIds] -- the whole transcription the selection is
+  /// part of, kept beside it on the Translation track.
+  Future<void> _translate(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> transcriptIds,
+  ) async {
+    var translated = false;
+    for (final id in transcriptIds) {
+      final lines = await ref
+          .read(transcriptRepositoryProvider)
+          .watchTranslation(id)
+          .first;
+      if (lines.isNotEmpty) translated = true;
+    }
+    if (!context.mounted) return;
+    await translateTranscripts(
+      context,
+      ref,
+      transcriptIds: transcriptIds,
+      hasTranslation: translated,
+    );
   }
 
   /// Deletes everything selected, confirming first when a clip is among it:
@@ -1823,15 +1913,29 @@ class _SelectionStrip extends ConsumerWidget {
                 style: theme.textTheme.labelLarge,
               ),
             ),
-            if (selection.isNotEmpty)
-              AppPressDown(
-                child: TextButton.icon(
-                  onPressed: () => _delete(context, ref, selection),
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: Text(l10n.selectionDelete),
-                ),
+            if (selection.isNotEmpty) ...[
+              _StripAction(
+                label: l10n.selectionRemove,
+                danger: true,
+                onPressed: () => _delete(context, ref, selection),
               ),
-            const SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.sm),
+            ],
+            // Whenever captions are among what is selected: translates the
+            // transcriptions they belong to.
+            if (selection.any((item) =>
+                item.kind == TimelineItemKind.layer ||
+                item.kind == TimelineItemKind.sentence)) ...[
+              _StripAction(
+                label: l10n.translateAction,
+                onPressed: () async {
+                  final ids = await _transcriptsOf(ref, selection);
+                  if (!context.mounted) return;
+                  await _translate(context, ref, ids);
+                },
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
             AppRaised(
               child: FilledButton(
                 onPressed: () => _selection(ref).clear(),
@@ -1843,32 +1947,22 @@ class _SelectionStrip extends ConsumerWidget {
       _ when only?.kind == TimelineItemKind.clip => Row(
           children: [
             Expanded(child: Text(l10n.clipSelected, style: hint)),
-            IconButton(
-              tooltip: l10n.clipMoveEarlier,
-              onPressed: () => _moveClip(ref, only!.id, -1),
-              icon: const Icon(Icons.arrow_back),
-            ),
-            IconButton(
-              tooltip: l10n.clipMoveLater,
-              onPressed: () => _moveClip(ref, only!.id, 1),
-              icon: const Icon(Icons.arrow_forward),
-            ),
-            IconButton(
-              tooltip: l10n.clipRemove,
+            _StripAction(
+              label: l10n.selectionRemove,
+              danger: true,
               onPressed: () => _delete(context, ref, selection),
-              icon: const Icon(Icons.delete_outline),
             ),
           ],
         ),
       _ when only?.kind == TimelineItemKind.text => Row(
           children: [
             Expanded(child: Text(l10n.textSelected, style: hint)),
-            AppPressDown(
-              child: TextButton(
-                onPressed: () => _delete(context, ref, selection),
-                child: Text(l10n.selectionDelete),
-              ),
+            _StripAction(
+              label: l10n.selectionRemove,
+              danger: true,
+              onPressed: () => _delete(context, ref, selection),
             ),
+            const SizedBox(width: AppSpacing.sm),
             AppRaised(
               child: FilledButton(
                 onPressed: () => _type(ref, only!),
@@ -1880,6 +1974,15 @@ class _SelectionStrip extends ConsumerWidget {
       _ when only?.kind == TimelineItemKind.sentence => Row(
           children: [
             Expanded(child: Text(l10n.sentenceSelected, style: hint)),
+            _StripAction(
+              label: l10n.translateAction,
+              onPressed: () => _translate(
+                context,
+                ref,
+                [sentenceOf(only!)!.transcriptId],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
             AppRaised(
               child: FilledButton(
                 onPressed: () => _type(ref, only!),
@@ -1891,17 +1994,25 @@ class _SelectionStrip extends ConsumerWidget {
       _ when layerId != null => Row(
           children: [
             Expanded(child: Text(l10n.layerSelected, style: hint)),
-            AppPressDown(
-              child: TextButton(
-                onPressed: () => _delete(context, ref, selection),
-                child: Text(l10n.layerRemove),
-              ),
+            _StripAction(
+              label: l10n.selectionRemove,
+              danger: true,
+              onPressed: () => _delete(context, ref, selection),
             ),
-            AppRaised(
-              child: FilledButton(
-                onPressed: () => _transcribeLayer(context, ref, layerId),
-                child: Text(l10n.clipTranscribe),
-              ),
+            const SizedBox(width: AppSpacing.sm),
+            _StripAction(
+              label: l10n.translateAction,
+              onPressed: () async {
+                final transcripts = await ref
+                    .read(transcriptRepositoryProvider)
+                    .transcriptsForLayer(layerId);
+                if (!context.mounted) return;
+                await _translate(
+                  context,
+                  ref,
+                  [for (final t in transcripts) t.id],
+                );
+              },
             ),
           ],
         ),
@@ -1913,15 +2024,53 @@ class _SelectionStrip extends ConsumerWidget {
     };
 
     return Padding(
+      // Clear of the toolbar below by more than the buttons' shadows, so a
+      // pressed button never looks like it is sitting on the toolbar.
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
         AppSpacing.xs,
         AppSpacing.md,
-        0,
+        AppSpacing.md,
       ),
       // One height whatever it holds, so the tracks above do not jump as the
       // selection changes what the strip says.
       child: SizedBox(height: 48, child: content),
+    );
+  }
+}
+
+/// A selection's action, as a raised rectangle that presses down onto its
+/// shadow: Remove in the danger red, anything else on the page's own ground
+/// with the outline.
+class _StripAction extends StatelessWidget {
+  const _StripAction({
+    required this.label,
+    required this.onPressed,
+    this.danger = false,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final surface = context.surface;
+    final fill = danger ? scheme.error : scheme.surface;
+
+    return AppRaised(
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: fill,
+          foregroundColor: danger ? scheme.onError : scheme.onSurface,
+          minimumSize: const Size(0, 40),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          shape: RoundedRectangleBorder(side: surface.side),
+        ),
+        onPressed: onPressed,
+        child: Text(label),
+      ),
     );
   }
 }
@@ -2409,17 +2558,21 @@ class _TrackGutter extends StatelessWidget {
     required this.topInset,
     required this.onToggleVisible,
     required this.onMove,
+    required this.onSelectAll,
   });
 
   final List<_TrackSpec> tracks;
 
+  /// Selects everything on a track: a long press anywhere on its controls.
+  final ValueChanged<TimelineTrack> onSelectAll;
+
   /// Height of the ruler above the first lane, so the first row lines up.
   final double topInset;
 
-  final ValueChanged<_TrackId> onToggleVisible;
+  final ValueChanged<TimelineTrack> onToggleVisible;
 
   /// Moves a track by [delta] places in the stack.
-  final void Function(_TrackId id, int delta) onMove;
+  final void Function(TimelineTrack id, int delta) onMove;
 
   @override
   Widget build(BuildContext context) {
@@ -2434,12 +2587,19 @@ class _TrackGutter extends StatelessWidget {
               padding: EdgeInsets.only(top: index == 0 ? 0 : AppSpacing.xs),
               child: SizedBox(
                 height: track.height,
-                child: _TrackControls(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: () {
+                    HapticFeedback.selectionClick();
+                    onSelectAll(track.id);
+                  },
+                  child: _TrackControls(
                   track: track,
                   canMoveUp: index > 0,
                   canMoveDown: index < tracks.length - 1,
                   onToggleVisible: () => onToggleVisible(track.id),
                   onMove: (delta) => onMove(track.id, delta),
+                ),
                 ),
               ),
             ),
@@ -3263,6 +3423,145 @@ class _ZoomBarState extends ConsumerState<_ZoomBar> {
 /// Tap picks a text, a hold adds it to a multi-selection, and a selected
 /// block drags along the axis to retime it -- from its middle to move it,
 /// from either end to stretch it.
+/// The translation, one block per translated sentence, under the times its
+/// sentence is said. Read-only: a tap moves the playhead there, and changing a
+/// translation means translating again.
+class _TranslationTrack extends StatelessWidget {
+  const _TranslationTrack({
+    required this.lines,
+    required this.width,
+    required this.pixelsPerSecond,
+    required this.onSeek,
+  });
+
+  final List<TextLayer> lines;
+  final double width;
+  final double pixelsPerSecond;
+  final ValueChanged<int> onSeek;
+
+  double _x(int ms) => ms / 1000 * pixelsPerSecond;
+
+  /// Lines closer than this are drawn as neighbours, touching: the pause
+  /// between two sentences is not worth a gap on the track.
+  static const int _joinMs = 250;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final surface = context.surface;
+    final rule = appRuleWidth(context);
+
+    // Runs of neighbouring lines, each drawn as one band.
+    final runs = <List<TextLayer>>[];
+    for (final line in lines) {
+      if (runs.isNotEmpty &&
+          line.startMs - runs.last.last.endMs <= _joinMs) {
+        runs.last.add(line);
+      } else {
+        runs.add([line]);
+      }
+    }
+
+    return SizedBox(
+      width: width <= 0 ? 1 : width,
+      height: _textTrackHeight,
+      child: Stack(
+        children: [
+          for (final run in runs)
+            Positioned(
+              left: _x(run.first.startMs),
+              width: math.max(_x(run.last.endMs - run.first.startMs), 12),
+              top: 0,
+              height: _textTrackHeight,
+              // **One band per run, one line between neighbours**, as the
+              // linked rows elsewhere: the outline goes round the run, and
+              // inside it each line is set off from the next by a single rule.
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  border: surface.outlined
+                      ? Border.all(color: surface.outline, width: rule)
+                      : null,
+                  borderRadius: _tileRadius,
+                ),
+                child: Stack(
+                  children: [
+                    for (final (i, line) in run.indexed)
+                      Positioned(
+                        left: _x(line.startMs - run.first.startMs),
+                        // Up to the next line, so neighbours touch.
+                        width: math.max(
+                          _x((i + 1 < run.length
+                                  ? run[i + 1].startMs
+                                  : run.last.endMs) -
+                              line.startMs),
+                          1,
+                        ),
+                        top: 0,
+                        bottom: 0,
+                        child: _line(context, theme, line, divided: i > 0),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(
+    BuildContext context,
+    ThemeData theme,
+    TextLayer line, {
+    required bool divided,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onSeek(line.startMs),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          border: divided
+              ? Border(
+                  left: BorderSide(
+                    color: appRuleColor(context),
+                    width: appRuleWidth(context),
+                  ),
+                )
+              : null,
+        ),
+        // One run of text, icon included, so a block narrower than its icon
+        // clips rather than overflowing.
+        child: Text.rich(
+          TextSpan(
+            children: [
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: AppSpacing.xxs),
+                  child: Icon(
+                    Icons.translate,
+                    size: 14,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              TextSpan(text: line.content),
+            ],
+          ),
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.clip,
+          textDirection: translationDirectionOf(line.content),
+          style: theme.textTheme.labelMedium,
+        ),
+      ),
+    );
+  }
+}
+
 class _TextTrack extends ConsumerStatefulWidget {
   const _TextTrack({
     required this.projectId,
@@ -3627,4 +3926,5 @@ String stageLabel(AppLocalizations l10n, ImportStage stage, int? percent) =>
           ? l10n.stageIdentifyingSpeakers
           : l10n.identifyingSpeakersPercent(percent),
       ImportStage.saving => l10n.stageSaving,
+      ImportStage.translating => l10n.translateWorking,
     };

@@ -7,6 +7,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/media/media_converter.dart';
 import '../../core/media/shared_media.dart';
+import '../../core/translation/translator.dart';
 import 'transcript_repository.dart';
 import 'transcription_run.dart';
 
@@ -28,6 +29,10 @@ enum ImportStage {
   transcribing,
   identifyingSpeakers,
   saving,
+
+  /// The Transcribe sheet's "Translate to" is set: the words are saved and
+  /// are now being translated beside them.
+  translating,
 }
 
 sealed class ImportStatus {
@@ -149,6 +154,26 @@ class ImportController extends _$ImportController {
     );
   }
 
+  /// Translates what was just saved when the Transcribe sheet asked for it.
+  ///
+  /// **Never fails the import.** The transcription is saved and is what was
+  /// asked for first; a translation that could not run -- no connection for
+  /// the pack, say -- is one tap away on the captions afterwards.
+  Future<void> _translateIfAsked(
+    TranscriptRepository repository,
+    List<String> transcriptIds,
+  ) async {
+    final to = await ref.read(translationTargetProvider.future);
+    if (to == null || transcriptIds.isEmpty) return;
+    state = const ImportRunning(ImportStage.translating);
+    final failure = await repository.translateAll(
+      transcriptIds: transcriptIds,
+      to: to,
+      translator: ref.read(translatorProvider),
+    );
+    if (failure != null) debugPrint('Translation after import: $failure');
+  }
+
   /// Resets a finished or failed run so the UI returns to its resting state.
   void reset() => state = const ImportIdle();
 
@@ -197,6 +222,11 @@ class ImportController extends _$ImportController {
         speakerSpans: outcome.speakerSpans,
         result: outcome.result,
       );
+
+      await _translateIfAsked(repository, [
+        for (final transcript in await repository.transcriptsForClip(clipId))
+          transcript.id,
+      ]);
 
       state = ImportSucceeded(projectId);
     } catch (error) {

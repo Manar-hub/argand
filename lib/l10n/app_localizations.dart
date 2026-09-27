@@ -448,6 +448,126 @@ abstract class AppLocalizations {
   /// **'Projects'**
   String get projectsHeading;
 
+  /// Hint inside the library search field, which matches project names and transcribed words
+  ///
+  /// In en, this message translates to:
+  /// **'Search projects and words'**
+  String get librarySearchHint;
+
+  /// Tooltip on the button that empties the library search field
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search'**
+  String get librarySearchClear;
+
+  /// Red button that removes the selected clip or caption layer from the timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get selectionRemove;
+
+  /// Button on selected captions that translates them into another language
+  ///
+  /// In en, this message translates to:
+  /// **'Translate'**
+  String get translateAction;
+
+  /// Title of the language list used to pick what to translate captions into
+  ///
+  /// In en, this message translates to:
+  /// **'Translate to'**
+  String get translateTitle;
+
+  /// Under a language not yet on the device: its offline pack's size
+  ///
+  /// In en, this message translates to:
+  /// **'About 30 MB, downloaded once'**
+  String get translatePackSize;
+
+  /// Under a language whose offline pack is being downloaded
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get translateDownloading;
+
+  /// Tooltip on the button that removes a downloaded language pack
+  ///
+  /// In en, this message translates to:
+  /// **'Delete download'**
+  String get translateDeletePack;
+
+  /// Row in the language list that deletes the existing translation
+  ///
+  /// In en, this message translates to:
+  /// **'Remove translation'**
+  String get translateRemove;
+
+  /// Row in the Transcribe sheet's language list meaning: do not translate
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get translateOff;
+
+  /// Shown while captions are being translated on the device
+  ///
+  /// In en, this message translates to:
+  /// **'Translating…'**
+  String get translateWorking;
+
+  /// Confirmation after translating captions
+  ///
+  /// In en, this message translates to:
+  /// **'Translated to {language}'**
+  String translateDone(String language);
+
+  /// Error when the transcript's own language has no translation pack
+  ///
+  /// In en, this message translates to:
+  /// **'This transcript\'s language can\'t be translated yet.'**
+  String get translateUnsupported;
+
+  /// Error when a language pack download fails
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download the language. Check your connection and try again.'**
+  String get translateDownloadFailed;
+
+  /// Error when on-device translation itself fails
+  ///
+  /// In en, this message translates to:
+  /// **'Translation failed. Try again.'**
+  String get translateFailed;
+
+  /// Row in the Transcribe sheet choosing a language to also translate the transcription into
+  ///
+  /// In en, this message translates to:
+  /// **'Translate to'**
+  String get translateToOption;
+
+  /// Label of the timeline track holding the translated lines
+  ///
+  /// In en, this message translates to:
+  /// **'Translation'**
+  String get translationTrack;
+
+  /// Script mode option that shows each sentence's translation under it
+  ///
+  /// In en, this message translates to:
+  /// **'Show translation'**
+  String get showTranslation;
+
+  /// Subtitle export option adding each line's translation under it
+  ///
+  /// In en, this message translates to:
+  /// **'Include translation'**
+  String get exportIncludeTranslation;
+
+  /// Shown in the library when a search finds nothing
+  ///
+  /// In en, this message translates to:
+  /// **'No project names or words match.'**
+  String get librarySearchEmpty;
+
   /// Label on the library's transcribe-only entry panel; opens the resulting project in Script mode
   ///
   /// In en, this message translates to:

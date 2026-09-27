@@ -62,6 +62,7 @@ dependencies:
   # needed patching. Pulls in per-platform native binaries as transitive
   # packages (sherpa_onnx_android_*, _ios, _windows, ...).
   sherpa_onnx: ^1.13.6
+  google_mlkit_translation: ^0.15.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

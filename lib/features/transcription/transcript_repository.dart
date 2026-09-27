@@ -22,6 +22,9 @@ import 'timeline_history.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/timeline/timeline_sentences.dart';
 import '../../core/transcript/speaker_names.dart';
+import '../../core/transcript/translation_sentences.dart';
+import '../../core/timeline/translation_texts.dart';
+import '../../core/translation/translator.dart';
 import '../../core/whisper/transcription_language_controller.dart';
 import 'editor_mode_controller.dart';
 
@@ -64,6 +67,9 @@ class TranscriptRepository {
 
   Stream<List<Project>> watchProjects() => _db.watchProjects();
 
+  Stream<List<LibraryHit>> watchLibrarySearch(String query) =>
+      _db.watchLibrarySearch(query);
+
   Future<Project?> findProject(String id) => _db.findProject(id);
 
   Future<List<Transcript>> transcriptsForClip(String clipId) =>
@@ -82,6 +88,8 @@ class TranscriptRepository {
 
   Future<List<Transcript>> transcriptsForLayer(String layerId) =>
       _db.transcriptsForLayer(layerId);
+
+  Future<Transcript?> findTranscript(String id) => _db.findTranscript(id);
 
   /// Adds a layer covering [startMs]–[endMs] on the project timeline.
   ///
@@ -408,6 +416,128 @@ class TranscriptRepository {
   }
 
   Stream<List<Word>> watchWords(String transcriptId) => _db.watchWords(transcriptId);
+
+  Stream<List<TranslationLine>> watchTranslation(String transcriptId) =>
+      _db.watchTranslationLines(transcriptId);
+
+  /// Translates [transcriptId] into [to], sentence by sentence, and keeps the
+  /// result beside the transcript -- replacing any translation it had. The
+  /// transcript itself is not touched.
+  ///
+  /// The language packs must already be on the device (the sheet fetches
+  /// them). Throws [TranslationException] when the transcript's language is
+  /// not one [translator] knows, or the engine fails.
+  Future<void> translateTranscript({
+    required String transcriptId,
+    required String to,
+    required Translator translator,
+  }) async {
+    final transcript = await _db.findTranscript(transcriptId);
+    if (transcript == null) return;
+
+    final from = transcript.language;
+    if (!translator.languages.any((language) => language.code == from)) {
+      throw const TranslationException(TranslationFailure.unsupportedSource);
+    }
+
+    final words = await _db.watchWords(transcriptId).first;
+    final sentences = translatableSentencesOf([
+      for (final word in words)
+        (
+          text: word.word,
+          startMs: word.startMs,
+          endMs: word.endMs,
+          position: word.position,
+        ),
+    ]);
+    // Running text, not sentence by sentence: see `translation_sentences.dart`.
+    final batches = translationBatches(sentences);
+    final translated = await translator.translate(
+      [
+        for (final batch in batches)
+          [for (final sentence in batch) sentence.text].join(' '),
+      ],
+      from: from,
+      to: to,
+    );
+    final placed = [
+      for (final (i, batch) in batches.indexed)
+        ...alignTranslation(source: batch, translated: translated[i]),
+    ];
+
+    final now = DateTime.now();
+    await _db.replaceTranslation(transcriptId, [
+      for (final (i, sentence) in placed.indexed)
+        TranslationLinesCompanion.insert(
+          id: newId(),
+          createdAt: now,
+          updatedAt: now,
+          transcriptId: transcriptId,
+          language: to,
+          position: i,
+          firstWord: sentence.firstWord,
+          lastWord: sentence.lastWord,
+          startMs: sentence.startMs,
+          endMs: sentence.endMs,
+          content: sentence.text,
+        ),
+    ]);
+  }
+
+  /// Translates each of [transcriptIds] into [to], fetching any language
+  /// pack missing at either end first. Returns why it stopped, or null when
+  /// every transcript was translated.
+  Future<TranslationFailure?> translateAll({
+    required List<String> transcriptIds,
+    required String to,
+    required Translator translator,
+  }) async {
+    try {
+      if (!await translator.isDownloaded(to)) await translator.download(to);
+      for (final id in transcriptIds) {
+        final from = (await findTranscript(id))?.language;
+        if (from != null &&
+            translator.languages.any((language) => language.code == from) &&
+            !await translator.isDownloaded(from)) {
+          await translator.download(from);
+        }
+        await translateTranscript(
+          transcriptId: id,
+          to: to,
+          translator: translator,
+        );
+      }
+      return null;
+    } on TranslationException catch (error) {
+      return error.failure;
+    }
+  }
+
+  /// Retires [transcriptId]'s translation. The transcript is untouched.
+  Future<void> removeTranslation(String transcriptId) =>
+      _db.removeTranslation(transcriptId);
+
+  /// Every translation line in the project as a text over the picture, for
+  /// the export -- the same rows [projectTranslationTexts] gives the stage,
+  /// read straight from the database for the reason `_run` explains.
+  Future<List<TextLayer>> translationTextsForProject({
+    required String projectId,
+    required ProjectTimeline timeline,
+    required List<MediaClip> clips,
+  }) async {
+    final layers = await _db.layersForProject(projectId);
+    return [
+      for (final clip in clips)
+        for (final transcript in await _db.transcriptsForClip(clip.id))
+          ...translationTextsFor(
+            timeline: timeline,
+            projectId: projectId,
+            clipId: clip.id,
+            lines: await _db.translationLinesFor(transcript.id),
+            layer: layers.where((l) => l.id == transcript.layerId).firstOrNull,
+          ),
+    ];
+  }
 
   Stream<List<MediaClip>> watchClips(String projectId) =>
       _db.watchClips(projectId);
@@ -1363,6 +1493,12 @@ Future<int> projectMediaBytes(Ref ref, String projectId) =>
 Stream<List<Project>> projectList(Ref ref) =>
     ref.watch(transcriptRepositoryProvider).watchProjects();
 
+/// The library's search results for [query]: projects by title or by what
+/// their transcripts say. See `AppDatabase.searchLibrary`.
+@riverpod
+Stream<List<LibraryHit>> librarySearch(Ref ref, String query) =>
+    ref.watch(transcriptRepositoryProvider).watchLibrarySearch(query);
+
 @riverpod
 Future<Project?> projectById(Ref ref, String projectId) =>
     ref.watch(transcriptRepositoryProvider).findProject(projectId);
@@ -1431,6 +1567,37 @@ Stream<List<TranscribeLayer>> projectLayers(Ref ref, String projectId) =>
 
 /// A project's clips in timeline order. Empty for a project nobody has added
 /// media to yet, which is the state "Create project" leaves behind.
+/// A transcript's translation, one line per sentence; empty when it has none.
+@riverpod
+Stream<List<TranslationLine>> transcriptTranslation(
+  Ref ref,
+  String transcriptId,
+) =>
+    ref.watch(transcriptRepositoryProvider).watchTranslation(transcriptId);
+
+/// Every translation line in a project as a text over the picture, for the
+/// stage. See `translation_texts.dart`.
+@riverpod
+List<TextLayer> projectTranslationTexts(Ref ref, String projectId) {
+  final timeline = ref.watch(projectTimelineProvider(projectId));
+  final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
+  final layers = ref.watch(projectLayersProvider(projectId)).value ?? const [];
+
+  return [
+    for (final clip in clips)
+      for (final transcript
+          in ref.watch(clipTranscriptsProvider(clip.id)).value ?? const [])
+        ...translationTextsFor(
+          timeline: timeline,
+          projectId: projectId,
+          clipId: clip.id,
+          lines: ref.watch(transcriptTranslationProvider(transcript.id)).value ??
+              const [],
+          layer: layers.where((l) => l.id == transcript.layerId).firstOrNull,
+        ),
+  ];
+}
+
 /// A project's text layers in timeline order.
 @riverpod
 Stream<List<TextLayer>> projectTextLayers(Ref ref, String projectId) =>

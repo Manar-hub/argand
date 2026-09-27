@@ -220,6 +220,70 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsHeading => 'Projects';
 
   @override
+  String get librarySearchHint => 'Search projects and words';
+
+  @override
+  String get librarySearchClear => 'Clear search';
+
+  @override
+  String get selectionRemove => 'Remove';
+
+  @override
+  String get translateAction => 'Translate';
+
+  @override
+  String get translateTitle => 'Translate to';
+
+  @override
+  String get translatePackSize => 'About 30 MB, downloaded once';
+
+  @override
+  String get translateDownloading => 'Downloading…';
+
+  @override
+  String get translateDeletePack => 'Delete download';
+
+  @override
+  String get translateRemove => 'Remove translation';
+
+  @override
+  String get translateOff => 'Off';
+
+  @override
+  String get translateWorking => 'Translating…';
+
+  @override
+  String translateDone(String language) {
+    return 'Translated to $language';
+  }
+
+  @override
+  String get translateUnsupported =>
+      'This transcript\'s language can\'t be translated yet.';
+
+  @override
+  String get translateDownloadFailed =>
+      'Couldn\'t download the language. Check your connection and try again.';
+
+  @override
+  String get translateFailed => 'Translation failed. Try again.';
+
+  @override
+  String get translateToOption => 'Translate to';
+
+  @override
+  String get translationTrack => 'Translation';
+
+  @override
+  String get showTranslation => 'Show translation';
+
+  @override
+  String get exportIncludeTranslation => 'Include translation';
+
+  @override
+  String get librarySearchEmpty => 'No project names or words match.';
+
+  @override
   String get importHeadline => 'Transcribe';
 
   @override

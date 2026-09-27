@@ -39,6 +39,36 @@ class SelectedClip extends _$SelectedClip {
   void clear() => state = null;
 }
 
+/// The timeline's tracks, as the gutter's show/hide and select-all name them.
+enum TimelineTrack { texts, translation, layers, clips, audio }
+
+/// Which tracks the eye in the gutter has hidden.
+///
+/// **Hidden means left out**, in the preview and in the export alike: a
+/// hidden video track plays black, hidden audio is silent, and hidden
+/// captions, texts or translation are not drawn or burned in. What the
+/// preview shows is what the export makes.
+///
+/// A session's view of the project, not a property of its data, so it is
+/// held here rather than stored.
+@Riverpod(keepAlive: true)
+class HiddenTracks extends _$HiddenTracks {
+  @override
+  Set<TimelineTrack> build(String projectId) => const {};
+
+  void toggle(TimelineTrack track) {
+    state = state.contains(track)
+        ? state.where((t) => t != track).toSet()
+        : {...state, track};
+  }
+
+  void show(TimelineTrack track) {
+    if (state.contains(track)) {
+      state = state.where((t) => t != track).toSet();
+    }
+  }
+}
+
 /// Where the playhead sits, in project time.
 ///
 /// **Lifted out of the track widget** because three things need it and only
@@ -92,6 +122,14 @@ class TimelineSelection extends _$TimelineSelection {
   void toggle(TimelineItem item) => _set(toggleSelection(state, item));
 
   void selectOnly(TimelineItem item) => _set({item});
+
+  /// Selects [items] together, in multi-select -- a whole track's content,
+  /// from a long press on its gutter or an empty spot on its lane.
+  void selectAll(Set<TimelineItem> items) {
+    if (items.isEmpty) return;
+    _multi.enter();
+    _set(items);
+  }
 
   void clear() => _set(const {});
 

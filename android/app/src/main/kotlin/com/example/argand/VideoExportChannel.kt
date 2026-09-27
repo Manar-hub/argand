@@ -32,6 +32,7 @@ import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.OverlaySettings
+import androidx.media3.effect.Brightness
 import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
@@ -331,38 +332,52 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
     }
 
     /**
-     * One text layer's stretch over this clip: in its font and colour, on
-     * its background or over its shadow, placed, scaled and turned as the
-     * stage showed it.
+     * Text layers over this clip that never show at the same time: each in
+     * its font and colour, on its background or over its shadow, placed,
+     * scaled and turned as the stage showed it.
      *
-     * **One overlay per text**, not one for all of them: each has its own
-     * place in the frame, and an overlay has one set of settings per frame.
+     * **One overlay per lane, not per text.** Media3 draws every overlay of
+     * an effect with its own texture in one shader and refuses more than 15
+     * (`OverlayShaderProgram`), so a translation cut into dozens of pieces --
+     * or simply many titles -- failed the whole export. Texts that do not
+     * overlap in time share one overlay that switches between them, as
+     * [CaptionOverlay] does for captions; see [textLanes].
      */
     private class TextLayerOverlay(
-        private val item: TextItem,
+        private val items: List<TextItem>,
         private val textSizePx: Int,
     ) : TextOverlay() {
 
-        private val shown = StaticOverlaySettings.Builder()
-            .setBackgroundFrameAnchor(item.placement.x, item.placement.y)
-            .setScale(item.placement.scale, item.placement.scale)
-            // Media3 turns overlays anticlockwise; the stage's clockwise
-            // degrees are negated to match.
-            .setRotationDegrees(-item.placement.rotation)
-            .build()
+        private val settings = items.map { item ->
+            StaticOverlaySettings.Builder()
+                .setBackgroundFrameAnchor(item.placement.x, item.placement.y)
+                .setScale(item.placement.scale, item.placement.scale)
+                // Media3 turns overlays anticlockwise; the stage's clockwise
+                // degrees are negated to match.
+                .setRotationDegrees(-item.placement.rotation)
+                .build()
+        }
 
         private val hidden = StaticOverlaySettings.Builder()
             .setAlphaScale(0f)
             .build()
 
-        private fun showing(presentationTimeUs: Long): Boolean {
+        private val texts = items.map { spannedOf(it) }
+
+        /** Which item shows at [presentationTimeUs]; -1 for none. */
+        private fun indexAt(presentationTimeUs: Long): Int {
             val ms = presentationTimeUs / 1000
-            return ms >= item.startMs && ms < item.endMs
+            return items.indexOfFirst { ms >= it.startMs && ms < it.endMs }
         }
+
+        // The text asked for when nothing shows: kept as the last one shown,
+        // so the bitmap is not rebuilt for a frame nobody sees.
+        private var last = 0
 
         // Padded with spaces, as the stage pads it, so a background reaches
         // past the first and last letters.
-        private val spanned = SpannableStringBuilder().run {
+        private fun spannedOf(item: TextItem): SpannableString =
+            SpannableStringBuilder().run {
             val shadow = if (item.backgroundArgb == null) {
                 shadowOf(item.shadow, textSizePx.toFloat())
             } else {
@@ -403,10 +418,30 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             )
         }
 
-        override fun getText(presentationTimeUs: Long): SpannableString = spanned
+        override fun getText(presentationTimeUs: Long): SpannableString {
+            val index = indexAt(presentationTimeUs)
+            if (index >= 0) last = index
+            return texts[last]
+        }
 
-        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings =
-            if (showing(presentationTimeUs)) shown else hidden
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
+            val index = indexAt(presentationTimeUs)
+            return if (index >= 0) settings[index] else hidden
+        }
+    }
+
+    /**
+     * [items] packed into as few lanes as will hold them with no two in a
+     * lane overlapping in time: earliest start first, each into the first
+     * lane already clear by then. As many lanes as texts show at once.
+     */
+    private fun textLanes(items: List<TextItem>): List<List<TextItem>> {
+        val lanes = mutableListOf<MutableList<TextItem>>()
+        for (item in items.sortedBy { it.startMs }) {
+            val lane = lanes.firstOrNull { it.last().endMs <= item.startMs }
+            if (lane != null) lane.add(item) else lanes.add(mutableListOf(item))
+        }
+        return lanes
     }
 
     /**
@@ -694,6 +729,8 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                         ?.toFloat() ?: WATERMARK_ANCHOR_X,
                     watermarkAnchorY = (call.argument<Any?>("watermarkAnchorY") as? Number)
                         ?.toFloat() ?: WATERMARK_ANCHOR_Y,
+                    hideVideo = call.argument<Boolean>("hideVideo") ?: false,
+                    muteAudio = call.argument<Boolean>("muteAudio") ?: false,
                     result = result,
                 )
             }
@@ -735,6 +772,8 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         watermark: Boolean,
         watermarkAnchorX: Float,
         watermarkAnchorY: Float,
+        hideVideo: Boolean,
+        muteAudio: Boolean,
         result: MethodChannel.Result,
     ) {
         val clipPaths = clips.mapNotNull { it["path"] as? String }
@@ -810,14 +849,18 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 videoEffects.add(MatrixTransformation { matrix })
             }
 
+            // The video track hidden on the timeline: the picture goes to
+            // black, and the overlays added below are still drawn over it.
+            if (hideVideo) videoEffects.add(Brightness(-1f))
+
             // One effect carrying both overlays rather than two effects: each
             // OverlayEffect is its own GL pass over the frame, and there is no
             // reason for the mark to cost a second one.
             val overlays = mutableListOf<TextOverlay>()
             // Texts before captions, so a caption drawn over a title stays
             // readable -- the order the stage stacks them in.
-            for (item in textsOf(clip["texts"])) {
-                overlays.add(TextLayerOverlay(item, textLayerSizePx))
+            for (lane in textLanes(textsOf(clip["texts"]))) {
+                overlays.add(TextLayerOverlay(lane, textLayerSizePx))
             }
             if (captions.isNotEmpty()) {
                 overlays.add(CaptionOverlay(captions, textSizePx))
@@ -847,8 +890,11 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 .setClippingConfiguration(clipping)
                 .build()
 
+            // The audio track hidden on the timeline. The sequence forces an
+            // audio track (see below), so a removed one is filled with silence.
             EditedMediaItem.Builder(mediaItem)
                 .setEffects(Effects(emptyList(), videoEffects))
+                .setRemoveAudio(muteAudio)
                 .build()
         }
 

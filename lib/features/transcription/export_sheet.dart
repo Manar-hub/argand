@@ -43,10 +43,12 @@ final class SubtitleExportDecision extends ExportDecision {
     required this.format,
     required this.includeSpeakers,
     required this.lineLength,
+    this.includeTranslation = false,
   });
 
   final SubtitleFormat format;
   final bool includeSpeakers;
+  final bool includeTranslation;
   final SubtitleLineLength lineLength;
 }
 
@@ -104,6 +106,7 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
   String? _adNote;
 
   bool _includeSpeakers = true;
+  bool _includeTranslation = false;
   SubtitleLineLength _lineLength = SubtitleLineLength.standard;
 
   /// The short edge of the footage, for offering only the sizes it can fill.
@@ -324,6 +327,16 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
           value: _includeSpeakers,
           onChanged: (value) => setState(() => _includeSpeakers = value),
         ),
+        // Only when there is a translation to include.
+        if (ref.watch(projectTranslationTextsProvider(widget.projectId))
+            .isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _ToggleCard(
+            title: l10n.exportIncludeTranslation,
+            value: _includeTranslation,
+            onChanged: (value) => setState(() => _includeTranslation = value),
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         _Label(l10n.exportLineLength),
         const SizedBox(height: AppSpacing.sm),
@@ -381,6 +394,7 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
                           : SubtitleFormat.vtt,
                       includeSpeakers: _includeSpeakers,
                       lineLength: _lineLength,
+                      includeTranslation: _includeTranslation,
                     ),
                   )
               : null,

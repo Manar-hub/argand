@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../text/library_search.dart';
+
 // Two generators write into this library. Drift emits `database.drift.dart`
 // as a standalone part (see build.yaml for why it is not the default shared
 // part), and riverpod_generator emits `database.g.dart`.
@@ -335,6 +337,41 @@ class Words extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// A transcript's translation, one line per sentence, kept **beside** the
+/// transcript rather than in it.
+///
+/// Its own table so nothing that reads a transcript -- the script, the
+/// timeline's sentences, captions, subtitle export -- ever meets it unless it
+/// asks: a translation is an extra, shown where the user turns it on.
+///
+/// A line carries its sentence's timing, in the clip's own time like [Words],
+/// and the positions of the sentence's first and last word, so the script can
+/// put it under the sentence it translates. One language per transcript:
+/// translating again replaces the lines.
+@TableIndex(
+    name: 'translation_lines_transcript',
+    columns: {#transcriptId, #position})
+class TranslationLines extends Table with _RecordColumns {
+  TextColumn get transcriptId => text().references(Transcripts, #id)();
+
+  /// The language translated into, as its two-letter code.
+  TextColumn get language => text()();
+
+  /// Which sentence of the transcript, from 0.
+  IntColumn get position => integer()();
+
+  IntColumn get firstWord => integer()();
+  IntColumn get lastWord => integer()();
+
+  IntColumn get startMs => integer()();
+  IntColumn get endMs => integer()();
+
+  TextColumn get content => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// One reversible edit, appended by `TranscriptRepository` as it mutates a
 /// transcript. Undo and redo walk this log rather than diffing documents.
 ///
@@ -429,13 +466,14 @@ class TimelineEvents extends Table with _RecordColumns {
   EditEvents,
   TimelineEvents,
   TextLayers,
+  TranslationLines,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
@@ -446,7 +484,8 @@ class AppDatabase extends _$AppDatabase {
   /// the framing columns on [MediaClips], the caption placement on
   /// [TranscribeLayers], and [TextLayers], 10 -> 11 added the per-sentence
   /// caption placement on [Words], 11 -> 12 added the looks (font, colour,
-  /// caption mode) on [TranscribeLayers], [Words] and [TextLayers].
+  /// caption mode) on [TranscribeLayers], [Words] and [TextLayers], 12 -> 13
+  /// added [TranslationLines].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -550,6 +589,9 @@ class AppDatabase extends _$AppDatabase {
           if (from >= 10 && from < 12) {
             await migrator.addColumn(textLayers, textLayers.look);
           }
+          if (from < 13) {
+            await migrator.createTable(translationLines);
+          }
 
           // **`createTable` does not create a table's declared indexes.**
           // `createAll()` does, so a fresh install had them and every upgraded
@@ -576,6 +618,7 @@ class AppDatabase extends _$AppDatabase {
             settingsKey,
             editEventsTranscriptSeq,
             textLayersProjectStart,
+            translationLinesTranscript,
           ]) {
             final sql = index.createStatementsByDialect[SqlDialect.sqlite];
             if (sql == null) continue;
@@ -1234,6 +1277,42 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  /// A transcript's translation, in sentence order. Empty when it has none.
+  Stream<List<TranslationLine>> watchTranslationLines(String transcriptId) {
+    return (select(translationLines)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+        .watch();
+  }
+
+  Future<List<TranslationLine>> translationLinesFor(String transcriptId) =>
+      watchTranslationLines(transcriptId).first;
+
+  /// Puts [lines] in place of whatever translation [transcriptId] had, in one
+  /// transaction: the old lines are retired, not overwritten, like every
+  /// other row.
+  Future<void> replaceTranslation(
+    String transcriptId,
+    List<TranslationLinesCompanion> lines,
+  ) {
+    final now = DateTime.now();
+    return transaction(() async {
+      await (update(translationLines)
+            ..where((t) =>
+                t.transcriptId.equals(transcriptId) & t.deletedAt.isNull()))
+          .write(TranslationLinesCompanion(
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ));
+      await batch((b) => b.insertAll(translationLines, lines));
+    });
+  }
+
+  /// Retires [transcriptId]'s translation.
+  Future<void> removeTranslation(String transcriptId) =>
+      replaceTranslation(transcriptId, const []);
+
   Future<List<TextLayer>> textLayersForProject(String projectId) {
     return (select(textLayers)
           ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
@@ -1622,6 +1701,90 @@ class AppDatabase extends _$AppDatabase {
           ..where((t) => t.deletedAt.isNull())
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
+  }
+
+  /// The projects [query] finds, newest first, re-run whenever a project, a
+  /// transcript or a word changes.
+  ///
+  /// Empty for an empty query -- the caller shows the whole list instead.
+  Stream<List<LibraryHit>> watchLibrarySearch(String query) {
+    return customSelect(
+      'SELECT 1',
+      readsFrom: {projects, transcripts, words},
+    ).watch().asyncMap((_) => searchLibrary(query));
+  }
+
+  /// Every project whose title, or whose transcribed words, contain [query].
+  ///
+  /// **Words, not `Transcripts.fullText`.** That column is written once when a
+  /// transcript is made and never follows a correction, so searching it would
+  /// find what the user fixed and miss what they fixed it to.
+  ///
+  /// Each project is listed once, with the first place its words say the
+  /// query -- by transcript, then by position -- when they do.
+  Future<List<LibraryHit>> searchLibrary(String query) async {
+    final tokens = searchTokens(query);
+    if (tokens.isEmpty) return const [];
+
+    final phrase = tokens.join(' ');
+    final titled = <String>{
+      for (final project in await watchProjects().first)
+        if (project.title.toLowerCase().contains(phrase)) project.id,
+    };
+
+    // Candidate starts: every live word containing the first token. The rest
+    // of the phrase is confirmed below against the words that follow.
+    final candidates = await customSelect(
+      'SELECT t.project_id AS project_id, w.transcript_id AS transcript_id, '
+      't.clip_id AS clip_id, w.position AS position '
+      'FROM words w '
+      'JOIN transcripts t ON t.id = w.transcript_id '
+      'JOIN projects p ON p.id = t.project_id '
+      'WHERE w.deleted_at IS NULL AND t.deleted_at IS NULL '
+      'AND p.deleted_at IS NULL '
+      r"AND w.word LIKE ? ESCAPE '\' "
+      'ORDER BY t.created_at, w.position',
+      variables: [Variable.withString('%${escapeLike(tokens.first)}%')],
+      readsFrom: {projects, transcripts, words},
+    ).get();
+
+    const context = 8;
+    final found = <String, LibraryWordHit>{};
+    for (final row in candidates) {
+      final projectId = row.read<String>('project_id');
+      if (found.containsKey(projectId)) continue;
+
+      final transcriptId = row.read<String>('transcript_id');
+      final position = row.read<int>('position');
+      final window = await (select(words)
+            ..where((w) =>
+                w.transcriptId.equals(transcriptId) &
+                w.deletedAt.isNull() &
+                w.position.isBetweenValues(
+                  position - context,
+                  position + tokens.length - 1 + context,
+                ))
+            ..orderBy([(w) => OrderingTerm.asc(w.position)]))
+          .get();
+      final at = window.indexWhere((w) => w.position == position);
+      final text = [for (final w in window) w.word];
+      if (at < 0 || !phraseMatchesAt(text, at, tokens)) continue;
+
+      found[projectId] = LibraryWordHit(
+        transcriptId: transcriptId,
+        clipId: row.readNullable<String>('clip_id'),
+        startMs: window[at].startMs,
+        snippet: text,
+        matchStart: at,
+        matchLength: tokens.length,
+      );
+    }
+
+    return [
+      for (final project in await watchProjects().first)
+        if (titled.contains(project.id) || found.containsKey(project.id))
+          LibraryHit(project: project, word: found[project.id]),
+    ];
   }
 
   Future<Project?> findProject(String id) {
@@ -2314,6 +2477,16 @@ class AppDatabase extends _$AppDatabase {
       return (canUndo: canUndo, canRedo: canRedo);
     }).distinct();
   }
+}
+
+/// One project a library search found: by its title, its words, or both.
+class LibraryHit {
+  const LibraryHit({required this.project, this.word});
+
+  final Project project;
+
+  /// Where its transcript says the query, when it does.
+  final LibraryWordHit? word;
 }
 
 QueryExecutor _open() {

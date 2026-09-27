@@ -12,6 +12,7 @@ import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/timeline/item_look.dart';
 import '../../core/timeline/item_transform.dart';
+import '../../core/timeline/translation_texts.dart';
 import '../../core/timeline/timeline_sentences.dart';
 import '../../core/timeline/timeline_selection.dart';
 import '../../core/video/export_options.dart';
@@ -569,6 +570,13 @@ class _StageEditorState extends ConsumerState<StageEditor> {
         ref.watch(projectLayersProvider(projectId)).value ?? const [];
     final texts =
         ref.watch(projectTextLayersProvider(projectId)).value ?? const [];
+    // What the gutter's eyes have hidden is not drawn -- nor exported.
+    final hidden = ref.watch(hiddenTracksProvider(projectId));
+    // Drawn like texts but never picked: a translation is changed by
+    // translating again, not by dragging or retyping it on the picture.
+    final translations = hidden.contains(TimelineTrack.translation)
+        ? const <TextLayer>[]
+        : ref.watch(projectTranslationTextsProvider(projectId));
     final transcripts = clipId == null
         ? const <Transcript>[]
         : ref.watch(clipTranscriptsProvider(clipId)).value ?? const [];
@@ -672,6 +680,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                 ),
               ),
             ),
+          if (!hidden.contains(TimelineTrack.layers))
           for (final shown in _shown.values)
             _anchored(
               where(shown.item),
@@ -691,7 +700,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                 padded: false,
               ),
             ),
-          if (projectMs != null)
+          if (projectMs != null && !hidden.contains(TimelineTrack.texts))
             for (final text in texts)
               if (projectMs >= text.startMs && projectMs < text.endMs)
                 _anchored(
@@ -709,6 +718,24 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                     ),
                     text: text.content,
                     padded: true,
+                  ),
+                ),
+          if (projectMs != null)
+            for (final line in translations)
+              if (projectMs >= line.startMs && projectMs < line.endMs)
+                _anchored(
+                  ItemTransform(x: line.x, y: line.y, scale: line.scale),
+                  frame,
+                  child: IgnorePointer(
+                    child: Text(
+                      line.content,
+                      textAlign: TextAlign.center,
+                      textDirection: translationDirectionOf(line.content),
+                      style: _textLayerStyle(
+                        ItemLook.decode(line.look) ?? ItemLook.defaults,
+                        shortEdge,
+                      ),
+                    ),
                   ),
                 ),
         ];

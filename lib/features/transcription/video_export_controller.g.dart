@@ -113,7 +113,7 @@ final class VideoExportControllerProvider
 }
 
 String _$videoExportControllerHash() =>
-    r'78129b7357fd8133dbb834f6ccf2b3303e303a49';
+    r'7ab0ce2cb981ee96186d1a96be2a2c04c3f5713c';
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
 ///

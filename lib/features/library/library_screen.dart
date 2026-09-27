@@ -11,10 +11,12 @@ import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/theme/theme_mode_controller.dart';
 import '../../core/theme/theme_reveal.dart';
+import '../../core/text/library_search.dart';
 import '../../l10n/app_localizations.dart';
 import '../monetization/pro_offer.dart';
 import '../transcription/transcription_options.dart';
@@ -34,6 +36,30 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   StreamSubscription<SharedMedia>? _shares;
+
+  /// What the search field asks for, settled: it follows the typing after a
+  /// short pause, so a search runs per thought rather than per keystroke.
+  String _query = '';
+  Timer? _queryDebounce;
+  final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  /// The last results shown, kept while the next query's first answer is on
+  /// its way so the list does not blink empty between keystrokes.
+  List<LibraryHit>? _lastHits;
+
+  void _onSearchChanged(String text) {
+    _queryDebounce?.cancel();
+    _queryDebounce = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _query = text);
+    });
+  }
+
+  void _clearSearch() {
+    _queryDebounce?.cancel();
+    _search.clear();
+    setState(() => _query = '');
+  }
 
   /// Which mode the entry button just tapped wants the resulting project to
   /// open in, consumed the moment the pipeline reports [ImportSucceeded].
@@ -67,6 +93,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   void dispose() {
+    _queryDebounce?.cancel();
+    _search.dispose();
+    _searchFocus.dispose();
     _shares?.cancel();
     super.dispose();
   }
@@ -222,10 +251,205 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     hasScrollBody: false,
                     child: _EmptyLibrary(),
                   )
-                : _ProjectSliver(projects: items),
+                : SliverMainAxisGroup(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _ProjectsHeading(
+                          controller: _search,
+                          focusNode: _searchFocus,
+                          onChanged: _onSearchChanged,
+                          onClear: _clearSearch,
+                        ),
+                      ),
+                      _results(items, l10n),
+                    ],
+                  ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Every project, or -- while the search field holds something -- the ones
+/// it finds, each with the line of its transcript that matched.
+extension on _LibraryScreenState {
+  Widget _results(List<Project> items, AppLocalizations l10n) {
+    if (searchTokens(_query).isEmpty) {
+      _lastHits = null;
+      return _ProjectSliver(entries: [for (final p in items) (p, null)]);
+    }
+
+    final hits = ref.watch(librarySearchProvider(_query)).value ?? _lastHits;
+    if (hits == null) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    _lastHits = hits;
+
+    if (hits.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        sliver: SliverToBoxAdapter(
+          child: Text(
+            l10n.librarySearchEmpty,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ),
+      );
+    }
+    return _ProjectSliver(
+      entries: [for (final hit in hits) (hit.project, hit.word)],
+    );
+  }
+}
+
+/// "Projects", large, with the search field beside it.
+class _ProjectsHeading extends StatelessWidget {
+  const _ProjectsHeading({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final surface = context.surface;
+
+    // The search button's grey: the page's ink laid thinly over its ground,
+    // so it is the palette's own -- warm on paper, lifted on dark.
+    final grey = Color.alphaBlend(
+      theme.colorScheme.onSurface.withValues(
+        alpha: theme.brightness == Brightness.light ? 0.07 : 0.10,
+      ),
+      theme.colorScheme.surface,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // A faint rule between the two things this page does -- start
+        // something new, above; find what exists, below -- set in from the
+        // screen's edges so it separates without cutting the page in two.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.sm,
+            AppSpacing.xl,
+            0,
+          ),
+          child: SizedBox(
+            height: appHairlineWidth,
+            child: ColoredBox(color: appHairline(theme)),
+          ),
+        ),
+        Padding(
+          // Below the rule, and clear of the list by more than the field's
+          // shadow, so the shadow does not crowd the first project.
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.xl,
+          ),
+          child: Row(
+            children: [
+              Text(l10n.projectsHeading, style: theme.textTheme.headlineSmall),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                // The field on the page's own ground, raised with the hard
+                // shadow; the search icon in a grey box of its own at the end.
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    border: surface.outlined
+                        ? Border.fromBorderSide(surface.side)
+                        : null,
+                    boxShadow: [surface.hardShadow],
+                  ),
+                  // Inside the outline, so the grey button never paints over it.
+                  child: Padding(
+                    padding: EdgeInsets.all(
+                      surface.outlined ? surface.borderWidth : 0,
+                    ),
+                    child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            onChanged: onChanged,
+                            textInputAction: TextInputAction.search,
+                            // Tapping anywhere else leaves the field and puts
+                            // the keyboard away; what was found stays listed
+                            // until cleared.
+                            onTapOutside: (_) => focusNode.unfocus(),
+                            textAlignVertical: TextAlignVertical.center,
+                            decoration: InputDecoration(
+                              isDense: true,
+                              filled: false,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              hintText: l10n.librarySearchHint,
+                              contentPadding: const EdgeInsets.all(
+                                AppSpacing.md,
+                              ),
+                            ),
+                          ),
+                        ),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: controller,
+                          builder: (context, value, _) => value.text.isEmpty
+                              ? const SizedBox.shrink()
+                              : IconButton(
+                                  icon: const Icon(Icons.close, size: 18),
+                                  tooltip: l10n.librarySearchClear,
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: onClear,
+                                ),
+                        ),
+                        // The search button: a grey square flush with the
+                        // field's end, set off by the field's own line.
+                        AppPressDown(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: focusNode.requestFocus,
+                            child: Container(
+                              width: 48,
+                              decoration: BoxDecoration(
+                                color: grey,
+                                border: surface.outlined
+                                    ? Border(left: surface.side)
+                                    : null,
+                              ),
+                              child: Icon(
+                                Icons.search,
+                                size: 20,
+                                semanticLabel: l10n.librarySearchHint,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -375,15 +599,15 @@ class _ImportPanel extends StatelessWidget {
   }
 }
 
-/// The project list, with its own heading.
+/// The project list: each project, with where a search found it in its words
+/// when one did.
 class _ProjectSliver extends StatelessWidget {
-  const _ProjectSliver({required this.projects});
+  const _ProjectSliver({required this.entries});
 
-  final List<Project> projects;
+  final List<(Project, LibraryWordHit?)> entries;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final surface = context.surface;
 
@@ -399,13 +623,6 @@ class _ProjectSliver extends StatelessWidget {
       // separate boxes read as a pile of unrelated things.
       sliver: SliverList.list(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(
-              l10n.projectsHeading,
-              style: theme.textTheme.labelLarge,
-            ),
-          ),
           DecoratedBox(
             decoration: surface.decoration(
               fill: theme.colorScheme.surfaceContainerHighest,
@@ -416,9 +633,13 @@ class _ProjectSliver extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final (index, project) in projects.indexed) ...[
+                  for (final (index, (project, hit)) in entries.indexed) ...[
                     if (index > 0) const _RowRule(),
-                    _ProjectTile(project: project),
+                    _ProjectTile(
+                      key: ValueKey(project.id),
+                      project: project,
+                      hit: hit,
+                    ),
                   ],
                 ],
               ),
@@ -450,9 +671,13 @@ class _RowRule extends StatelessWidget {
 /// it — when it was imported, how long it runs, what it costs on disk — because
 /// the alternative is opening each one to find out.
 class _ProjectTile extends ConsumerStatefulWidget {
-  const _ProjectTile({required this.project});
+  const _ProjectTile({super.key, required this.project, this.hit});
 
   final Project project;
+
+  /// Where a search found this project's words, shown under its title and
+  /// opened on when tapped.
+  final LibraryWordHit? hit;
 
   @override
   ConsumerState<_ProjectTile> createState() => _ProjectTileState();
@@ -530,6 +755,10 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (widget.hit case final hit?) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      _Snippet(hit: hit),
+                    ],
                   ],
                 ),
               ),
@@ -559,9 +788,17 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
   }
 
   void _open(BuildContext context) {
+    final hit = widget.hit;
+    final clipId = hit?.clipId;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ProjectScreen(projectId: widget.project.id),
+        builder: (_) => ProjectScreen(
+          projectId: widget.project.id,
+          // A search that found the words opens on them.
+          initialSeek: hit == null || clipId == null
+              ? null
+              : (clipId: clipId, startMs: hit.startMs),
+        ),
       ),
     );
   }
@@ -777,6 +1014,7 @@ class _ImportProgress extends StatelessWidget {
           ? l10n.stageIdentifyingSpeakers
           : l10n.identifyingSpeakersPercent(percent),
       ImportStage.saving => l10n.stageSaving,
+      ImportStage.translating => l10n.translateWorking,
     };
 
     return Padding(
@@ -844,6 +1082,49 @@ class _ImportError extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The line of a transcript a search matched: when it is said, then the words
+/// around it with the match in bold.
+class _Snippet extends StatelessWidget {
+  const _Snippet({required this.hit});
+
+  final LibraryWordHit hit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final base = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface,
+    );
+    final end = hit.matchStart + hit.matchLength;
+    String join(Iterable<String> words) => words.join(' ');
+
+    return Text.rich(
+      TextSpan(
+        style: base,
+        children: [
+          TextSpan(
+            text: '${_formatDuration(Duration(milliseconds: hit.startMs))}  ',
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          if (hit.matchStart > 0)
+            TextSpan(text: '\u2026${join(hit.snippet.take(hit.matchStart))} '),
+          TextSpan(
+            text: join(hit.snippet.sublist(hit.matchStart, end)),
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          if (end < hit.snippet.length)
+            TextSpan(text: ' ${join(hit.snippet.skip(end))}\u2026'),
+        ],
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

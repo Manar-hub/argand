@@ -94,6 +94,7 @@ class SubtitleExporter extends _$SubtitleExporter {
     required SubtitleFormat format,
     SubtitleLineLength lineLength = SubtitleLineLength.standard,
     String Function(int speaker)? defaultSpeakerLabel,
+    bool includeTranslation = false,
   }) async {
     state = const SubtitleExportRunning();
 
@@ -108,6 +109,7 @@ class SubtitleExporter extends _$SubtitleExporter {
 
       final wordsByClip = <String, List<Word>>{};
       final namesByTranscript = <String, SpeakerNames>{};
+      final translationsByTranscript = <String, List<TranslationLine>>{};
       String? language;
 
       for (final placement in timeline.placements) {
@@ -119,6 +121,10 @@ class SubtitleExporter extends _$SubtitleExporter {
           words.addAll(await repository.watchWords(transcript.id).first);
           namesByTranscript[transcript.id] =
               SpeakerNames.decode(transcript.speakerNames);
+          if (includeTranslation) {
+            translationsByTranscript[transcript.id] =
+                await repository.watchTranslation(transcript.id).first;
+          }
           // The first language the timeline reaches, which is what the file
           // name should claim: players label the track from it.
           language ??= transcript.language;
@@ -143,6 +149,20 @@ class SubtitleExporter extends _$SubtitleExporter {
         cues,
         format: format,
         options: SubtitleOptions(maxLineCharacters: lineLength.maxCharacters),
+        // The translated sentence being said when the cue starts, so it is on
+        // screen for as long as its stretch of speech is. By time, because a
+        // translation's sentences need not match the source's.
+        translation: includeTranslation
+            ? (CaptionCue cue) {
+                final word = cue.words.first;
+                return translationsByTranscript[word.transcriptId]
+                    ?.where((line) =>
+                        line.startMs <= word.startMs &&
+                        line.endMs > word.startMs)
+                    .firstOrNull
+                    ?.content;
+              }
+            : null,
         // Named from the transcript the cue's own words belong to. The same
         // speaker number is a different person in a different run, so a
         // project-wide name map would put one person's name on another.

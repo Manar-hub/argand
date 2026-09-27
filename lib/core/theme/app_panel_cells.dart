@@ -29,7 +29,13 @@ class AppStrip extends StatelessWidget {
     this.bare = false,
     this.bottomOpening,
     this.flex,
+    this.tees = true,
   });
+
+  /// Whether the rules between cells end in a crossbar at the frame's line.
+  /// Off for colour swatches, where a bar over a chosen colour's edge reads
+  /// as a mark on the colour rather than as the frame.
+  final bool tees;
 
   /// Leaves the bottom line open between these two points (from the strip's
   /// left), where a link from below meets it.
@@ -78,7 +84,7 @@ class AppStrip extends StatelessWidget {
                   // and ends in a short crossbar there -- lost in the line
                   // where the line is drawn, a T where a link leaves it
                   // open. Dark draws no lines, so no bars.
-                  bar: surface.outlined ? surface.borderWidth : 0,
+                  bar: surface.outlined && tees ? surface.borderWidth : 0,
                 ),
               ),
             ),

@@ -222,6 +222,7 @@ Future<void> translateTranscripts(
   BuildContext context,
   WidgetRef ref, {
   required List<String> transcriptIds,
+  Map<String, List<({int from, int to})>> ranges = const {},
   bool hasTranslation = false,
 }) async {
   if (transcriptIds.isEmpty) return;
@@ -240,7 +241,14 @@ Future<void> translateTranscripts(
   final repository = ref.read(transcriptRepositoryProvider);
   if (pick is TranslateNone) {
     for (final id in transcriptIds) {
-      await repository.removeTranslation(id);
+      final only = ranges[id];
+      if (only == null) {
+        await repository.removeTranslation(id);
+      } else {
+        for (final words in only) {
+          await repository.removeTranslation(id, words: words);
+        }
+      }
     }
     return;
   }
@@ -249,7 +257,12 @@ Future<void> translateTranscripts(
   final failure = await _withProgress(
     context,
     l10n.translateWorking,
-    () => runTranslation(ref, transcriptIds: transcriptIds, to: to),
+    () => runTranslation(
+      ref,
+      transcriptIds: transcriptIds,
+      ranges: ranges,
+      to: to,
+    ),
   );
 
   final name = ref
@@ -276,9 +289,11 @@ Future<TranslationFailure?> runTranslation(
   WidgetRef ref, {
   required List<String> transcriptIds,
   required String to,
+  Map<String, List<({int from, int to})>> ranges = const {},
 }) async {
   return ref.read(transcriptRepositoryProvider).translateAll(
         transcriptIds: transcriptIds,
+        ranges: ranges,
         to: to,
         translator: ref.read(translatorProvider),
       );

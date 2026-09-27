@@ -71,6 +71,8 @@ ItemTransform placementOf(
           ItemTransform.identity,
     TimelineItemKind.sentence =>
       sentences[item] ?? ItemTransform.captionDefault,
+    // Sound has no place on the picture.
+    TimelineItemKind.audio => ItemTransform.identity,
   };
 }
 
@@ -377,6 +379,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
         _selection.clear();
       case TimelineItemKind.clip:
       case TimelineItemKind.layer:
+      case TimelineItemKind.audio:
         break;
     }
     if (mounted) setState(() {});

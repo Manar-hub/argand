@@ -17,6 +17,9 @@ MediaClip clip(String id, String path) => MediaClip(
       rotation: 0,
       offsetX: 0,
       offsetY: 0,
+      audioStartOffsetMs: 0,
+      audioEndOffsetMs: 0,
+      audioMuted: false,
     );
 
 ClipRange range(String clipId, int from, int to) => (

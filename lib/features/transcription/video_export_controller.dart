@@ -145,6 +145,7 @@ class VideoExportController extends _$VideoExportController {
     final request = exportRequestFor(
       timeline: timeline,
       clips: clips,
+      withAudio: !hidden.contains(TimelineTrack.audio),
       captionsByClip: hidden.contains(TimelineTrack.layers)
           ? const {}
           : await _captionsFor(repository, clips),

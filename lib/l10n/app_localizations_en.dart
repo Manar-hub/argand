@@ -229,6 +229,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get selectionRemove => 'Remove';
 
   @override
+  String get audioSelected => 'Sound selected.';
+
+  @override
+  String get audioRestore => 'Restore';
+
+  @override
   String get translateAction => 'Translate';
 
   @override

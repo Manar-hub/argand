@@ -11,6 +11,9 @@ import '../../l10n/app_localizations.dart';
 import 'clip_controller.dart';
 import 'editor_mode_controller.dart';
 import 'media_player_controller.dart';
+import 'overlap_audio.dart';
+import 'transcript_repository.dart';
+import '../../core/timeline/audio_window.dart';
 import 'stage_editor.dart';
 import 'video_canvas.dart';
 import 'video_settings.dart';
@@ -592,10 +595,21 @@ class ProjectStageCanvas extends ConsumerWidget {
     // The gutter's eyes reach the preview: hidden video leaves the frame
     // black, hidden audio plays silent -- as the export will.
     final hidden = ref.watch(hiddenTracksProvider(projectId));
-    final muted = hidden.contains(TimelineTrack.audio);
     final player = clipId == null
         ? null
         : ref.watch(mediaPlayerProvider(clipId!)).value;
+    // This clip's own sound: silent where the audio track is hidden, where
+    // its sound was removed, and outside its sound's window -- a sound
+    // trimmed shorter than its picture stops where the trim says.
+    final clip = (ref.watch(projectClipsProvider(projectId)).value ?? const [])
+        .where((c) => c.id == clipId)
+        .firstOrNull;
+    final window = clip == null ? null : audioWindow(clip);
+    final muted = hidden.contains(TimelineTrack.audio) ||
+        (clip?.audioMuted ?? false) ||
+        (window != null &&
+            (mediaPositionMs < window.startMs ||
+                mediaPositionMs >= window.endMs));
     if (player != null && player.value.volume != (muted ? 0.0 : 1.0)) {
       player.setVolume(muted ? 0 : 1);
     }
@@ -611,13 +625,27 @@ class ProjectStageCanvas extends ConsumerWidget {
           child: picture,
         ),
       ),
-      foreground: StageEditor(
-        projectId: projectId,
-        clipId: clipId,
-        sourceSize: sourceSize,
-        mediaPositionMs: mediaPositionMs,
-        // Choosing the watermark's corner takes the frame's taps for itself.
-        editable: editable && !picking,
+      foreground: Stack(
+        // The stage lays out against the frame as it did on its own.
+        fit: StackFit.expand,
+        children: [
+          StageEditor(
+            projectId: projectId,
+            clipId: clipId,
+            sourceSize: sourceSize,
+            mediaPositionMs: mediaPositionMs,
+            // Choosing the watermark's corner takes the frame's taps for
+            // itself.
+            editable: editable && !picking,
+          ),
+          // Other clips' sound reaching under this picture (J/L cuts).
+          if (clipId != null)
+            OverlapAudio(
+              projectId: projectId,
+              clipId: clipId!,
+              mediaPositionMs: mediaPositionMs,
+            ),
+        ],
       ),
       watermark: settings.previewWatermark ? settings.corner : null,
       pickCorner: picking

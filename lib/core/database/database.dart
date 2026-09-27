@@ -137,6 +137,22 @@ class MediaClips extends Table with _RecordColumns {
   RealColumn get offsetX => real().withDefault(const Constant(0.0))();
   RealColumn get offsetY => real().withDefault(const Constant(0.0))();
 
+  /// Where this clip's **sound** begins and ends, relative to its picture:
+  /// added to the picture window's start and end (`audio_window.dart`).
+  ///
+  /// **Offsets, not times**, so a split or a picture trim carries the sound
+  /// with it and keeps the cut's shape. A negative start sounds before the
+  /// picture appears (a J-cut); a positive end carries on under the next clip
+  /// (an L-cut); the other signs trim the sound inside its picture. Zero --
+  /// every clip until someone drags its audio -- is sound exactly with its
+  /// picture, as it has always been.
+  IntColumn get audioStartOffsetMs =>
+      integer().withDefault(const Constant(0))();
+  IntColumn get audioEndOffsetMs => integer().withDefault(const Constant(0))();
+
+  /// The clip's sound removed from the timeline, its picture left in place.
+  BoolColumn get audioMuted => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
@@ -473,7 +489,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
@@ -485,7 +501,8 @@ class AppDatabase extends _$AppDatabase {
   /// [TranscribeLayers], and [TextLayers], 10 -> 11 added the per-sentence
   /// caption placement on [Words], 11 -> 12 added the looks (font, colour,
   /// caption mode) on [TranscribeLayers], [Words] and [TextLayers], 12 -> 13
-  /// added [TranslationLines].
+  /// added [TranslationLines], 13 -> 14 added the independent audio columns
+  /// on [MediaClips].
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -591,6 +608,13 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 13) {
             await migrator.createTable(translationLines);
+          }
+          // MediaClips exists from schema 5, so an older database has just
+          // created it complete and must not add the columns twice.
+          if (from >= 5 && from < 14) {
+            await migrator.addColumn(mediaClips, mediaClips.audioStartOffsetMs);
+            await migrator.addColumn(mediaClips, mediaClips.audioEndOffsetMs);
+            await migrator.addColumn(mediaClips, mediaClips.audioMuted);
           }
 
           // **`createTable` does not create a table's declared indexes.**
@@ -998,6 +1022,31 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Sets where [clipId]'s sound begins and ends relative to its picture.
+  Future<void> setAudioOffsets({
+    required String clipId,
+    required int startOffsetMs,
+    required int endOffsetMs,
+  }) {
+    return (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+      MediaClipsCompanion(
+        audioStartOffsetMs: Value(startOffsetMs),
+        audioEndOffsetMs: Value(endOffsetMs),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Removes [clipId]'s sound from the timeline, or puts it back.
+  Future<void> setAudioMuted(String clipId, bool muted) {
+    return (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
+      MediaClipsCompanion(
+        audioMuted: Value(muted),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   /// Splits one clip into two at [atMediaMs], measured in the media's own time.
   ///
   /// **Two rows over one file**, not two files. The left keeps the original id
@@ -1056,6 +1105,10 @@ class AppDatabase extends _$AppDatabase {
           durationMs: Value(clip.durationMs),
           trimStartMs: Value(atMediaMs),
           trimEndMs: Value(originalEnd),
+          // The sound is cut where the picture is: the right half keeps the
+          // original's tail, and its new front edge starts with its picture.
+          audioEndOffsetMs: Value(clip.audioEndOffsetMs),
+          audioMuted: Value(clip.audioMuted),
           title: clip.title,
           // The same file, so the readings are identical by construction.
           waveform: Value(clip.waveform),
@@ -1065,6 +1118,8 @@ class AppDatabase extends _$AppDatabase {
       await (update(mediaClips)..where((t) => t.id.equals(clipId))).write(
         MediaClipsCompanion(
           trimEndMs: Value(atMediaMs),
+          // The left half's sound now ends at the cut, with its picture.
+          audioEndOffsetMs: const Value(0),
           updatedAt: Value(now),
         ),
       );
@@ -1277,12 +1332,19 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  /// A transcript's translation, in sentence order. Empty when it has none.
+  /// A transcript's translation, in the order it is said. Empty when it has
+  /// none.
+  ///
+  /// By time rather than by position: a selection translated on its own
+  /// numbers its lines from 0, so positions from separate runs interleave.
   Stream<List<TranslationLine>> watchTranslationLines(String transcriptId) {
     return (select(translationLines)
           ..where((t) =>
               t.transcriptId.equals(transcriptId) & t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.startMs),
+            (t) => OrderingTerm.asc(t.position),
+          ]))
         .watch();
   }
 
@@ -1292,15 +1354,26 @@ class AppDatabase extends _$AppDatabase {
   /// Puts [lines] in place of whatever translation [transcriptId] had, in one
   /// transaction: the old lines are retired, not overwritten, like every
   /// other row.
+  ///
+  /// With [words], only the lines over those word positions are replaced --
+  /// a selection translated on its own leaves the rest of the translation be.
   Future<void> replaceTranslation(
     String transcriptId,
-    List<TranslationLinesCompanion> lines,
-  ) {
+    List<TranslationLinesCompanion> lines, {
+    ({int from, int to})? words,
+  }) {
     final now = DateTime.now();
     return transaction(() async {
       await (update(translationLines)
-            ..where((t) =>
-                t.transcriptId.equals(transcriptId) & t.deletedAt.isNull()))
+            ..where((t) {
+              final live =
+                  t.transcriptId.equals(transcriptId) & t.deletedAt.isNull();
+              return words == null
+                  ? live
+                  : live &
+                      t.firstWord.isSmallerOrEqualValue(words.to) &
+                      t.lastWord.isBiggerOrEqualValue(words.from);
+            }))
           .write(TranslationLinesCompanion(
         deletedAt: Value(now),
         updatedAt: Value(now),
@@ -1309,9 +1382,12 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Retires [transcriptId]'s translation.
-  Future<void> removeTranslation(String transcriptId) =>
-      replaceTranslation(transcriptId, const []);
+  /// Retires [transcriptId]'s translation, or just the part over [words].
+  Future<void> removeTranslation(
+    String transcriptId, {
+    ({int from, int to})? words,
+  }) =>
+      replaceTranslation(transcriptId, const [], words: words);
 
   Future<List<TextLayer>> textLayersForProject(String projectId) {
     return (select(textLayers)

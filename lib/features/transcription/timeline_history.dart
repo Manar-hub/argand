@@ -75,6 +75,25 @@ final Map<TimelineEventKind, TimelineInverse> timelineInverses = {
     );
   },
 
+  TimelineEventKind.audioTrim: (db, side) async {
+    final clipId = side['clipId'] as String?;
+    if (clipId == null) return;
+    await db.setAudioOffsets(
+      clipId: clipId,
+      startOffsetMs: (side['startOffsetMs'] as num?)?.toInt() ?? 0,
+      endOffsetMs: (side['endOffsetMs'] as num?)?.toInt() ?? 0,
+    );
+  },
+
+  TimelineEventKind.audioMute: (db, side) async {
+    final clipIds = side['clipIds'];
+    if (clipIds is! List) return;
+    final muted = side['muted'] == true;
+    for (final id in clipIds.whereType<String>()) {
+      await db.setAudioMuted(id, muted);
+    }
+  },
+
   TimelineEventKind.layerMove: (db, side) async {
     final layerId = side['layerId'] as String?;
     if (layerId == null) return;
@@ -215,6 +234,9 @@ Future<void> writePlacement(
     case TimelineItemKind.sentence:
       // Handled above.
       break;
+    case TimelineItemKind.audio:
+      // Sound has no place on the picture.
+      break;
     case null:
       // A kind written by a newer build; nothing this one can place.
       break;
@@ -247,6 +269,7 @@ Future<void> writeLook(
     case TimelineItemKind.text:
       await db.setTextLook(id: id, look: json);
     case TimelineItemKind.clip:
+    case TimelineItemKind.audio:
     case null:
       // A clip has no words to style; a kind from a newer build is skipped.
       break;
@@ -447,6 +470,38 @@ TimelineEventPayload transcribeRunPayload({
 }
 
 /// The payload for moving or resizing a layer.
+/// A clip's sound moved against its picture, from one pair of offsets to
+/// another.
+TimelineEventPayload audioTrimPayload({
+  required String clipId,
+  required ({int startOffsetMs, int endOffsetMs}) from,
+  required ({int startOffsetMs, int endOffsetMs}) to,
+}) {
+  return TimelineEventPayload(
+    before: {
+      'clipId': clipId,
+      'startOffsetMs': from.startOffsetMs,
+      'endOffsetMs': from.endOffsetMs,
+    },
+    after: {
+      'clipId': clipId,
+      'startOffsetMs': to.startOffsetMs,
+      'endOffsetMs': to.endOffsetMs,
+    },
+  );
+}
+
+/// The sound of [clipIds] removed ([muted]) or put back, in one step.
+TimelineEventPayload audioMutePayload({
+  required List<String> clipIds,
+  required bool muted,
+}) {
+  return TimelineEventPayload(
+    before: {'clipIds': clipIds, 'muted': !muted},
+    after: {'clipIds': clipIds, 'muted': muted},
+  );
+}
+
 TimelineEventPayload layerMovePayload({
   required String layerId,
   required int fromStartMs,

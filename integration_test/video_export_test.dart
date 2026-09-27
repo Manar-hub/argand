@@ -107,6 +107,7 @@ void main() {
           captions: const <ExportCaption>[],
           texts: const <ExportText>[],
           framing: ItemTransform.identity,
+          audio: (startMs: 0, endMs: clips.first.durationMs ?? 0, projectStartMs: 0, inline: true),
         ),
       ],
       fileName: exportFileName(projectTitle: 'single clip', at: DateTime.now()),
@@ -148,7 +149,7 @@ void main() {
 
     final video = await const VideoExporter().export(
       clips: [
-        for (final clip in clips)
+        for (final (i, clip) in clips.indexed)
           (
             path: clip.mediaPath,
             startMs: 0,
@@ -156,6 +157,15 @@ void main() {
             captions: const <ExportCaption>[],
             texts: const <ExportText>[],
             framing: ItemTransform.identity,
+            // The sound plays with its picture, back to back.
+            audio: (
+              startMs: 0,
+              endMs: clip.durationMs ?? 0,
+              projectStartMs: clips
+                  .take(i)
+                  .fold<int>(0, (sum, c) => sum + (c.durationMs ?? 0)),
+              inline: true,
+            ),
           ),
       ],
       fileName: exportFileName(projectTitle: 'joined', at: DateTime.now()),
@@ -308,6 +318,7 @@ void main() {
           captions: const <ExportCaption>[caption],
           texts: const <ExportText>[],
           framing: ItemTransform.identity,
+          audio: (startMs: 0, endMs: windowMs, projectStartMs: 0, inline: true),
         ),
       ],
       fileName: exportFileName(projectTitle: title, at: DateTime.now()),
@@ -380,6 +391,7 @@ void main() {
           captions: const <ExportCaption>[],
           texts: const <ExportText>[],
           framing: ItemTransform.identity,
+          audio: (startMs: 0, endMs: clips.first.durationMs ?? windowMs, projectStartMs: 0, inline: true),
         ),
       ],
       // Deliberately findable from the host: the check this test cannot make

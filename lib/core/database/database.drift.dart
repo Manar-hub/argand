@@ -664,6 +664,44 @@ class $MediaClipsTable extends MediaClips
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
+  static const VerificationMeta _audioStartOffsetMsMeta =
+      const VerificationMeta('audioStartOffsetMs');
+  @override
+  late final GeneratedColumn<int> audioStartOffsetMs = GeneratedColumn<int>(
+    'audio_start_offset_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _audioEndOffsetMsMeta = const VerificationMeta(
+    'audioEndOffsetMs',
+  );
+  @override
+  late final GeneratedColumn<int> audioEndOffsetMs = GeneratedColumn<int>(
+    'audio_end_offset_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _audioMutedMeta = const VerificationMeta(
+    'audioMuted',
+  );
+  @override
+  late final GeneratedColumn<bool> audioMuted = GeneratedColumn<bool>(
+    'audio_muted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("audio_muted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -682,6 +720,9 @@ class $MediaClipsTable extends MediaClips
     rotation,
     offsetX,
     offsetY,
+    audioStartOffsetMs,
+    audioEndOffsetMs,
+    audioMuted,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -805,6 +846,30 @@ class $MediaClipsTable extends MediaClips
         offsetY.isAcceptableOrUnknown(data['offset_y']!, _offsetYMeta),
       );
     }
+    if (data.containsKey('audio_start_offset_ms')) {
+      context.handle(
+        _audioStartOffsetMsMeta,
+        audioStartOffsetMs.isAcceptableOrUnknown(
+          data['audio_start_offset_ms']!,
+          _audioStartOffsetMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_end_offset_ms')) {
+      context.handle(
+        _audioEndOffsetMsMeta,
+        audioEndOffsetMs.isAcceptableOrUnknown(
+          data['audio_end_offset_ms']!,
+          _audioEndOffsetMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_muted')) {
+      context.handle(
+        _audioMutedMeta,
+        audioMuted.isAcceptableOrUnknown(data['audio_muted']!, _audioMutedMeta),
+      );
+    }
     return context;
   }
 
@@ -877,6 +942,18 @@ class $MediaClipsTable extends MediaClips
       offsetY: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}offset_y'],
+      )!,
+      audioStartOffsetMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_start_offset_ms'],
+      )!,
+      audioEndOffsetMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_end_offset_ms'],
+      )!,
+      audioMuted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}audio_muted'],
       )!,
     );
   }
@@ -964,6 +1041,21 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   /// half-height from the middle; up is positive.
   final double offsetX;
   final double offsetY;
+
+  /// Where this clip's **sound** begins and ends, relative to its picture:
+  /// added to the picture window's start and end (`audio_window.dart`).
+  ///
+  /// **Offsets, not times**, so a split or a picture trim carries the sound
+  /// with it and keeps the cut's shape. A negative start sounds before the
+  /// picture appears (a J-cut); a positive end carries on under the next clip
+  /// (an L-cut); the other signs trim the sound inside its picture. Zero --
+  /// every clip until someone drags its audio -- is sound exactly with its
+  /// picture, as it has always been.
+  final int audioStartOffsetMs;
+  final int audioEndOffsetMs;
+
+  /// The clip's sound removed from the timeline, its picture left in place.
+  final bool audioMuted;
   const MediaClip({
     required this.id,
     required this.createdAt,
@@ -981,6 +1073,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     required this.rotation,
     required this.offsetX,
     required this.offsetY,
+    required this.audioStartOffsetMs,
+    required this.audioEndOffsetMs,
+    required this.audioMuted,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1011,6 +1106,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     map['rotation'] = Variable<double>(rotation);
     map['offset_x'] = Variable<double>(offsetX);
     map['offset_y'] = Variable<double>(offsetY);
+    map['audio_start_offset_ms'] = Variable<int>(audioStartOffsetMs);
+    map['audio_end_offset_ms'] = Variable<int>(audioEndOffsetMs);
+    map['audio_muted'] = Variable<bool>(audioMuted);
     return map;
   }
 
@@ -1042,6 +1140,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       rotation: Value(rotation),
       offsetX: Value(offsetX),
       offsetY: Value(offsetY),
+      audioStartOffsetMs: Value(audioStartOffsetMs),
+      audioEndOffsetMs: Value(audioEndOffsetMs),
+      audioMuted: Value(audioMuted),
     );
   }
 
@@ -1067,6 +1168,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       rotation: serializer.fromJson<double>(json['rotation']),
       offsetX: serializer.fromJson<double>(json['offsetX']),
       offsetY: serializer.fromJson<double>(json['offsetY']),
+      audioStartOffsetMs: serializer.fromJson<int>(json['audioStartOffsetMs']),
+      audioEndOffsetMs: serializer.fromJson<int>(json['audioEndOffsetMs']),
+      audioMuted: serializer.fromJson<bool>(json['audioMuted']),
     );
   }
   @override
@@ -1089,6 +1193,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       'rotation': serializer.toJson<double>(rotation),
       'offsetX': serializer.toJson<double>(offsetX),
       'offsetY': serializer.toJson<double>(offsetY),
+      'audioStartOffsetMs': serializer.toJson<int>(audioStartOffsetMs),
+      'audioEndOffsetMs': serializer.toJson<int>(audioEndOffsetMs),
+      'audioMuted': serializer.toJson<bool>(audioMuted),
     };
   }
 
@@ -1109,6 +1216,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     double? rotation,
     double? offsetX,
     double? offsetY,
+    int? audioStartOffsetMs,
+    int? audioEndOffsetMs,
+    bool? audioMuted,
   }) => MediaClip(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -1126,6 +1236,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     rotation: rotation ?? this.rotation,
     offsetX: offsetX ?? this.offsetX,
     offsetY: offsetY ?? this.offsetY,
+    audioStartOffsetMs: audioStartOffsetMs ?? this.audioStartOffsetMs,
+    audioEndOffsetMs: audioEndOffsetMs ?? this.audioEndOffsetMs,
+    audioMuted: audioMuted ?? this.audioMuted,
   );
   MediaClip copyWithCompanion(MediaClipsCompanion data) {
     return MediaClip(
@@ -1149,6 +1262,15 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
       rotation: data.rotation.present ? data.rotation.value : this.rotation,
       offsetX: data.offsetX.present ? data.offsetX.value : this.offsetX,
       offsetY: data.offsetY.present ? data.offsetY.value : this.offsetY,
+      audioStartOffsetMs: data.audioStartOffsetMs.present
+          ? data.audioStartOffsetMs.value
+          : this.audioStartOffsetMs,
+      audioEndOffsetMs: data.audioEndOffsetMs.present
+          ? data.audioEndOffsetMs.value
+          : this.audioEndOffsetMs,
+      audioMuted: data.audioMuted.present
+          ? data.audioMuted.value
+          : this.audioMuted,
     );
   }
 
@@ -1170,7 +1292,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           ..write('scale: $scale, ')
           ..write('rotation: $rotation, ')
           ..write('offsetX: $offsetX, ')
-          ..write('offsetY: $offsetY')
+          ..write('offsetY: $offsetY, ')
+          ..write('audioStartOffsetMs: $audioStartOffsetMs, ')
+          ..write('audioEndOffsetMs: $audioEndOffsetMs, ')
+          ..write('audioMuted: $audioMuted')
           ..write(')'))
         .toString();
   }
@@ -1193,6 +1318,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
     rotation,
     offsetX,
     offsetY,
+    audioStartOffsetMs,
+    audioEndOffsetMs,
+    audioMuted,
   );
   @override
   bool operator ==(Object other) =>
@@ -1213,7 +1341,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
           other.scale == this.scale &&
           other.rotation == this.rotation &&
           other.offsetX == this.offsetX &&
-          other.offsetY == this.offsetY);
+          other.offsetY == this.offsetY &&
+          other.audioStartOffsetMs == this.audioStartOffsetMs &&
+          other.audioEndOffsetMs == this.audioEndOffsetMs &&
+          other.audioMuted == this.audioMuted);
 }
 
 class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
@@ -1233,6 +1364,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
   final Value<double> rotation;
   final Value<double> offsetX;
   final Value<double> offsetY;
+  final Value<int> audioStartOffsetMs;
+  final Value<int> audioEndOffsetMs;
+  final Value<bool> audioMuted;
   final Value<int> rowid;
   const MediaClipsCompanion({
     this.id = const Value.absent(),
@@ -1251,6 +1385,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     this.rotation = const Value.absent(),
     this.offsetX = const Value.absent(),
     this.offsetY = const Value.absent(),
+    this.audioStartOffsetMs = const Value.absent(),
+    this.audioEndOffsetMs = const Value.absent(),
+    this.audioMuted = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MediaClipsCompanion.insert({
@@ -1270,6 +1407,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     this.rotation = const Value.absent(),
     this.offsetX = const Value.absent(),
     this.offsetY = const Value.absent(),
+    this.audioStartOffsetMs = const Value.absent(),
+    this.audioEndOffsetMs = const Value.absent(),
+    this.audioMuted = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -1295,6 +1435,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Expression<double>? rotation,
     Expression<double>? offsetX,
     Expression<double>? offsetY,
+    Expression<int>? audioStartOffsetMs,
+    Expression<int>? audioEndOffsetMs,
+    Expression<bool>? audioMuted,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1314,6 +1457,10 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       if (rotation != null) 'rotation': rotation,
       if (offsetX != null) 'offset_x': offsetX,
       if (offsetY != null) 'offset_y': offsetY,
+      if (audioStartOffsetMs != null)
+        'audio_start_offset_ms': audioStartOffsetMs,
+      if (audioEndOffsetMs != null) 'audio_end_offset_ms': audioEndOffsetMs,
+      if (audioMuted != null) 'audio_muted': audioMuted,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1335,6 +1482,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     Value<double>? rotation,
     Value<double>? offsetX,
     Value<double>? offsetY,
+    Value<int>? audioStartOffsetMs,
+    Value<int>? audioEndOffsetMs,
+    Value<bool>? audioMuted,
     Value<int>? rowid,
   }) {
     return MediaClipsCompanion(
@@ -1354,6 +1504,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
       rotation: rotation ?? this.rotation,
       offsetX: offsetX ?? this.offsetX,
       offsetY: offsetY ?? this.offsetY,
+      audioStartOffsetMs: audioStartOffsetMs ?? this.audioStartOffsetMs,
+      audioEndOffsetMs: audioEndOffsetMs ?? this.audioEndOffsetMs,
+      audioMuted: audioMuted ?? this.audioMuted,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1409,6 +1562,15 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
     if (offsetY.present) {
       map['offset_y'] = Variable<double>(offsetY.value);
     }
+    if (audioStartOffsetMs.present) {
+      map['audio_start_offset_ms'] = Variable<int>(audioStartOffsetMs.value);
+    }
+    if (audioEndOffsetMs.present) {
+      map['audio_end_offset_ms'] = Variable<int>(audioEndOffsetMs.value);
+    }
+    if (audioMuted.present) {
+      map['audio_muted'] = Variable<bool>(audioMuted.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1434,6 +1596,9 @@ class MediaClipsCompanion extends UpdateCompanion<MediaClip> {
           ..write('rotation: $rotation, ')
           ..write('offsetX: $offsetX, ')
           ..write('offsetY: $offsetY, ')
+          ..write('audioStartOffsetMs: $audioStartOffsetMs, ')
+          ..write('audioEndOffsetMs: $audioEndOffsetMs, ')
+          ..write('audioMuted: $audioMuted, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7663,6 +7828,9 @@ typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
   Value<double> rotation,
   Value<double> offsetX,
   Value<double> offsetY,
+  Value<int> audioStartOffsetMs,
+  Value<int> audioEndOffsetMs,
+  Value<bool> audioMuted,
   Value<int> rowid,
 });
 typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
@@ -7682,6 +7850,9 @@ typedef $$MediaClipsTableUpdateCompanionBuilder = MediaClipsCompanion Function({
   Value<double> rotation,
   Value<double> offsetX,
   Value<double> offsetY,
+  Value<int> audioStartOffsetMs,
+  Value<int> audioEndOffsetMs,
+  Value<bool> audioMuted,
   Value<int> rowid,
 });
 
@@ -7806,6 +7977,21 @@ class $$MediaClipsTableFilterComposer
 
   ColumnFilters<double> get offsetY => $composableBuilder(
     column: $table.offsetY,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioStartOffsetMs => $composableBuilder(
+    column: $table.audioStartOffsetMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioEndOffsetMs => $composableBuilder(
+    column: $table.audioEndOffsetMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get audioMuted => $composableBuilder(
+    column: $table.audioMuted,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7942,6 +8128,21 @@ class $$MediaClipsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get audioStartOffsetMs => $composableBuilder(
+    column: $table.audioStartOffsetMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audioEndOffsetMs => $composableBuilder(
+    column: $table.audioEndOffsetMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get audioMuted => $composableBuilder(
+    column: $table.audioMuted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProjectsTableOrderingComposer get projectId {
     final $$ProjectsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -8023,6 +8224,21 @@ class $$MediaClipsTableAnnotationComposer
 
   GeneratedColumn<double> get offsetY =>
       $composableBuilder(column: $table.offsetY, builder: (column) => column);
+
+  GeneratedColumn<int> get audioStartOffsetMs => $composableBuilder(
+    column: $table.audioStartOffsetMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get audioEndOffsetMs => $composableBuilder(
+    column: $table.audioEndOffsetMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get audioMuted => $composableBuilder(
+    column: $table.audioMuted,
+    builder: (column) => column,
+  );
 
   $$ProjectsTableAnnotationComposer get projectId {
     final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
@@ -8117,6 +8333,9 @@ class $$MediaClipsTableTableManager
                 Value<double> rotation = const Value.absent(),
                 Value<double> offsetX = const Value.absent(),
                 Value<double> offsetY = const Value.absent(),
+                Value<int> audioStartOffsetMs = const Value.absent(),
+                Value<int> audioEndOffsetMs = const Value.absent(),
+                Value<bool> audioMuted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaClipsCompanion(
                 id: id,
@@ -8135,6 +8354,9 @@ class $$MediaClipsTableTableManager
                 rotation: rotation,
                 offsetX: offsetX,
                 offsetY: offsetY,
+                audioStartOffsetMs: audioStartOffsetMs,
+                audioEndOffsetMs: audioEndOffsetMs,
+                audioMuted: audioMuted,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8155,6 +8377,9 @@ class $$MediaClipsTableTableManager
                 Value<double> rotation = const Value.absent(),
                 Value<double> offsetX = const Value.absent(),
                 Value<double> offsetY = const Value.absent(),
+                Value<int> audioStartOffsetMs = const Value.absent(),
+                Value<int> audioEndOffsetMs = const Value.absent(),
+                Value<bool> audioMuted = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MediaClipsCompanion.insert(
                 id: id,
@@ -8173,6 +8398,9 @@ class $$MediaClipsTableTableManager
                 rotation: rotation,
                 offsetX: offsetX,
                 offsetY: offsetY,
+                audioStartOffsetMs: audioStartOffsetMs,
+                audioEndOffsetMs: audioEndOffsetMs,
+                audioMuted: audioMuted,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

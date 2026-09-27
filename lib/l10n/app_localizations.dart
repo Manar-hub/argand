@@ -466,6 +466,18 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get selectionRemove;
 
+  /// Strip label when a clip's audio is selected on its own
+  ///
+  /// In en, this message translates to:
+  /// **'Sound selected.'**
+  String get audioSelected;
+
+  /// Button that puts a removed clip sound back on the timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get audioRestore;
+
   /// Button on selected captions that translates them into another language
   ///
   /// In en, this message translates to:

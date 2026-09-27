@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../captions/project_cues.dart';
 import '../captions/speaker_palette.dart';
 import '../database/database.dart';
+import '../timeline/audio_window.dart';
 import '../timeline/clip_trim.dart';
 import '../timeline/item_look.dart';
 import '../timeline/item_transform.dart';
@@ -50,6 +51,13 @@ typedef ExportText = ({
 /// that is where the rendered item's own clock starts.
 ///
 /// [framing] is how the picture sits in the frame, applied after the fit.
+///
+/// [audio] is the clip's **sound**, independent of its picture: where it
+/// starts and ends in the media, and where on the timeline it plays -- which
+/// may be before or after the picture (J/L cuts). Null when the sound was
+/// removed, or the audio track is hidden. `inline` means it plays exactly
+/// with its picture, so the render keeps it in the picture's own item rather
+/// than laying it on a separate audio lane.
 typedef ExportClip = ({
   String path,
   int startMs,
@@ -57,6 +65,7 @@ typedef ExportClip = ({
   List<ExportCaption> captions,
   List<ExportText> texts,
   ItemTransform framing,
+  ({int startMs, int endMs, int projectStartMs, bool inline})? audio,
 });
 
 /// What to render, and how long the result should be.
@@ -184,6 +193,7 @@ ExportRequest? exportRequestFor({
   required List<MediaClip> clips,
   Map<String, List<ExportCaption>> captionsByClip = const {},
   List<TextLayer> texts = const [],
+  bool withAudio = true,
 }) {
   if (timeline.placements.isEmpty) return null;
 
@@ -216,6 +226,18 @@ ExportRequest? exportRequestFor({
         scale: clip.scale,
         rotation: clip.rotation,
       ),
+      audio: !withAudio || clip.audioMuted
+          ? null
+          : switch (audioSpan(timeline, clip)) {
+              final span? => (
+                  startMs: span.mediaStartMs,
+                  endMs: span.mediaStartMs + (span.endMs - span.startMs),
+                  projectStartMs: span.startMs,
+                  inline: clip.audioStartOffsetMs == 0 &&
+                      clip.audioEndOffsetMs == 0,
+                ),
+              null => null,
+            },
     ));
   }
 
@@ -375,6 +397,13 @@ class VideoExporter {
                   },
               ],
               'framing': clip.framing.toJson(),
+              if (clip.audio case final audio?)
+                'audio': {
+                  'startMs': audio.startMs,
+                  'endMs': audio.endMs,
+                  'projectStartMs': audio.projectStartMs,
+                  'inline': audio.inline,
+                },
             },
         ],
         'fileName': fileName,

@@ -183,7 +183,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 13);
+      expect(row, 14);
     });
 
     test('an upgraded clip is framed as it always was', () async {
@@ -224,6 +224,17 @@ void main() {
       addTearDown(db.close);
 
       expect(await db.textLayersForProject('p1'), isEmpty);
+    });
+
+    test('an upgraded clip plays its sound with its picture', () async {
+      final db = openV2WithData();
+      addTearDown(db.close);
+
+      final clip = (await db.clipsForProject('p1')).single;
+      expect(
+        (clip.audioStartOffsetMs, clip.audioEndOffsetMs, clip.audioMuted),
+        (0, 0, false),
+      );
     });
 
     test('translations arrive, and are empty', () async {
@@ -380,6 +391,9 @@ void main() {
       'ALTER TABLE media_clips DROP COLUMN rotation',
       'ALTER TABLE media_clips DROP COLUMN offset_x',
       'ALTER TABLE media_clips DROP COLUMN offset_y',
+      'ALTER TABLE media_clips DROP COLUMN audio_start_offset_ms',
+      'ALTER TABLE media_clips DROP COLUMN audio_end_offset_ms',
+      'ALTER TABLE media_clips DROP COLUMN audio_muted',
       'ALTER TABLE transcribe_layers DROP COLUMN caption_x',
       'ALTER TABLE transcribe_layers DROP COLUMN caption_y',
       'ALTER TABLE transcribe_layers DROP COLUMN caption_scale',

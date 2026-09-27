@@ -127,6 +127,7 @@ class _StylePanelState extends ConsumerState<StylePanel> {
             await repository.layerLookOfTranscript(sentence.transcriptId);
         return (own: own, shown: own ?? layer ?? ItemLook.defaults);
       case TimelineItemKind.clip:
+      case TimelineItemKind.audio:
         return (own: null, shown: ItemLook.defaults);
     }
   }

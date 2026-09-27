@@ -27,6 +27,9 @@ MediaClip clip(
       rotation: 0,
       offsetX: 0,
       offsetY: 0,
+      audioStartOffsetMs: 0,
+      audioEndOffsetMs: 0,
+      audioMuted: false,
       trimStartMs: trimStartMs,
       trimEndMs: trimEndMs,
     );

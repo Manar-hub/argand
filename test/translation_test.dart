@@ -215,6 +215,38 @@ void main() {
       expect(await database.translationLinesFor(t.transcriptId), isEmpty);
     });
 
+    test('a selection translates only its sentences, keeping the rest',
+        () async {
+      final t = await transcribed(['Hello.', 'Bye', 'now.', 'See', 'you.']);
+      final translator = _FakeTranslator();
+      await repository.translateAll(
+        transcriptIds: [t.transcriptId],
+        to: 'es',
+        translator: translator,
+      );
+
+      // Only "Bye now." -- words 1..2 -- into English this time.
+      translator.calls.clear();
+      await repository.translateAll(
+        transcriptIds: [t.transcriptId],
+        to: 'en',
+        translator: translator,
+        ranges: {
+          t.transcriptId: [(from: 1, to: 2)],
+        },
+      );
+
+      expect(translator.calls, [
+        ['Bye now.'],
+      ]);
+      final lines = await database.translationLinesFor(t.transcriptId);
+      expect(lines.map((l) => l.content), [
+        'es:HELLO.',
+        'en:BYE NOW.',
+        'SEE YOU.',
+      ]);
+    });
+
     test('removing the translation leaves the transcript', () async {
       final t = await transcribed(['Hello.']);
       await repository.translateAll(

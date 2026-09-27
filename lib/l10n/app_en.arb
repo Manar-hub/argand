@@ -224,6 +224,12 @@
   "selectionRemove": "Remove",
   "@selectionRemove": { "description": "Red button that removes the selected clip or caption layer from the timeline" },
 
+  "audioSelected": "Sound selected.",
+  "@audioSelected": { "description": "Strip label when a clip's audio is selected on its own" },
+
+  "audioRestore": "Restore",
+  "@audioRestore": { "description": "Button that puts a removed clip sound back on the timeline" },
+
   "translateAction": "Translate",
   "@translateAction": { "description": "Button on selected captions that translates them into another language" },
 

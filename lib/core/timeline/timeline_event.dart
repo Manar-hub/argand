@@ -25,7 +25,13 @@ enum TimelineEventKind {
   textRemove('textRemove'),
 
   /// One restyle -- font, colour, caption mode -- over everything it touched.
-  lookBatch('lookBatch');
+  lookBatch('lookBatch'),
+
+  /// A clip's sound moved against its picture: trimmed, or a J/L cut.
+  audioTrim('audioTrim'),
+
+  /// A clip's sound removed from the timeline, or put back.
+  audioMute('audioMute');
 
   const TimelineEventKind(this.code);
 

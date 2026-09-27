@@ -23,6 +23,9 @@ MediaClip clip(String id, int durationMs, int position) => MediaClip(
       rotation: 0,
       offsetX: 0,
       offsetY: 0,
+      audioStartOffsetMs: 0,
+      audioEndOffsetMs: 0,
+      audioMuted: false,
     );
 
 void main() {

@@ -38,6 +38,8 @@ import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
+import androidx.media3.common.audio.ChannelMixingAudioProcessor
+import androidx.media3.common.audio.ChannelMixingMatrix
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
@@ -673,6 +675,33 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         }
     }
 
+    /// A clip's sound on an audio lane: a stretch of its file, and where on
+    /// the timeline it plays.
+    private data class Sound(
+        val path: String,
+        val startMs: Long,
+        val endMs: Long,
+        val projectStartMs: Long,
+    ) {
+        val projectEndMs: Long get() = projectStartMs + (endMs - startMs)
+    }
+
+    /// Mixes a picture's own sound down to nothing, for any channel count, so
+    /// the item keeps an audio track -- removing it outright would leave an
+    /// audio-only clip with no tracks at all -- and plays silence.
+    private fun silence(): ChannelMixingAudioProcessor =
+        ChannelMixingAudioProcessor().apply {
+            for (channels in 1..8) {
+                putChannelMixingMatrix(
+                    ChannelMixingMatrix(
+                        channels,
+                        channels,
+                        FloatArray(channels * channels),
+                    ),
+                )
+            }
+        }
+
     private data class TextItem(
         val startMs: Long,
         val endMs: Long,
@@ -890,12 +919,63 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 .setClippingConfiguration(clipping)
                 .build()
 
-            // The audio track hidden on the timeline. The sequence forces an
-            // audio track (see below), so a removed one is filled with silence.
+            // **The picture's own sound only when it plays with the picture.**
+            // A sound that was trimmed, carried past its picture (J/L cut),
+            // removed, or whose track is hidden is silenced here -- at zero
+            // gain, which keeps a track, so an audio-only clip still has one
+            // -- and, when it is to be heard, played from an audio lane below.
+            val audio = clip["audio"] as? Map<*, *>
+            val inline = audio?.get("inline") == true && !muteAudio
             EditedMediaItem.Builder(mediaItem)
-                .setEffects(Effects(emptyList(), videoEffects))
-                .setRemoveAudio(muteAudio)
+                .setEffects(
+                    Effects(
+                        if (inline) emptyList() else listOf(silence()),
+                        videoEffects,
+                    ),
+                )
                 .build()
+        }
+
+        // Sounds not played with their pictures, each at its own place on the
+        // timeline, packed into as few lanes as hold them without overlap:
+        // one sequence per lane, gaps where it is quiet, mixed together.
+        val sounds = if (muteAudio) emptyList() else clips.mapNotNull { clip ->
+            val audio = clip["audio"] as? Map<*, *> ?: return@mapNotNull null
+            if (audio["inline"] == true) return@mapNotNull null
+            val start = (audio["startMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            val end = (audio["endMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            val at = (audio["projectStartMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            if (end <= start) return@mapNotNull null
+            Sound(clip["path"] as String, start, end, at)
+        }
+        val audioLanes = mutableListOf<MutableList<Sound>>()
+        for (sound in sounds.sortedBy { it.projectStartMs }) {
+            val lane = audioLanes.firstOrNull { it.last().projectEndMs <= sound.projectStartMs }
+            if (lane != null) lane.add(sound) else audioLanes.add(mutableListOf(sound))
+        }
+        val audioSequences = audioLanes.map { lane ->
+            // Forced audio, which is what lets a lane open with a gap.
+            val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_AUDIO))
+            var cursor = 0L
+            for (sound in lane) {
+                if (sound.projectStartMs > cursor) {
+                    builder.addGap((sound.projectStartMs - cursor) * 1000)
+                }
+                val item = MediaItem.Builder()
+                    .setUri(File(sound.path).toURI().toString())
+                    .setClippingConfiguration(
+                        MediaItem.ClippingConfiguration.Builder()
+                            .setStartPositionMs(sound.startMs)
+                            .setEndPositionMs(sound.endMs)
+                            .build(),
+                    )
+                    .build()
+                builder.addItem(
+                    EditedMediaItem.Builder(item).setRemoveVideo(true).build(),
+                )
+                cursor = sound.projectEndMs
+            }
+            builder.build()
         }
 
         // Both the list and vararg constructors are deprecated in Media3
@@ -911,11 +991,13 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         // join, and an audio-only clip -- which this app can hold, since a WAV
         // imports as media like anything else -- gets a blank video track
         // instead of failing a video export.
-        val composition = Composition.Builder(
-            EditedMediaItemSequence.Builder(
-                setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO),
-            ).addItems(items).build(),
-        ).build()
+        val picture = EditedMediaItemSequence.Builder(
+            setOf(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO),
+        ).addItems(items).build()
+        // The picture's sequence first, then every audio lane; Media3 mixes
+        // the audio of all of them.
+        val composition = Composition.Builder(listOf(picture) + audioSequences)
+            .build()
 
         val temp = File(activity.cacheDir, "exports/$fileName")
         temp.parentFile?.mkdirs()

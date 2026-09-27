@@ -14,6 +14,7 @@ import '../../core/diarization/speaker_span.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/transcript/edit_event.dart';
 import '../../core/transcript/sentence_edit.dart';
+import '../../core/timeline/audio_window.dart';
 import '../../core/timeline/clip_trim.dart';
 import '../../core/timeline/item_look.dart';
 import '../../core/timeline/layer_drag.dart';
@@ -427,10 +428,14 @@ class TranscriptRepository {
   /// The language packs must already be on the device (the sheet fetches
   /// them). Throws [TranslationException] when the transcript's language is
   /// not one [translator] knows, or the engine fails.
+  ///
+  /// With [words], only the sentences in those word positions are translated
+  /// -- a selection -- and only the translation over them is replaced.
   Future<void> translateTranscript({
     required String transcriptId,
     required String to,
     required Translator translator,
+    ({int from, int to})? words,
   }) async {
     final transcript = await _db.findTranscript(transcriptId);
     if (transcript == null) return;
@@ -440,9 +445,12 @@ class TranscriptRepository {
       throw const TranslationException(TranslationFailure.unsupportedSource);
     }
 
-    final words = await _db.watchWords(transcriptId).first;
+    final range = words;
+    final all = await _db.watchWords(transcriptId).first;
     final sentences = translatableSentencesOf([
-      for (final word in words)
+      for (final word in all)
+        if (range == null ||
+            (word.position >= range.from && word.position <= range.to))
         (
           text: word.word,
           startMs: word.startMs,
@@ -466,7 +474,7 @@ class TranscriptRepository {
     ];
 
     final now = DateTime.now();
-    await _db.replaceTranslation(transcriptId, [
+    await _db.replaceTranslation(words: range, transcriptId, [
       for (final (i, sentence) in placed.indexed)
         TranslationLinesCompanion.insert(
           id: newId(),
@@ -487,10 +495,15 @@ class TranscriptRepository {
   /// Translates each of [transcriptIds] into [to], fetching any language
   /// pack missing at either end first. Returns why it stopped, or null when
   /// every transcript was translated.
+  ///
+  /// A transcript listed in [ranges] has only those word ranges translated --
+  /// the sentences that were selected -- each on its own; the rest of its
+  /// translation is left as it was.
   Future<TranslationFailure?> translateAll({
     required List<String> transcriptIds,
     required String to,
     required Translator translator,
+    Map<String, List<({int from, int to})>> ranges = const {},
   }) async {
     try {
       if (!await translator.isDownloaded(to)) await translator.download(to);
@@ -501,11 +514,23 @@ class TranscriptRepository {
             !await translator.isDownloaded(from)) {
           await translator.download(from);
         }
-        await translateTranscript(
-          transcriptId: id,
-          to: to,
-          translator: translator,
-        );
+        final only = ranges[id];
+        if (only == null) {
+          await translateTranscript(
+            transcriptId: id,
+            to: to,
+            translator: translator,
+          );
+        } else {
+          for (final range in only) {
+            await translateTranscript(
+              transcriptId: id,
+              to: to,
+              translator: translator,
+              words: range,
+            );
+          }
+        }
       }
       return null;
     } on TranslationException catch (error) {
@@ -513,9 +538,13 @@ class TranscriptRepository {
     }
   }
 
-  /// Retires [transcriptId]'s translation. The transcript is untouched.
-  Future<void> removeTranslation(String transcriptId) =>
-      _db.removeTranslation(transcriptId);
+  /// Retires [transcriptId]'s translation, or just the part over [words].
+  /// The transcript is untouched.
+  Future<void> removeTranslation(
+    String transcriptId, {
+    ({int from, int to})? words,
+  }) =>
+      _db.removeTranslation(transcriptId, words: words);
 
   /// Every translation line in the project as a text over the picture, for
   /// the export -- the same rows [projectTranslationTexts] gives the stage,
@@ -682,6 +711,50 @@ class TranscriptRepository {
         startMs: window.startMs,
         endMs: window.endMs,
       );
+
+  /// Moves [clipId]'s sound against its picture -- a trim, or a J/L cut --
+  /// as one undoable step. The offsets are already clamped (`applyAudioTrim`).
+  Future<void> trimAudio({
+    required String clipId,
+    required AudioOffsets offsets,
+  }) async {
+    final clip = await _db.findClip(clipId);
+    if (clip == null) return;
+    final from = (
+      startOffsetMs: clip.audioStartOffsetMs,
+      endOffsetMs: clip.audioEndOffsetMs,
+    );
+    if (from == offsets) return;
+
+    await _db.setAudioOffsets(
+      clipId: clipId,
+      startOffsetMs: offsets.startOffsetMs,
+      endOffsetMs: offsets.endOffsetMs,
+    );
+    await recordTimelineEvent(
+      projectId: clip.projectId,
+      kind: TimelineEventKind.audioTrim,
+      payload: audioTrimPayload(clipId: clipId, from: from, to: offsets),
+    );
+  }
+
+  /// Removes the sound of [clipIds] from the timeline ([muted]) or puts it
+  /// back, as one undoable step. The pictures stay.
+  Future<void> setAudioMuted({
+    required String projectId,
+    required List<String> clipIds,
+    required bool muted,
+  }) async {
+    if (clipIds.isEmpty) return;
+    for (final id in clipIds) {
+      await _db.setAudioMuted(id, muted);
+    }
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.audioMute,
+      payload: audioMutePayload(clipIds: clipIds, muted: muted),
+    );
+  }
 
   /// Moves the cut between two clips, writing both sides together.
   ///

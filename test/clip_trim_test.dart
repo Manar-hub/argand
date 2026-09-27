@@ -26,6 +26,9 @@ MediaClip clip({
       rotation: 0,
       offsetX: 0,
       offsetY: 0,
+      audioStartOffsetMs: 0,
+      audioEndOffsetMs: 0,
+      audioMuted: false,
     );
 
 void main() {
@@ -270,6 +273,9 @@ void main() {
         rotation: 0,
         offsetX: 0,
         offsetY: 0,
+        audioStartOffsetMs: 0,
+        audioEndOffsetMs: 0,
+        audioMuted: false,
       );
       expect(sharesACut(left(), other), isFalse);
     });

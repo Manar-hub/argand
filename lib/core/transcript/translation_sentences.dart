@@ -5,10 +5,12 @@
 /// around it -- pronouns, ellipses and half-finished thoughts came back
 /// wrong. So the transcript goes to the translator as running text (in long
 /// runs, see [translationBatches]), and the translation is cut into its *own*
-/// sentences afterwards and laid along the speech by how far through the
-/// text each one falls ([alignTranslation]). The words need not line up one
-/// for one; the sentences only need to arrive while their meaning is said.
+/// back into pieces, one per caption line, by an educated guess at where
+/// each line's meaning falls ([alignToSegments]). The words need not line up
+/// one for one; each piece only needs to arrive while its meaning is said.
 library;
+
+import 'dart:math' as math;
 
 import '../text/sentence_units.dart';
 
@@ -76,7 +78,13 @@ List<List<TranslatableSentence>> translationBatches(
   var current = <TranslatableSentence>[];
   var length = 0;
   for (final sentence in sentences) {
-    if (current.isNotEmpty && length + sentence.text.length > maxCharacters) {
+    // Cut only where a sentence ends, so no run starts mid-thought -- unless
+    // a run has grown to twice the limit without one.
+    final full = length + sentence.text.length > maxCharacters;
+    final atEnd = current.isNotEmpty && endStrength(current.last.text) == 2;
+    if (current.isNotEmpty &&
+        full &&
+        (atEnd || length > maxCharacters * 2)) {
       batches.add(current);
       current = [];
       length = 0;
@@ -110,24 +118,176 @@ List<String> splitTranslatedSentences(String text) {
   return pieces;
 }
 
-/// [translated] -- the translation of [source] as one text -- cut into its
-/// own sentences and laid along the time [source] was said.
+/// Marks that end a sentence, and marks that end a clause, in the scripts
+/// the translator writes.
+const String _sentenceMarks = '.!?…؟۔।。！？';
+const String _clauseMarks = ',;:،؛、，';
+const String _closers = '"”’)]»」';
+
+/// How [text] ends: 2 a sentence, 1 a clause, 0 neither.
+int endStrength(String text) {
+  var end = text.trimRight();
+  while (end.isNotEmpty && _closers.contains(end[end.length - 1])) {
+    end = end.substring(0, end.length - 1);
+  }
+  if (end.isEmpty) return 0;
+  final last = end[end.length - 1];
+  if (_sentenceMarks.contains(last)) return 2;
+  if (_clauseMarks.contains(last)) return 1;
+  return 0;
+}
+
+/// [translated] -- the translation of [sources], read as one text -- cut into
+/// exactly one piece per source, in order.
 ///
-/// When the translation has as many sentences as the source, each takes its
-/// source sentence's place exactly. Otherwise each is placed by how far
-/// through the translation it falls: that share of the source's characters,
-/// read off the source sentences' times, so a pause between sentences stays a
-/// pause and a long sentence gets the time a long sentence took.
+/// **An educated guess, not the translator's sentences.** A translator merges
+/// sentences, splits them and moves commas, so its sentence count cannot be
+/// trusted to match. Each piece is instead sized to its source's share of the
+/// text -- the translation's own length absorbs the language's expansion --
+/// and the cuts are drawn to punctuation that ends the way the source piece
+/// does: a sentence end where the source ended a sentence, a comma where it
+/// paused. The best set of cuts is found by dynamic programming over every
+/// word boundary (every character, in a script written without spaces),
+/// trading how far each piece is from its size against how well its end
+/// matches -- the idea behind Gale and Church's sentence alignment.
+///
+/// So a merged sentence is cut in the middle, at a comma when there is one;
+/// a sentence split in two stays one piece; and no piece is empty while there
+/// are words enough to go round. With fewer words than sources, the extra
+/// sources get empty pieces rather than repeats.
+List<String> alignToSegments({
+  required List<String> sources,
+  required String translated,
+}) {
+  final n = sources.length;
+  final text = translated.trim();
+  if (n == 0) return const [];
+  if (text.isEmpty) return List.filled(n, '');
+  if (n == 1) return [text];
+
+  // A script written without spaces is cut between characters, punctuation
+  // riding on the character before it.
+  final spaces = RegExp(r'\s').allMatches(text).length;
+  final byCharacter = spaces * 15 < text.length;
+  final tokens = <String>[];
+  if (byCharacter) {
+    for (final rune in text.runes) {
+      final char = String.fromCharCode(rune);
+      if (char.trim().isEmpty) continue;
+      final attaches = _sentenceMarks.contains(char) ||
+          _clauseMarks.contains(char) ||
+          _closers.contains(char);
+      if (attaches && tokens.isNotEmpty) {
+        tokens[tokens.length - 1] += char;
+      } else {
+        tokens.add(char);
+      }
+    }
+  } else {
+    tokens.addAll(text.split(RegExp(r'\s+')).where((t) => t.isNotEmpty));
+  }
+  final joiner = byCharacter ? '' : ' ';
+  final t = tokens.length;
+
+  final prefix = [0];
+  for (final token in tokens) {
+    prefix.add(prefix.last + token.length + joiner.length);
+  }
+  final sourceLengths = [for (final s in sources) s.trim().length + 1];
+  final sourceTotal = sourceLengths.fold<int>(0, (a, b) => a + b);
+  final expected = [
+    for (final length in sourceLengths) length / sourceTotal * prefix.last,
+  ];
+  final sourceEnds = [for (final s in sources) endStrength(s)];
+  final cutEnds = [for (final token in tokens) endStrength(token)];
+
+  // Too few words to go round: each word to the source whose share of the
+  // text it falls in.
+  if (t < n) {
+    final pieces = List.filled(n, '');
+    var source = 0;
+    var edge = expected[0];
+    for (var j = 0; j < t; j++) {
+      final middle = (prefix[j] + prefix[j + 1]) / 2;
+      while (source < n - 1 && middle > edge) {
+        source++;
+        edge += expected[source];
+      }
+      pieces[source] = pieces[source].isEmpty
+          ? tokens[j]
+          : '${pieces[source]}$joiner${tokens[j]}';
+    }
+    return pieces;
+  }
+
+  // How well a cut after token [j - 1] ends source [i].
+  double bonus(int i, int j) {
+    if (j >= t) return 0;
+    final cut = cutEnds[j - 1];
+    final source = sourceEnds[i];
+    if (cut == 2) return source == 2 ? 0.9 : (source == 1 ? 0.4 : 0.15);
+    if (cut == 1) return source >= 1 ? 0.4 : 0.1;
+    return 0;
+  }
+
+  double cost(int i, int from, int to) {
+    final length = prefix[to] - prefix[from];
+    final off = (length - expected[i]) / math.max(expected[i], 6);
+    return off * off;
+  }
+
+  // best[i][j]: the least cost of sources 0..i covering tokens 0..j-1, the
+  // last piece ending at token j.
+  const inf = double.infinity;
+  final best = List.generate(n, (_) => List.filled(t + 1, inf));
+  final from = List.generate(n, (_) => List.filled(t + 1, 0));
+  for (var j = 1; j <= t - (n - 1); j++) {
+    best[0][j] = cost(0, 0, j) - bonus(0, j);
+  }
+  for (var i = 1; i < n; i++) {
+    final last = i == n - 1;
+    for (var j = i + 1; j <= t - (n - 1 - i); j++) {
+      if (last && j != t) continue;
+      var least = inf;
+      var at = i;
+      for (var k = i; k < j; k++) {
+        final before = best[i - 1][k];
+        if (before == inf) continue;
+        final total = before + cost(i, k, j);
+        if (total < least) {
+          least = total;
+          at = k;
+        }
+      }
+      best[i][j] = least - bonus(i, j);
+      from[i][j] = at;
+    }
+  }
+
+  final pieces = List.filled(n, '');
+  var end = t;
+  for (var i = n - 1; i >= 0; i--) {
+    final start = i == 0 ? 0 : from[i][end];
+    pieces[i] = tokens.sublist(start, end).join(joiner);
+    end = start;
+  }
+  return pieces;
+}
+
+/// [translated] -- the translation of [source] as one text -- laid over
+/// [source] one piece each (see [alignToSegments]), each piece taking its
+/// source's time and words exactly. A source left without words gets no line.
 List<TranslatedSentence> alignTranslation({
   required List<TranslatableSentence> source,
   required String translated,
 }) {
-  final pieces = splitTranslatedSentences(translated);
-  if (source.isEmpty || pieces.isEmpty) return const [];
-
-  if (pieces.length == source.length) {
-    return [
-      for (final (i, piece) in pieces.indexed)
+  final pieces = alignToSegments(
+    sources: [for (final s in source) s.text],
+    translated: translated,
+  );
+  return [
+    for (final (i, piece) in pieces.indexed)
+      if (piece.isNotEmpty)
         (
           text: piece,
           startMs: source[i].startMs,
@@ -135,55 +295,5 @@ List<TranslatedSentence> alignTranslation({
           firstWord: source[i].firstWord,
           lastWord: source[i].lastWord,
         ),
-    ];
-  }
-
-  // Where each source sentence starts, as a share of all their characters.
-  final lengths = [for (final s in source) s.text.length + 1];
-  final total = lengths.fold<int>(0, (a, b) => a + b);
-  final starts = <double>[];
-  var run = 0;
-  for (final length in lengths) {
-    starts.add(run / total);
-    run += length;
-  }
-
-  int sentenceAt(double share) {
-    var index = 0;
-    for (var i = 0; i < starts.length; i++) {
-      if (starts[i] <= share) index = i;
-    }
-    return index;
-  }
-
-  int timeAt(double share) {
-    final i = sentenceAt(share);
-    final within = ((share - starts[i]) * total / lengths[i]).clamp(0.0, 1.0);
-    final s = source[i];
-    return s.startMs + ((s.endMs - s.startMs) * within).round();
-  }
-
-  final pieceLengths = [for (final p in pieces) p.length + 1];
-  final pieceTotal = pieceLengths.fold<int>(0, (a, b) => a + b);
-  final result = <TranslatedSentence>[];
-  var before = 0;
-  for (final (i, piece) in pieces.indexed) {
-    final from = before / pieceTotal;
-    before += pieceLengths[i];
-    final to = before / pieceTotal;
-    // The last piece ends where the speech does, not a rounding short of it.
-    final last = i == pieces.length - 1;
-    final startMs = timeAt(from);
-    final endMs = last ? source.last.endMs : timeAt(to);
-    result.add((
-      text: piece,
-      startMs: startMs,
-      endMs: endMs > startMs ? endMs : startMs + 1,
-      firstWord: source[sentenceAt(from)].firstWord,
-      lastWord: last
-          ? source.last.lastWord
-          : source[sentenceAt(to - 1e-9)].lastWord,
-    ));
-  }
-  return result;
+  ];
 }

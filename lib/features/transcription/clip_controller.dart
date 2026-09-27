@@ -39,34 +39,83 @@ class SelectedClip extends _$SelectedClip {
   void clear() => state = null;
 }
 
-/// The timeline's tracks, as the gutter's show/hide and select-all name them.
-enum TimelineTrack { texts, translation, layers, clips, audio }
-
-/// Which tracks the eye in the gutter has hidden.
+/// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
 ///
 /// **Hidden means left out**, in the preview and in the export alike: a
 /// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts or translation are not drawn or burned in. What the
-/// preview shows is what the export makes.
+/// captions, texts, translation or images are not drawn or burned in --
+/// whatever sits on a hidden track. What the preview shows is what the
+/// export makes.
 ///
 /// A session's view of the project, not a property of its data, so it is
 /// held here rather than stored.
 @Riverpod(keepAlive: true)
 class HiddenTracks extends _$HiddenTracks {
   @override
-  Set<TimelineTrack> build(String projectId) => const {};
+  Set<String> build(String projectId) => const {};
 
-  void toggle(TimelineTrack track) {
-    state = state.contains(track)
-        ? state.where((t) => t != track).toSet()
-        : {...state, track};
+  void toggle(String trackId) {
+    state = state.contains(trackId)
+        ? state.where((t) => t != trackId).toSet()
+        : {...state, trackId};
   }
 
-  void show(TimelineTrack track) {
-    if (state.contains(track)) {
-      state = state.where((t) => t != track).toSet();
+  void show(String trackId) {
+    if (state.contains(trackId)) {
+      state = state.where((t) => t != trackId).toSet();
     }
   }
+}
+
+/// Whether the video track, and the audio track, are hidden -- the two every
+/// project has exactly one of.
+typedef HiddenPlayback = ({bool video, bool audio});
+
+HiddenPlayback hiddenPlaybackOf(Set<String> hidden, List<Track> tracks) {
+  bool hides(TrackKind kind) => tracks.any(
+        (t) => TrackKind.fromCode(t.kind) == kind && hidden.contains(t.id),
+      );
+  return (video: hides(TrackKind.video), audio: hides(TrackKind.audio));
+}
+
+@riverpod
+HiddenPlayback hiddenPlayback(Ref ref, String projectId) => hiddenPlaybackOf(
+      ref.watch(hiddenTracksProvider(projectId)),
+      ref.watch(projectTracksProvider(projectId)).value ?? const [],
+    );
+
+/// Picture files offered when adding an image.
+const imageExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'heic'];
+
+/// How long an added image stays on screen, like a text.
+const int defaultImageMs = 3000;
+
+/// Opens the picker and puts the chosen picture on the timeline at
+/// [atMs], on the first track free there. Returns its id, or null when the
+/// picker was dismissed.
+Future<String?> pickAndAddImage(
+  TranscriptRepository repository, {
+  required String projectId,
+  required int atMs,
+  required int totalMs,
+}) async {
+  final picked = await FilePicker.pickFile(
+    type: FileType.custom,
+    allowedExtensions: imageExtensions,
+  );
+  if (picked == null) return null;
+  // Never past the end: an image hanging off the project shows over nothing.
+  final end = totalMs > 0
+      ? (atMs + defaultImageMs).clamp(0, totalMs)
+      : atMs + defaultImageMs;
+  final start = end - atMs < 500 ? (end - defaultImageMs).clamp(0, end) : atMs;
+  return repository.addImage(
+    projectId: projectId,
+    fileName: picked.name,
+    bytes: picked.readAsByteStream(),
+    startMs: start,
+    endMs: end,
+  );
 }
 
 /// Where the playhead sits, in project time.

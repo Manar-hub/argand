@@ -96,7 +96,10 @@ class _StylePanelState extends ConsumerState<StylePanel> {
     }
     return [
       for (final item in selection)
-        if (item.kind != TimelineItemKind.clip) item,
+        if (item.kind != TimelineItemKind.clip &&
+            item.kind != TimelineItemKind.audio &&
+            item.kind != TimelineItemKind.image)
+          item,
     ];
   }
 
@@ -126,8 +129,16 @@ class _StylePanelState extends ConsumerState<StylePanel> {
         final layer =
             await repository.layerLookOfTranscript(sentence.transcriptId);
         return (own: own, shown: own ?? layer ?? ItemLook.defaults);
+      case TimelineItemKind.translation:
+        final line = await repository.findTranslationLine(item.id);
+        final own = ItemLook.decode(line?.look);
+        final layer = line == null
+            ? null
+            : await repository.layerLookOfTranscript(line.transcriptId);
+        return (own: own, shown: own ?? layer ?? ItemLook.defaults);
       case TimelineItemKind.clip:
       case TimelineItemKind.audio:
+      case TimelineItemKind.image:
         return (own: null, shown: ItemLook.defaults);
     }
   }

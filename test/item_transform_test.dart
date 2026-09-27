@@ -237,9 +237,9 @@ void main() {
       expect(await repository.textLayersForProject(ids.projectId), hasLength(1));
     });
 
-    test('texts at the same moment go on separate rows', () async {
+    test('texts at the same moment go on separate tracks', () async {
       final ids = await seeded();
-      Future<int> rowOf(int start, int end) async {
+      Future<String?> trackOf(int start, int end) async {
         final id = (await repository.addTextLayer(
           projectId: ids.projectId,
           startMs: start,
@@ -247,13 +247,19 @@ void main() {
           content: 'T',
         ))!;
         final texts = await repository.textLayersForProject(ids.projectId);
-        return texts.firstWhere((t) => t.id == id).trackIndex;
+        return texts.firstWhere((t) => t.id == id).trackId;
       }
 
-      expect(await rowOf(0, 3000), 0);
-      expect(await rowOf(1000, 4000), 1, reason: 'overlaps the first');
-      expect(await rowOf(2000, 2500), 2, reason: 'overlaps both');
-      expect(await rowOf(5000, 6000), 0, reason: 'clear of everything');
+      final first = await trackOf(0, 3000);
+      final second = await trackOf(1000, 4000);
+      final third = await trackOf(2000, 2500);
+      expect(second, isNot(first), reason: 'overlaps the first');
+      expect({first, second, third}, hasLength(3), reason: 'overlaps both');
+      expect(
+        [first, second, third],
+        contains(await trackOf(5000, 6000)),
+        reason: 'clear of everything, so on a track it shares',
+      );
     });
 
     /// Two sentences on the seeded layer: "Hello there." and "Bye now."

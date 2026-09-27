@@ -7,10 +7,12 @@ import '../../core/database/database.dart';
 import '../../core/media/shared_media.dart';
 import '../../core/monetization/monetization.dart';
 import '../../core/theme/accent_color_controller.dart';
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/argand_logo.dart';
 import '../../core/theme/app_segment_row.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
@@ -190,7 +192,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.appTitle),
+        // The logo in place of the name, its hand in the action colour.
+        title: ArgandLogo(semanticLabel: l10n.appTitle),
         // Disabled mid-import: every setting behind this button changes what a
         // later stage of the running pipeline would do -- which weights load,
         // which language is declared, whether silence is skipped, whether
@@ -419,15 +422,17 @@ class _ProjectsHeading extends StatelessWidget {
                                 ),
                         ),
                         // The search button: a grey square flush with the
-                        // field's end, set off by the field's own line.
-                        AppPressDown(
+                        // field's end, set off by the field's own line --
+                        // pushed down and to the right like an action button,
+                        // into the field.
+                        AppPushIn(
+                          face: grey,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: focusNode.requestFocus,
                             child: Container(
                               width: 48,
                               decoration: BoxDecoration(
-                                color: grey,
                                 border: surface.outlined
                                     ? Border(left: surface.side)
                                     : null,
@@ -1160,7 +1165,7 @@ class _SettingsButton extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return IconButton(
-      icon: const Icon(Icons.tune),
+      icon: const AppIcon(AppGlyph.settings),
       tooltip: l10n.settingsMenuTooltip,
       onPressed: enabled
           ? () => showModalBottomSheet<void>(

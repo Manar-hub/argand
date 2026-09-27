@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import '../../core/timeline/translation_texts.dart';
 import '../../core/timeline/timeline_sentences.dart';
 import '../../core/timeline/timeline_selection.dart';
 import '../../core/video/export_options.dart';
+import '../../core/video/video_export.dart' show imageExtentFraction;
 import 'clip_controller.dart';
 import 'timeline_history.dart';
 import 'transcript_repository.dart';
@@ -57,6 +59,8 @@ ItemTransform placementOf(
   required List<TranscribeLayer> layers,
   required List<TextLayer> texts,
   Map<TimelineItem, ItemTransform> sentences = const {},
+  List<TextLayer> translations = const [],
+  List<ImageLayer> images = const [],
 }) {
   if (live[item] case final moving?) return moving;
   return switch (item.kind) {
@@ -73,6 +77,15 @@ ItemTransform placementOf(
       sentences[item] ?? ItemTransform.captionDefault,
     // Sound has no place on the picture.
     TimelineItemKind.audio => ItemTransform.identity,
+    // Where the line's pieces are drawn: its own place, or its layer's lift.
+    TimelineItemKind.translation => translations
+            .where((t) => translationLineIdOf(t.id) == item.id)
+            .map((t) => ItemTransform(x: t.x, y: t.y, scale: t.scale))
+            .firstOrNull ??
+        ItemTransform.captionDefault,
+    TimelineItemKind.image =>
+      images.where((i) => i.id == item.id).firstOrNull?.placement ??
+          ItemTransform.identity,
   };
 }
 
@@ -243,6 +256,9 @@ typedef _ShownCaption = ({
 
   /// How it looks: its own, else its layer's, else the default.
   ItemLook look,
+
+  /// The track it sits on: where its sentence was moved, else its layer's.
+  String? trackId,
 });
 
 class _StageEditorState extends ConsumerState<StageEditor> {
@@ -377,9 +393,17 @@ class _StageEditorState extends ConsumerState<StageEditor> {
         // selection's word range no longer names it; put it down rather than
         // leave it pointing at the wrong words.
         _selection.clear();
+      case TimelineItemKind.translation:
+        if (typed.isEmpty) return;
+        await repository.editTranslationLine(
+          projectId: widget.projectId,
+          id: item.id,
+          content: typed,
+        );
       case TimelineItemKind.clip:
       case TimelineItemKind.layer:
       case TimelineItemKind.audio:
+      case TimelineItemKind.image:
         break;
     }
     if (mounted) setState(() {});
@@ -389,12 +413,18 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     List<MediaClip> clips,
     List<TranscribeLayer> layers,
     List<TextLayer> texts,
+    List<TextLayer> translations,
+    List<ImageLayer> images,
   }) _rows() => (
         clips: ref.read(projectClipsProvider(widget.projectId)).value ??
             const [],
         layers: ref.read(projectLayersProvider(widget.projectId)).value ??
             const [],
         texts: ref.read(projectTextLayersProvider(widget.projectId)).value ??
+            const [],
+        translations:
+            ref.read(projectTranslationTextsProvider(widget.projectId)),
+        images: ref.read(projectImageLayersProvider(widget.projectId)).value ??
             const [],
       );
 
@@ -414,6 +444,8 @@ class _StageEditorState extends ConsumerState<StageEditor> {
             clips: rows.clips,
             layers: rows.layers,
             texts: rows.texts,
+            translations: rows.translations,
+            images: rows.images,
             sentences: {
               for (final entry in _shown.entries)
                 entry.key: entry.value.placement,
@@ -484,7 +516,8 @@ class _StageEditorState extends ConsumerState<StageEditor> {
   /// Captions stay level: a turned subtitle is a puzzle, not a style.
   ItemTransform _keepUpright(TimelineItem item, ItemTransform t) =>
       item.kind == TimelineItemKind.layer ||
-              item.kind == TimelineItemKind.sentence
+              item.kind == TimelineItemKind.sentence ||
+              item.kind == TimelineItemKind.translation
           ? t.copyWith(rotation: 0)
           : t;
 
@@ -495,7 +528,18 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     if (start == null) return;
 
     final live = ref.read(stageLiveProvider(widget.projectId));
-    await ref.read(transcriptRepositoryProvider).applyPlacements(
+    final repository = ref.read(transcriptRepositoryProvider);
+    // A translation line that followed its layer goes back to following it
+    // on undo, like a sentence: its own placement, if it had one.
+    final ownTranslation = <TimelineItem, ItemTransform?>{};
+    for (final item in start.keys) {
+      if (item.kind != TimelineItemKind.translation) continue;
+      final line = await repository.findTranslationLine(item.id);
+      ownTranslation[item] = line?.x == null
+          ? null
+          : ItemTransform(x: line!.x!, y: line.y ?? 0, scale: line.scale ?? 1);
+    }
+    await repository.applyPlacements(
       projectId: widget.projectId,
       changes: [
         for (final MapEntry(key: item, value: from) in start.entries)
@@ -504,9 +548,11 @@ class _StageEditorState extends ConsumerState<StageEditor> {
             id: item.id,
             // A sentence that followed its layer goes back to following it
             // on undo, rather than being pinned where the layer was.
-            before: item.kind == TimelineItemKind.sentence
-                ? _shown[item]?.own
-                : from,
+            before: switch (item.kind) {
+              TimelineItemKind.sentence => _shown[item]?.own,
+              TimelineItemKind.translation => ownTranslation[item],
+              _ => from,
+            },
             after: live[item] ?? from,
           ),
       ],
@@ -555,6 +601,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
             own ?? layer?.captionPlacement ?? ItemTransform.captionDefault,
         own: own,
         look: cue.words.first.ownLook ?? layer?.look ?? ItemLook.defaults,
+        trackId: cue.words.first.captionTrackId ?? layer?.trackId,
       );
     }
     return shown;
@@ -573,13 +620,15 @@ class _StageEditorState extends ConsumerState<StageEditor> {
         ref.watch(projectLayersProvider(projectId)).value ?? const [];
     final texts =
         ref.watch(projectTextLayersProvider(projectId)).value ?? const [];
-    // What the gutter's eyes have hidden is not drawn -- nor exported.
+    // What sits on a track the gutter's eye hid is not drawn -- nor exported.
     final hidden = ref.watch(hiddenTracksProvider(projectId));
-    // Drawn like texts but never picked: a translation is changed by
-    // translating again, not by dragging or retyping it on the picture.
-    final translations = hidden.contains(TimelineTrack.translation)
-        ? const <TextLayer>[]
-        : ref.watch(projectTranslationTextsProvider(projectId));
+    bool shows(String? trackId) => trackId == null || !hidden.contains(trackId);
+    final translations = [
+      for (final line in ref.watch(projectTranslationTextsProvider(projectId)))
+        if (shows(line.trackId)) line,
+    ];
+    final images = ref.watch(projectImageLayersProvider(projectId)).value ??
+        const <ImageLayer>[];
     final transcripts = clipId == null
         ? const <Transcript>[]
         : ref.watch(clipTranscriptsProvider(clipId)).value ?? const [];
@@ -598,6 +647,8 @@ class _StageEditorState extends ConsumerState<StageEditor> {
           clips: clips,
           layers: layers,
           texts: texts,
+          translations: translations,
+          images: images,
           sentences: {
             for (final entry in _shown.entries)
               entry.key: entry.value.placement,
@@ -623,11 +674,22 @@ class _StageEditorState extends ConsumerState<StageEditor> {
           ? texts.where((t) => t.id == wanted.id).firstOrNull
           : null;
       final shownCaption = _shown[wanted];
+      final line = wanted.kind == TimelineItemKind.translation
+          ? ref
+              .read(projectTranslationLinesProvider(projectId))
+              .where((l) => l.line.id == wanted.id)
+              .firstOrNull
+          : null;
       if (text != null &&
           projectMs != null &&
           projectMs >= text.startMs &&
           projectMs < text.endMs) {
         _beginEditing(wanted, text.content);
+      } else if (line != null &&
+          projectMs != null &&
+          projectMs >= line.projectStartMs &&
+          projectMs < line.projectEndMs) {
+        _beginEditing(wanted, line.line.content);
       } else if (shownCaption != null) {
         _beginEditing(
           wanted,
@@ -683,8 +745,26 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                 ),
               ),
             ),
-          if (!hidden.contains(TimelineTrack.layers))
+          // Under every word, as the render stacks them.
+          if (projectMs != null)
+            for (final image in images)
+              if (shows(image.trackId) &&
+                  projectMs >= image.startMs &&
+                  projectMs < image.endMs)
+                _anchored(
+                  where((kind: TimelineItemKind.image, id: image.id)),
+                  frame,
+                  child: _image(
+                    image,
+                    shortEdge: shortEdge,
+                    selected: selection
+                        .contains((kind: TimelineItemKind.image, id: image.id)),
+                    scale: where((kind: TimelineItemKind.image, id: image.id))
+                        .scale,
+                  ),
+                ),
           for (final shown in _shown.values)
+            if (shows(shown.trackId))
             _anchored(
               where(shown.item),
               frame,
@@ -703,9 +783,11 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                 padded: false,
               ),
             ),
-          if (projectMs != null && !hidden.contains(TimelineTrack.texts))
+          if (projectMs != null)
             for (final text in texts)
-              if (projectMs >= text.startMs && projectMs < text.endMs)
+              if (shows(text.trackId) &&
+                  projectMs >= text.startMs &&
+                  projectMs < text.endMs)
                 _anchored(
                   where((kind: TimelineItemKind.text, id: text.id)),
                   frame,
@@ -726,21 +808,27 @@ class _StageEditorState extends ConsumerState<StageEditor> {
           if (projectMs != null)
             for (final line in translations)
               if (projectMs >= line.startMs && projectMs < line.endMs)
-                _anchored(
-                  ItemTransform(x: line.x, y: line.y, scale: line.scale),
-                  frame,
-                  child: IgnorePointer(
-                    child: Text(
-                      line.content,
-                      textAlign: TextAlign.center,
-                      textDirection: translationDirectionOf(line.content),
+                if ((
+                  kind: TimelineItemKind.translation,
+                  id: translationLineIdOf(line.id) ?? line.id,
+                )
+                    case final item)
+                  _anchored(
+                    where(item),
+                    frame,
+                    child: _item(
+                      item: item,
+                      selected: selection.contains(item),
+                      scale: where(item).scale,
                       style: _textLayerStyle(
                         ItemLook.decode(line.look) ?? ItemLook.defaults,
                         shortEdge,
                       ),
+                      text: line.content,
+                      padded: false,
+                      direction: translationDirectionOf(line.content),
                     ),
                   ),
-                ),
         ];
 
         final stack = Stack(clipBehavior: Clip.none, children: children);
@@ -757,6 +845,44 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     );
   }
 
+  /// An image at its size on the picture: its longer side
+  /// [imageExtentFraction] of the frame's short edge, before its own scale --
+  /// the size the render gives it.
+  Widget _image(
+    ImageLayer image, {
+    required double shortEdge,
+    required bool selected,
+    required double scale,
+  }) {
+    final longer = shortEdge * imageExtentFraction;
+    final wide = image.widthPx >= image.heightPx;
+    final ratio = image.heightPx <= 0 || image.widthPx <= 0
+        ? 1.0
+        : image.widthPx / image.heightPx;
+    final size = wide
+        ? Size(longer, longer / ratio)
+        : Size(longer * ratio, longer);
+    final item = (kind: TimelineItemKind.image, id: image.id);
+    final picture = SizedBox.fromSize(
+      size: size,
+      child: Image.file(
+        File(image.path),
+        fit: BoxFit.fill,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black26),
+      ),
+    );
+    if (!widget.editable) return picture;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _tap(item, typable: false),
+      onLongPress: () => _hold(item),
+      child: selected
+          ? _Outline(key: _outlineKey(item), scale: scale, child: picture)
+          : picture,
+    );
+  }
+
   /// A caption or text: its words as the render draws them -- or, while it
   /// is being typed into, a field in exactly that style, in exactly that
   /// place, so typing reads as changing the words on the picture rather than
@@ -769,6 +895,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     required String text,
     required bool padded,
     InlineSpan? rich,
+    TextDirection? direction,
   }) {
     if (item == _editing && _field != null) {
       // **Exactly the resting look, now editable.** No outline or handles
@@ -838,6 +965,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
             // reaches past the first and last letters.
             padded ? ' $text ' : text,
             textAlign: TextAlign.center,
+            textDirection: direction,
             // Pixels in the output, so never scaled by the reader's text size.
             textScaler: TextScaler.noScaling,
             style: style,

@@ -31,7 +31,22 @@ enum TimelineEventKind {
   audioTrim('audioTrim'),
 
   /// A clip's sound removed from the timeline, or put back.
-  audioMute('audioMute');
+  audioMute('audioMute'),
+
+  /// One drag or resize on the timeline, over everything it moved: times,
+  /// tracks, sentence words, sound offsets, the clip order and any track the
+  /// drop made.
+  itemsPlace('itemsPlace'),
+  imageAdd('imageAdd'),
+  imageRemove('imageRemove'),
+
+  /// A translation line retyped, or removed.
+  translationEdit('translationEdit'),
+  translationRemove('translationRemove'),
+
+  /// One caption line's translation retyped, added or cleared in Script
+  /// mode: every line it touched, with its words and whether it is retired.
+  translationSet('translationSet');
 
   const TimelineEventKind(this.code);
 

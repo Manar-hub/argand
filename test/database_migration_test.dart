@@ -183,7 +183,7 @@ void main() {
           .map((r) => r.read<int>('user_version'))
           .getSingle();
 
-      expect(row, 14);
+      expect(row, 15);
     });
 
     test('an upgraded clip is framed as it always was', () async {
@@ -342,6 +342,7 @@ void main() {
     });
 
     test('media refcounting still sees the migrated file', () async {
+      var copies = 0;
       final db = openV2WithData();
       addTearDown(db.close);
 
@@ -359,7 +360,7 @@ void main() {
         sourceProjectId: 'p1',
         newProjectId: 'p2',
         title: 'interview copy',
-        newId: () => 'copy-${DateTime.now().microsecondsSinceEpoch}',
+        newId: () => 'copy-${copies++}',
       );
       expect(
         await db.projectsSharingMedia('/media/p1/clip.mp4', excluding: 'p1'),
@@ -402,6 +403,8 @@ void main() {
       'ALTER TABLE words DROP COLUMN caption_x',
       'ALTER TABLE words DROP COLUMN caption_y',
       'ALTER TABLE words DROP COLUMN caption_scale',
+      'ALTER TABLE words DROP COLUMN caption_track_id',
+      'ALTER TABLE transcribe_layers DROP COLUMN track_id',
       'DROP INDEX text_layers_project_start',
       'DROP TABLE text_layers',
       "INSERT INTO projects (id, created_at, updated_at, title, media_path) "
@@ -425,6 +428,12 @@ void main() {
     expect(clip.scale, 1.0);
     expect(layer.captionY, -0.82);
     expect(await upgraded.textLayersForProject('p9'), isEmpty);
+
+    // Schema 15 put the layer on a track of its own, above the video and
+    // the audio.
+    final tracks = await upgraded.tracksForProject('p9');
+    expect(tracks.map((t) => t.kind), ['media', 'video', 'audio']);
+    expect(layer.trackId, tracks.first.id);
   });
 
   test('a fresh install lands on the same schema as an upgraded one', () async {

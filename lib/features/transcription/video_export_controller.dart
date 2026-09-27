@@ -140,25 +140,31 @@ class VideoExportController extends _$VideoExportController {
     final timeline = ProjectTimeline.fromClips(clips);
 
     // What the gutter's eyes hid is left out, as the preview leaves it out.
+    // Whatever sits on a hidden track is left out.
     final hidden = ref.read(hiddenTracksProvider(projectId));
+    final playback =
+        hiddenPlaybackOf(hidden, await repository.ensureTracks(projectId));
+    bool shows(String? trackId) => trackId == null || !hidden.contains(trackId);
 
     final request = exportRequestFor(
       timeline: timeline,
       clips: clips,
-      withAudio: !hidden.contains(TimelineTrack.audio),
-      captionsByClip: hidden.contains(TimelineTrack.layers)
-          ? const {}
-          : await _captionsFor(repository, clips),
+      withAudio: !playback.audio,
+      captionsByClip: await _captionsFor(repository, clips, shows),
       texts: [
-        if (!hidden.contains(TimelineTrack.texts))
-          ...await repository.textLayersForProject(projectId),
+        for (final text in await repository.textLayersForProject(projectId))
+          if (shows(text.trackId)) text,
         // Burned in exactly as the stage shows it.
-        if (!hidden.contains(TimelineTrack.translation))
-          ...await repository.translationTextsForProject(
-            projectId: projectId,
-            timeline: timeline,
-            clips: clips,
-          ),
+        for (final line in await repository.translationTextsForProject(
+          projectId: projectId,
+          timeline: timeline,
+          clips: clips,
+        ))
+          if (shows(line.trackId)) line,
+      ],
+      images: [
+        for (final image in await repository.imageLayersForProject(projectId))
+          if (shows(image.trackId)) image,
       ],
     );
     if (request == null) {
@@ -178,8 +184,8 @@ class VideoExportController extends _$VideoExportController {
         clips: request.clips,
         fileName: fileName,
         options: options,
-        hideVideo: hidden.contains(TimelineTrack.clips),
-        muteAudio: hidden.contains(TimelineTrack.audio),
+        hideVideo: playback.video,
+        muteAudio: playback.audio,
         onProgress: (percent) {
           // Dropped if the controller has already finished or been torn down:
           // progress can arrive one poll after completion, and `state` itself
@@ -232,6 +238,7 @@ class VideoExportController extends _$VideoExportController {
   Future<Map<String, List<ExportCaption>>> _captionsFor(
     TranscriptRepository repository,
     List<MediaClip> clips,
+    bool Function(String? trackId) shows,
   ) async {
     final byClip = <String, List<ExportCaption>>{};
     final layers = {
@@ -251,7 +258,12 @@ class VideoExportController extends _$VideoExportController {
         final layer = layers[transcript.layerId];
         captions.addAll(
           exportCaptionsFor(
-            await repository.watchWords(transcript.id).first,
+            // Each sentence sits on its own track once moved, else on its
+            // layer's; a hidden one is not burned in.
+            [
+              for (final word in await repository.watchWords(transcript.id).first)
+                if (shows(word.captionTrackId ?? layer?.trackId)) word,
+            ],
             // Scoped to what the clip actually plays: a trimmed clip must not
             // carry captions for audio the viewer never hears.
             window: clipWindow(clip),

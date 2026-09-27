@@ -1,13 +1,16 @@
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, listEquals;
 import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 import '../../core/audio/waveform_service.dart';
+import '../../core/captions/caption_grouper.dart';
 import '../../core/database/database.dart';
 import '../../core/diarization/speaker_assignment.dart';
 import '../../core/diarization/speaker_span.dart';
@@ -19,6 +22,8 @@ import '../../core/timeline/clip_trim.dart';
 import '../../core/timeline/item_look.dart';
 import '../../core/timeline/layer_drag.dart';
 import '../../core/timeline/timeline_event.dart';
+import '../../core/timeline/timeline_items.dart';
+import '../../core/timeline/timeline_selection.dart';
 import 'timeline_history.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/timeline/timeline_sentences.dart';
@@ -118,6 +123,7 @@ class TranscriptRepository {
       startMs: startMs,
       endMs: endMs,
       trackIndex: trackIndex,
+      trackId: await _layerTrack(projectId),
     );
 
     await recordTimelineEvent(
@@ -314,15 +320,10 @@ class TranscriptRepository {
     final words = content.trim();
     if (endMs <= startMs || words.isEmpty) return null;
 
-    // **The first row it fits on.** Two texts at the same moment on one row
-    // would draw one block over the other, and the one underneath could not
-    // be reached to select it.
-    final existing = await _db.textLayersForProject(projectId);
-    var row = 0;
-    while (existing.any((t) =>
-        t.trackIndex == row && t.startMs < endMs && t.endMs > startMs)) {
-      row++;
-    }
+    // **The first track it fits on.** Two texts at the same moment on one
+    // track would draw one block over the other, and the one underneath could
+    // not be reached to select it.
+    final trackId = await _freeTrack(projectId, startMs, endMs);
 
     final id = newId();
     await _db.insertTextLayer(
@@ -331,7 +332,7 @@ class TranscriptRepository {
       startMs: startMs,
       endMs: endMs,
       content: words,
-      trackIndex: row,
+      trackId: trackId,
     );
     await recordTimelineEvent(
       projectId: projectId,
@@ -392,6 +393,627 @@ class TranscriptRepository {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Tracks, and moving things between them.
+
+  Stream<List<Track>> watchTracks(String projectId) =>
+      _db.watchTracks(projectId);
+
+  /// The project's tracks, placing anything not yet on one. See
+  /// [AppDatabase.ensureTracks].
+  Future<List<Track>> ensureTracks(String projectId) =>
+      _db.ensureTracks(projectId);
+
+  /// Where on each track something already sits, in project time.
+  Future<Map<String, List<(int, int)>>> _occupied(String projectId) async {
+    final taken = <String, List<(int, int)>>{};
+    void add(String? trackId, int start, int end) {
+      if (trackId == null) return;
+      (taken[trackId] ??= []).add((start, end));
+    }
+
+    final clips = await _db.clipsForProject(projectId);
+    final timeline = ProjectTimeline.fromClips(clips);
+    for (final layer in await _db.layersForProject(projectId)) {
+      add(layer.trackId, layer.startMs, layer.endMs);
+    }
+    for (final text in await _db.textLayersForProject(projectId)) {
+      add(text.trackId, text.startMs, text.endMs);
+    }
+    for (final image in await _db.imageLayersForProject(projectId)) {
+      add(image.trackId, image.startMs, image.endMs);
+    }
+    for (final clip in clips) {
+      for (final transcript in await _db.transcriptsForClip(clip.id)) {
+        for (final line in await _db.translationLinesFor(transcript.id)) {
+          final start =
+              timeline.projectMsOf(clipId: clip.id, clipMs: line.startMs);
+          final end = timeline.projectMsOf(clipId: clip.id, clipMs: line.endMs);
+          if (start != null && end != null) add(line.trackId, start, end);
+        }
+        for (final word in await _db.wordsMovedOffTheirLayer(transcript.id)) {
+          final start =
+              timeline.projectMsOf(clipId: clip.id, clipMs: word.startMs);
+          final end = timeline.projectMsOf(clipId: clip.id, clipMs: word.endMs);
+          if (start != null && end != null) {
+            add(word.captionTrackId, start, end);
+          }
+        }
+      }
+    }
+    return taken;
+  }
+
+  /// The first media track, from the top, with nothing on it over
+  /// [startMs]..[endMs] -- or a new one at the top when every track is taken.
+  Future<String> _freeTrack(String projectId, int startMs, int endMs) async {
+    final tracks = await ensureTracks(projectId);
+    final taken = await _occupied(projectId);
+    for (final track in tracks) {
+      if (TrackKind.fromCode(track.kind) != TrackKind.media) continue;
+      final busy = (taken[track.id] ?? const [])
+          .any((span) => span.$1 < endMs && startMs < span.$2);
+      if (!busy) return track.id;
+    }
+    final id = newId();
+    await _db.insertTrack(id: id, projectId: projectId, position: 0);
+    return id;
+  }
+
+  /// The track a new transcription goes on: wherever the project's
+  /// transcriptions already are, else a new one just above the video.
+  Future<String> _layerTrack(String projectId) async {
+    final tracks = await ensureTracks(projectId);
+    final live = {for (final track in tracks) track.id};
+    for (final layer in await _db.layersForProject(projectId)) {
+      if (live.contains(layer.trackId)) return layer.trackId!;
+    }
+    final video =
+        tracks.indexWhere((t) => TrackKind.fromCode(t.kind) == TrackKind.video);
+    final id = newId();
+    await _db.insertTrack(
+      id: id,
+      projectId: projectId,
+      position: video < 0 ? 0 : video,
+    );
+    return id;
+  }
+
+  /// The track a transcript's new translation goes on: where its translation
+  /// already was, else where the project's translations are, else a new one
+  /// just above its transcription.
+  Future<String> _translationTrack(Transcript transcript) async {
+    final projectId = transcript.projectId;
+    final tracks = await ensureTracks(projectId);
+    final live = {for (final track in tracks) track.id};
+    for (final line in await _db.translationLinesFor(transcript.id)) {
+      if (live.contains(line.trackId)) return line.trackId!;
+    }
+    for (final line in await _db.translationLinesForProject(projectId)) {
+      if (live.contains(line.trackId)) return line.trackId!;
+    }
+    final layer = transcript.layerId == null
+        ? null
+        : await _db.findLayer(transcript.layerId!);
+    final below = tracks.indexWhere((t) => t.id == layer?.trackId);
+    final id = newId();
+    await _db.insertTrack(
+      id: id,
+      projectId: projectId,
+      position: below < 0 ? 0 : below,
+    );
+    return id;
+  }
+
+  /// Commits one drag or resize on the timeline -- everything it moved, the
+  /// tracks it made, the clip order it changed -- as one undoable step.
+  ///
+  /// **Times arrive in project time, and are written as each row keeps
+  /// them.** A transcription, a text and an image are stored in project time;
+  /// a translation line and a sentence's words in their clip's; a sound as
+  /// offsets from its picture. Each is moved by how far its edges moved, so
+  /// the conversion needs nothing but the difference.
+  Future<void> placeItems({
+    required String projectId,
+    required List<ItemPlacement> placements,
+    int newTracks = 0,
+    List<String>? clipOrder,
+  }) async {
+    final beforeItems = <Map<String, Object?>>[];
+    final afterItems = <Map<String, Object?>>[];
+    final beforeWords = <Map<String, Object?>>[];
+    final afterWords = <Map<String, Object?>>[];
+    final beforeAudio = <Map<String, Object?>>[];
+    final afterAudio = <Map<String, Object?>>[];
+    final created = <String>[];
+    List<String>? orderBefore;
+
+    await _db.transaction(() async {
+      for (var i = 0; i < newTracks; i++) {
+        final id = newId();
+        await _db.insertTrack(id: id, projectId: projectId);
+        created.add(id);
+      }
+
+      for (final placement in placements) {
+        final item = placement.item;
+        final id = item.id;
+        final dStart = placement.toStartMs - placement.fromStartMs;
+        final dEnd = placement.toEndMs - placement.fromEndMs;
+        final track = placement.newTrack != null
+            ? created[placement.newTrack!]
+            : placement.trackId;
+        Map<String, Object?> entry(int start, int end, String? trackId) => {
+              'kind': item.kind.name,
+              'id': id,
+              'startMs': start,
+              'endMs': end,
+              'trackId': trackId,
+            };
+
+        switch (item.kind) {
+          case TimelineItemKind.layer:
+            final row = await _db.findLayer(id);
+            if (row == null) continue;
+            beforeItems.add(entry(row.startMs, row.endMs, row.trackId));
+            await _db.moveLayer(
+              layerId: id,
+              startMs: placement.toStartMs,
+              endMs: placement.toEndMs,
+            );
+            if (track != null) {
+              await _db.setLayerTrack(layerId: id, trackId: track);
+            }
+            afterItems.add(entry(
+              placement.toStartMs,
+              placement.toEndMs,
+              track ?? row.trackId,
+            ));
+
+          case TimelineItemKind.text:
+            final row = await _db.findTextLayer(id);
+            if (row == null) continue;
+            beforeItems.add(entry(row.startMs, row.endMs, row.trackId));
+            await _db.updateTextLayer(
+              id: id,
+              startMs: placement.toStartMs,
+              endMs: placement.toEndMs,
+              trackId: track,
+            );
+            afterItems.add(entry(
+              placement.toStartMs,
+              placement.toEndMs,
+              track ?? row.trackId,
+            ));
+
+          case TimelineItemKind.image:
+            final row = await _db.findImageLayer(id);
+            if (row == null) continue;
+            beforeItems.add(entry(row.startMs, row.endMs, row.trackId));
+            await _db.updateImageLayer(
+              id: id,
+              startMs: placement.toStartMs,
+              endMs: placement.toEndMs,
+              trackId: track,
+            );
+            afterItems.add(entry(
+              placement.toStartMs,
+              placement.toEndMs,
+              track ?? row.trackId,
+            ));
+
+          case TimelineItemKind.translation:
+            final row = await _db.findTranslationLine(id);
+            if (row == null) continue;
+            beforeItems.add(entry(row.startMs, row.endMs, row.trackId));
+            final start = row.startMs + dStart;
+            final end = row.endMs + dEnd;
+            await _db.updateTranslationLine(
+              id: id,
+              startMs: start,
+              endMs: end,
+              trackId: track,
+            );
+            afterItems.add(entry(start, end, track ?? row.trackId));
+
+          case TimelineItemKind.sentence:
+            final sentence = sentenceOf(item);
+            if (sentence == null) continue;
+            final words = await _db.wordsInPositionRange(
+              transcriptId: sentence.transcriptId,
+              from: sentence.fromPosition,
+              to: sentence.toPosition,
+            );
+            if (words.isEmpty) continue;
+            // On its transcription's own track it follows the transcription
+            // again, rather than being pinned to where that track is now.
+            final transcript = await _db.findTranscript(sentence.transcriptId);
+            final layer = transcript?.layerId == null
+                ? null
+                : await _db.findLayer(transcript!.layerId!);
+            final from = words.map((w) => w.startMs).reduce(math.min);
+            final to = words.map((w) => w.endMs).reduce(math.max);
+            final retimed = retimeWords(
+              [for (final w in words) (id: w.id, startMs: w.startMs, endMs: w.endMs)],
+              startMs: from + dStart,
+              endMs: to + dEnd,
+            );
+            final onTrack = track == null
+                ? words.first.captionTrackId
+                : (track == layer?.trackId ? null : track);
+            for (final word in words) {
+              beforeWords.add({
+                'id': word.id,
+                'startMs': word.startMs,
+                'endMs': word.endMs,
+                'trackId': word.captionTrackId,
+              });
+            }
+            final placed = [
+              for (final word in retimed)
+                (
+                  id: word.id,
+                  startMs: word.startMs,
+                  endMs: word.endMs,
+                  trackId: onTrack,
+                ),
+            ];
+            await _db.setWordPlacements(placed);
+            for (final word in placed) {
+              afterWords.add({
+                'id': word.id,
+                'startMs': word.startMs,
+                'endMs': word.endMs,
+                'trackId': word.trackId,
+              });
+            }
+
+          case TimelineItemKind.audio:
+            final clip = await _db.findClip(id);
+            if (clip == null) continue;
+            final start = clip.audioStartOffsetMs + dStart;
+            final end = clip.audioEndOffsetMs + dEnd;
+            beforeAudio.add({
+              'clipId': id,
+              'startOffsetMs': clip.audioStartOffsetMs,
+              'endOffsetMs': clip.audioEndOffsetMs,
+            });
+            await _db.setAudioOffsets(
+              clipId: id,
+              startOffsetMs: start,
+              endOffsetMs: end,
+            );
+            afterAudio.add({
+              'clipId': id,
+              'startOffsetMs': start,
+              'endOffsetMs': end,
+            });
+
+          case TimelineItemKind.clip:
+            // A clip moves by the order below; its trims have their own path.
+            break;
+        }
+      }
+
+      if (clipOrder != null) {
+        orderBefore = [
+          for (final clip in await _db.clipsForProject(projectId)) clip.id,
+        ];
+        await _db.reorderClips(projectId: projectId, orderedIds: clipOrder);
+      }
+    });
+
+    final orderChanged = clipOrder != null &&
+        orderBefore != null &&
+        !listEquals(orderBefore, clipOrder);
+    if (beforeItems.isEmpty &&
+        beforeWords.isEmpty &&
+        beforeAudio.isEmpty &&
+        created.isEmpty &&
+        !orderChanged) {
+      return;
+    }
+
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.itemsPlace,
+      payload: TimelineEventPayload(
+        before: {
+          'projectId': projectId,
+          'items': beforeItems,
+          'words': beforeWords,
+          'audio': beforeAudio,
+          'tracks': [for (final id in created) {'id': id, 'retired': true}],
+          if (orderChanged) 'clipOrder': orderBefore,
+        },
+        after: {
+          'projectId': projectId,
+          'items': afterItems,
+          'words': afterWords,
+          'audio': afterAudio,
+          'tracks': [for (final id in created) {'id': id, 'retired': false}],
+          if (orderChanged) 'clipOrder': clipOrder,
+        },
+      ),
+    );
+  }
+
+  /// Puts the project's tracks in [order], top to bottom, as one undoable
+  /// step -- the gutter's move handle.
+  Future<void> reorderTracks({
+    required String projectId,
+    required List<String> order,
+  }) async {
+    final before = [
+      for (final track in await _db.tracksForProject(projectId)) track.id,
+    ];
+    if (listEquals(before, order)) return;
+    await _db.setTrackOrder(order);
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.itemsPlace,
+      payload: TimelineEventPayload(
+        before: {'trackOrder': before},
+        after: {'trackOrder': order},
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Images.
+
+  Stream<List<ImageLayer>> watchImageLayers(String projectId) =>
+      _db.watchImageLayers(projectId);
+
+  Future<List<ImageLayer>> imageLayersForProject(String projectId) =>
+      _db.imageLayersForProject(projectId);
+
+  /// Copies [fileName] into the project as a picture over [startMs]..[endMs],
+  /// on the first track free there, and returns its id.
+  Future<String> addImage({
+    required String projectId,
+    required String fileName,
+    required Stream<List<int>> bytes,
+    required int startMs,
+    required int endMs,
+  }) async {
+    final id = newId();
+    final media = await _media.importToAppStorage(
+      projectId: projectId,
+      clipId: id,
+      fileName: fileName,
+      bytes: bytes,
+    );
+    final size = await _imageSize(media.path);
+    final trackId = await _freeTrack(projectId, startMs, endMs);
+    final now = DateTime.now();
+    await _db.insertImageLayer(ImageLayersCompanion.insert(
+      id: id,
+      createdAt: now,
+      updatedAt: now,
+      projectId: projectId,
+      trackId: trackId,
+      startMs: startMs,
+      endMs: endMs,
+      path: media.path,
+      widthPx: size.width,
+      heightPx: size.height,
+    ));
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.imageAdd,
+      payload: TimelineEventPayload(
+        before: {'id': id, 'retired': true},
+        after: {'id': id, 'retired': false},
+      ),
+    );
+    return id;
+  }
+
+  /// The pixel size of the picture at [path]; 1x1 when it cannot be read,
+  /// which draws square rather than failing the add.
+  Future<({int width, int height})> _imageSize(String path) async {
+    try {
+      final buffer = await ui.ImmutableBuffer.fromFilePath(path);
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      final size = (width: descriptor.width, height: descriptor.height);
+      descriptor.dispose();
+      buffer.dispose();
+      return size;
+    } on Exception {
+      return (width: 1, height: 1);
+    }
+  }
+
+  Future<void> removeImages(String projectId, List<String> ids) async {
+    for (final id in ids) {
+      final image = await _db.findImageLayer(id);
+      if (image == null || image.deletedAt != null) continue;
+      await _db.setImageLayerRetired(id: id, retired: true);
+      await recordTimelineEvent(
+        projectId: projectId,
+        kind: TimelineEventKind.imageRemove,
+        payload: TimelineEventPayload(
+          before: {'id': id, 'retired': false},
+          after: {'id': id, 'retired': true},
+        ),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Translation lines, one at a time.
+
+  Future<TranslationLine?> findTranslationLine(String id) =>
+      _db.findTranslationLine(id);
+
+  /// Retypes one translation line, as one undoable step.
+  Future<void> editTranslationLine({
+    required String projectId,
+    required String id,
+    required String content,
+  }) async {
+    final line = await _db.findTranslationLine(id);
+    final typed = content.trim();
+    if (line == null || typed.isEmpty || typed == line.content) return;
+    await _db.updateTranslationLine(id: id, content: typed);
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.translationEdit,
+      payload: TimelineEventPayload(
+        before: {'id': id, 'content': line.content},
+        after: {'id': id, 'content': typed},
+      ),
+    );
+  }
+
+  /// Sets one caption line's translation to [content], as one undoable step
+  /// -- Script mode's edit, independent of the transcript's own words.
+  ///
+  /// [lineIds] are the lines shown under that caption line: the first takes
+  /// the text and any others are retired, so it reads as one line again. With
+  /// none, a line is added over the caption's words and time, in the
+  /// transcript's translation language, on its translation track. Empty
+  /// [content] retires them all.
+  Future<void> setCueTranslation({
+    required String transcriptId,
+    required List<String> lineIds,
+    required int firstWord,
+    required int lastWord,
+    required int startMs,
+    required int endMs,
+    required String content,
+  }) async {
+    final transcript = await _db.findTranscript(transcriptId);
+    if (transcript == null) return;
+    final typed = content.trim();
+    final lines = [
+      for (final id in lineIds) ?await _db.findTranslationLine(id),
+    ];
+    final before = <Map<String, Object?>>[];
+    final after = <Map<String, Object?>>[];
+
+    if (lines.isEmpty) {
+      if (typed.isEmpty) return;
+      final language = (await _db.translationLinesFor(transcriptId))
+              .firstOrNull
+              ?.language ??
+          (await _db.translationLinesForProject(transcript.projectId))
+              .firstOrNull
+              ?.language ??
+          'und';
+      final trackId = await _translationTrack(transcript);
+      final id = newId();
+      final now = DateTime.now();
+      await _db.into(_db.translationLines).insert(
+            TranslationLinesCompanion.insert(
+              id: id,
+              createdAt: now,
+              updatedAt: now,
+              transcriptId: transcriptId,
+              language: language,
+              position: 0,
+              firstWord: firstWord,
+              lastWord: lastWord,
+              startMs: startMs,
+              endMs: endMs,
+              content: typed,
+              trackId: Value(trackId),
+            ),
+          );
+      before.add({'id': id, 'content': typed, 'retired': true});
+      after.add({'id': id, 'content': typed, 'retired': false});
+    } else {
+      final first = lines.first;
+      if (lines.length == 1 && typed == first.content) return;
+      await _db.transaction(() async {
+        for (final (i, line) in lines.indexed) {
+          final keeps = i == 0 && typed.isNotEmpty;
+          before.add({'id': line.id, 'content': line.content, 'retired': false});
+          after.add({
+            'id': line.id,
+            'content': keeps ? typed : line.content,
+            'retired': !keeps,
+          });
+          if (keeps) {
+            await _db.updateTranslationLine(id: line.id, content: typed);
+          } else {
+            await _db.setTranslationLineRetired(id: line.id, retired: true);
+          }
+        }
+      });
+    }
+
+    await recordTimelineEvent(
+      projectId: transcript.projectId,
+      kind: TimelineEventKind.translationSet,
+      payload: TimelineEventPayload(
+        before: {'lines': before},
+        after: {'lines': after},
+      ),
+    );
+  }
+
+  /// Removes translation lines, as one undoable step.
+  Future<void> removeTranslationLines({
+    required String projectId,
+    required List<String> ids,
+  }) async {
+    if (ids.isEmpty) return;
+    for (final id in ids) {
+      await _db.setTranslationLineRetired(id: id, retired: true);
+    }
+    await recordTimelineEvent(
+      projectId: projectId,
+      kind: TimelineEventKind.translationRemove,
+      payload: TimelineEventPayload(
+        before: {'ids': ids, 'retired': false},
+        after: {'ids': ids, 'retired': true},
+      ),
+    );
+  }
+
+  /// Removes a sentence's words from its transcript, through the same undo
+  /// log a retype in the script uses.
+  Future<void> removeSentence({
+    required String transcriptId,
+    required int fromPosition,
+    required int toPosition,
+  }) async {
+    await _db.transaction(() async {
+      final existing = await _db.wordsInPositionRange(
+        transcriptId: transcriptId,
+        from: fromPosition,
+        to: toPosition,
+      );
+      if (existing.isEmpty) return;
+      await _db.spliceWords(
+        transcriptId: transcriptId,
+        fromPosition: fromPosition,
+        toPosition: toPosition,
+        replacements: const [],
+      );
+      await _db.appendEditEvent(
+        transcriptId: transcriptId,
+        kind: EditEventKind.sentence.code,
+        payload: SentenceEdit(
+          fromPosition: fromPosition,
+          before: [
+            for (final word in existing)
+              WordSnapshot(
+                id: word.id,
+                text: word.word,
+                startMs: word.startMs,
+                endMs: word.endMs,
+                speakerId: word.speakerId,
+              ),
+          ],
+          after: const [],
+        ).encode(),
+      );
+    });
+  }
+
   /// Discards what a layer produced, keeping the layer itself.
   ///
   /// For re-running: the request stands, only its answer is being replaced.
@@ -445,19 +1067,35 @@ class TranscriptRepository {
       throw const TranslationException(TranslationFailure.unsupportedSource);
     }
 
-    final range = words;
     final all = await _db.watchWords(transcriptId).first;
-    final sentences = translatableSentencesOf([
-      for (final word in all)
-        if (range == null ||
-            (word.position >= range.from && word.position <= range.to))
+    // **One line per caption line**, the rows Script mode shows and the
+    // captions the video shows -- cut exactly as they are (`captionCues`),
+    // so each has its translation and none has two. A selection takes the
+    // captions its words fall in, whole.
+    final cues = [
+      for (final cue in groupIntoCues(all))
+        if (words == null ||
+            (cue.words.last.position >= words.from &&
+                cue.words.first.position <= words.to))
+          cue,
+    ];
+    if (cues.isEmpty) return;
+    final range = words == null
+        ? null
+        : (
+            from: cues.first.words.first.position,
+            to: cues.last.words.last.position,
+          );
+    final sentences = <TranslatableSentence>[
+      for (final cue in cues)
         (
-          text: word.word,
-          startMs: word.startMs,
-          endMs: word.endMs,
-          position: word.position,
+          text: cue.text,
+          startMs: cue.startMs,
+          endMs: cue.endMs,
+          firstWord: cue.words.first.position,
+          lastWord: cue.words.last.position,
         ),
-    ]);
+    ];
     // Running text, not sentence by sentence: see `translation_sentences.dart`.
     final batches = translationBatches(sentences);
     final translated = await translator.translate(
@@ -473,6 +1111,7 @@ class TranscriptRepository {
         ...alignTranslation(source: batch, translated: translated[i]),
     ];
 
+    final trackId = await _translationTrack(transcript);
     final now = DateTime.now();
     await _db.replaceTranslation(words: range, transcriptId, [
       for (final (i, sentence) in placed.indexed)
@@ -488,6 +1127,7 @@ class TranscriptRepository {
           startMs: sentence.startMs,
           endMs: sentence.endMs,
           content: sentence.text,
+          trackId: Value(trackId),
         ),
     ]);
   }
@@ -849,6 +1489,7 @@ class TranscriptRepository {
     final project = await _db.findProject(id);
     // Read before the soft delete, which retires them along with the project.
     final clips = await _db.clipsForProject(id);
+    final images = await _db.imageLayersForProject(id);
 
     await _db.softDeleteProject(id);
     await _db.softDeleteSetting(editorModeKey(id));
@@ -863,15 +1504,21 @@ class TranscriptRepository {
     // this" -- and asked of the database rather than the filesystem, so the
     // decision needs no path lookup.
     //
-    // Conservative on purpose: one shared clip spares the whole directory.
+    // Conservative on purpose: one shared file spares the whole directory.
     // Duplicates share every clip in practice, and leaking a file is a cost
     // the user can recover from while deleting another project's video is not.
-    for (final clip in clips) {
-      final stillNeeded = await _db.projectsSharingMedia(
-        clip.mediaPath,
-        excluding: id,
-      );
-      if (stillNeeded > 0) return;
+    //
+    // **Only files in this project's own directory decide it.** A duplicate's
+    // clips live in the original's directory, which this never deletes; they
+    // spared the duplicate's own directory anyway, and an image added to the
+    // duplicate -- the only thing in it -- was left behind for good.
+    bool ownFile(String path) => p.split(path).contains(id);
+    for (final path in [
+      for (final clip in clips) clip.mediaPath,
+      for (final image in images) image.path,
+    ]) {
+      if (!ownFile(path)) continue;
+      if (await _db.projectsSharingMedia(path, excluding: id) > 0) return;
     }
 
     try {
@@ -1671,6 +2318,62 @@ List<TextLayer> projectTranslationTexts(Ref ref, String projectId) {
   ];
 }
 
+/// A project's tracks, top to bottom -- placing anything not yet on one the
+/// first time the project is watched.
+@riverpod
+Stream<List<Track>> projectTracks(Ref ref, String projectId) async* {
+  final repository = ref.watch(transcriptRepositoryProvider);
+  await repository.ensureTracks(projectId);
+  yield* repository.watchTracks(projectId);
+}
+
+/// A project's images in timeline order.
+@riverpod
+Stream<List<ImageLayer>> projectImageLayers(Ref ref, String projectId) =>
+    ref.watch(transcriptRepositoryProvider).watchImageLayers(projectId);
+
+/// A translation line placed on the project's time axis.
+typedef ProjectTranslationLine = ({
+  TranslationLine line,
+  String clipId,
+  String? layerId,
+  int projectStartMs,
+  int projectEndMs,
+});
+
+/// Every translation line in a project, in project time, in order.
+@riverpod
+List<ProjectTranslationLine> projectTranslationLines(
+  Ref ref,
+  String projectId,
+) {
+  final timeline = ref.watch(projectTimelineProvider(projectId));
+  final clips = ref.watch(projectClipsProvider(projectId)).value ?? const [];
+  final lines = <ProjectTranslationLine>[];
+  for (final clip in clips) {
+    for (final transcript
+        in ref.watch(clipTranscriptsProvider(clip.id)).value ?? const []) {
+      for (final line
+          in ref.watch(transcriptTranslationProvider(transcript.id)).value ??
+              const <TranslationLine>[]) {
+        final start =
+            timeline.projectMsOf(clipId: clip.id, clipMs: line.startMs);
+        final end = timeline.projectMsOf(clipId: clip.id, clipMs: line.endMs);
+        if (start == null || end == null || end <= start) continue;
+        lines.add((
+          line: line,
+          clipId: clip.id,
+          layerId: transcript.layerId,
+          projectStartMs: start,
+          projectEndMs: end,
+        ));
+      }
+    }
+  }
+  lines.sort((a, b) => a.projectStartMs - b.projectStartMs);
+  return lines;
+}
+
 /// A project's text layers in timeline order.
 @riverpod
 Stream<List<TextLayer>> projectTextLayers(Ref ref, String projectId) =>
@@ -1742,6 +2445,7 @@ List<TimelineSentence> projectSentences(Ref ref, String projectId) {
         timeline: timeline,
         clipId: clip.id,
         transcriptId: transcript.id,
+        layerId: transcript.layerId,
         words: [
           for (final word in words)
             (
@@ -1750,6 +2454,7 @@ List<TimelineSentence> projectSentences(Ref ref, String projectId) {
               endMs: word.endMs,
               speakerId: word.speakerId,
               position: word.position,
+              trackId: word.captionTrackId,
             ),
         ],
       ));

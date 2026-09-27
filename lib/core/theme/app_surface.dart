@@ -441,6 +441,72 @@ class _AppPressDownState extends State<AppPressDown> {
   }
 }
 
+/// A button set *into* something -- the search square at the end of its
+/// field, a cell of the timeline's toolbar -- pushed down and to the right
+/// when pressed, the same travel as an action button landing on its shadow.
+///
+/// **The edges it uncovers are ink.** Moving inside its own box, the face
+/// opens a strip along its top and left; that strip is the theme's strong
+/// line colour ([AppSurface.outline] -- near-black on paper, near-white on
+/// dark), so the press reads as the face sinking into a recess rather than
+/// sliding over the page. Clipped to its box, so the face never paints over
+/// a neighbour or a rule. No highlight or ripple: the movement is the
+/// feedback.
+///
+/// [face] is the button's fill, which moves with it -- it must be opaque for
+/// the recess to stay hidden at rest.
+class AppPushIn extends StatefulWidget {
+  const AppPushIn({super.key, required this.face, required this.child});
+
+  final Color face;
+  final Widget child;
+
+  @override
+  State<AppPushIn> createState() => _AppPushInState();
+}
+
+class _AppPushInState extends State<AppPushIn> {
+  bool _down = false;
+
+  void _set(bool down) {
+    if (down != _down) setState(() => _down = down);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = context.surface;
+    final still = MediaQuery.disableAnimationsOf(context);
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _set(true),
+      onPointerUp: (_) => _set(false),
+      onPointerCancel: (_) => _set(false),
+      child: ClipRect(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: _down ? 1 : 0),
+          // Quick going in, eased coming out -- no spring past rest, which
+          // inside a clip would open the recess on the other two sides.
+          duration: still
+              ? Duration.zero
+              : Duration(milliseconds: _down ? 90 : 160),
+          curve: Curves.easeOut,
+          child: ColoredBox(color: widget.face, child: widget.child),
+          builder: (context, t, child) => ColoredBox(
+            // Only while moving: at rest an ink box under an identical face
+            // can still show as a hairline at a fractional edge.
+            color: t > 0 ? surface.outline : Colors.transparent,
+            child: Transform.translate(
+              offset: surface.offset * t,
+              child: child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Reaches the active [AppSurface] without every widget spelling out the
 /// extension lookup.
 extension AppSurfaceContext on BuildContext {

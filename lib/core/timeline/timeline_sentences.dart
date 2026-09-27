@@ -12,6 +12,9 @@ typedef SentenceWord = ({
   int endMs,
   String? speakerId,
   int position,
+
+  /// The track the word's sentence was moved onto; null follows its layer.
+  String? trackId,
 });
 
 /// One sentence of a transcript, placed on the project's shared time axis.
@@ -28,6 +31,11 @@ typedef TimelineSentence = ({
   int? speaker,
   int fromPosition,
   int toPosition,
+
+  /// The transcription it came from, and the track it was moved onto -- null
+  /// when it sits on that transcription's own track.
+  String? layerId,
+  String? trackId,
 });
 
 /// Cuts [words] into sentences and places each on the project timeline.
@@ -51,6 +59,7 @@ List<TimelineSentence> sentencesForClip({
   required String clipId,
   required String transcriptId,
   required List<SentenceWord> words,
+  String? layerId,
 }) {
   if (words.isEmpty) return const [];
 
@@ -80,6 +89,10 @@ List<TimelineSentence> sentencesForClip({
       speaker: int.tryParse(words[unit.first].speakerId ?? ''),
       fromPosition: words[unit.first].position,
       toPosition: words[unit.last].position,
+      layerId: layerId,
+      // Moved as one, so every word carries the same; the first speaks for
+      // the sentence, as it does for the speaker.
+      trackId: words[unit.first].trackId,
     ));
   }
 

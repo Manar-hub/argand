@@ -276,6 +276,8 @@
   "@translationTrack": { "description": "Label of the timeline track holding the translated lines" },
 
   "showTranslation": "Show translation",
+  "translationAdd": "Add translation",
+  "@translationAdd": { "description": "Script edit mode: placeholder under a caption row with no translation; tapping it types one" },
   "@showTranslation": { "description": "Script mode option that shows each sentence's translation under it" },
 
   "exportIncludeTranslation": "Include translation",
@@ -450,6 +452,12 @@
   "@trackKindText": { "description": "Track kind: text overlaid on the video" },
 
   "trackKindImage": "Image",
+  "trackKindImageDetail": "A picture over the video, at the playhead.",
+  "@trackKindImageDetail": { "description": "Add-track sheet: what an image track item is" },
+  "translationSelected": "Translation line selected.",
+  "@translationSelected": { "description": "Selection strip: one translation line is selected" },
+  "imageSelected": "Image selected.",
+  "@imageSelected": { "description": "Selection strip: one image is selected" },
   "@trackKindImage": { "description": "Track kind: an image overlaid on the video" },
 
   "trackKindVideo": "Video",

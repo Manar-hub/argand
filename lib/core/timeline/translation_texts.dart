@@ -4,8 +4,9 @@
 /// **Text layers, not a new kind of overlay.** The stage already draws text
 /// layers and the export already burns them in, so a translation line handed
 /// over as one is shown and exported with nothing new in either. The rows are
-/// made up here and never stored as text layers: the text track does not list
-/// them and they cannot be picked, moved or retyped there.
+/// made up here and never stored as text layers. Each carries its line's id
+/// ([translationLineIdOf]), so picking, moving or restyling one on the picture
+/// acts on the line.
 library;
 
 import 'package:flutter/painting.dart' show TextDirection;
@@ -31,6 +32,15 @@ TextDirection translationDirectionOf(String text) {
 /// Ids of made-up text layers start with this, so a tap handler can tell one
 /// from a real text layer.
 const String translationTextPrefix = 'translation:';
+
+/// The translation line a made-up text layer shows a piece of, or null for a
+/// real text layer.
+String? translationLineIdOf(String textId) {
+  if (!textId.startsWith(translationTextPrefix)) return null;
+  final rest = textId.substring(translationTextPrefix.length);
+  final cut = rest.lastIndexOf(':');
+  return cut < 0 ? rest : rest.substring(0, cut);
+}
 
 /// How far above its captions a translation sits, in shares of the frame's
 /// half-height: clear of a two-line caption under a two-line translation.
@@ -78,14 +88,16 @@ List<TextLayer> translationTextsFor({
   required List<TranslationLine> lines,
   TranscribeLayer? layer,
 }) {
-  final x = layer?.captionX ?? 0.0;
-  final y = (layer?.captionY ?? -0.82) + translationLift;
-  // Text layers are drawn at `textLayerFraction` of the frame, captions at
-  // `captionTextFraction`; this brings a translation down to caption size.
-  final scale = (layer?.captionScale ?? 1.0) * (0.045 / 0.06);
-
   final texts = <TextLayer>[];
   for (final line in lines) {
+    // Its own place and look once it has been given one; until then just
+    // above its layer's captions, in their look.
+    final x = line.x ?? layer?.captionX ?? 0.0;
+    final y = line.y ?? (layer?.captionY ?? -0.82) + translationLift;
+    // Text layers are drawn at `textLayerFraction` of the frame, captions at
+    // `captionTextFraction`; this brings a translation down to caption size.
+    final scale = line.scale ?? (layer?.captionScale ?? 1.0) * (0.045 / 0.06);
+
     final start = timeline.projectMsOf(clipId: clipId, clipMs: line.startMs);
     final end = timeline.projectMsOf(clipId: clipId, clipMs: line.endMs);
     if (start == null || end == null || end <= start) continue;
@@ -112,9 +124,10 @@ List<TextLayer> translationTextsFor({
         scale: scale,
         rotation: 0,
         trackIndex: 0,
+        trackId: line.trackId,
         // The captions' own look -- font, colour, background, shadow -- so a
         // translation reads as part of them and follows the Style panel.
-        look: layer?.captionLook,
+        look: line.look ?? layer?.captionLook,
       ));
     }
   }

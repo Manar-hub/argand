@@ -28,6 +28,7 @@ SentenceWord word(String text, int startMs, int endMs, [String? speaker]) =>
       endMs: endMs,
       speakerId: speaker,
       position: startMs,
+      trackId: null,
     );
 
 void main() {

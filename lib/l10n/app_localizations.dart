@@ -568,6 +568,12 @@ abstract class AppLocalizations {
   /// **'Show translation'**
   String get showTranslation;
 
+  /// Script edit mode: placeholder under a caption row with no translation; tapping it types one
+  ///
+  /// In en, this message translates to:
+  /// **'Add translation'**
+  String get translationAdd;
+
   /// Subtitle export option adding each line's translation under it
   ///
   /// In en, this message translates to:
@@ -879,6 +885,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image'**
   String get trackKindImage;
+
+  /// Add-track sheet: what an image track item is
+  ///
+  /// In en, this message translates to:
+  /// **'A picture over the video, at the playhead.'**
+  String get trackKindImageDetail;
+
+  /// Selection strip: one translation line is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Translation line selected.'**
+  String get translationSelected;
+
+  /// Selection strip: one image is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Image selected.'**
+  String get imageSelected;
 
   /// Track kind: a video overlaid on the main one
   ///

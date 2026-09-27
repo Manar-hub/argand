@@ -152,6 +152,44 @@ final Map<TimelineEventKind, TimelineInverse> timelineInverses = {
     }
   },
 
+  TimelineEventKind.itemsPlace: _applyPlacement,
+
+  TimelineEventKind.imageAdd: _setImageRetired,
+  TimelineEventKind.imageRemove: _setImageRetired,
+
+  TimelineEventKind.translationEdit: (db, side) async {
+    final id = side['id'] as String?;
+    final content = side['content'] as String?;
+    if (id == null || content == null) return;
+    await db.updateTranslationLine(id: id, content: content);
+  },
+  TimelineEventKind.translationSet: (db, side) async {
+    final lines = side['lines'];
+    if (lines is! List) return;
+    for (final entry in lines.whereType<Map>()) {
+      final id = entry['id'];
+      if (id is! String) continue;
+      final content = entry['content'] as String?;
+      if (content != null) {
+        await db.updateTranslationLine(id: id, content: content);
+      }
+      await db.setTranslationLineRetired(
+        id: id,
+        retired: entry['retired'] == true,
+      );
+    }
+  },
+  TimelineEventKind.translationRemove: (db, side) async {
+    final ids = side['ids'];
+    if (ids is! List) return;
+    for (final id in ids.whereType<String>()) {
+      await db.setTranslationLineRetired(
+        id: id,
+        retired: side['retired'] == true,
+      );
+    }
+  },
+
   // Adding and removing a text are the same switch thrown opposite ways.
   TimelineEventKind.textAdd: _setTextRetired,
   TimelineEventKind.textRemove: _setTextRetired,
@@ -168,6 +206,117 @@ final Map<TimelineEventKind, TimelineInverse> timelineInverses = {
     );
   },
 };
+
+Future<void> _setImageRetired(AppDatabase db, Map<String, Object?> side) async {
+  final id = side['id'] as String?;
+  if (id == null) return;
+  await db.setImageLayerRetired(id: id, retired: side['retired'] == true);
+}
+
+int? _int(Object? value) => (value as num?)?.toInt();
+
+/// Where each item sits on the timeline, as one side of an `itemsPlace`
+/// event recorded it. Values are the rows' own: a translation line's times
+/// are in its clip's time, like its words'.
+Future<void> _applyPlacement(AppDatabase db, Map<String, Object?> side) async {
+  // Tracks first, so the items below have somewhere to be.
+  final tracks = side['tracks'];
+  if (tracks is List) {
+    for (final entry in tracks.whereType<Map>()) {
+      final id = entry['id'];
+      if (id is! String) continue;
+      await db.setTrackRetired(id: id, retired: entry['retired'] == true);
+    }
+  }
+  final trackOrder = side['trackOrder'];
+  if (trackOrder is List) {
+    await db.setTrackOrder(trackOrder.whereType<String>().toList());
+  }
+
+  final items = side['items'];
+  if (items is List) {
+    for (final entry in items.whereType<Map>()) {
+      final id = entry['id'];
+      if (id is! String) continue;
+      final start = _int(entry['startMs']);
+      final end = _int(entry['endMs']);
+      final trackId = entry['trackId'] as String?;
+      switch (TimelineItemKind.values.asNameMap()[entry['kind']]) {
+        case TimelineItemKind.layer:
+          if (start != null && end != null) {
+            await db.moveLayer(layerId: id, startMs: start, endMs: end);
+          }
+          if (trackId != null) {
+            await db.setLayerTrack(layerId: id, trackId: trackId);
+          }
+        case TimelineItemKind.text:
+          await db.updateTextLayer(
+            id: id,
+            startMs: start,
+            endMs: end,
+            trackId: trackId,
+          );
+        case TimelineItemKind.translation:
+          await db.updateTranslationLine(
+            id: id,
+            startMs: start,
+            endMs: end,
+            trackId: trackId,
+          );
+        case TimelineItemKind.image:
+          await db.updateImageLayer(
+            id: id,
+            startMs: start,
+            endMs: end,
+            trackId: trackId,
+          );
+        case TimelineItemKind.clip:
+        case TimelineItemKind.sentence:
+        case TimelineItemKind.audio:
+        case null:
+          // Clips move by the clip order, sentences by their words, sounds by
+          // their offsets -- all below.
+          break;
+      }
+    }
+  }
+
+  final words = side['words'];
+  if (words is List) {
+    await db.setWordPlacements([
+      for (final entry in words.whereType<Map>())
+        if (entry['id'] case final String id)
+          (
+            id: id,
+            startMs: _int(entry['startMs']) ?? 0,
+            endMs: _int(entry['endMs']) ?? 0,
+            trackId: entry['trackId'] as String?,
+          ),
+    ]);
+  }
+
+  final audio = side['audio'];
+  if (audio is List) {
+    for (final entry in audio.whereType<Map>()) {
+      final clipId = entry['clipId'];
+      if (clipId is! String) continue;
+      await db.setAudioOffsets(
+        clipId: clipId,
+        startOffsetMs: _int(entry['startOffsetMs']) ?? 0,
+        endOffsetMs: _int(entry['endOffsetMs']) ?? 0,
+      );
+    }
+  }
+
+  final clipOrder = side['clipOrder'];
+  final projectId = side['projectId'];
+  if (clipOrder is List && projectId is String) {
+    await db.reorderClips(
+      projectId: projectId,
+      orderedIds: clipOrder.whereType<String>().toList(),
+    );
+  }
+}
 
 Future<void> _setTextRetired(AppDatabase db, Map<String, Object?> side) async {
   final id = side['id'] as String?;
@@ -190,6 +339,16 @@ Future<void> writePlacement(
   required String id,
   required ItemTransform? transform,
 }) async {
+  if (kind == TimelineItemKind.translation) {
+    // Null hands it back to its layer, like a sentence.
+    await db.setTranslationLinePlacement(
+      id: id,
+      x: transform?.x,
+      y: transform?.y,
+      scale: transform?.scale,
+    );
+    return;
+  }
   if (kind == TimelineItemKind.sentence) {
     final sentence = sentenceOf((kind: kind!, id: id));
     if (sentence == null) return;
@@ -231,7 +390,16 @@ Future<void> writePlacement(
         scale: transform.scale,
         rotation: transform.rotation,
       );
+    case TimelineItemKind.image:
+      await db.updateImageLayer(
+        id: id,
+        x: transform.x,
+        y: transform.y,
+        scale: transform.scale,
+        rotation: transform.rotation,
+      );
     case TimelineItemKind.sentence:
+    case TimelineItemKind.translation:
       // Handled above.
       break;
     case TimelineItemKind.audio:
@@ -268,8 +436,11 @@ Future<void> writeLook(
       );
     case TimelineItemKind.text:
       await db.setTextLook(id: id, look: json);
+    case TimelineItemKind.translation:
+      await db.setTranslationLineLook(id: id, look: json);
     case TimelineItemKind.clip:
     case TimelineItemKind.audio:
+    case TimelineItemKind.image:
     case null:
       // A clip has no words to style; a kind from a newer build is skipped.
       break;
@@ -413,6 +584,11 @@ extension LayerCaptionPlacement on TranscribeLayer {
 }
 
 extension TextPlacement on TextLayer {
+  ItemTransform get placement =>
+      ItemTransform(x: x, y: y, scale: scale, rotation: rotation);
+}
+
+extension ImagePlacement on ImageLayer {
   ItemTransform get placement =>
       ItemTransform(x: x, y: y, scale: scale, rotation: rotation);
 }

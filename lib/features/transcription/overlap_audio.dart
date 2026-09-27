@@ -58,7 +58,7 @@ class _OverlapAudioState extends ConsumerState<OverlapAudio> {
   @override
   Widget build(BuildContext context) {
     final projectId = widget.projectId;
-    final hidden = ref.watch(hiddenTracksProvider(projectId));
+    final hidden = ref.watch(hiddenPlaybackProvider(projectId));
     final clips = ref.watch(projectClipsProvider(projectId)).value ??
         const <MediaClip>[];
     final timeline = ref.watch(projectTimelineProvider(projectId));
@@ -71,7 +71,7 @@ class _OverlapAudioState extends ConsumerState<OverlapAudio> {
 
     // Every other clip's sound under the playhead, and where in its file.
     final wanted = <String, (MediaClip, int)>{};
-    if (!hidden.contains(TimelineTrack.audio) && projectMs != null) {
+    if (!hidden.audio && projectMs != null) {
       for (final clip in clips) {
         if (clip.id == widget.clipId || clip.audioMuted) continue;
         final span = audioSpan(timeline, clip);

@@ -192,6 +192,10 @@ class TranscribeLayers extends Table with _RecordColumns {
   /// answer.
   IntColumn get trackIndex => integer().withDefault(const Constant(0))();
 
+  /// The [Tracks] row this layer sits on. Null only on a row written before
+  /// schema 15 that `ensureTracks` has not yet placed.
+  TextColumn get trackId => text().nullable()();
+
   /// Where this layer's captions sit in the frame, and how large.
   ///
   /// **Per layer, not per project**, so two layers -- two speakers, two
@@ -241,13 +245,95 @@ class TextLayers extends Table with _RecordColumns {
   /// Degrees, clockwise as seen.
   RealColumn get rotation => real().withDefault(const Constant(0.0))();
 
-  /// Which stacked text track it sits on. Always 0 today; carried for the
-  /// same reason [TranscribeLayers.trackIndex] is.
+  /// Which row of the old text track it sat on, before schema 15 made tracks
+  /// rows of their own. Read only by `ensureTracks`, to give each old row its
+  /// own track.
   IntColumn get trackIndex => integer().withDefault(const Constant(0))();
+
+  /// The [Tracks] row this text sits on; see [TranscribeLayers.trackId].
+  TextColumn get trackId => text().nullable()();
 
   /// Font and colour, as `ItemLook` JSON; null is bold white in the default
   /// face.
   TextColumn get look => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// What a [Tracks] row may hold.
+///
+/// **Stored as its code, never its index**, like `TimelineEventKind`.
+enum TrackKind {
+  /// The clips, played one after another.
+  video('video'),
+
+  /// The clips' sound, and only sound.
+  audio('audio'),
+
+  /// Anything else: transcriptions, sentences, translation, texts, images.
+  media('media');
+
+  const TrackKind(this.code);
+
+  final String code;
+
+  static TrackKind fromCode(String code) => TrackKind.values
+      .firstWhere((kind) => kind.code == code, orElse: () => TrackKind.media);
+}
+
+/// One lane of a project's timeline, top to bottom by [position].
+///
+/// **A row, so a track is something items can be moved onto.** Until schema
+/// 15 the lanes were fixed by type -- texts here, captions there -- and the
+/// order lived in a widget. Now every item names the track it sits on, the
+/// user can drag it to another, and dropping below the last one makes a new
+/// one.
+///
+/// A project has exactly one [TrackKind.video] and one [TrackKind.audio]
+/// track; any number of [TrackKind.media] ones. A media track nothing sits on
+/// is simply not drawn.
+@TableIndex(name: 'tracks_project_position', columns: {#projectId, #position})
+class Tracks extends Table with _RecordColumns {
+  TextColumn get projectId => text().references(Projects, #id)();
+
+  /// Order from the top, contiguous from zero within a project once
+  /// `ensureTracks` or a move has written it.
+  IntColumn get position => integer()();
+
+  /// A [TrackKind.code].
+  TextColumn get kind => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// A picture the user put over the video, for a stretch of the project.
+///
+/// Timed and placed exactly like [TextLayers]: project milliseconds, and the
+/// four numbers of `ItemTransform`, so the stage and the export handle it the
+/// way they handle a text.
+@TableIndex(name: 'image_layers_project_start', columns: {#projectId, #startMs})
+class ImageLayers extends Table with _RecordColumns {
+  TextColumn get projectId => text().references(Projects, #id)();
+  TextColumn get trackId => text()();
+
+  IntColumn get startMs => integer()();
+  IntColumn get endMs => integer()();
+
+  /// The app's own copy, in the project's media directory -- never the
+  /// picker's URI, for the reason [MediaClips.mediaPath] gives.
+  TextColumn get path => text()();
+
+  /// The picture's size in pixels, for its shape; the stage and the export
+  /// size it from [scale], not from these.
+  IntColumn get widthPx => integer()();
+  IntColumn get heightPx => integer()();
+
+  RealColumn get x => real().withDefault(const Constant(0.0))();
+  RealColumn get y => real().withDefault(const Constant(0.0))();
+  RealColumn get scale => real().withDefault(const Constant(1.0))();
+  RealColumn get rotation => real().withDefault(const Constant(0.0))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -349,6 +435,11 @@ class Words extends Table with _RecordColumns {
   /// layer, the same bargain as the placement above.
   TextColumn get captionLook => text().nullable()();
 
+  /// The [Tracks] row this word's sentence was moved onto. **Null follows its
+  /// layer's track**, which is every word until its sentence is dragged to
+  /// another -- the same bargain as the placement above.
+  TextColumn get captionTrackId => text().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
@@ -383,6 +474,16 @@ class TranslationLines extends Table with _RecordColumns {
   IntColumn get endMs => integer()();
 
   TextColumn get content => text()();
+
+  /// The [Tracks] row this line sits on; see [TranscribeLayers.trackId].
+  TextColumn get trackId => text().nullable()();
+
+  /// Where the line sits and how it looks when placed on its own. **Null
+  /// follows its layer's captions**, lifted above them (`translation_texts`).
+  RealColumn get x => real().nullable()();
+  RealColumn get y => real().nullable()();
+  RealColumn get scale => real().nullable()();
+  TextColumn get look => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -483,13 +584,15 @@ class TimelineEvents extends Table with _RecordColumns {
   TimelineEvents,
   TextLayers,
   TranslationLines,
+  Tracks,
+  ImageLayers,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_open());
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
   /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
@@ -502,7 +605,8 @@ class AppDatabase extends _$AppDatabase {
   /// caption placement on [Words], 11 -> 12 added the looks (font, colour,
   /// caption mode) on [TranscribeLayers], [Words] and [TextLayers], 12 -> 13
   /// added [TranslationLines], 13 -> 14 added the independent audio columns
-  /// on [MediaClips].
+  /// on [MediaClips], 14 -> 15 added [Tracks], [ImageLayers] and the track
+  /// columns on every item, placing each project's items on tracks.
   ///
   /// `onUpgrade` must stay additive and version-guarded: an installed app
   /// carries real user transcripts, so a migration that recreated tables would
@@ -616,6 +720,25 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(mediaClips, mediaClips.audioEndOffsetMs);
             await migrator.addColumn(mediaClips, mediaClips.audioMuted);
           }
+          // Each paired with the version that created its table, as above.
+          if (from < 15) {
+            await migrator.createTable(tracks);
+            await migrator.createTable(imageLayers);
+            await migrator.addColumn(words, words.captionTrackId);
+          }
+          if (from >= 6 && from < 15) {
+            await migrator.addColumn(transcribeLayers, transcribeLayers.trackId);
+          }
+          if (from >= 10 && from < 15) {
+            await migrator.addColumn(textLayers, textLayers.trackId);
+          }
+          if (from >= 13 && from < 15) {
+            await migrator.addColumn(translationLines, translationLines.trackId);
+            await migrator.addColumn(translationLines, translationLines.x);
+            await migrator.addColumn(translationLines, translationLines.y);
+            await migrator.addColumn(translationLines, translationLines.scale);
+            await migrator.addColumn(translationLines, translationLines.look);
+          }
 
           // **`createTable` does not create a table's declared indexes.**
           // `createAll()` does, so a fresh install had them and every upgraded
@@ -643,6 +766,8 @@ class AppDatabase extends _$AppDatabase {
             editEventsTranscriptSeq,
             textLayersProjectStart,
             translationLinesTranscript,
+            tracksProjectPosition,
+            imageLayersProjectStart,
           ]) {
             final sql = index.createStatementsByDialect[SqlDialect.sqlite];
             if (sql == null) continue;
@@ -652,6 +777,17 @@ class AppDatabase extends _$AppDatabase {
                 (m) => '${m.group(0)}IF NOT EXISTS ',
               ),
             );
+          }
+
+          // After the columns and tables exist: every project's items were
+          // on the fixed lanes of old, and get the tracks those lanes were.
+          if (from < 15) {
+            final live = await (select(projects)
+                  ..where((t) => t.deletedAt.isNull()))
+                .get();
+            for (final project in live) {
+              await _placeOnTracks(project.id);
+            }
           }
         },
       );
@@ -846,7 +982,13 @@ class AppDatabase extends _$AppDatabase {
               t.deletedAt.isNull() &
               t.projectId.equals(excluding).not()))
         .get();
-    return rows.length;
+    final images = await (select(imageLayers)
+          ..where((t) =>
+              t.path.equals(mediaPath) &
+              t.deletedAt.isNull() &
+              t.projectId.equals(excluding).not()))
+        .get();
+    return rows.length + images.length;
   }
 
   /// Creates a project with no media, for the "Create project" entry point.
@@ -1257,6 +1399,7 @@ class AppDatabase extends _$AppDatabase {
     required int startMs,
     required int endMs,
     int trackIndex = 0,
+    String? trackId,
   }) {
     final now = DateTime.now();
     return into(transcribeLayers).insert(
@@ -1268,6 +1411,7 @@ class AppDatabase extends _$AppDatabase {
         startMs: startMs,
         endMs: endMs,
         trackIndex: Value(trackIndex),
+        trackId: Value(trackId),
       ),
     );
   }
@@ -1348,8 +1492,16 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
-  Future<List<TranslationLine>> translationLinesFor(String transcriptId) =>
-      watchTranslationLines(transcriptId).first;
+  Future<List<TranslationLine>> translationLinesFor(String transcriptId) {
+    return (select(translationLines)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) & t.deletedAt.isNull())
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.startMs),
+            (t) => OrderingTerm.asc(t.position),
+          ]))
+        .get();
+  }
 
   /// Puts [lines] in place of whatever translation [transcriptId] had, in one
   /// transaction: the old lines are retired, not overwritten, like every
@@ -1389,6 +1541,354 @@ class AppDatabase extends _$AppDatabase {
   }) =>
       replaceTranslation(transcriptId, const [], words: words);
 
+  /// A translation line, retired or not -- undo has to reach retired ones.
+  Future<TranslationLine?> findTranslationLine(String id) =>
+      (select(translationLines)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
+  /// Every live translation line in a project, whichever transcript it
+  /// translates.
+  Future<List<TranslationLine>> translationLinesForProject(String projectId) {
+    final query = select(translationLines).join([
+      innerJoin(
+        transcripts,
+        transcripts.id.equalsExp(translationLines.transcriptId),
+      ),
+    ])
+      ..where(transcripts.projectId.equals(projectId) &
+          transcripts.deletedAt.isNull() &
+          translationLines.deletedAt.isNull());
+    return query.map((row) => row.readTable(translationLines)).get();
+  }
+
+  /// Writes whichever of a translation line's text, timing, track and
+  /// placement are given. [clearPlacement] hands its placement and look back
+  /// to its layer.
+  Future<void> updateTranslationLine({
+    required String id,
+    String? content,
+    int? startMs,
+    int? endMs,
+    String? trackId,
+    double? x,
+    double? y,
+    double? scale,
+    String? look,
+  }) {
+    Value<T> maybe<T>(T? value) =>
+        value == null ? const Value.absent() : Value(value);
+
+    return (update(translationLines)..where((t) => t.id.equals(id))).write(
+      TranslationLinesCompanion(
+        content: maybe(content),
+        startMs: maybe(startMs),
+        endMs: maybe(endMs),
+        trackId: maybe(trackId),
+        x: maybe(x),
+        y: maybe(y),
+        scale: maybe(scale),
+        look: maybe(look),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Sets a translation line's placement outright, nulls included -- what
+  /// undoing its first move on the stage has to write.
+  Future<void> setTranslationLinePlacement({
+    required String id,
+    required double? x,
+    required double? y,
+    required double? scale,
+  }) {
+    return (update(translationLines)..where((t) => t.id.equals(id))).write(
+      TranslationLinesCompanion(
+        x: Value(x),
+        y: Value(y),
+        scale: Value(scale),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Sets a translation line's look outright, null included.
+  Future<void> setTranslationLineLook({required String id, String? look}) {
+    return (update(translationLines)..where((t) => t.id.equals(id))).write(
+      TranslationLinesCompanion(
+        look: Value(look),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Retires one translation line, or brings it back.
+  Future<void> setTranslationLineRetired({
+    required String id,
+    required bool retired,
+  }) {
+    final now = DateTime.now();
+    return (update(translationLines)..where((t) => t.id.equals(id))).write(
+      TranslationLinesCompanion(
+        deletedAt: Value(retired ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// A project's live tracks, top to bottom.
+  Stream<List<Track>> watchTracks(String projectId) {
+    return (select(tracks)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+        .watch();
+  }
+
+  Future<List<Track>> tracksForProject(String projectId) {
+    return (select(tracks)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+        .get();
+  }
+
+  /// Makes sure [projectId] has its video and audio tracks and that every
+  /// transcription, text and translation line sits on a track, and returns
+  /// the tracks, top to bottom.
+  ///
+  /// **Places what is unplaced the way the timeline used to draw it**: one
+  /// track per row of the old text lane, then the translation, then the
+  /// transcriptions, above the video and the audio. Run for every project by
+  /// the schema-15 migration, and again whenever a project opens, so a
+  /// project made since -- or a row a newer path forgot -- is never left off
+  /// the timeline. A project already in order is read and left alone.
+  Future<List<Track>> ensureTracks(String projectId) =>
+      transaction(() => _placeOnTracks(projectId));
+
+  /// [ensureTracks] without its transaction, for the migration, which is
+  /// already inside one.
+  Future<List<Track>> _placeOnTracks(String projectId) async {
+    {
+      final existing = await tracksForProject(projectId);
+      final known = {for (final track in existing) track.id};
+      bool unplaced(String? trackId) =>
+          trackId == null || !known.contains(trackId);
+
+      final layers = [
+        for (final layer in await layersForProject(projectId))
+          if (unplaced(layer.trackId)) layer,
+      ];
+      final texts = [
+        for (final text in await textLayersForProject(projectId))
+          if (unplaced(text.trackId)) text,
+      ];
+      final lines = [
+        for (final line in await translationLinesForProject(projectId))
+          if (unplaced(line.trackId)) line,
+      ];
+      final hasVideo =
+          existing.any((track) => track.kind == TrackKind.video.code);
+      final hasAudio =
+          existing.any((track) => track.kind == TrackKind.audio.code);
+      if (layers.isEmpty &&
+          texts.isEmpty &&
+          lines.isEmpty &&
+          hasVideo &&
+          hasAudio) {
+        return existing;
+      }
+
+      final now = DateTime.now();
+      Future<String> add(TrackKind kind) async {
+        final id = _uuid.v4();
+        await into(tracks).insert(TracksCompanion.insert(
+          id: id,
+          createdAt: now,
+          updatedAt: now,
+          projectId: projectId,
+          position: 0,
+          kind: kind.code,
+        ));
+        return id;
+      }
+
+      final top = <String>[];
+      final rows = {for (final text in texts) text.trackIndex}.toList()
+        ..sort();
+      for (final row in rows) {
+        final id = await add(TrackKind.media);
+        top.add(id);
+        await (update(textLayers)
+              ..where((t) => t.id.isIn([
+                    for (final text in texts)
+                      if (text.trackIndex == row) text.id,
+                  ])))
+            .write(TextLayersCompanion(trackId: Value(id)));
+      }
+      if (lines.isNotEmpty) {
+        final id = await add(TrackKind.media);
+        top.add(id);
+        await (update(translationLines)
+              ..where((t) => t.id.isIn([for (final line in lines) line.id])))
+            .write(TranslationLinesCompanion(trackId: Value(id)));
+      }
+      if (layers.isNotEmpty) {
+        final id = await add(TrackKind.media);
+        top.add(id);
+        await (update(transcribeLayers)
+              ..where((t) => t.id.isIn([for (final layer in layers) layer.id])))
+            .write(TranscribeLayersCompanion(trackId: Value(id)));
+      }
+      final bottom = [
+        if (!hasVideo) await add(TrackKind.video),
+        if (!hasAudio) await add(TrackKind.audio),
+      ];
+
+      await _writeTrackOrder([
+        ...top,
+        for (final track in existing) track.id,
+        ...bottom,
+      ]);
+      return tracksForProject(projectId);
+    }
+  }
+
+  /// Writes [trackIds]' positions as their order in the list.
+  Future<void> setTrackOrder(List<String> trackIds) =>
+      transaction(() => _writeTrackOrder(trackIds));
+
+  Future<void> _writeTrackOrder(List<String> trackIds) async {
+    final now = DateTime.now();
+    for (final (position, id) in trackIds.indexed) {
+      await (update(tracks)..where((t) => t.id.equals(id))).write(
+        TracksCompanion(position: Value(position), updatedAt: Value(now)),
+      );
+    }
+  }
+
+  /// A new media track at [position], or at the bottom when that is null;
+  /// every track from there down moves one lower.
+  Future<void> insertTrack({
+    required String id,
+    required String projectId,
+    int? position,
+  }) {
+    final now = DateTime.now();
+    return transaction(() async {
+      final existing = await tracksForProject(projectId);
+      await into(tracks).insert(TracksCompanion.insert(
+        id: id,
+        createdAt: now,
+        updatedAt: now,
+        projectId: projectId,
+        position: 0,
+        kind: TrackKind.media.code,
+      ));
+      final order = [for (final track in existing) track.id];
+      order.insert((position ?? order.length).clamp(0, order.length), id);
+      await _writeTrackOrder(order);
+    });
+  }
+
+  /// Retires a track, or brings it back where it was.
+  Future<void> setTrackRetired({required String id, required bool retired}) {
+    final now = DateTime.now();
+    return (update(tracks)..where((t) => t.id.equals(id))).write(
+      TracksCompanion(
+        deletedAt: Value(retired ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  /// Moves a transcription onto [trackId].
+  Future<void> setLayerTrack({required String layerId, required String trackId}) {
+    return (update(transcribeLayers)..where((t) => t.id.equals(layerId))).write(
+      TranscribeLayersCompanion(
+        trackId: Value(trackId),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Retimes words, and sets the track their sentence sits on, one row each
+  /// -- a sentence dragged or resized on the timeline.
+  Future<void> setWordPlacements(
+    List<({String id, int startMs, int endMs, String? trackId})> placements,
+  ) {
+    final now = DateTime.now();
+    return transaction(() async {
+      for (final word in placements) {
+        await (update(words)..where((t) => t.id.equals(word.id))).write(
+          WordsCompanion(
+            startMs: Value(word.startMs),
+            endMs: Value(word.endMs),
+            captionTrackId: Value(word.trackId),
+            updatedAt: Value(now),
+          ),
+        );
+      }
+    });
+  }
+
+  /// A project's live images in timeline order.
+  Stream<List<ImageLayer>> watchImageLayers(String projectId) {
+    return (select(imageLayers)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.startMs)]))
+        .watch();
+  }
+
+  Future<List<ImageLayer>> imageLayersForProject(String projectId) {
+    return (select(imageLayers)
+          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
+          ..orderBy([(t) => OrderingTerm.asc(t.startMs)]))
+        .get();
+  }
+
+  /// An image, retired or not -- undo has to reach retired ones.
+  Future<ImageLayer?> findImageLayer(String id) =>
+      (select(imageLayers)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  Future<void> insertImageLayer(ImageLayersCompanion row) =>
+      into(imageLayers).insert(row);
+
+  /// Writes whichever of an image's timing, track and placement are given.
+  Future<void> updateImageLayer({
+    required String id,
+    int? startMs,
+    int? endMs,
+    String? trackId,
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+  }) {
+    Value<T> maybe<T>(T? value) =>
+        value == null ? const Value.absent() : Value(value);
+
+    return (update(imageLayers)..where((t) => t.id.equals(id))).write(
+      ImageLayersCompanion(
+        startMs: maybe(startMs),
+        endMs: maybe(endMs),
+        trackId: maybe(trackId),
+        x: maybe(x),
+        y: maybe(y),
+        scale: maybe(scale),
+        rotation: maybe(rotation),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<void> setImageLayerRetired({required String id, required bool retired}) {
+    final now = DateTime.now();
+    return (update(imageLayers)..where((t) => t.id.equals(id))).write(
+      ImageLayersCompanion(
+        deletedAt: Value(retired ? now : null),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
   Future<List<TextLayer>> textLayersForProject(String projectId) {
     return (select(textLayers)
           ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
@@ -1409,6 +1909,7 @@ class AppDatabase extends _$AppDatabase {
     required int endMs,
     required String content,
     int trackIndex = 0,
+    String? trackId,
   }) {
     final now = DateTime.now();
     return into(textLayers).insert(
@@ -1421,6 +1922,7 @@ class AppDatabase extends _$AppDatabase {
         endMs: endMs,
         content: content,
         trackIndex: Value(trackIndex),
+        trackId: Value(trackId),
       ),
     );
   }
@@ -1435,12 +1937,14 @@ class AppDatabase extends _$AppDatabase {
     double? y,
     double? scale,
     double? rotation,
+    String? trackId,
   }) {
     Value<T> maybe<T>(T? value) =>
         value == null ? const Value.absent() : Value(value);
 
     return (update(textLayers)..where((t) => t.id.equals(id))).write(
       TextLayersCompanion(
+        trackId: maybe(trackId),
         content: maybe(content),
         startMs: maybe(startMs),
         endMs: maybe(endMs),
@@ -1631,6 +2135,34 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
+      // Tracks before anything that sits on one, so every item can point at
+      // the copy of its track. Placed first, so there is nothing unplaced.
+      final trackIds = <String, String>{};
+      for (final track in await _placeOnTracks(sourceProjectId)) {
+        final newTrackId = newId();
+        trackIds[track.id] = newTrackId;
+        await into(tracks).insert(TracksCompanion.insert(
+          id: newTrackId,
+          createdAt: now,
+          updatedAt: now,
+          projectId: newProjectId,
+          position: track.position,
+          kind: track.kind,
+        ));
+      }
+
+      for (final image in await imageLayersForProject(sourceProjectId)) {
+        await into(imageLayers).insert(image
+            .toCompanion(false)
+            .copyWith(
+              id: Value(newId()),
+              createdAt: Value(now),
+              updatedAt: Value(now),
+              projectId: Value(newProjectId),
+              trackId: Value(trackIds[image.trackId] ?? image.trackId),
+            ));
+      }
+
       // Layers first, so each copied transcript can point at the copy of the
       // layer that produced it rather than at the original's.
       final layerIds = <String, String>{};
@@ -1646,6 +2178,7 @@ class AppDatabase extends _$AppDatabase {
             startMs: layer.startMs,
             endMs: layer.endMs,
             trackIndex: Value(layer.trackIndex),
+            trackId: Value(trackIds[layer.trackId]),
             captionX: Value(layer.captionX),
             captionY: Value(layer.captionY),
             captionScale: Value(layer.captionScale),
@@ -1669,6 +2202,7 @@ class AppDatabase extends _$AppDatabase {
             scale: Value(text.scale),
             rotation: Value(text.rotation),
             trackIndex: Value(text.trackIndex),
+            trackId: Value(trackIds[text.trackId]),
             look: Value(text.look),
           ),
         );
@@ -1698,6 +2232,9 @@ class AppDatabase extends _$AppDatabase {
             rotation: Value(clip.rotation),
             offsetX: Value(clip.offsetX),
             offsetY: Value(clip.offsetY),
+            audioStartOffsetMs: Value(clip.audioStartOffsetMs),
+            audioEndOffsetMs: Value(clip.audioEndOffsetMs),
+            audioMuted: Value(clip.audioMuted),
           ),
         );
 
@@ -1746,7 +2283,22 @@ class AppDatabase extends _$AppDatabase {
                   captionY: Value(word.captionY),
                   captionScale: Value(word.captionScale),
                   captionLook: Value(word.captionLook),
+                  captionTrackId: Value(trackIds[word.captionTrackId]),
                 ),
+            ]);
+          });
+
+          final lines = await translationLinesFor(transcript.id);
+          await batch((batch) {
+            batch.insertAll(translationLines, [
+              for (final line in lines)
+                line.toCompanion(false).copyWith(
+                      id: Value(newId()),
+                      createdAt: Value(now),
+                      updatedAt: Value(now),
+                      transcriptId: Value(newTranscriptId),
+                      trackId: Value(trackIds[line.trackId]),
+                    ),
             ]);
           });
         }
@@ -1976,6 +2528,13 @@ class AppDatabase extends _$AppDatabase {
           updatedAt: Value(now),
         ),
       );
+      // Images count towards the media refcount, so they must stop counting.
+      await (update(imageLayers)..where((t) => t.projectId.equals(id))).write(
+        ImageLayersCompanion(
+          deletedAt: Value(now),
+          updatedAt: Value(now),
+        ),
+      );
       await _softDeleteProjectRow(id, now);
     });
   }
@@ -2185,7 +2744,31 @@ class AppDatabase extends _$AppDatabase {
           look: placed.captionLook,
         );
       }
+      // And the track it was moved onto.
+      if (placed != null &&
+          placed.captionTrackId != null &&
+          replacements.isNotEmpty) {
+        await (update(words)
+              ..where((t) =>
+                  t.transcriptId.equals(transcriptId) &
+                  t.deletedAt.isNull() &
+                  t.position.isBetweenValues(
+                    fromPosition,
+                    fromPosition + replacements.length - 1,
+                  )))
+            .write(WordsCompanion(captionTrackId: Value(placed.captionTrackId)));
+      }
     });
+  }
+
+  /// A transcript's words whose sentence was moved off its layer's track.
+  Future<List<Word>> wordsMovedOffTheirLayer(String transcriptId) {
+    return (select(words)
+          ..where((t) =>
+              t.transcriptId.equals(transcriptId) &
+              t.deletedAt.isNull() &
+              t.captionTrackId.isNotNull()))
+        .get();
   }
 
   /// Appends one event to [transcriptId]'s log.

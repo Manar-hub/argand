@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/theme/app_controls.dart';
+import '../../core/theme/app_icons.dart';
 import '../../core/timeline/translation_texts.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_segment_row.dart';
@@ -279,7 +281,7 @@ class _ExportButton extends ConsumerWidget {
     }
 
     return IconButton(
-      icon: const Icon(Icons.file_download_outlined),
+      icon: const AppIcon(AppGlyph.export),
       tooltip: l10n.exportAction,
       onPressed: () => _export(context, ref, l10n),
     );
@@ -645,13 +647,13 @@ class HistoryControls extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          icon: const Icon(Icons.undo),
+          icon: const AppIcon(AppGlyph.undo),
           tooltip: l10n.undoAction,
           onPressed:
               history.canUndo ? () => repository.undoProject(projectId) : null,
         ),
         IconButton(
-          icon: const Icon(Icons.redo),
+          icon: const AppIcon(AppGlyph.redo),
           tooltip: l10n.redoAction,
           onPressed:
               history.canRedo ? () => repository.redoProject(projectId) : null,
@@ -949,11 +951,29 @@ class _Player extends ConsumerWidget {
                 IconButton(
                   onPressed: () =>
                       ref.read(mediaPlayerProvider(clipId).notifier).togglePlayback(),
-                  icon: Icon(value.isPlaying ? Icons.pause : Icons.play_arrow),
+                  icon: AppIcon(
+                    value.isPlaying ? AppGlyph.pause : AppGlyph.play,
+                  ),
                   tooltip: value.isPlaying ? l10n.pauseAction : l10n.playAction,
                 ),
                 Expanded(
-                  child: VideoProgressIndicator(controller, allowScrubbing: true),
+                  // What has played in the action colour, as the timeline's
+                  // playhead is; the rest in the page's own ink, thinly.
+                  child: VideoProgressIndicator(
+                    controller,
+                    allowScrubbing: true,
+                    colors: VideoProgressColors(
+                      playedColor: Theme.of(context).colorScheme.primary,
+                      bufferedColor: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.22),
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.10),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(_formatPosition(value.position)),
@@ -1380,23 +1400,16 @@ class _WordFlowContent extends ConsumerWidget {
 
     final turns = groupIntoSpeakerTurns(words);
 
-    // Each transcript's translation, by the position of the last word of the
-    // sentence it sits over -- where the script puts it. Translated sentences
-    // need not match the source one for one, so two landing on the same
-    // sentence are read together.
-    final translations = <String, Map<int, String>>{};
-    for (final transcriptId in {for (final w in words) w.transcriptId}) {
-      final byLastWord = translations[transcriptId] = <int, String>{};
-      for (final line in ref
-              .watch(transcriptTranslationProvider(transcriptId))
-              .value ??
-          const <TranslationLine>[]) {
-        final before = byLastWord[line.lastWord];
-        byLastWord[line.lastWord] =
-            before == null ? line.content : '$before ${line.content}';
-      }
-    }
-    final hasTranslation = translations.values.any((m) => m.isNotEmpty);
+    // Each transcript's translation lines; which caption row each goes under
+    // is worked out with the rows (see `_cueRows`).
+    final translations = <String, List<TranslationLine>>{
+      for (final transcriptId in {for (final w in words) w.transcriptId})
+        transcriptId: ref
+                .watch(transcriptTranslationProvider(transcriptId))
+                .value ??
+            const <TranslationLine>[],
+    };
+    final hasTranslation = translations.values.any((l) => l.isNotEmpty);
     final showTranslation =
         hasTranslation && ref.watch(showTranslationProvider);
 
@@ -1496,7 +1509,7 @@ bool _covers(({int from, int to})? open, CaptionCue cue) =>
 List<Widget> _cueRows(
       BuildContext context,
       WidgetRef ref, {
-      required Map<String, Map<int, String>> translations,
+      required Map<String, List<TranslationLine>> translations,
       required List<SpeakerTurn> turns,
       required List<int> speakers,
       required int activeIndex,
@@ -1507,8 +1520,47 @@ List<Widget> _cueRows(
       final open = ref.watch(inlineEditProvider);
       final rows = <Widget>[];
 
+    // **Each translation line under the caption row it overlaps most**, in
+    // its own transcript -- by time, not word position, so retyping the
+    // transcript (which renumbers its words) never moves a translation to
+    // the wrong row. Lines are made one per row, so this is exact until
+    // something is retimed; two landing on one row are read as one.
+    // Grouped once, and the same rows drawn below: the lines are matched to
+    // these very cues.
+    final cuesOf = {for (final turn in turns) turn: groupIntoCues(turn.words)};
+    final rowsOf = <String, List<CaptionCue>>{};
+    for (final MapEntry(key: turn, value: cues) in cuesOf.entries) {
+      (rowsOf[turn.words.first.transcriptId] ??= []).addAll(cues);
+    }
+    final linesUnder = <CaptionCue, List<TranslationLine>>{};
+    for (final MapEntry(key: transcriptId, value: lines)
+        in translations.entries) {
+      final cues = rowsOf[transcriptId] ?? const <CaptionCue>[];
+      if (cues.isEmpty) continue;
+      for (final line in lines) {
+        CaptionCue? bestCue;
+        var bestScore = double.negativeInfinity;
+        for (final cue in cues) {
+          final overlap = math.min(line.endMs, cue.endMs) -
+              math.max(line.startMs, cue.startMs);
+          // Nothing overlapping: the nearest, by the gap between them.
+          final score = overlap > 0
+              ? overlap.toDouble()
+              : -((line.startMs + line.endMs) / 2 -
+                      (cue.startMs + cue.endMs) / 2)
+                  .abs();
+          if (score > bestScore) {
+            bestScore = score;
+            bestCue = cue;
+          }
+        }
+        (linesUnder[bestCue!] ??= []).add(line);
+      }
+    }
+    final showing = translations.isNotEmpty;
+
     for (final turn in turns) {
-      final cues = groupIntoCues(turn.words);
+      final cues = cuesOf[turn]!;
 
       // `groupIntoCues` partitions the words in order and drops none, so a
       // running total is the offset of each cue's first word within the turn.
@@ -1567,14 +1619,27 @@ List<Widget> _cueRows(
         );
         offset += cue.words.length;
 
-        // A sentence's translation goes under the line that ends it.
-        final byLastWord = translations[cue.words.first.transcriptId];
-        if (byLastWord != null) {
-          for (final word in cue.words) {
-            if (byLastWord[word.position] case final text?) {
-              rows.add(_TranslationLine(text: text));
-            }
-          }
+        // Its translation, under it -- or, while editing, a place to add
+        // one. Edited on its own: the transcript's words are never touched.
+        final lines = linesUnder[cue] ?? const <TranslationLine>[];
+        if (showing && (lines.isNotEmpty || editing)) {
+          rows.add(_TranslationLine(
+            key: ValueKey(('translation', cue.words.first.id)),
+            text: lines.isEmpty
+                ? null
+                : [for (final line in lines) line.content].join(' '),
+            editable: editing,
+            onCommit: (text) =>
+                ref.read(transcriptRepositoryProvider).setCueTranslation(
+                      transcriptId: cue.words.first.transcriptId,
+                      lineIds: [for (final line in lines) line.id],
+                      firstWord: cue.words.first.position,
+                      lastWord: cue.words.last.position,
+                      startMs: cue.startMs,
+                      endMs: cue.endMs,
+                      content: text,
+                    ),
+          ));
         }
       }
     }
@@ -1731,36 +1796,133 @@ List<Widget> _cueRows(
 /// A sentence's translation, under the line that ends the sentence: a short
 /// rule, then the translated text in the quieter ink, set in the words'
 /// column so it reads as belonging to them.
-class _TranslationLine extends StatelessWidget {
-  const _TranslationLine({required this.text});
+class _TranslationLine extends StatefulWidget {
+  const _TranslationLine({
+    super.key,
+    required this.text,
+    required this.editable,
+    required this.onCommit,
+  });
 
-  final String text;
+  /// Null while the caption row has no translation.
+  final String? text;
+
+  /// Script's edit mode: a tap retypes it, or adds one where there is none.
+  final bool editable;
+  final ValueChanged<String> onCommit;
+
+  @override
+  State<_TranslationLine> createState() => _TranslationLineState();
+}
+
+/// A caption row's translation, under it: a short rule, then the line.
+///
+/// **Its own words, edited on their own.** Retyping it changes the
+/// translation and nothing else -- the transcript above is not touched and
+/// nothing is translated again -- and emptying it removes it.
+class _TranslationLineState extends State<_TranslationLine> {
+  TextEditingController? _field;
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (!_focus.hasFocus && _field != null) _commit();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _field?.dispose();
+    super.dispose();
+  }
+
+  void _open() {
+    final text = widget.text ?? '';
+    setState(() {
+      _field = TextEditingController(text: text)
+        ..selection = TextSelection.collapsed(offset: text.length);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  void _commit() {
+    final field = _field;
+    if (field == null) return;
+    final typed = field.text.trim();
+    setState(() => _field = null);
+    field.dispose();
+    if (typed != (widget.text ?? '').trim()) widget.onCommit(typed);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final indent = MediaQuery.textScalerOf(context).scale(_CueLineState._stampWidth);
+    final indent =
+        MediaQuery.textScalerOf(context).scale(_CueLineState._stampWidth);
+    final style = theme.textTheme.bodyLarge?.copyWith(
+      fontSize: 17,
+      height: 1.5,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final text = widget.text;
+    final field = _field;
+
+    final Widget line;
+    if (field != null) {
+      line = TextField(
+        controller: field,
+        focusNode: _focus,
+        style: style,
+        maxLines: null,
+        textInputAction: TextInputAction.done,
+        textDirection: translationDirectionOf(field.text),
+        decoration: const InputDecoration(
+          isCollapsed: true,
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+        ),
+        onSubmitted: (_) => _focus.unfocus(),
+        onTapOutside: (_) => _focus.unfocus(),
+      );
+    } else if (text == null) {
+      line = Text(
+        AppLocalizations.of(context).translationAdd,
+        style: style?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    } else {
+      line = Text(
+        text,
+        textDirection: translationDirectionOf(text),
+        style: style,
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.only(left: indent, top: AppSpacing.xs),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ColoredBox(
-            color: appHairline(theme),
-            child: const SizedBox(height: appHairlineWidth, width: 32),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            text,
-            textDirection: translationDirectionOf(text),
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontSize: 17,
-              height: 1.5,
-              color: theme.colorScheme.onSurfaceVariant,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.editable && field == null ? _open : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ColoredBox(
+              color: appHairline(theme),
+              child: const SizedBox(height: appHairlineWidth, width: 32),
             ),
-          ),
-        ],
+            const SizedBox(height: AppSpacing.xs),
+            line,
+          ],
+        ),
       ),
     );
   }

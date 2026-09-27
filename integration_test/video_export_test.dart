@@ -106,6 +106,7 @@ void main() {
           endMs: clips.first.durationMs ?? 0,
           captions: const <ExportCaption>[],
           texts: const <ExportText>[],
+          images: const [],
           framing: ItemTransform.identity,
           audio: (startMs: 0, endMs: clips.first.durationMs ?? 0, projectStartMs: 0, inline: true),
         ),
@@ -156,6 +157,7 @@ void main() {
             endMs: clip.durationMs ?? 0,
             captions: const <ExportCaption>[],
             texts: const <ExportText>[],
+            images: const [],
             framing: ItemTransform.identity,
             // The sound plays with its picture, back to back.
             audio: (
@@ -317,6 +319,7 @@ void main() {
           endMs: windowMs,
           captions: const <ExportCaption>[caption],
           texts: const <ExportText>[],
+          images: const [],
           framing: ItemTransform.identity,
           audio: (startMs: 0, endMs: windowMs, projectStartMs: 0, inline: true),
         ),
@@ -390,6 +393,7 @@ void main() {
           endMs: clips.first.durationMs ?? windowMs,
           captions: const <ExportCaption>[],
           texts: const <ExportText>[],
+          images: const [],
           framing: ItemTransform.identity,
           audio: (startMs: 0, endMs: clips.first.durationMs ?? windowMs, projectStartMs: 0, inline: true),
         ),

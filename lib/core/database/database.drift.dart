@@ -1699,6 +1699,17 @@ class $TranscribeLayersTable extends TranscribeLayers
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _trackIdMeta = const VerificationMeta(
+    'trackId',
+  );
+  @override
+  late final GeneratedColumn<String> trackId = GeneratedColumn<String>(
+    'track_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _captionXMeta = const VerificationMeta(
     'captionX',
   );
@@ -1756,6 +1767,7 @@ class $TranscribeLayersTable extends TranscribeLayers
     startMs,
     endMs,
     trackIndex,
+    trackId,
     captionX,
     captionY,
     captionScale,
@@ -1830,6 +1842,12 @@ class $TranscribeLayersTable extends TranscribeLayers
         trackIndex.isAcceptableOrUnknown(data['track_index']!, _trackIndexMeta),
       );
     }
+    if (data.containsKey('track_id')) {
+      context.handle(
+        _trackIdMeta,
+        trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
+      );
+    }
     if (data.containsKey('caption_x')) {
       context.handle(
         _captionXMeta,
@@ -1901,6 +1919,10 @@ class $TranscribeLayersTable extends TranscribeLayers
         DriftSqlType.int,
         data['${effectivePrefix}track_index'],
       )!,
+      trackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}track_id'],
+      ),
       captionX: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}caption_x'],
@@ -1944,6 +1966,10 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
   /// answer.
   final int trackIndex;
 
+  /// The [Tracks] row this layer sits on. Null only on a row written before
+  /// schema 15 that `ensureTracks` has not yet placed.
+  final String? trackId;
+
   /// Where this layer's captions sit in the frame, and how large.
   ///
   /// **Per layer, not per project**, so two layers -- two speakers, two
@@ -1971,6 +1997,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     required this.startMs,
     required this.endMs,
     required this.trackIndex,
+    this.trackId,
     required this.captionX,
     required this.captionY,
     required this.captionScale,
@@ -1989,6 +2016,9 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     map['start_ms'] = Variable<int>(startMs);
     map['end_ms'] = Variable<int>(endMs);
     map['track_index'] = Variable<int>(trackIndex);
+    if (!nullToAbsent || trackId != null) {
+      map['track_id'] = Variable<String>(trackId);
+    }
     map['caption_x'] = Variable<double>(captionX);
     map['caption_y'] = Variable<double>(captionY);
     map['caption_scale'] = Variable<double>(captionScale);
@@ -2010,6 +2040,9 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       startMs: Value(startMs),
       endMs: Value(endMs),
       trackIndex: Value(trackIndex),
+      trackId: trackId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackId),
       captionX: Value(captionX),
       captionY: Value(captionY),
       captionScale: Value(captionScale),
@@ -2033,6 +2066,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       startMs: serializer.fromJson<int>(json['startMs']),
       endMs: serializer.fromJson<int>(json['endMs']),
       trackIndex: serializer.fromJson<int>(json['trackIndex']),
+      trackId: serializer.fromJson<String?>(json['trackId']),
       captionX: serializer.fromJson<double>(json['captionX']),
       captionY: serializer.fromJson<double>(json['captionY']),
       captionScale: serializer.fromJson<double>(json['captionScale']),
@@ -2051,6 +2085,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       'startMs': serializer.toJson<int>(startMs),
       'endMs': serializer.toJson<int>(endMs),
       'trackIndex': serializer.toJson<int>(trackIndex),
+      'trackId': serializer.toJson<String?>(trackId),
       'captionX': serializer.toJson<double>(captionX),
       'captionY': serializer.toJson<double>(captionY),
       'captionScale': serializer.toJson<double>(captionScale),
@@ -2067,6 +2102,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     int? startMs,
     int? endMs,
     int? trackIndex,
+    Value<String?> trackId = const Value.absent(),
     double? captionX,
     double? captionY,
     double? captionScale,
@@ -2080,6 +2116,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     startMs: startMs ?? this.startMs,
     endMs: endMs ?? this.endMs,
     trackIndex: trackIndex ?? this.trackIndex,
+    trackId: trackId.present ? trackId.value : this.trackId,
     captionX: captionX ?? this.captionX,
     captionY: captionY ?? this.captionY,
     captionScale: captionScale ?? this.captionScale,
@@ -2097,6 +2134,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
       trackIndex: data.trackIndex.present
           ? data.trackIndex.value
           : this.trackIndex,
+      trackId: data.trackId.present ? data.trackId.value : this.trackId,
       captionX: data.captionX.present ? data.captionX.value : this.captionX,
       captionY: data.captionY.present ? data.captionY.value : this.captionY,
       captionScale: data.captionScale.present
@@ -2119,6 +2157,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
           ..write('trackIndex: $trackIndex, ')
+          ..write('trackId: $trackId, ')
           ..write('captionX: $captionX, ')
           ..write('captionY: $captionY, ')
           ..write('captionScale: $captionScale, ')
@@ -2137,6 +2176,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
     startMs,
     endMs,
     trackIndex,
+    trackId,
     captionX,
     captionY,
     captionScale,
@@ -2154,6 +2194,7 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
           other.startMs == this.startMs &&
           other.endMs == this.endMs &&
           other.trackIndex == this.trackIndex &&
+          other.trackId == this.trackId &&
           other.captionX == this.captionX &&
           other.captionY == this.captionY &&
           other.captionScale == this.captionScale &&
@@ -2169,6 +2210,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
   final Value<int> startMs;
   final Value<int> endMs;
   final Value<int> trackIndex;
+  final Value<String?> trackId;
   final Value<double> captionX;
   final Value<double> captionY;
   final Value<double> captionScale;
@@ -2183,6 +2225,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     this.startMs = const Value.absent(),
     this.endMs = const Value.absent(),
     this.trackIndex = const Value.absent(),
+    this.trackId = const Value.absent(),
     this.captionX = const Value.absent(),
     this.captionY = const Value.absent(),
     this.captionScale = const Value.absent(),
@@ -2198,6 +2241,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     required int startMs,
     required int endMs,
     this.trackIndex = const Value.absent(),
+    this.trackId = const Value.absent(),
     this.captionX = const Value.absent(),
     this.captionY = const Value.absent(),
     this.captionScale = const Value.absent(),
@@ -2218,6 +2262,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     Expression<int>? startMs,
     Expression<int>? endMs,
     Expression<int>? trackIndex,
+    Expression<String>? trackId,
     Expression<double>? captionX,
     Expression<double>? captionY,
     Expression<double>? captionScale,
@@ -2233,6 +2278,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
       if (startMs != null) 'start_ms': startMs,
       if (endMs != null) 'end_ms': endMs,
       if (trackIndex != null) 'track_index': trackIndex,
+      if (trackId != null) 'track_id': trackId,
       if (captionX != null) 'caption_x': captionX,
       if (captionY != null) 'caption_y': captionY,
       if (captionScale != null) 'caption_scale': captionScale,
@@ -2250,6 +2296,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     Value<int>? startMs,
     Value<int>? endMs,
     Value<int>? trackIndex,
+    Value<String?>? trackId,
     Value<double>? captionX,
     Value<double>? captionY,
     Value<double>? captionScale,
@@ -2265,6 +2312,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
       startMs: startMs ?? this.startMs,
       endMs: endMs ?? this.endMs,
       trackIndex: trackIndex ?? this.trackIndex,
+      trackId: trackId ?? this.trackId,
       captionX: captionX ?? this.captionX,
       captionY: captionY ?? this.captionY,
       captionScale: captionScale ?? this.captionScale,
@@ -2300,6 +2348,9 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
     if (trackIndex.present) {
       map['track_index'] = Variable<int>(trackIndex.value);
     }
+    if (trackId.present) {
+      map['track_id'] = Variable<String>(trackId.value);
+    }
     if (captionX.present) {
       map['caption_x'] = Variable<double>(captionX.value);
     }
@@ -2329,6 +2380,7 @@ class TranscribeLayersCompanion extends UpdateCompanion<TranscribeLayer> {
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
           ..write('trackIndex: $trackIndex, ')
+          ..write('trackId: $trackId, ')
           ..write('captionX: $captionX, ')
           ..write('captionY: $captionY, ')
           ..write('captionScale: $captionScale, ')
@@ -3267,6 +3319,17 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _captionTrackIdMeta = const VerificationMeta(
+    'captionTrackId',
+  );
+  @override
+  late final GeneratedColumn<String> captionTrackId = GeneratedColumn<String>(
+    'caption_track_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3283,6 +3346,7 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
     captionY,
     captionScale,
     captionLook,
+    captionTrackId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3402,6 +3466,15 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
         ),
       );
     }
+    if (data.containsKey('caption_track_id')) {
+      context.handle(
+        _captionTrackIdMeta,
+        captionTrackId.isAcceptableOrUnknown(
+          data['caption_track_id']!,
+          _captionTrackIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3467,6 +3540,10 @@ class $WordsTable extends Words with TableInfo<$WordsTable, Word> {
         DriftSqlType.string,
         data['${effectivePrefix}caption_look'],
       ),
+      captionTrackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}caption_track_id'],
+      ),
     );
   }
 
@@ -3509,6 +3586,11 @@ class Word extends DataClass implements Insertable<Word> {
   /// font, colour, karaoke and the like, as `ItemLook` JSON. Null follows the
   /// layer, the same bargain as the placement above.
   final String? captionLook;
+
+  /// The [Tracks] row this word's sentence was moved onto. **Null follows its
+  /// layer's track**, which is every word until its sentence is dragged to
+  /// another -- the same bargain as the placement above.
+  final String? captionTrackId;
   const Word({
     required this.id,
     required this.createdAt,
@@ -3524,6 +3606,7 @@ class Word extends DataClass implements Insertable<Word> {
     this.captionY,
     this.captionScale,
     this.captionLook,
+    this.captionTrackId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3553,6 +3636,9 @@ class Word extends DataClass implements Insertable<Word> {
     }
     if (!nullToAbsent || captionLook != null) {
       map['caption_look'] = Variable<String>(captionLook);
+    }
+    if (!nullToAbsent || captionTrackId != null) {
+      map['caption_track_id'] = Variable<String>(captionTrackId);
     }
     return map;
   }
@@ -3585,6 +3671,9 @@ class Word extends DataClass implements Insertable<Word> {
       captionLook: captionLook == null && nullToAbsent
           ? const Value.absent()
           : Value(captionLook),
+      captionTrackId: captionTrackId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(captionTrackId),
     );
   }
 
@@ -3608,6 +3697,7 @@ class Word extends DataClass implements Insertable<Word> {
       captionY: serializer.fromJson<double?>(json['captionY']),
       captionScale: serializer.fromJson<double?>(json['captionScale']),
       captionLook: serializer.fromJson<String?>(json['captionLook']),
+      captionTrackId: serializer.fromJson<String?>(json['captionTrackId']),
     );
   }
   @override
@@ -3628,6 +3718,7 @@ class Word extends DataClass implements Insertable<Word> {
       'captionY': serializer.toJson<double?>(captionY),
       'captionScale': serializer.toJson<double?>(captionScale),
       'captionLook': serializer.toJson<String?>(captionLook),
+      'captionTrackId': serializer.toJson<String?>(captionTrackId),
     };
   }
 
@@ -3646,6 +3737,7 @@ class Word extends DataClass implements Insertable<Word> {
     Value<double?> captionY = const Value.absent(),
     Value<double?> captionScale = const Value.absent(),
     Value<String?> captionLook = const Value.absent(),
+    Value<String?> captionTrackId = const Value.absent(),
   }) => Word(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -3661,6 +3753,9 @@ class Word extends DataClass implements Insertable<Word> {
     captionY: captionY.present ? captionY.value : this.captionY,
     captionScale: captionScale.present ? captionScale.value : this.captionScale,
     captionLook: captionLook.present ? captionLook.value : this.captionLook,
+    captionTrackId: captionTrackId.present
+        ? captionTrackId.value
+        : this.captionTrackId,
   );
   Word copyWithCompanion(WordsCompanion data) {
     return Word(
@@ -3684,6 +3779,9 @@ class Word extends DataClass implements Insertable<Word> {
       captionLook: data.captionLook.present
           ? data.captionLook.value
           : this.captionLook,
+      captionTrackId: data.captionTrackId.present
+          ? data.captionTrackId.value
+          : this.captionTrackId,
     );
   }
 
@@ -3703,7 +3801,8 @@ class Word extends DataClass implements Insertable<Word> {
           ..write('captionX: $captionX, ')
           ..write('captionY: $captionY, ')
           ..write('captionScale: $captionScale, ')
-          ..write('captionLook: $captionLook')
+          ..write('captionLook: $captionLook, ')
+          ..write('captionTrackId: $captionTrackId')
           ..write(')'))
         .toString();
   }
@@ -3724,6 +3823,7 @@ class Word extends DataClass implements Insertable<Word> {
     captionY,
     captionScale,
     captionLook,
+    captionTrackId,
   );
   @override
   bool operator ==(Object other) =>
@@ -3742,7 +3842,8 @@ class Word extends DataClass implements Insertable<Word> {
           other.captionX == this.captionX &&
           other.captionY == this.captionY &&
           other.captionScale == this.captionScale &&
-          other.captionLook == this.captionLook);
+          other.captionLook == this.captionLook &&
+          other.captionTrackId == this.captionTrackId);
 }
 
 class WordsCompanion extends UpdateCompanion<Word> {
@@ -3760,6 +3861,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
   final Value<double?> captionY;
   final Value<double?> captionScale;
   final Value<String?> captionLook;
+  final Value<String?> captionTrackId;
   final Value<int> rowid;
   const WordsCompanion({
     this.id = const Value.absent(),
@@ -3776,6 +3878,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
     this.captionY = const Value.absent(),
     this.captionScale = const Value.absent(),
     this.captionLook = const Value.absent(),
+    this.captionTrackId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   WordsCompanion.insert({
@@ -3793,6 +3896,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
     this.captionY = const Value.absent(),
     this.captionScale = const Value.absent(),
     this.captionLook = const Value.absent(),
+    this.captionTrackId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -3817,6 +3921,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
     Expression<double>? captionY,
     Expression<double>? captionScale,
     Expression<String>? captionLook,
+    Expression<String>? captionTrackId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3834,6 +3939,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
       if (captionY != null) 'caption_y': captionY,
       if (captionScale != null) 'caption_scale': captionScale,
       if (captionLook != null) 'caption_look': captionLook,
+      if (captionTrackId != null) 'caption_track_id': captionTrackId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3853,6 +3959,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
     Value<double?>? captionY,
     Value<double?>? captionScale,
     Value<String?>? captionLook,
+    Value<String?>? captionTrackId,
     Value<int>? rowid,
   }) {
     return WordsCompanion(
@@ -3870,6 +3977,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
       captionY: captionY ?? this.captionY,
       captionScale: captionScale ?? this.captionScale,
       captionLook: captionLook ?? this.captionLook,
+      captionTrackId: captionTrackId ?? this.captionTrackId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3919,6 +4027,9 @@ class WordsCompanion extends UpdateCompanion<Word> {
     if (captionLook.present) {
       map['caption_look'] = Variable<String>(captionLook.value);
     }
+    if (captionTrackId.present) {
+      map['caption_track_id'] = Variable<String>(captionTrackId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3942,6 +4053,7 @@ class WordsCompanion extends UpdateCompanion<Word> {
           ..write('captionY: $captionY, ')
           ..write('captionScale: $captionScale, ')
           ..write('captionLook: $captionLook, ')
+          ..write('captionTrackId: $captionTrackId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5660,6 +5772,17 @@ class $TextLayersTable extends TextLayers
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _trackIdMeta = const VerificationMeta(
+    'trackId',
+  );
+  @override
+  late final GeneratedColumn<String> trackId = GeneratedColumn<String>(
+    'track_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lookMeta = const VerificationMeta('look');
   @override
   late final GeneratedColumn<String> look = GeneratedColumn<String>(
@@ -5684,6 +5807,7 @@ class $TextLayersTable extends TextLayers
     scale,
     rotation,
     trackIndex,
+    trackId,
     look,
   ];
   @override
@@ -5781,6 +5905,12 @@ class $TextLayersTable extends TextLayers
         trackIndex.isAcceptableOrUnknown(data['track_index']!, _trackIndexMeta),
       );
     }
+    if (data.containsKey('track_id')) {
+      context.handle(
+        _trackIdMeta,
+        trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
+      );
+    }
     if (data.containsKey('look')) {
       context.handle(
         _lookMeta,
@@ -5848,6 +5978,10 @@ class $TextLayersTable extends TextLayers
         DriftSqlType.int,
         data['${effectivePrefix}track_index'],
       )!,
+      trackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}track_id'],
+      ),
       look: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}look'],
@@ -5879,9 +6013,13 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
   /// Degrees, clockwise as seen.
   final double rotation;
 
-  /// Which stacked text track it sits on. Always 0 today; carried for the
-  /// same reason [TranscribeLayers.trackIndex] is.
+  /// Which row of the old text track it sat on, before schema 15 made tracks
+  /// rows of their own. Read only by `ensureTracks`, to give each old row its
+  /// own track.
   final int trackIndex;
+
+  /// The [Tracks] row this text sits on; see [TranscribeLayers.trackId].
+  final String? trackId;
 
   /// Font and colour, as `ItemLook` JSON; null is bold white in the default
   /// face.
@@ -5900,6 +6038,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
     required this.scale,
     required this.rotation,
     required this.trackIndex,
+    this.trackId,
     this.look,
   });
   @override
@@ -5920,6 +6059,9 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
     map['scale'] = Variable<double>(scale);
     map['rotation'] = Variable<double>(rotation);
     map['track_index'] = Variable<int>(trackIndex);
+    if (!nullToAbsent || trackId != null) {
+      map['track_id'] = Variable<String>(trackId);
+    }
     if (!nullToAbsent || look != null) {
       map['look'] = Variable<String>(look);
     }
@@ -5943,6 +6085,9 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
       scale: Value(scale),
       rotation: Value(rotation),
       trackIndex: Value(trackIndex),
+      trackId: trackId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackId),
       look: look == null && nullToAbsent ? const Value.absent() : Value(look),
     );
   }
@@ -5966,6 +6111,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
       scale: serializer.fromJson<double>(json['scale']),
       rotation: serializer.fromJson<double>(json['rotation']),
       trackIndex: serializer.fromJson<int>(json['trackIndex']),
+      trackId: serializer.fromJson<String?>(json['trackId']),
       look: serializer.fromJson<String?>(json['look']),
     );
   }
@@ -5986,6 +6132,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
       'scale': serializer.toJson<double>(scale),
       'rotation': serializer.toJson<double>(rotation),
       'trackIndex': serializer.toJson<int>(trackIndex),
+      'trackId': serializer.toJson<String?>(trackId),
       'look': serializer.toJson<String?>(look),
     };
   }
@@ -6004,6 +6151,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
     double? scale,
     double? rotation,
     int? trackIndex,
+    Value<String?> trackId = const Value.absent(),
     Value<String?> look = const Value.absent(),
   }) => TextLayer(
     id: id ?? this.id,
@@ -6019,6 +6167,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
     scale: scale ?? this.scale,
     rotation: rotation ?? this.rotation,
     trackIndex: trackIndex ?? this.trackIndex,
+    trackId: trackId.present ? trackId.value : this.trackId,
     look: look.present ? look.value : this.look,
   );
   TextLayer copyWithCompanion(TextLayersCompanion data) {
@@ -6038,6 +6187,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
       trackIndex: data.trackIndex.present
           ? data.trackIndex.value
           : this.trackIndex,
+      trackId: data.trackId.present ? data.trackId.value : this.trackId,
       look: data.look.present ? data.look.value : this.look,
     );
   }
@@ -6058,6 +6208,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
           ..write('scale: $scale, ')
           ..write('rotation: $rotation, ')
           ..write('trackIndex: $trackIndex, ')
+          ..write('trackId: $trackId, ')
           ..write('look: $look')
           ..write(')'))
         .toString();
@@ -6078,6 +6229,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
     scale,
     rotation,
     trackIndex,
+    trackId,
     look,
   );
   @override
@@ -6097,6 +6249,7 @@ class TextLayer extends DataClass implements Insertable<TextLayer> {
           other.scale == this.scale &&
           other.rotation == this.rotation &&
           other.trackIndex == this.trackIndex &&
+          other.trackId == this.trackId &&
           other.look == this.look);
 }
 
@@ -6114,6 +6267,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
   final Value<double> scale;
   final Value<double> rotation;
   final Value<int> trackIndex;
+  final Value<String?> trackId;
   final Value<String?> look;
   final Value<int> rowid;
   const TextLayersCompanion({
@@ -6130,6 +6284,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
     this.scale = const Value.absent(),
     this.rotation = const Value.absent(),
     this.trackIndex = const Value.absent(),
+    this.trackId = const Value.absent(),
     this.look = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -6147,6 +6302,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
     this.scale = const Value.absent(),
     this.rotation = const Value.absent(),
     this.trackIndex = const Value.absent(),
+    this.trackId = const Value.absent(),
     this.look = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -6170,6 +6326,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
     Expression<double>? scale,
     Expression<double>? rotation,
     Expression<int>? trackIndex,
+    Expression<String>? trackId,
     Expression<String>? look,
     Expression<int>? rowid,
   }) {
@@ -6187,6 +6344,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
       if (scale != null) 'scale': scale,
       if (rotation != null) 'rotation': rotation,
       if (trackIndex != null) 'track_index': trackIndex,
+      if (trackId != null) 'track_id': trackId,
       if (look != null) 'look': look,
       if (rowid != null) 'rowid': rowid,
     });
@@ -6206,6 +6364,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
     Value<double>? scale,
     Value<double>? rotation,
     Value<int>? trackIndex,
+    Value<String?>? trackId,
     Value<String?>? look,
     Value<int>? rowid,
   }) {
@@ -6223,6 +6382,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
       scale: scale ?? this.scale,
       rotation: rotation ?? this.rotation,
       trackIndex: trackIndex ?? this.trackIndex,
+      trackId: trackId ?? this.trackId,
       look: look ?? this.look,
       rowid: rowid ?? this.rowid,
     );
@@ -6270,6 +6430,9 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
     if (trackIndex.present) {
       map['track_index'] = Variable<int>(trackIndex.value);
     }
+    if (trackId.present) {
+      map['track_id'] = Variable<String>(trackId.value);
+    }
     if (look.present) {
       map['look'] = Variable<String>(look.value);
     }
@@ -6295,6 +6458,7 @@ class TextLayersCompanion extends UpdateCompanion<TextLayer> {
           ..write('scale: $scale, ')
           ..write('rotation: $rotation, ')
           ..write('trackIndex: $trackIndex, ')
+          ..write('trackId: $trackId, ')
           ..write('look: $look, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6439,6 +6603,53 @@ class $TranslationLinesTable extends TranslationLines
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _trackIdMeta = const VerificationMeta(
+    'trackId',
+  );
+  @override
+  late final GeneratedColumn<String> trackId = GeneratedColumn<String>(
+    'track_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scaleMeta = const VerificationMeta('scale');
+  @override
+  late final GeneratedColumn<double> scale = GeneratedColumn<double>(
+    'scale',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lookMeta = const VerificationMeta('look');
+  @override
+  late final GeneratedColumn<String> look = GeneratedColumn<String>(
+    'look',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6453,6 +6664,11 @@ class $TranslationLinesTable extends TranslationLines
     startMs,
     endMs,
     content,
+    trackId,
+    x,
+    y,
+    scale,
+    look,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6560,6 +6776,30 @@ class $TranslationLinesTable extends TranslationLines
     } else if (isInserting) {
       context.missing(_contentMeta);
     }
+    if (data.containsKey('track_id')) {
+      context.handle(
+        _trackIdMeta,
+        trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
+      );
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    }
+    if (data.containsKey('scale')) {
+      context.handle(
+        _scaleMeta,
+        scale.isAcceptableOrUnknown(data['scale']!, _scaleMeta),
+      );
+    }
+    if (data.containsKey('look')) {
+      context.handle(
+        _lookMeta,
+        look.isAcceptableOrUnknown(data['look']!, _lookMeta),
+      );
+    }
     return context;
   }
 
@@ -6617,6 +6857,26 @@ class $TranslationLinesTable extends TranslationLines
         DriftSqlType.string,
         data['${effectivePrefix}content'],
       )!,
+      trackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}track_id'],
+      ),
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      ),
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      ),
+      scale: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}scale'],
+      ),
+      look: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}look'],
+      ),
     );
   }
 
@@ -6643,6 +6903,16 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
   final int startMs;
   final int endMs;
   final String content;
+
+  /// The [Tracks] row this line sits on; see [TranscribeLayers.trackId].
+  final String? trackId;
+
+  /// Where the line sits and how it looks when placed on its own. **Null
+  /// follows its layer's captions**, lifted above them (`translation_texts`).
+  final double? x;
+  final double? y;
+  final double? scale;
+  final String? look;
   const TranslationLine({
     required this.id,
     required this.createdAt,
@@ -6656,6 +6926,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
     required this.startMs,
     required this.endMs,
     required this.content,
+    this.trackId,
+    this.x,
+    this.y,
+    this.scale,
+    this.look,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6674,6 +6949,21 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
     map['start_ms'] = Variable<int>(startMs);
     map['end_ms'] = Variable<int>(endMs);
     map['content'] = Variable<String>(content);
+    if (!nullToAbsent || trackId != null) {
+      map['track_id'] = Variable<String>(trackId);
+    }
+    if (!nullToAbsent || x != null) {
+      map['x'] = Variable<double>(x);
+    }
+    if (!nullToAbsent || y != null) {
+      map['y'] = Variable<double>(y);
+    }
+    if (!nullToAbsent || scale != null) {
+      map['scale'] = Variable<double>(scale);
+    }
+    if (!nullToAbsent || look != null) {
+      map['look'] = Variable<String>(look);
+    }
     return map;
   }
 
@@ -6693,6 +6983,15 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
       startMs: Value(startMs),
       endMs: Value(endMs),
       content: Value(content),
+      trackId: trackId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackId),
+      x: x == null && nullToAbsent ? const Value.absent() : Value(x),
+      y: y == null && nullToAbsent ? const Value.absent() : Value(y),
+      scale: scale == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scale),
+      look: look == null && nullToAbsent ? const Value.absent() : Value(look),
     );
   }
 
@@ -6714,6 +7013,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
       startMs: serializer.fromJson<int>(json['startMs']),
       endMs: serializer.fromJson<int>(json['endMs']),
       content: serializer.fromJson<String>(json['content']),
+      trackId: serializer.fromJson<String?>(json['trackId']),
+      x: serializer.fromJson<double?>(json['x']),
+      y: serializer.fromJson<double?>(json['y']),
+      scale: serializer.fromJson<double?>(json['scale']),
+      look: serializer.fromJson<String?>(json['look']),
     );
   }
   @override
@@ -6732,6 +7036,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
       'startMs': serializer.toJson<int>(startMs),
       'endMs': serializer.toJson<int>(endMs),
       'content': serializer.toJson<String>(content),
+      'trackId': serializer.toJson<String?>(trackId),
+      'x': serializer.toJson<double?>(x),
+      'y': serializer.toJson<double?>(y),
+      'scale': serializer.toJson<double?>(scale),
+      'look': serializer.toJson<String?>(look),
     };
   }
 
@@ -6748,6 +7057,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
     int? startMs,
     int? endMs,
     String? content,
+    Value<String?> trackId = const Value.absent(),
+    Value<double?> x = const Value.absent(),
+    Value<double?> y = const Value.absent(),
+    Value<double?> scale = const Value.absent(),
+    Value<String?> look = const Value.absent(),
   }) => TranslationLine(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -6761,6 +7075,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
     startMs: startMs ?? this.startMs,
     endMs: endMs ?? this.endMs,
     content: content ?? this.content,
+    trackId: trackId.present ? trackId.value : this.trackId,
+    x: x.present ? x.value : this.x,
+    y: y.present ? y.value : this.y,
+    scale: scale.present ? scale.value : this.scale,
+    look: look.present ? look.value : this.look,
   );
   TranslationLine copyWithCompanion(TranslationLinesCompanion data) {
     return TranslationLine(
@@ -6778,6 +7097,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
       startMs: data.startMs.present ? data.startMs.value : this.startMs,
       endMs: data.endMs.present ? data.endMs.value : this.endMs,
       content: data.content.present ? data.content.value : this.content,
+      trackId: data.trackId.present ? data.trackId.value : this.trackId,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      scale: data.scale.present ? data.scale.value : this.scale,
+      look: data.look.present ? data.look.value : this.look,
     );
   }
 
@@ -6795,7 +7119,12 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
           ..write('lastWord: $lastWord, ')
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
-          ..write('content: $content')
+          ..write('content: $content, ')
+          ..write('trackId: $trackId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('scale: $scale, ')
+          ..write('look: $look')
           ..write(')'))
         .toString();
   }
@@ -6814,6 +7143,11 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
     startMs,
     endMs,
     content,
+    trackId,
+    x,
+    y,
+    scale,
+    look,
   );
   @override
   bool operator ==(Object other) =>
@@ -6830,7 +7164,12 @@ class TranslationLine extends DataClass implements Insertable<TranslationLine> {
           other.lastWord == this.lastWord &&
           other.startMs == this.startMs &&
           other.endMs == this.endMs &&
-          other.content == this.content);
+          other.content == this.content &&
+          other.trackId == this.trackId &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.scale == this.scale &&
+          other.look == this.look);
 }
 
 class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
@@ -6846,6 +7185,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
   final Value<int> startMs;
   final Value<int> endMs;
   final Value<String> content;
+  final Value<String?> trackId;
+  final Value<double?> x;
+  final Value<double?> y;
+  final Value<double?> scale;
+  final Value<String?> look;
   final Value<int> rowid;
   const TranslationLinesCompanion({
     this.id = const Value.absent(),
@@ -6860,6 +7204,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
     this.startMs = const Value.absent(),
     this.endMs = const Value.absent(),
     this.content = const Value.absent(),
+    this.trackId = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.look = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TranslationLinesCompanion.insert({
@@ -6875,6 +7224,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
     required int startMs,
     required int endMs,
     required String content,
+    this.trackId = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.look = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        createdAt = Value(createdAt),
@@ -6900,6 +7254,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
     Expression<int>? startMs,
     Expression<int>? endMs,
     Expression<String>? content,
+    Expression<String>? trackId,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? scale,
+    Expression<String>? look,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6915,6 +7274,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
       if (startMs != null) 'start_ms': startMs,
       if (endMs != null) 'end_ms': endMs,
       if (content != null) 'content': content,
+      if (trackId != null) 'track_id': trackId,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (scale != null) 'scale': scale,
+      if (look != null) 'look': look,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6932,6 +7296,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
     Value<int>? startMs,
     Value<int>? endMs,
     Value<String>? content,
+    Value<String?>? trackId,
+    Value<double?>? x,
+    Value<double?>? y,
+    Value<double?>? scale,
+    Value<String?>? look,
     Value<int>? rowid,
   }) {
     return TranslationLinesCompanion(
@@ -6947,6 +7316,11 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
       startMs: startMs ?? this.startMs,
       endMs: endMs ?? this.endMs,
       content: content ?? this.content,
+      trackId: trackId ?? this.trackId,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      scale: scale ?? this.scale,
+      look: look ?? this.look,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6990,6 +7364,21 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
     if (content.present) {
       map['content'] = Variable<String>(content.value);
     }
+    if (trackId.present) {
+      map['track_id'] = Variable<String>(trackId.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (scale.present) {
+      map['scale'] = Variable<double>(scale.value);
+    }
+    if (look.present) {
+      map['look'] = Variable<String>(look.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -7011,6 +7400,1315 @@ class TranslationLinesCompanion extends UpdateCompanion<TranslationLine> {
           ..write('startMs: $startMs, ')
           ..write('endMs: $endMs, ')
           ..write('content: $content, ')
+          ..write('trackId: $trackId, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('scale: $scale, ')
+          ..write('look: $look, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TracksTable extends Tracks with TableInfo<$TracksTable, Track> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TracksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    position,
+    kind,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'tracks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Track> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Track map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Track(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+    );
+  }
+
+  @override
+  $TracksTable createAlias(String alias) {
+    return $TracksTable(attachedDatabase, alias);
+  }
+}
+
+class Track extends DataClass implements Insertable<Track> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String projectId;
+
+  /// Order from the top, contiguous from zero within a project once
+  /// `ensureTracks` or a move has written it.
+  final int position;
+
+  /// A [TrackKind.code].
+  final String kind;
+  const Track({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.projectId,
+    required this.position,
+    required this.kind,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['project_id'] = Variable<String>(projectId);
+    map['position'] = Variable<int>(position);
+    map['kind'] = Variable<String>(kind);
+    return map;
+  }
+
+  TracksCompanion toCompanion(bool nullToAbsent) {
+    return TracksCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      projectId: Value(projectId),
+      position: Value(position),
+      kind: Value(kind),
+    );
+  }
+
+  factory Track.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Track(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      position: serializer.fromJson<int>(json['position']),
+      kind: serializer.fromJson<String>(json['kind']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'projectId': serializer.toJson<String>(projectId),
+      'position': serializer.toJson<int>(position),
+      'kind': serializer.toJson<String>(kind),
+    };
+  }
+
+  Track copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? projectId,
+    int? position,
+    String? kind,
+  }) => Track(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    projectId: projectId ?? this.projectId,
+    position: position ?? this.position,
+    kind: kind ?? this.kind,
+  );
+  Track copyWithCompanion(TracksCompanion data) {
+    return Track(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      position: data.position.present ? data.position.value : this.position,
+      kind: data.kind.present ? data.kind.value : this.kind,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Track(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('position: $position, ')
+          ..write('kind: $kind')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    position,
+    kind,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Track &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.projectId == this.projectId &&
+          other.position == this.position &&
+          other.kind == this.kind);
+}
+
+class TracksCompanion extends UpdateCompanion<Track> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> projectId;
+  final Value<int> position;
+  final Value<String> kind;
+  final Value<int> rowid;
+  const TracksCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.position = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TracksCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String projectId,
+    required int position,
+    required String kind,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       projectId = Value(projectId),
+       position = Value(position),
+       kind = Value(kind);
+  static Insertable<Track> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? projectId,
+    Expression<int>? position,
+    Expression<String>? kind,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (projectId != null) 'project_id': projectId,
+      if (position != null) 'position': position,
+      if (kind != null) 'kind': kind,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TracksCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? projectId,
+    Value<int>? position,
+    Value<String>? kind,
+    Value<int>? rowid,
+  }) {
+    return TracksCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      projectId: projectId ?? this.projectId,
+      position: position ?? this.position,
+      kind: kind ?? this.kind,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TracksCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('position: $position, ')
+          ..write('kind: $kind, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ImageLayersTable extends ImageLayers
+    with TableInfo<$ImageLayersTable, ImageLayer> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImageLayersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _trackIdMeta = const VerificationMeta(
+    'trackId',
+  );
+  @override
+  late final GeneratedColumn<String> trackId = GeneratedColumn<String>(
+    'track_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startMsMeta = const VerificationMeta(
+    'startMs',
+  );
+  @override
+  late final GeneratedColumn<int> startMs = GeneratedColumn<int>(
+    'start_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMsMeta = const VerificationMeta('endMs');
+  @override
+  late final GeneratedColumn<int> endMs = GeneratedColumn<int>(
+    'end_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _widthPxMeta = const VerificationMeta(
+    'widthPx',
+  );
+  @override
+  late final GeneratedColumn<int> widthPx = GeneratedColumn<int>(
+    'width_px',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _heightPxMeta = const VerificationMeta(
+    'heightPx',
+  );
+  @override
+  late final GeneratedColumn<int> heightPx = GeneratedColumn<int>(
+    'height_px',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _xMeta = const VerificationMeta('x');
+  @override
+  late final GeneratedColumn<double> x = GeneratedColumn<double>(
+    'x',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _yMeta = const VerificationMeta('y');
+  @override
+  late final GeneratedColumn<double> y = GeneratedColumn<double>(
+    'y',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _scaleMeta = const VerificationMeta('scale');
+  @override
+  late final GeneratedColumn<double> scale = GeneratedColumn<double>(
+    'scale',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1.0),
+  );
+  static const VerificationMeta _rotationMeta = const VerificationMeta(
+    'rotation',
+  );
+  @override
+  late final GeneratedColumn<double> rotation = GeneratedColumn<double>(
+    'rotation',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    trackId,
+    startMs,
+    endMs,
+    path,
+    widthPx,
+    heightPx,
+    x,
+    y,
+    scale,
+    rotation,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'image_layers';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ImageLayer> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('track_id')) {
+      context.handle(
+        _trackIdMeta,
+        trackId.isAcceptableOrUnknown(data['track_id']!, _trackIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_trackIdMeta);
+    }
+    if (data.containsKey('start_ms')) {
+      context.handle(
+        _startMsMeta,
+        startMs.isAcceptableOrUnknown(data['start_ms']!, _startMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startMsMeta);
+    }
+    if (data.containsKey('end_ms')) {
+      context.handle(
+        _endMsMeta,
+        endMs.isAcceptableOrUnknown(data['end_ms']!, _endMsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endMsMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('width_px')) {
+      context.handle(
+        _widthPxMeta,
+        widthPx.isAcceptableOrUnknown(data['width_px']!, _widthPxMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_widthPxMeta);
+    }
+    if (data.containsKey('height_px')) {
+      context.handle(
+        _heightPxMeta,
+        heightPx.isAcceptableOrUnknown(data['height_px']!, _heightPxMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_heightPxMeta);
+    }
+    if (data.containsKey('x')) {
+      context.handle(_xMeta, x.isAcceptableOrUnknown(data['x']!, _xMeta));
+    }
+    if (data.containsKey('y')) {
+      context.handle(_yMeta, y.isAcceptableOrUnknown(data['y']!, _yMeta));
+    }
+    if (data.containsKey('scale')) {
+      context.handle(
+        _scaleMeta,
+        scale.isAcceptableOrUnknown(data['scale']!, _scaleMeta),
+      );
+    }
+    if (data.containsKey('rotation')) {
+      context.handle(
+        _rotationMeta,
+        rotation.isAcceptableOrUnknown(data['rotation']!, _rotationMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ImageLayer map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImageLayer(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      trackId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}track_id'],
+      )!,
+      startMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_ms'],
+      )!,
+      endMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_ms'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      widthPx: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}width_px'],
+      )!,
+      heightPx: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}height_px'],
+      )!,
+      x: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}x'],
+      )!,
+      y: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}y'],
+      )!,
+      scale: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}scale'],
+      )!,
+      rotation: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rotation'],
+      )!,
+    );
+  }
+
+  @override
+  $ImageLayersTable createAlias(String alias) {
+    return $ImageLayersTable(attachedDatabase, alias);
+  }
+}
+
+class ImageLayer extends DataClass implements Insertable<ImageLayer> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String projectId;
+  final String trackId;
+  final int startMs;
+  final int endMs;
+
+  /// The app's own copy, in the project's media directory -- never the
+  /// picker's URI, for the reason [MediaClips.mediaPath] gives.
+  final String path;
+
+  /// The picture's size in pixels, for its shape; the stage and the export
+  /// size it from [scale], not from these.
+  final int widthPx;
+  final int heightPx;
+  final double x;
+  final double y;
+  final double scale;
+  final double rotation;
+  const ImageLayer({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.projectId,
+    required this.trackId,
+    required this.startMs,
+    required this.endMs,
+    required this.path,
+    required this.widthPx,
+    required this.heightPx,
+    required this.x,
+    required this.y,
+    required this.scale,
+    required this.rotation,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['project_id'] = Variable<String>(projectId);
+    map['track_id'] = Variable<String>(trackId);
+    map['start_ms'] = Variable<int>(startMs);
+    map['end_ms'] = Variable<int>(endMs);
+    map['path'] = Variable<String>(path);
+    map['width_px'] = Variable<int>(widthPx);
+    map['height_px'] = Variable<int>(heightPx);
+    map['x'] = Variable<double>(x);
+    map['y'] = Variable<double>(y);
+    map['scale'] = Variable<double>(scale);
+    map['rotation'] = Variable<double>(rotation);
+    return map;
+  }
+
+  ImageLayersCompanion toCompanion(bool nullToAbsent) {
+    return ImageLayersCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      projectId: Value(projectId),
+      trackId: Value(trackId),
+      startMs: Value(startMs),
+      endMs: Value(endMs),
+      path: Value(path),
+      widthPx: Value(widthPx),
+      heightPx: Value(heightPx),
+      x: Value(x),
+      y: Value(y),
+      scale: Value(scale),
+      rotation: Value(rotation),
+    );
+  }
+
+  factory ImageLayer.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImageLayer(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      trackId: serializer.fromJson<String>(json['trackId']),
+      startMs: serializer.fromJson<int>(json['startMs']),
+      endMs: serializer.fromJson<int>(json['endMs']),
+      path: serializer.fromJson<String>(json['path']),
+      widthPx: serializer.fromJson<int>(json['widthPx']),
+      heightPx: serializer.fromJson<int>(json['heightPx']),
+      x: serializer.fromJson<double>(json['x']),
+      y: serializer.fromJson<double>(json['y']),
+      scale: serializer.fromJson<double>(json['scale']),
+      rotation: serializer.fromJson<double>(json['rotation']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'projectId': serializer.toJson<String>(projectId),
+      'trackId': serializer.toJson<String>(trackId),
+      'startMs': serializer.toJson<int>(startMs),
+      'endMs': serializer.toJson<int>(endMs),
+      'path': serializer.toJson<String>(path),
+      'widthPx': serializer.toJson<int>(widthPx),
+      'heightPx': serializer.toJson<int>(heightPx),
+      'x': serializer.toJson<double>(x),
+      'y': serializer.toJson<double>(y),
+      'scale': serializer.toJson<double>(scale),
+      'rotation': serializer.toJson<double>(rotation),
+    };
+  }
+
+  ImageLayer copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? projectId,
+    String? trackId,
+    int? startMs,
+    int? endMs,
+    String? path,
+    int? widthPx,
+    int? heightPx,
+    double? x,
+    double? y,
+    double? scale,
+    double? rotation,
+  }) => ImageLayer(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    projectId: projectId ?? this.projectId,
+    trackId: trackId ?? this.trackId,
+    startMs: startMs ?? this.startMs,
+    endMs: endMs ?? this.endMs,
+    path: path ?? this.path,
+    widthPx: widthPx ?? this.widthPx,
+    heightPx: heightPx ?? this.heightPx,
+    x: x ?? this.x,
+    y: y ?? this.y,
+    scale: scale ?? this.scale,
+    rotation: rotation ?? this.rotation,
+  );
+  ImageLayer copyWithCompanion(ImageLayersCompanion data) {
+    return ImageLayer(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      trackId: data.trackId.present ? data.trackId.value : this.trackId,
+      startMs: data.startMs.present ? data.startMs.value : this.startMs,
+      endMs: data.endMs.present ? data.endMs.value : this.endMs,
+      path: data.path.present ? data.path.value : this.path,
+      widthPx: data.widthPx.present ? data.widthPx.value : this.widthPx,
+      heightPx: data.heightPx.present ? data.heightPx.value : this.heightPx,
+      x: data.x.present ? data.x.value : this.x,
+      y: data.y.present ? data.y.value : this.y,
+      scale: data.scale.present ? data.scale.value : this.scale,
+      rotation: data.rotation.present ? data.rotation.value : this.rotation,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImageLayer(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('trackId: $trackId, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('path: $path, ')
+          ..write('widthPx: $widthPx, ')
+          ..write('heightPx: $heightPx, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('scale: $scale, ')
+          ..write('rotation: $rotation')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    projectId,
+    trackId,
+    startMs,
+    endMs,
+    path,
+    widthPx,
+    heightPx,
+    x,
+    y,
+    scale,
+    rotation,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImageLayer &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.projectId == this.projectId &&
+          other.trackId == this.trackId &&
+          other.startMs == this.startMs &&
+          other.endMs == this.endMs &&
+          other.path == this.path &&
+          other.widthPx == this.widthPx &&
+          other.heightPx == this.heightPx &&
+          other.x == this.x &&
+          other.y == this.y &&
+          other.scale == this.scale &&
+          other.rotation == this.rotation);
+}
+
+class ImageLayersCompanion extends UpdateCompanion<ImageLayer> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> projectId;
+  final Value<String> trackId;
+  final Value<int> startMs;
+  final Value<int> endMs;
+  final Value<String> path;
+  final Value<int> widthPx;
+  final Value<int> heightPx;
+  final Value<double> x;
+  final Value<double> y;
+  final Value<double> scale;
+  final Value<double> rotation;
+  final Value<int> rowid;
+  const ImageLayersCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.trackId = const Value.absent(),
+    this.startMs = const Value.absent(),
+    this.endMs = const Value.absent(),
+    this.path = const Value.absent(),
+    this.widthPx = const Value.absent(),
+    this.heightPx = const Value.absent(),
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ImageLayersCompanion.insert({
+    required String id,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    required String projectId,
+    required String trackId,
+    required int startMs,
+    required int endMs,
+    required String path,
+    required int widthPx,
+    required int heightPx,
+    this.x = const Value.absent(),
+    this.y = const Value.absent(),
+    this.scale = const Value.absent(),
+    this.rotation = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt),
+       projectId = Value(projectId),
+       trackId = Value(trackId),
+       startMs = Value(startMs),
+       endMs = Value(endMs),
+       path = Value(path),
+       widthPx = Value(widthPx),
+       heightPx = Value(heightPx);
+  static Insertable<ImageLayer> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? projectId,
+    Expression<String>? trackId,
+    Expression<int>? startMs,
+    Expression<int>? endMs,
+    Expression<String>? path,
+    Expression<int>? widthPx,
+    Expression<int>? heightPx,
+    Expression<double>? x,
+    Expression<double>? y,
+    Expression<double>? scale,
+    Expression<double>? rotation,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (projectId != null) 'project_id': projectId,
+      if (trackId != null) 'track_id': trackId,
+      if (startMs != null) 'start_ms': startMs,
+      if (endMs != null) 'end_ms': endMs,
+      if (path != null) 'path': path,
+      if (widthPx != null) 'width_px': widthPx,
+      if (heightPx != null) 'height_px': heightPx,
+      if (x != null) 'x': x,
+      if (y != null) 'y': y,
+      if (scale != null) 'scale': scale,
+      if (rotation != null) 'rotation': rotation,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ImageLayersCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? projectId,
+    Value<String>? trackId,
+    Value<int>? startMs,
+    Value<int>? endMs,
+    Value<String>? path,
+    Value<int>? widthPx,
+    Value<int>? heightPx,
+    Value<double>? x,
+    Value<double>? y,
+    Value<double>? scale,
+    Value<double>? rotation,
+    Value<int>? rowid,
+  }) {
+    return ImageLayersCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      projectId: projectId ?? this.projectId,
+      trackId: trackId ?? this.trackId,
+      startMs: startMs ?? this.startMs,
+      endMs: endMs ?? this.endMs,
+      path: path ?? this.path,
+      widthPx: widthPx ?? this.widthPx,
+      heightPx: heightPx ?? this.heightPx,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      scale: scale ?? this.scale,
+      rotation: rotation ?? this.rotation,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (trackId.present) {
+      map['track_id'] = Variable<String>(trackId.value);
+    }
+    if (startMs.present) {
+      map['start_ms'] = Variable<int>(startMs.value);
+    }
+    if (endMs.present) {
+      map['end_ms'] = Variable<int>(endMs.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (widthPx.present) {
+      map['width_px'] = Variable<int>(widthPx.value);
+    }
+    if (heightPx.present) {
+      map['height_px'] = Variable<int>(heightPx.value);
+    }
+    if (x.present) {
+      map['x'] = Variable<double>(x.value);
+    }
+    if (y.present) {
+      map['y'] = Variable<double>(y.value);
+    }
+    if (scale.present) {
+      map['scale'] = Variable<double>(scale.value);
+    }
+    if (rotation.present) {
+      map['rotation'] = Variable<double>(rotation.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImageLayersCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('projectId: $projectId, ')
+          ..write('trackId: $trackId, ')
+          ..write('startMs: $startMs, ')
+          ..write('endMs: $endMs, ')
+          ..write('path: $path, ')
+          ..write('widthPx: $widthPx, ')
+          ..write('heightPx: $heightPx, ')
+          ..write('x: $x, ')
+          ..write('y: $y, ')
+          ..write('scale: $scale, ')
+          ..write('rotation: $rotation, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7034,6 +8732,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TranslationLinesTable translationLines = $TranslationLinesTable(
     this,
   );
+  late final $TracksTable tracks = $TracksTable(this);
+  late final $ImageLayersTable imageLayers = $ImageLayersTable(this);
   late final Index mediaClipsProjectPosition = Index(
     'media_clips_project_position',
     'CREATE INDEX media_clips_project_position ON media_clips (project_id, position)',
@@ -7062,6 +8762,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'translation_lines_transcript',
     'CREATE INDEX translation_lines_transcript ON translation_lines (transcript_id, position)',
   );
+  late final Index tracksProjectPosition = Index(
+    'tracks_project_position',
+    'CREATE INDEX tracks_project_position ON tracks (project_id, position)',
+  );
+  late final Index imageLayersProjectStart = Index(
+    'image_layers_project_start',
+    'CREATE INDEX image_layers_project_start ON image_layers (project_id, start_ms)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7077,6 +8785,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     timelineEvents,
     textLayers,
     translationLines,
+    tracks,
+    imageLayers,
     mediaClipsProjectPosition,
     transcribeLayersProjectStart,
     wordsTranscriptStart,
@@ -7084,6 +8794,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     editEventsTranscriptSeq,
     textLayersProjectStart,
     translationLinesTranscript,
+    tracksProjectPosition,
+    imageLayersProjectStart,
   ];
 }
 
@@ -7199,6 +8911,43 @@ final class $$ProjectsTableReferences
     ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_textLayersRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$TracksTable, List<Track>> _tracksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.tracks,
+    aliasName: 'projects__id__tracks__project_id',
+  );
+
+  $$TracksTableProcessedTableManager get tracksRefs {
+    final manager = $$TracksTableTableManager(
+      $_db,
+      $_db.tracks,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_tracksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ImageLayersTable, List<ImageLayer>>
+  _imageLayersRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.imageLayers,
+    aliasName: 'projects__id__image_layers__project_id',
+  );
+
+  $$ImageLayersTableProcessedTableManager get imageLayersRefs {
+    final manager = $$ImageLayersTableTableManager(
+      $_db,
+      $_db.imageLayers,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_imageLayersRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -7365,6 +9114,56 @@ class $$ProjectsTableFilterComposer
           }) => $$TextLayersTableFilterComposer(
             $db: $db,
             $table: $db.textLayers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> tracksRefs(
+    Expression<bool> Function($$TracksTableFilterComposer f) f,
+  ) {
+    final $$TracksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tracks,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TracksTableFilterComposer(
+            $db: $db,
+            $table: $db.tracks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> imageLayersRefs(
+    Expression<bool> Function($$ImageLayersTableFilterComposer f) f,
+  ) {
+    final $$ImageLayersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.imageLayers,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImageLayersTableFilterComposer(
+            $db: $db,
+            $table: $db.imageLayers,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7576,6 +9375,56 @@ class $$ProjectsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> tracksRefs<T extends Object>(
+    Expression<T> Function($$TracksTableAnnotationComposer a) f,
+  ) {
+    final $$TracksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.tracks,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TracksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tracks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> imageLayersRefs<T extends Object>(
+    Expression<T> Function($$ImageLayersTableAnnotationComposer a) f,
+  ) {
+    final $$ImageLayersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.imageLayers,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImageLayersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imageLayers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProjectsTableTableManager
@@ -7597,6 +9446,8 @@ class $$ProjectsTableTableManager
             bool transcriptsRefs,
             bool timelineEventsRefs,
             bool textLayersRefs,
+            bool tracksRefs,
+            bool imageLayersRefs,
           })
         > {
   $$ProjectsTableTableManager(_$AppDatabase db, $ProjectsTable table)
@@ -7665,6 +9516,8 @@ class $$ProjectsTableTableManager
                 transcriptsRefs = false,
                 timelineEventsRefs = false,
                 textLayersRefs = false,
+                tracksRefs = false,
+                imageLayersRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -7674,6 +9527,8 @@ class $$ProjectsTableTableManager
                     if (transcriptsRefs) db.transcripts,
                     if (timelineEventsRefs) db.timelineEvents,
                     if (textLayersRefs) db.textLayers,
+                    if (tracksRefs) db.tracks,
+                    if (imageLayersRefs) db.imageLayers,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -7783,6 +9638,48 @@ class $$ProjectsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (tracksRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          Track
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._tracksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).tracksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (imageLayersRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          ImageLayer
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._imageLayersRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).imageLayersRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7809,6 +9706,8 @@ typedef $$ProjectsTableProcessedTableManager =
         bool transcriptsRefs,
         bool timelineEventsRefs,
         bool textLayersRefs,
+        bool tracksRefs,
+        bool imageLayersRefs,
       })
     >;
 typedef $$MediaClipsTableCreateCompanionBuilder = MediaClipsCompanion Function({
@@ -8503,6 +10402,7 @@ typedef $$TranscribeLayersTableCreateCompanionBuilder =
       required int startMs,
       required int endMs,
       Value<int> trackIndex,
+      Value<String?> trackId,
       Value<double> captionX,
       Value<double> captionY,
       Value<double> captionScale,
@@ -8519,6 +10419,7 @@ typedef $$TranscribeLayersTableUpdateCompanionBuilder =
       Value<int> startMs,
       Value<int> endMs,
       Value<int> trackIndex,
+      Value<String?> trackId,
       Value<double> captionX,
       Value<double> captionY,
       Value<double> captionScale,
@@ -8612,6 +10513,11 @@ class $$TranscribeLayersTableFilterComposer
 
   ColumnFilters<int> get trackIndex => $composableBuilder(
     column: $table.trackIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trackId => $composableBuilder(
+    column: $table.trackId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8728,6 +10634,11 @@ class $$TranscribeLayersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get captionX => $composableBuilder(
     column: $table.captionX,
     builder: (column) => ColumnOrderings(column),
@@ -8803,6 +10714,9 @@ class $$TranscribeLayersTableAnnotationComposer
     column: $table.trackIndex,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get trackId =>
+      $composableBuilder(column: $table.trackId, builder: (column) => column);
 
   GeneratedColumn<double> get captionX =>
       $composableBuilder(column: $table.captionX, builder: (column) => column);
@@ -8907,6 +10821,7 @@ class $$TranscribeLayersTableTableManager
                 Value<int> startMs = const Value.absent(),
                 Value<int> endMs = const Value.absent(),
                 Value<int> trackIndex = const Value.absent(),
+                Value<String?> trackId = const Value.absent(),
                 Value<double> captionX = const Value.absent(),
                 Value<double> captionY = const Value.absent(),
                 Value<double> captionScale = const Value.absent(),
@@ -8921,6 +10836,7 @@ class $$TranscribeLayersTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 trackIndex: trackIndex,
+                trackId: trackId,
                 captionX: captionX,
                 captionY: captionY,
                 captionScale: captionScale,
@@ -8937,6 +10853,7 @@ class $$TranscribeLayersTableTableManager
                 required int startMs,
                 required int endMs,
                 Value<int> trackIndex = const Value.absent(),
+                Value<String?> trackId = const Value.absent(),
                 Value<double> captionX = const Value.absent(),
                 Value<double> captionY = const Value.absent(),
                 Value<double> captionScale = const Value.absent(),
@@ -8951,6 +10868,7 @@ class $$TranscribeLayersTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 trackIndex: trackIndex,
+                trackId: trackId,
                 captionX: captionX,
                 captionY: captionY,
                 captionScale: captionScale,
@@ -9980,6 +11898,7 @@ typedef $$WordsTableCreateCompanionBuilder = WordsCompanion Function({
   Value<double?> captionY,
   Value<double?> captionScale,
   Value<String?> captionLook,
+  Value<String?> captionTrackId,
   Value<int> rowid,
 });
 typedef $$WordsTableUpdateCompanionBuilder = WordsCompanion Function({
@@ -9997,6 +11916,7 @@ typedef $$WordsTableUpdateCompanionBuilder = WordsCompanion Function({
   Value<double?> captionY,
   Value<double?> captionScale,
   Value<String?> captionLook,
+  Value<String?> captionTrackId,
   Value<int> rowid,
 });
 
@@ -10092,6 +12012,11 @@ class $$WordsTableFilterComposer extends Composer<_$AppDatabase, $WordsTable> {
 
   ColumnFilters<String> get captionLook => $composableBuilder(
     column: $table.captionLook,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get captionTrackId => $composableBuilder(
+    column: $table.captionTrackId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10193,6 +12118,11 @@ class $$WordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get captionTrackId => $composableBuilder(
+    column: $table.captionTrackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$TranscriptsTableOrderingComposer get transcriptId {
     final $$TranscriptsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -10269,6 +12199,11 @@ class $$WordsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get captionTrackId => $composableBuilder(
+    column: $table.captionTrackId,
+    builder: (column) => column,
+  );
+
   $$TranscriptsTableAnnotationComposer get transcriptId {
     final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -10335,6 +12270,7 @@ class $$WordsTableTableManager
                 Value<double?> captionY = const Value.absent(),
                 Value<double?> captionScale = const Value.absent(),
                 Value<String?> captionLook = const Value.absent(),
+                Value<String?> captionTrackId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => WordsCompanion(
                 id: id,
@@ -10351,6 +12287,7 @@ class $$WordsTableTableManager
                 captionY: captionY,
                 captionScale: captionScale,
                 captionLook: captionLook,
+                captionTrackId: captionTrackId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10369,6 +12306,7 @@ class $$WordsTableTableManager
                 Value<double?> captionY = const Value.absent(),
                 Value<double?> captionScale = const Value.absent(),
                 Value<String?> captionLook = const Value.absent(),
+                Value<String?> captionTrackId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => WordsCompanion.insert(
                 id: id,
@@ -10385,6 +12323,7 @@ class $$WordsTableTableManager
                 captionY: captionY,
                 captionScale: captionScale,
                 captionLook: captionLook,
+                captionTrackId: captionTrackId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -11461,6 +13400,7 @@ typedef $$TextLayersTableCreateCompanionBuilder = TextLayersCompanion Function({
   Value<double> scale,
   Value<double> rotation,
   Value<int> trackIndex,
+  Value<String?> trackId,
   Value<String?> look,
   Value<int> rowid,
 });
@@ -11478,6 +13418,7 @@ typedef $$TextLayersTableUpdateCompanionBuilder = TextLayersCompanion Function({
   Value<double> scale,
   Value<double> rotation,
   Value<int> trackIndex,
+  Value<String?> trackId,
   Value<String?> look,
   Value<int> rowid,
 });
@@ -11570,6 +13511,11 @@ class $$TextLayersTableFilterComposer
 
   ColumnFilters<int> get trackIndex => $composableBuilder(
     column: $table.trackIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trackId => $composableBuilder(
+    column: $table.trackId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11671,6 +13617,11 @@ class $$TextLayersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get look => $composableBuilder(
     column: $table.look,
     builder: (column) => ColumnOrderings(column),
@@ -11747,6 +13698,9 @@ class $$TextLayersTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get trackId =>
+      $composableBuilder(column: $table.trackId, builder: (column) => column);
+
   GeneratedColumn<String> get look =>
       $composableBuilder(column: $table.look, builder: (column) => column);
 
@@ -11815,6 +13769,7 @@ class $$TextLayersTableTableManager
                 Value<double> scale = const Value.absent(),
                 Value<double> rotation = const Value.absent(),
                 Value<int> trackIndex = const Value.absent(),
+                Value<String?> trackId = const Value.absent(),
                 Value<String?> look = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TextLayersCompanion(
@@ -11831,6 +13786,7 @@ class $$TextLayersTableTableManager
                 scale: scale,
                 rotation: rotation,
                 trackIndex: trackIndex,
+                trackId: trackId,
                 look: look,
                 rowid: rowid,
               ),
@@ -11849,6 +13805,7 @@ class $$TextLayersTableTableManager
                 Value<double> scale = const Value.absent(),
                 Value<double> rotation = const Value.absent(),
                 Value<int> trackIndex = const Value.absent(),
+                Value<String?> trackId = const Value.absent(),
                 Value<String?> look = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TextLayersCompanion.insert(
@@ -11865,6 +13822,7 @@ class $$TextLayersTableTableManager
                 scale: scale,
                 rotation: rotation,
                 trackIndex: trackIndex,
+                trackId: trackId,
                 look: look,
                 rowid: rowid,
               ),
@@ -11947,6 +13905,11 @@ typedef $$TranslationLinesTableCreateCompanionBuilder =
       required int startMs,
       required int endMs,
       required String content,
+      Value<String?> trackId,
+      Value<double?> x,
+      Value<double?> y,
+      Value<double?> scale,
+      Value<String?> look,
       Value<int> rowid,
     });
 typedef $$TranslationLinesTableUpdateCompanionBuilder =
@@ -11963,6 +13926,11 @@ typedef $$TranslationLinesTableUpdateCompanionBuilder =
       Value<int> startMs,
       Value<int> endMs,
       Value<String> content,
+      Value<String?> trackId,
+      Value<double?> x,
+      Value<double?> y,
+      Value<double?> scale,
+      Value<String?> look,
       Value<int> rowid,
     });
 
@@ -12058,6 +14026,31 @@ class $$TranslationLinesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get look => $composableBuilder(
+    column: $table.look,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$TranscriptsTableFilterComposer get transcriptId {
     final $$TranscriptsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -12146,6 +14139,31 @@ class $$TranslationLinesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get look => $composableBuilder(
+    column: $table.look,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$TranscriptsTableOrderingComposer get transcriptId {
     final $$TranscriptsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -12211,6 +14229,21 @@ class $$TranslationLinesTableAnnotationComposer
 
   GeneratedColumn<String> get content =>
       $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get trackId =>
+      $composableBuilder(column: $table.trackId, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get scale =>
+      $composableBuilder(column: $table.scale, builder: (column) => column);
+
+  GeneratedColumn<String> get look =>
+      $composableBuilder(column: $table.look, builder: (column) => column);
 
   $$TranscriptsTableAnnotationComposer get transcriptId {
     final $$TranscriptsTableAnnotationComposer composer = $composerBuilder(
@@ -12278,6 +14311,11 @@ class $$TranslationLinesTableTableManager
                 Value<int> startMs = const Value.absent(),
                 Value<int> endMs = const Value.absent(),
                 Value<String> content = const Value.absent(),
+                Value<String?> trackId = const Value.absent(),
+                Value<double?> x = const Value.absent(),
+                Value<double?> y = const Value.absent(),
+                Value<double?> scale = const Value.absent(),
+                Value<String?> look = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TranslationLinesCompanion(
                 id: id,
@@ -12292,6 +14330,11 @@ class $$TranslationLinesTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 content: content,
+                trackId: trackId,
+                x: x,
+                y: y,
+                scale: scale,
+                look: look,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -12308,6 +14351,11 @@ class $$TranslationLinesTableTableManager
                 required int startMs,
                 required int endMs,
                 required String content,
+                Value<String?> trackId = const Value.absent(),
+                Value<double?> x = const Value.absent(),
+                Value<double?> y = const Value.absent(),
+                Value<double?> scale = const Value.absent(),
+                Value<String?> look = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TranslationLinesCompanion.insert(
                 id: id,
@@ -12322,6 +14370,11 @@ class $$TranslationLinesTableTableManager
                 startMs: startMs,
                 endMs: endMs,
                 content: content,
+                trackId: trackId,
+                x: x,
+                y: y,
+                scale: scale,
+                look: look,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -12389,6 +14442,860 @@ typedef $$TranslationLinesTableProcessedTableManager =
       TranslationLine,
       PrefetchHooks Function({bool transcriptId})
     >;
+typedef $$TracksTableCreateCompanionBuilder = TracksCompanion Function({
+  required String id,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<DateTime?> deletedAt,
+  required String projectId,
+  required int position,
+  required String kind,
+  Value<int> rowid,
+});
+typedef $$TracksTableUpdateCompanionBuilder = TracksCompanion Function({
+  Value<String> id,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<String> projectId,
+  Value<int> position,
+  Value<String> kind,
+  Value<int> rowid,
+});
+
+final class $$TracksTableReferences
+    extends BaseReferences<_$AppDatabase, $TracksTable, Track> {
+  $$TracksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('tracks__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TracksTableFilterComposer
+    extends Composer<_$AppDatabase, $TracksTable> {
+  $$TracksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TracksTableOrderingComposer
+    extends Composer<_$AppDatabase, $TracksTable> {
+  $$TracksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TracksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TracksTable> {
+  $$TracksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TracksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TracksTable,
+          Track,
+          $$TracksTableFilterComposer,
+          $$TracksTableOrderingComposer,
+          $$TracksTableAnnotationComposer,
+          $$TracksTableCreateCompanionBuilder,
+          $$TracksTableUpdateCompanionBuilder,
+          (Track, $$TracksTableReferences),
+          Track,
+          PrefetchHooks Function({bool projectId})
+        > {
+  $$TracksTableTableManager(_$AppDatabase db, $TracksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TracksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TracksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TracksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TracksCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                position: position,
+                kind: kind,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String projectId,
+                required int position,
+                required String kind,
+                Value<int> rowid = const Value.absent(),
+              }) => TracksCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                position: position,
+                kind: kind,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$TracksTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (projectId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.projectId,
+                        referencedTable: $$TracksTableReferences
+                            ._projectIdTable(db),
+                        referencedColumn: $$TracksTableReferences
+                            ._projectIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TracksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TracksTable,
+      Track,
+      $$TracksTableFilterComposer,
+      $$TracksTableOrderingComposer,
+      $$TracksTableAnnotationComposer,
+      $$TracksTableCreateCompanionBuilder,
+      $$TracksTableUpdateCompanionBuilder,
+      (Track, $$TracksTableReferences),
+      Track,
+      PrefetchHooks Function({bool projectId})
+    >;
+typedef $$ImageLayersTableCreateCompanionBuilder =
+    ImageLayersCompanion Function({
+      required String id,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> deletedAt,
+      required String projectId,
+      required String trackId,
+      required int startMs,
+      required int endMs,
+      required String path,
+      required int widthPx,
+      required int heightPx,
+      Value<double> x,
+      Value<double> y,
+      Value<double> scale,
+      Value<double> rotation,
+      Value<int> rowid,
+    });
+typedef $$ImageLayersTableUpdateCompanionBuilder =
+    ImageLayersCompanion Function({
+      Value<String> id,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> deletedAt,
+      Value<String> projectId,
+      Value<String> trackId,
+      Value<int> startMs,
+      Value<int> endMs,
+      Value<String> path,
+      Value<int> widthPx,
+      Value<int> heightPx,
+      Value<double> x,
+      Value<double> y,
+      Value<double> scale,
+      Value<double> rotation,
+      Value<int> rowid,
+    });
+
+final class $$ImageLayersTableReferences
+    extends BaseReferences<_$AppDatabase, $ImageLayersTable, ImageLayer> {
+  $$ImageLayersTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProjectsTable _projectIdTable(_$AppDatabase db) =>
+      db.projects.createAlias('image_layers__project_id__projects__id');
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ImageLayersTableFilterComposer
+    extends Composer<_$AppDatabase, $ImageLayersTable> {
+  $$ImageLayersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get widthPx => $composableBuilder(
+    column: $table.widthPx,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get heightPx => $composableBuilder(
+    column: $table.heightPx,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rotation => $composableBuilder(
+    column: $table.rotation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImageLayersTableOrderingComposer
+    extends Composer<_$AppDatabase, $ImageLayersTable> {
+  $$ImageLayersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trackId => $composableBuilder(
+    column: $table.trackId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMs => $composableBuilder(
+    column: $table.startMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMs => $composableBuilder(
+    column: $table.endMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get widthPx => $composableBuilder(
+    column: $table.widthPx,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get heightPx => $composableBuilder(
+    column: $table.heightPx,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get x => $composableBuilder(
+    column: $table.x,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get y => $composableBuilder(
+    column: $table.y,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get scale => $composableBuilder(
+    column: $table.scale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rotation => $composableBuilder(
+    column: $table.rotation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImageLayersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ImageLayersTable> {
+  $$ImageLayersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get trackId =>
+      $composableBuilder(column: $table.trackId, builder: (column) => column);
+
+  GeneratedColumn<int> get startMs =>
+      $composableBuilder(column: $table.startMs, builder: (column) => column);
+
+  GeneratedColumn<int> get endMs =>
+      $composableBuilder(column: $table.endMs, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<int> get widthPx =>
+      $composableBuilder(column: $table.widthPx, builder: (column) => column);
+
+  GeneratedColumn<int> get heightPx =>
+      $composableBuilder(column: $table.heightPx, builder: (column) => column);
+
+  GeneratedColumn<double> get x =>
+      $composableBuilder(column: $table.x, builder: (column) => column);
+
+  GeneratedColumn<double> get y =>
+      $composableBuilder(column: $table.y, builder: (column) => column);
+
+  GeneratedColumn<double> get scale =>
+      $composableBuilder(column: $table.scale, builder: (column) => column);
+
+  GeneratedColumn<double> get rotation =>
+      $composableBuilder(column: $table.rotation, builder: (column) => column);
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImageLayersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ImageLayersTable,
+          ImageLayer,
+          $$ImageLayersTableFilterComposer,
+          $$ImageLayersTableOrderingComposer,
+          $$ImageLayersTableAnnotationComposer,
+          $$ImageLayersTableCreateCompanionBuilder,
+          $$ImageLayersTableUpdateCompanionBuilder,
+          (ImageLayer, $$ImageLayersTableReferences),
+          ImageLayer,
+          PrefetchHooks Function({bool projectId})
+        > {
+  $$ImageLayersTableTableManager(_$AppDatabase db, $ImageLayersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImageLayersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImageLayersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ImageLayersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<String> trackId = const Value.absent(),
+                Value<int> startMs = const Value.absent(),
+                Value<int> endMs = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<int> widthPx = const Value.absent(),
+                Value<int> heightPx = const Value.absent(),
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> scale = const Value.absent(),
+                Value<double> rotation = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImageLayersCompanion(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                trackId: trackId,
+                startMs: startMs,
+                endMs: endMs,
+                path: path,
+                widthPx: widthPx,
+                heightPx: heightPx,
+                x: x,
+                y: y,
+                scale: scale,
+                rotation: rotation,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                required String projectId,
+                required String trackId,
+                required int startMs,
+                required int endMs,
+                required String path,
+                required int widthPx,
+                required int heightPx,
+                Value<double> x = const Value.absent(),
+                Value<double> y = const Value.absent(),
+                Value<double> scale = const Value.absent(),
+                Value<double> rotation = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ImageLayersCompanion.insert(
+                id: id,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                projectId: projectId,
+                trackId: trackId,
+                startMs: startMs,
+                endMs: endMs,
+                path: path,
+                widthPx: widthPx,
+                heightPx: heightPx,
+                x: x,
+                y: y,
+                scale: scale,
+                rotation: rotation,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ImageLayersTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({projectId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (projectId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.projectId,
+                        referencedTable: $$ImageLayersTableReferences
+                            ._projectIdTable(db),
+                        referencedColumn: $$ImageLayersTableReferences
+                            ._projectIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ImageLayersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ImageLayersTable,
+      ImageLayer,
+      $$ImageLayersTableFilterComposer,
+      $$ImageLayersTableOrderingComposer,
+      $$ImageLayersTableAnnotationComposer,
+      $$ImageLayersTableCreateCompanionBuilder,
+      $$ImageLayersTableUpdateCompanionBuilder,
+      (ImageLayer, $$ImageLayersTableReferences),
+      ImageLayer,
+      PrefetchHooks Function({bool projectId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12413,4 +15320,8 @@ class $AppDatabaseManager {
       $$TextLayersTableTableManager(_db, _db.textLayers);
   $$TranslationLinesTableTableManager get translationLines =>
       $$TranslationLinesTableTableManager(_db, _db.translationLines);
+  $$TracksTableTableManager get tracks =>
+      $$TracksTableTableManager(_db, _db.tracks);
+  $$ImageLayersTableTableManager get imageLayers =>
+      $$ImageLayersTableTableManager(_db, _db.imageLayers);
 }

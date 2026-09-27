@@ -22,6 +22,8 @@ import android.text.style.CharacterStyle
 import android.text.style.ReplacementSpan
 import android.text.style.StyleSpan
 import android.text.style.UpdateAppearance
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import io.flutter.FlutterInjector
@@ -32,12 +34,14 @@ import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.OverlaySettings
+import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.Brightness
 import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
+import androidx.media3.effect.TextureOverlay
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
 import androidx.media3.common.audio.ChannelMixingMatrix
 import androidx.media3.transformer.Composition
@@ -144,6 +148,13 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
          * `lib/core/video/export_options.dart`.**
          */
         const val TEXT_LAYER_FRACTION = 0.06f
+
+        /**
+         * How big an image is drawn at scale 1: its longer side this share of
+         * the output's shorter edge. `imageExtentFraction` in
+         * `video_export.dart`, which the stage sizes by too.
+         */
+        const val IMAGE_EXTENT_FRACTION = 0.5f
 
         /**
          * The ink of a word on a highlight box: dark, to read on any colour
@@ -430,6 +441,102 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             val index = indexAt(presentationTimeUs)
             return if (index >= 0) settings[index] else hidden
         }
+    }
+
+    /**
+     * Pictures over the video, [TextLayerOverlay]'s way: one overlay per lane
+     * of images that never show at once, switching between them, so many
+     * images cost as few of Media3's 15 overlay slots as can hold them.
+     */
+    private class ImageLayerOverlay(private val items: List<ImageItem>) : BitmapOverlay() {
+        private val settings = items.map { item ->
+            StaticOverlaySettings.Builder()
+                .setBackgroundFrameAnchor(item.placement.x, item.placement.y)
+                .setScale(item.placement.scale, item.placement.scale)
+                .setRotationDegrees(-item.placement.rotation)
+                .build()
+        }
+
+        private val hidden = StaticOverlaySettings.Builder()
+            .setAlphaScale(0f)
+            .build()
+
+        private var last = 0
+
+        private fun indexAt(presentationTimeUs: Long): Int {
+            val ms = presentationTimeUs / 1000
+            return items.indexOfFirst { ms >= it.startMs && ms < it.endMs }
+        }
+
+        override fun getBitmap(presentationTimeUs: Long): Bitmap {
+            val index = indexAt(presentationTimeUs)
+            if (index >= 0) last = index
+            return items[last].bitmap
+        }
+
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
+            val index = indexAt(presentationTimeUs)
+            return if (index >= 0) settings[index] else hidden
+        }
+    }
+
+    private data class ImageItem(
+        val startMs: Long,
+        val endMs: Long,
+        val bitmap: Bitmap,
+        val placement: Placement,
+    )
+
+    /**
+     * A picture decoded at the size it is drawn -- its longer side
+     * [longerPx] -- once per file for the whole export, however many clips it
+     * spans. Null when it cannot be read; the image is then left out.
+     */
+    private fun decodeImage(path: String, longerPx: Int, cache: MutableMap<String, Bitmap?>): Bitmap? =
+        cache.getOrPut(path) {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            val longest = maxOf(bounds.outWidth, bounds.outHeight)
+            if (longest <= 0) return@getOrPut null
+            var sample = 1
+            while (longest / (sample * 2) >= longerPx) sample *= 2
+            val decoded = BitmapFactory.decodeFile(
+                path,
+                BitmapFactory.Options().apply { inSampleSize = sample },
+            ) ?: return@getOrPut null
+            val scale = longerPx.toFloat() / maxOf(decoded.width, decoded.height)
+            Bitmap.createScaledBitmap(
+                decoded,
+                maxOf(1, (decoded.width * scale).roundToInt()),
+                maxOf(1, (decoded.height * scale).roundToInt()),
+                true,
+            )
+        }
+
+    private fun imagesOf(
+        raw: Any?,
+        longerPx: Int,
+        cache: MutableMap<String, Bitmap?>,
+    ): List<ImageItem> {
+        val list = raw as? List<*> ?: return emptyList()
+        return list.mapNotNull { entry ->
+            val map = entry as? Map<*, *> ?: return@mapNotNull null
+            val path = map["path"] as? String ?: return@mapNotNull null
+            val start = (map["startMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            val end = (map["endMs"] as? Number)?.toLong() ?: return@mapNotNull null
+            if (end <= start) return@mapNotNull null
+            val bitmap = decodeImage(path, longerPx, cache) ?: return@mapNotNull null
+            ImageItem(start, end, bitmap, placementOf(map))
+        }
+    }
+
+    private fun imageLanes(items: List<ImageItem>): List<List<ImageItem>> {
+        val lanes = mutableListOf<MutableList<ImageItem>>()
+        for (item in items.sortedBy { it.startMs }) {
+            val lane = lanes.firstOrNull { it.last().endMs <= item.startMs }
+            if (lane != null) lane.add(item) else lanes.add(mutableListOf(item))
+        }
+        return lanes
     }
 
     /**
@@ -856,6 +963,9 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             (min(size.first, size.second) * WATERMARK_TEXT_FRACTION).roundToInt()
         val textLayerSizePx =
             (min(size.first, size.second) * TEXT_LAYER_FRACTION).roundToInt()
+        val imageLongerPx =
+            (min(size.first, size.second) * IMAGE_EXTENT_FRACTION).roundToInt()
+        val decodedImages = HashMap<String, Bitmap?>()
 
         val items = clips.map { clip ->
             val path = clip["path"] as String
@@ -885,7 +995,12 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             // One effect carrying both overlays rather than two effects: each
             // OverlayEffect is its own GL pass over the frame, and there is no
             // reason for the mark to cost a second one.
-            val overlays = mutableListOf<TextOverlay>()
+            val overlays = mutableListOf<TextureOverlay>()
+            // Images first, under every word -- the order the stage stacks
+            // them in.
+            for (lane in imageLanes(imagesOf(clip["images"], imageLongerPx, decodedImages))) {
+                overlays.add(ImageLayerOverlay(lane))
+            }
             // Texts before captions, so a caption drawn over a title stays
             // readable -- the order the stage stacks them in.
             for (lane in textLanes(textsOf(clip["texts"]))) {

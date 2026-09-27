@@ -156,12 +156,13 @@ abstract class _$SelectedClip extends $Notifier<String?> {
   }
 }
 
-/// Which tracks the eye in the gutter has hidden.
+/// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
 ///
 /// **Hidden means left out**, in the preview and in the export alike: a
 /// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts or translation are not drawn or burned in. What the
-/// preview shows is what the export makes.
+/// captions, texts, translation or images are not drawn or burned in --
+/// whatever sits on a hidden track. What the preview shows is what the
+/// export makes.
 ///
 /// A session's view of the project, not a property of its data, so it is
 /// held here rather than stored.
@@ -169,23 +170,25 @@ abstract class _$SelectedClip extends $Notifier<String?> {
 @ProviderFor(HiddenTracks)
 final hiddenTracksProvider = HiddenTracksFamily._();
 
-/// Which tracks the eye in the gutter has hidden.
+/// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
 ///
 /// **Hidden means left out**, in the preview and in the export alike: a
 /// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts or translation are not drawn or burned in. What the
-/// preview shows is what the export makes.
+/// captions, texts, translation or images are not drawn or burned in --
+/// whatever sits on a hidden track. What the preview shows is what the
+/// export makes.
 ///
 /// A session's view of the project, not a property of its data, so it is
 /// held here rather than stored.
 final class HiddenTracksProvider
-    extends $NotifierProvider<HiddenTracks, Set<TimelineTrack>> {
-  /// Which tracks the eye in the gutter has hidden.
+    extends $NotifierProvider<HiddenTracks, Set<String>> {
+  /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
   ///
   /// **Hidden means left out**, in the preview and in the export alike: a
   /// hidden video track plays black, hidden audio is silent, and hidden
-  /// captions, texts or translation are not drawn or burned in. What the
-  /// preview shows is what the export makes.
+  /// captions, texts, translation or images are not drawn or burned in --
+  /// whatever sits on a hidden track. What the preview shows is what the
+  /// export makes.
   ///
   /// A session's view of the project, not a property of its data, so it is
   /// held here rather than stored.
@@ -215,10 +218,10 @@ final class HiddenTracksProvider
   HiddenTracks create() => HiddenTracks();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(Set<TimelineTrack> value) {
+  Override overrideWithValue(Set<String> value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<Set<TimelineTrack>>(value),
+      providerOverride: $SyncValueProvider<Set<String>>(value),
     );
   }
 
@@ -233,14 +236,15 @@ final class HiddenTracksProvider
   }
 }
 
-String _$hiddenTracksHash() => r'7b84d3f03cbe39d506bda8ef216288ce36d09eb3';
+String _$hiddenTracksHash() => r'2ab9f64bb40ac5ac5dbbf2ea334c18cc9c03fcaa';
 
-/// Which tracks the eye in the gutter has hidden.
+/// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
 ///
 /// **Hidden means left out**, in the preview and in the export alike: a
 /// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts or translation are not drawn or burned in. What the
-/// preview shows is what the export makes.
+/// captions, texts, translation or images are not drawn or burned in --
+/// whatever sits on a hidden track. What the preview shows is what the
+/// export makes.
 ///
 /// A session's view of the project, not a property of its data, so it is
 /// held here rather than stored.
@@ -249,9 +253,9 @@ final class HiddenTracksFamily extends $Family
     with
         $ClassFamilyOverride<
           HiddenTracks,
-          Set<TimelineTrack>,
-          Set<TimelineTrack>,
-          Set<TimelineTrack>,
+          Set<String>,
+          Set<String>,
+          Set<String>,
           String
         > {
   HiddenTracksFamily._()
@@ -263,12 +267,13 @@ final class HiddenTracksFamily extends $Family
         isAutoDispose: false,
       );
 
-  /// Which tracks the eye in the gutter has hidden.
+  /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
   ///
   /// **Hidden means left out**, in the preview and in the export alike: a
   /// hidden video track plays black, hidden audio is silent, and hidden
-  /// captions, texts or translation are not drawn or burned in. What the
-  /// preview shows is what the export makes.
+  /// captions, texts, translation or images are not drawn or burned in --
+  /// whatever sits on a hidden track. What the preview shows is what the
+  /// export makes.
   ///
   /// A session's view of the project, not a property of its data, so it is
   /// held here rather than stored.
@@ -280,35 +285,113 @@ final class HiddenTracksFamily extends $Family
   String toString() => r'hiddenTracksProvider';
 }
 
-/// Which tracks the eye in the gutter has hidden.
+/// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
 ///
 /// **Hidden means left out**, in the preview and in the export alike: a
 /// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts or translation are not drawn or burned in. What the
-/// preview shows is what the export makes.
+/// captions, texts, translation or images are not drawn or burned in --
+/// whatever sits on a hidden track. What the preview shows is what the
+/// export makes.
 ///
 /// A session's view of the project, not a property of its data, so it is
 /// held here rather than stored.
 
-abstract class _$HiddenTracks extends $Notifier<Set<TimelineTrack>> {
+abstract class _$HiddenTracks extends $Notifier<Set<String>> {
   late final _$args = ref.$arg as String;
   String get projectId => _$args;
 
-  Set<TimelineTrack> build(String projectId);
+  Set<String> build(String projectId);
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
-    final ref = this.ref as $Ref<Set<TimelineTrack>, Set<TimelineTrack>>;
+    final ref = this.ref as $Ref<Set<String>, Set<String>>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<Set<TimelineTrack>, Set<TimelineTrack>>,
-              Set<TimelineTrack>,
+              AnyNotifier<Set<String>, Set<String>>,
+              Set<String>,
               Object?,
               Object?
             >;
     return element.handleCreate(ref, () => build(_$args));
   }
+}
+
+@ProviderFor(hiddenPlayback)
+final hiddenPlaybackProvider = HiddenPlaybackFamily._();
+
+final class HiddenPlaybackProvider
+    extends $FunctionalProvider<HiddenPlayback, HiddenPlayback, HiddenPlayback>
+    with $Provider<HiddenPlayback> {
+  HiddenPlaybackProvider._({
+    required HiddenPlaybackFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'hiddenPlaybackProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$hiddenPlaybackHash();
+
+  @override
+  String toString() {
+    return r'hiddenPlaybackProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<HiddenPlayback> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  HiddenPlayback create(Ref ref) {
+    final argument = this.argument as String;
+    return hiddenPlayback(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(HiddenPlayback value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<HiddenPlayback>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is HiddenPlaybackProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$hiddenPlaybackHash() => r'd533c66e0e46ed976ccbffc511c1623e22b60641';
+
+final class HiddenPlaybackFamily extends $Family
+    with $FunctionalFamilyOverride<HiddenPlayback, String> {
+  HiddenPlaybackFamily._()
+    : super(
+        retry: null,
+        name: r'hiddenPlaybackProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  HiddenPlaybackProvider call(String projectId) =>
+      HiddenPlaybackProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'hiddenPlaybackProvider';
 }
 
 /// Where the playhead sits, in project time.

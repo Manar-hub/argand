@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/video/export_options.dart';
@@ -83,8 +84,8 @@ class VideoSettingsGear extends ConsumerWidget {
         turns: open ? 0.25 : 0,
         duration: _motionFor(context),
         curve: Curves.easeOutCubic,
-        child: Icon(
-          Icons.settings_outlined,
+        child: AppIcon(
+          AppGlyph.gear,
           color: open ? theme.colorScheme.secondary : null,
         ),
       ),
@@ -594,7 +595,7 @@ class ProjectStageCanvas extends ConsumerWidget {
 
     // The gutter's eyes reach the preview: hidden video leaves the frame
     // black, hidden audio plays silent -- as the export will.
-    final hidden = ref.watch(hiddenTracksProvider(projectId));
+    final hidden = ref.watch(hiddenPlaybackProvider(projectId));
     final player = clipId == null
         ? null
         : ref.watch(mediaPlayerProvider(clipId!)).value;
@@ -605,7 +606,7 @@ class ProjectStageCanvas extends ConsumerWidget {
         .where((c) => c.id == clipId)
         .firstOrNull;
     final window = clip == null ? null : audioWindow(clip);
-    final muted = hidden.contains(TimelineTrack.audio) ||
+    final muted = hidden.audio ||
         (clip?.audioMuted ?? false) ||
         (window != null &&
             (mediaPositionMs < window.startMs ||
@@ -621,7 +622,7 @@ class ProjectStageCanvas extends ConsumerWidget {
         clipId: clipId,
         sourceSize: sourceSize,
         picture: Opacity(
-          opacity: hidden.contains(TimelineTrack.clips) ? 0 : 1,
+          opacity: hidden.video ? 0 : 1,
           child: picture,
         ),
       ),

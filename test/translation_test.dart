@@ -126,7 +126,7 @@ void main() {
       expect(placed.last.firstWord, 2);
     });
 
-    test('fewer sentences are spread along the speech by their share of it',
+    test('every source gets a piece, even when the translator merged two',
         () {
       final placed = alignTranslation(
         source: [
@@ -134,15 +134,16 @@ void main() {
           s('Four five six.', 1000, 2000, 3, 5),
           s('Seven eight nine.', 3000, 4000, 6, 8),
         ],
-        translated: 'Uno dos tres cuatro cinco seis. Siete ocho nueve.',
+        translated: 'Uno dos tres, cuatro cinco seis. Siete ocho nueve.',
       );
-      expect(placed, hasLength(2));
-      expect(placed.first.startMs, 0);
-      // The second starts well into the source and ends where speech ends.
-      expect(placed.last.startMs, greaterThan(1500));
-      expect(placed.last.endMs, 4000);
-      expect(placed.last.lastWord, 8);
-      expect(placed.first.endMs, placed.last.startMs);
+      expect(placed.map((p) => p.text), [
+        'Uno dos tres,',
+        'cuatro cinco seis.',
+        'Siete ocho nueve.',
+      ]);
+      // Each takes its source's time and words exactly.
+      expect(placed[1].startMs, 1000);
+      expect(placed[1].lastWord, 5);
     });
 
     test('splits on Arabic and CJK sentence marks too', () {
@@ -153,9 +154,88 @@ void main() {
     });
 
     test('long transcripts go in runs cut at sentence ends', () {
-      final sentences = [for (var i = 0; i < 5; i++) s('x' * 30, i, i + 1, i, i)];
+      final sentences = [
+        for (var i = 0; i < 5; i++) s('${'x' * 29}.', i, i + 1, i, i),
+      ];
       final batches = translationBatches(sentences, maxCharacters: 70);
       expect(batches.map((b) => b.length), [2, 2, 1]);
+    });
+  });
+
+  group('alignToSegments', () {
+    // The demo's caption lines, as `groupIntoCues` cuts them.
+    const demo = [
+      "Hey, I'm potato",
+      "Um, and I'm Verune.",
+      'Oh, shoot.',
+      "We're not building a company.",
+      "We're building freedom.",
+      "I'm a senior at MIT.",
+    ];
+
+    test('matching punctuation: each line its own sentence', () {
+      final pieces = alignToSegments(
+        sources: demo,
+        translated: 'Hey, ich bin Potato. Äh, und ich bin Verune. Oh, Mist. '
+            'Wir bauen keine Firma. Wir bauen Freiheit. '
+            'Ich bin im letzten Jahr am MIT.',
+      );
+      expect(pieces, [
+        'Hey, ich bin Potato.',
+        'Äh, und ich bin Verune.',
+        'Oh, Mist.',
+        'Wir bauen keine Firma.',
+        'Wir bauen Freiheit.',
+        'Ich bin im letzten Jahr am MIT.',
+      ]);
+    });
+
+    test('merged sentences are cut where the second one would start', () {
+      final pieces = alignToSegments(
+        sources: demo.sublist(3, 5),
+        translated: 'Wir bauen keine Firma, wir bauen Freiheit.',
+      );
+      expect(pieces, ['Wir bauen keine Firma,', 'wir bauen Freiheit.']);
+    });
+
+    test('a sentence split in two stays with its line', () {
+      final pieces = alignToSegments(
+        sources: const ['Oh, shoot.', "We're not building a company."],
+        translated: 'Oh. Mist. Wir bauen keine Firma.',
+      );
+      expect(pieces, ['Oh. Mist.', 'Wir bauen keine Firma.']);
+    });
+
+    test('Arabic, right to left, cuts at its own marks', () {
+      final pieces = alignToSegments(
+        sources: demo.sublist(2, 5),
+        translated: 'أوه، تبا. نحن لا نبني شركة. نحن نبني الحرية.',
+      );
+      expect(pieces, ['أوه، تبا.', 'نحن لا نبني شركة.', 'نحن نبني الحرية.']);
+    });
+
+    test('a script without spaces is cut between characters', () {
+      final pieces = alignToSegments(
+        sources: demo.sublist(3, 5),
+        translated: '我们不是在建立一家公司。我们在建立自由。',
+      );
+      expect(pieces, ['我们不是在建立一家公司。', '我们在建立自由。']);
+    });
+
+    test('no line is empty while there are words to go round', () {
+      final pieces = alignToSegments(
+        sources: demo,
+        translated: 'Hallo zusammen, wir sind hier und wir bauen etwas.',
+      );
+      expect(pieces.every((p) => p.isNotEmpty), isTrue);
+      expect(pieces.join(' '),
+          'Hallo zusammen, wir sind hier und wir bauen etwas.');
+    });
+
+    test('too few words: the rest go empty, never repeated', () {
+      final pieces = alignToSegments(sources: demo, translated: 'Ja. Nein.');
+      expect(pieces.where((p) => p.isNotEmpty), ['Ja.', 'Nein.']);
+      expect(pieces, hasLength(demo.length));
     });
   });
 
@@ -245,6 +325,67 @@ void main() {
         'en:BYE NOW.',
         'SEE YOU.',
       ]);
+    });
+
+    test('a caption row is retyped, added and cleared on its own, each undone',
+        () async {
+      final t = await transcribed(['Hello.', 'Bye', 'now.']);
+      await repository.translateAll(
+        transcriptIds: [t.transcriptId],
+        to: 'es',
+        translator: _FakeTranslator(),
+      );
+      final project = (await repository.findTranscript(t.transcriptId))!
+          .projectId;
+      final first = (await database.translationLinesFor(t.transcriptId)).first;
+
+      // Retyped: only the translation changes.
+      await repository.setCueTranslation(
+        transcriptId: t.transcriptId,
+        lineIds: [first.id],
+        firstWord: first.firstWord,
+        lastWord: first.lastWord,
+        startMs: first.startMs,
+        endMs: first.endMs,
+        content: 'Hola.',
+      );
+      expect((await database.findTranslationLine(first.id))!.content, 'Hola.');
+      final words = await repository.watchWords(t.transcriptId).first;
+      expect(words.map((w) => w.word), ['Hello.', 'Bye', 'now.']);
+      await repository.undoProject(project);
+      expect((await database.findTranslationLine(first.id))!.content,
+          first.content);
+
+      // Cleared: gone; undo brings it back.
+      await repository.setCueTranslation(
+        transcriptId: t.transcriptId,
+        lineIds: [first.id],
+        firstWord: first.firstWord,
+        lastWord: first.lastWord,
+        startMs: first.startMs,
+        endMs: first.endMs,
+        content: '  ',
+      );
+      expect(await database.translationLinesFor(t.transcriptId), hasLength(1));
+      await repository.undoProject(project);
+      expect(await database.translationLinesFor(t.transcriptId), hasLength(2));
+
+      // Added where there was none, in the translation's language.
+      await repository.removeTranslation(t.transcriptId);
+      await repository.setCueTranslation(
+        transcriptId: t.transcriptId,
+        lineIds: const [],
+        firstWord: 0,
+        lastWord: 0,
+        startMs: 0,
+        endMs: 400,
+        content: 'Hola.',
+      );
+      final added = await database.translationLinesFor(t.transcriptId);
+      expect(added.single.content, 'Hola.');
+      expect(added.single.trackId, isNotNull);
+      await repository.undoProject(project);
+      expect(await database.translationLinesFor(t.transcriptId), isEmpty);
     });
 
     test('removing the translation leaves the transcript', () async {

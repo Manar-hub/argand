@@ -63,6 +63,9 @@ dependencies:
   # packages (sherpa_onnx_android_*, _ios, _windows, ...).
   sherpa_onnx: ^1.13.6
   google_mlkit_translation: ^0.15.1
+  # The Argand logo: body and hand are separate single-colour SVGs, so the
+  # hand can take the user's action colour (lib/core/theme/argand_logo.dart).
+  flutter_svg: ^2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -98,6 +101,7 @@ flutter:
 
   assets:
     - assets/models/
+    - assets/brand/
 
   # Caption and text fonts: static OFL/Apache files from the google/fonts
   # repository, bundled rather than fetched -- the release build has no

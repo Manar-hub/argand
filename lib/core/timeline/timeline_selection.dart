@@ -3,7 +3,17 @@
 /// Deliberately open to growth: audio, text and image items are planned tracks
 /// and will be selectable the same way. The editing tools switch on this, so
 /// adding a kind is what makes a new track editable.
-enum TimelineItemKind { clip, layer, text, sentence, audio }
+enum TimelineItemKind {
+  clip,
+  layer,
+  text,
+  sentence,
+  audio,
+
+  /// One translation line; its id is the line's row.
+  translation,
+  image,
+}
 
 /// One selected thing: which track it belongs to, and which row it is.
 typedef TimelineItem = ({TimelineItemKind kind, String id});
@@ -61,6 +71,8 @@ Set<TimelineItem> prunedSelection(
   required Set<String> clipIds,
   required Set<String> layerIds,
   Set<String>? textIds,
+  Set<String>? translationIds,
+  Set<String>? imageIds,
 }) {
   return {
     for (final item in selection)
@@ -74,6 +86,8 @@ Set<TimelineItem> prunedSelection(
         TimelineItemKind.sentence => true,
         // A clip's sound: its id is the clip's.
         TimelineItemKind.audio => clipIds.contains(item.id),
+        TimelineItemKind.translation => translationIds?.contains(item.id) ?? true,
+        TimelineItemKind.image => imageIds?.contains(item.id) ?? true,
       })
         item,
   };

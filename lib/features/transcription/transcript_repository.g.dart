@@ -1283,6 +1283,274 @@ final class ProjectTranslationTextsFamily extends $Family
   String toString() => r'projectTranslationTextsProvider';
 }
 
+/// A project's tracks, top to bottom -- placing anything not yet on one the
+/// first time the project is watched.
+
+@ProviderFor(projectTracks)
+final projectTracksProvider = ProjectTracksFamily._();
+
+/// A project's tracks, top to bottom -- placing anything not yet on one the
+/// first time the project is watched.
+
+final class ProjectTracksProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<Track>>,
+          List<Track>,
+          Stream<List<Track>>
+        >
+    with $FutureModifier<List<Track>>, $StreamProvider<List<Track>> {
+  /// A project's tracks, top to bottom -- placing anything not yet on one the
+  /// first time the project is watched.
+  ProjectTracksProvider._({
+    required ProjectTracksFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectTracksProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectTracksHash();
+
+  @override
+  String toString() {
+    return r'projectTracksProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<Track>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<Track>> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectTracks(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectTracksProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectTracksHash() => r'd017d66ac60587b5743033e5b7d78617ac21c5b0';
+
+/// A project's tracks, top to bottom -- placing anything not yet on one the
+/// first time the project is watched.
+
+final class ProjectTracksFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<Track>>, String> {
+  ProjectTracksFamily._()
+    : super(
+        retry: null,
+        name: r'projectTracksProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's tracks, top to bottom -- placing anything not yet on one the
+  /// first time the project is watched.
+
+  ProjectTracksProvider call(String projectId) =>
+      ProjectTracksProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectTracksProvider';
+}
+
+/// A project's images in timeline order.
+
+@ProviderFor(projectImageLayers)
+final projectImageLayersProvider = ProjectImageLayersFamily._();
+
+/// A project's images in timeline order.
+
+final class ProjectImageLayersProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<ImageLayer>>,
+          List<ImageLayer>,
+          Stream<List<ImageLayer>>
+        >
+    with $FutureModifier<List<ImageLayer>>, $StreamProvider<List<ImageLayer>> {
+  /// A project's images in timeline order.
+  ProjectImageLayersProvider._({
+    required ProjectImageLayersFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectImageLayersProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectImageLayersHash();
+
+  @override
+  String toString() {
+    return r'projectImageLayersProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<ImageLayer>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<ImageLayer>> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectImageLayers(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectImageLayersProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectImageLayersHash() =>
+    r'f489a96f77c0884ab2c645b5871b3fb6953a8894';
+
+/// A project's images in timeline order.
+
+final class ProjectImageLayersFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<ImageLayer>>, String> {
+  ProjectImageLayersFamily._()
+    : super(
+        retry: null,
+        name: r'projectImageLayersProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// A project's images in timeline order.
+
+  ProjectImageLayersProvider call(String projectId) =>
+      ProjectImageLayersProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectImageLayersProvider';
+}
+
+/// Every translation line in a project, in project time, in order.
+
+@ProviderFor(projectTranslationLines)
+final projectTranslationLinesProvider = ProjectTranslationLinesFamily._();
+
+/// Every translation line in a project, in project time, in order.
+
+final class ProjectTranslationLinesProvider
+    extends
+        $FunctionalProvider<
+          List<ProjectTranslationLine>,
+          List<ProjectTranslationLine>,
+          List<ProjectTranslationLine>
+        >
+    with $Provider<List<ProjectTranslationLine>> {
+  /// Every translation line in a project, in project time, in order.
+  ProjectTranslationLinesProvider._({
+    required ProjectTranslationLinesFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'projectTranslationLinesProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$projectTranslationLinesHash();
+
+  @override
+  String toString() {
+    return r'projectTranslationLinesProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<List<ProjectTranslationLine>> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  List<ProjectTranslationLine> create(Ref ref) {
+    final argument = this.argument as String;
+    return projectTranslationLines(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<ProjectTranslationLine> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<ProjectTranslationLine>>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProjectTranslationLinesProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$projectTranslationLinesHash() =>
+    r'9cbf6a814c275f6bd002c4754bf0ad9db90cc307';
+
+/// Every translation line in a project, in project time, in order.
+
+final class ProjectTranslationLinesFamily extends $Family
+    with $FunctionalFamilyOverride<List<ProjectTranslationLine>, String> {
+  ProjectTranslationLinesFamily._()
+    : super(
+        retry: null,
+        name: r'projectTranslationLinesProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// Every translation line in a project, in project time, in order.
+
+  ProjectTranslationLinesProvider call(String projectId) =>
+      ProjectTranslationLinesProvider._(argument: projectId, from: this);
+
+  @override
+  String toString() => r'projectTranslationLinesProvider';
+}
+
 /// A project's text layers in timeline order.
 
 @ProviderFor(projectTextLayers)
@@ -1762,7 +2030,7 @@ final class ProjectSentencesProvider
   }
 }
 
-String _$projectSentencesHash() => r'32375b10dd7629782b2dea7716ba55061af9945b';
+String _$projectSentencesHash() => r'ddebf4564be8579f95fc115af3c20b286049b181';
 
 /// Every transcribed sentence in a project, in timeline order.
 ///

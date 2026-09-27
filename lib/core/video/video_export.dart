@@ -44,6 +44,24 @@ typedef ExportText = ({
   ItemLook look,
 });
 
+/// One image's stretch over one clip, timed on that clip's own clock.
+///
+/// [widthPx]/[heightPx] give its shape; the render sizes it so its longer
+/// side is `imageExtentFraction` of the frame's short edge at scale 1, as the
+/// stage does.
+typedef ExportImage = ({
+  int startMs,
+  int endMs,
+  String path,
+  int widthPx,
+  int heightPx,
+  ItemTransform placement,
+});
+
+/// How big an image is drawn at scale 1: its longer side this share of the
+/// frame's shorter edge. The stage and the render both size by it.
+const double imageExtentFraction = 0.5;
+
 /// One clip to render: which stretch of its media, and what goes on top.
 ///
 /// [startMs]/[endMs] are the trim window in **media** time, which is what the
@@ -64,6 +82,7 @@ typedef ExportClip = ({
   int endMs,
   List<ExportCaption> captions,
   List<ExportText> texts,
+  List<ExportImage> images,
   ItemTransform framing,
   ({int startMs, int endMs, int projectStartMs, bool inline})? audio,
 });
@@ -169,6 +188,34 @@ List<ExportText> exportTextsFor(
   ];
 }
 
+/// The parts of [images] that fall on a clip placed at [startMs] for
+/// [durationMs] of the project, on that clip's own clock -- cut at clip
+/// boundaries as [exportTextsFor] cuts texts.
+List<ExportImage> exportImagesFor(
+  List<ImageLayer> images, {
+  required int startMs,
+  required int durationMs,
+}) {
+  final endMs = startMs + durationMs;
+  return [
+    for (final image in images)
+      if (image.startMs < endMs && image.endMs > startMs)
+        (
+          startMs: (image.startMs - startMs).clamp(0, durationMs),
+          endMs: (image.endMs - startMs).clamp(0, durationMs),
+          path: image.path,
+          widthPx: image.widthPx,
+          heightPx: image.heightPx,
+          placement: ItemTransform(
+            x: image.x,
+            y: image.y,
+            scale: image.scale,
+            rotation: image.rotation,
+          ),
+        ),
+  ];
+}
+
 /// Builds the export request for a project, in timeline order.
 ///
 /// **Order comes from [ProjectTimeline], not from the clip list.** The timeline
@@ -193,6 +240,7 @@ ExportRequest? exportRequestFor({
   required List<MediaClip> clips,
   Map<String, List<ExportCaption>> captionsByClip = const {},
   List<TextLayer> texts = const [],
+  List<ImageLayer> images = const [],
   bool withAudio = true,
 }) {
   if (timeline.placements.isEmpty) return null;
@@ -217,6 +265,11 @@ ExportRequest? exportRequestFor({
       captions: captionsByClip[placement.clipId] ?? const [],
       texts: exportTextsFor(
         texts,
+        startMs: placement.startMs,
+        durationMs: placement.durationMs,
+      ),
+      images: exportImagesFor(
+        images,
         startMs: placement.startMs,
         durationMs: placement.durationMs,
       ),
@@ -394,6 +447,20 @@ class VideoExporter {
                     'bold': text.look.font == LookFont.standard,
                     'backgroundArgb': text.look.backgroundArgb,
                     'shadow': text.look.shadow,
+                  },
+              ],
+              'images': [
+                for (final image in clip.images)
+                  {
+                    'startMs': image.startMs,
+                    'endMs': image.endMs,
+                    'path': image.path,
+                    'widthPx': image.widthPx,
+                    'heightPx': image.heightPx,
+                    'x': image.placement.x,
+                    'y': image.placement.y,
+                    'scale': image.placement.scale,
+                    'rotation': image.placement.rotation,
                   },
               ],
               'framing': clip.framing.toJson(),

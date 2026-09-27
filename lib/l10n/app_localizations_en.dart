@@ -284,6 +284,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showTranslation => 'Show translation';
 
   @override
+  String get translationAdd => 'Add translation';
+
+  @override
   String get exportIncludeTranslation => 'Include translation';
 
   @override
@@ -462,6 +465,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get trackKindImage => 'Image';
+
+  @override
+  String get trackKindImageDetail =>
+      'A picture over the video, at the playhead.';
+
+  @override
+  String get translationSelected => 'Translation line selected.';
+
+  @override
+  String get imageSelected => 'Image selected.';
 
   @override
   String get trackKindVideo => 'Video';

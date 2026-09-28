@@ -239,7 +239,6 @@ class ProPurchases {
   /// Pro off, as a new customer -- another take of a demo, another test of
   /// the purchase. Test Store only ([proResettable]).
   Future<void> resetForTesting() async {
-    if (!proResettable) return;
     await store.reset();
     await _record(false);
   }
@@ -272,9 +271,37 @@ class ProPurchases {
   }
 }
 
+/// Stands in for RevenueCat when no key was given (`.env`): Pro is simply not
+/// on sale, and nothing calls into an unconfigured SDK.
+class UnconfiguredStore implements ProStore {
+  const UnconfiguredStore();
+
+  @override
+  Future<ProOffer?> offer() async => null;
+
+  @override
+  Future<bool> buy(ProOffer offer) async =>
+      throw const ProStoreException(ProPurchaseResult.failed);
+
+  @override
+  Future<bool> restore() async =>
+      throw const ProStoreException(ProPurchaseResult.failed);
+
+  @override
+  Future<bool?> owned() async => null;
+
+  @override
+  Future<void> reset() async {}
+
+  @override
+  void listen(void Function(bool owned) onChange) {}
+}
+
 @Riverpod(keepAlive: true)
 ProPurchases proPurchases(Ref ref) => ProPurchases(
-      store: RevenueCatStore(),
+      store: revenueCatApiKey.isEmpty
+          ? const UnconfiguredStore()
+          : RevenueCatStore(),
       database: ref.watch(appDatabaseProvider),
       onChanged: () => ref.invalidate(proUnlockedProvider),
     );

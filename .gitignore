@@ -79,3 +79,6 @@ packages/**/build/
 .claude/
 assets/models/*.gguf
 
+
+# Local secrets
+.env

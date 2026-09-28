@@ -5,10 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The parts of the theme that are checkable rather than a matter of taste.
-///
-/// Nothing here says the design is good — that needs eyes. It says the design
-/// cannot violate the two rules it is built on: the chrome never competes with
-/// `SpeakerPalette`, and the shadow stays hard.
 void main() {
   final light = AppTheme.light();
   final dark = AppTheme.dark();
@@ -34,12 +30,7 @@ void main() {
     });
 
     test('the chrome is quieter than the speakers', () {
-      // **Chroma, not HSL saturation.** This test first used saturation and
-      // failed the moment the ground became a warm off-white: HSL reports
-      // `#FFF1E8` as fully saturated, because a near-white tint sits at the top
-      // of the lightness axis where saturation stops meaning "colourful".
-      // Chroma -- the plain spread between the channels -- is what actually
-      // measures how much colour is present.
+      // Chroma, not HSL saturation.
       double chromaOf(Color c) {
         final r = c.r;
         final g = c.g;
@@ -87,13 +78,7 @@ void main() {
     test('no speaker fill is indistinguishable from a ground', () {
       // A deliberately low bar, and the reason is worth stating rather than
       // tuning silently: this measured 1.22:1 for amber on the warm off-white
-      // ground, and the answer was **not** to lighten the requirement until it
-      // passed. It was to give the speaker chip an outline, which is what
-      // separates it -- and which is the job an outline does in this design.
-      //
-      // So the fills are free to be whatever reads best as caption text over
-      // video, and this only catches a fill that has become literally the page
-      // colour, at which point the outline would be enclosing nothing.
+      // ground.
       for (final scheme in [light.colorScheme, dark.colorScheme]) {
         for (var speaker = 0; speaker < SpeakerPalette.length; speaker++) {
           final fill = SpeakerPalette.colorFor(speaker, fallback: Colors.black);
@@ -113,9 +98,7 @@ void main() {
 
     test('every speaker is legible as text on its own theme', () {
       // The transcript colours its timestamps by speaker, which uses a speaker
-      // colour as *text* rather than as a fill. The raw fills manage 1.28:1
-      // for amber on the warm off-white ground -- they are chosen to sit
-      // behind caption text over video, not to be read directly.
+      // colour as *text* rather than as a fill.
       for (final theme in [light, dark]) {
         for (var speaker = 0; speaker < SpeakerPalette.length; speaker++) {
           final ink = SpeakerPalette.textColorFor(
@@ -180,16 +163,9 @@ void main() {
     });
 
     test('the dark fills are weaker, and that is recorded not fixed', () {
-      // **A finding, not a passing grade.** The caption fills put amber at
+      // A finding, not a passing grade. The caption fills put amber at
       // `#FFD54F` and orange at `#FFB74D` -- 32 apart out of a possible 765,
-      // which is nearly the same colour. It shows up wherever those two
-      // speakers meet, in the captions burned over video as much as in the
-      // transcript, and it predates the transcript using them as text.
-      //
-      // Changing it means changing what is burned into an exported video, so
-      // it is the user's call rather than a quiet retune. The bar here is set
-      // at what the palette actually manages so the number is visible, and the
-      // light inks above are held to four times it.
+      // which is nearly the same colour.
       for (var i = 0; i < SpeakerPalette.length; i++) {
         for (var j = i + 1; j < SpeakerPalette.length; j++) {
           expect(_apart(i, j, Brightness.dark), greaterThan(0.12),
@@ -368,17 +344,17 @@ void main() {
       }
     });
 
-    test('selection is a block of ink, never the action colour', () {
-      // Whatever the user picks, a chosen option and a button to press are
-      // told apart -- selection does not follow the action colour at all.
+    test('selection takes the action colour, with legible ink on it', () {
+      // One colour for everything the user has chosen or can press (the
+      // user's call, 2026-09-27): a selected tool, font or segment is filled
+      // with the action colour, its label picked for that fill.
       for (final accent in accents) {
         for (final theme in [
           AppTheme.light(accent: accent),
           AppTheme.dark(accent: accent),
         ]) {
-          expect(theme.colorScheme.secondary, theme.colorScheme.onSurface);
-          expect(theme.colorScheme.secondary, isNot(accent));
-          expect(theme.colorScheme.onSecondary, theme.colorScheme.surface);
+          expect(theme.colorScheme.secondary, accent);
+          expect(theme.colorScheme.onSecondary, AppTheme.inkOn(accent));
         }
       }
     });

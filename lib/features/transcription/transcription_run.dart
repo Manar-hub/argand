@@ -31,17 +31,6 @@ typedef TranscriptionOutcome = ({
 typedef StageSink = void Function(ImportStage stage, {int? percent});
 
 /// The engine half of transcription, shared by both callers.
-///
-/// **Extracted because there are now two paths to the same work.** Importing a
-/// file still transcribes it immediately, while a clip added to an existing
-/// project is transcribed later, on request. Those differ in what they do
-/// before (copy vs. nothing) and after (create a project vs. attach to a clip),
-/// but the engine sequence between them — prepare the model, extract a WAV,
-/// transcribe, then optionally diarize, validate and refine — must stay a
-/// single copy, because it is where every measured parameter decision lives.
-///
-/// Holds no state and writes nothing. The caller owns the rows, the status it
-/// exposes and any rollback.
 class TranscriptionRunner {
   const TranscriptionRunner(this._ref);
 
@@ -49,20 +38,6 @@ class TranscriptionRunner {
 
   /// Transcribes [mediaPath] and returns the words plus whatever speaker spans
   /// survived, without touching the database.
-  ///
-  /// [onStage] is how progress reaches the UI; both callers render the same
-  /// [ImportStage] labels, which is why the stage vocabulary is shared rather
-  /// than duplicated per controller.
-  ///
-  /// [range] limits the run to part of the media, for a transcribe layer that
-  /// covers less than a whole clip. **Null keeps the whole-file path exactly
-  /// as it was** — no slice is written and nothing extra runs — so the import
-  /// path is untouched by this having been added.
-  ///
-  /// Times in the result are relative to whatever audio the engine was handed,
-  /// so a range's words come back starting at zero. Shifting them back onto
-  /// the clip is the caller's job, and `saveClipTranscript` is the one place
-  /// that does it.
   Future<TranscriptionOutcome> run({
     required String mediaPath,
     required StageSink onStage,
@@ -121,10 +96,7 @@ class TranscriptionRunner {
       final audio = slice ?? wav;
 
       // Both of these are engine parameters rather than passes over the audio,
-      // so they are read here and handed to the one transcribe call. **The
-      // extracted WAV is never rewritten**: a range is served by cutting a new
-      // file from it, and whisper is always fed exactly the bytes
-      // MediaConverter produced, in the format it produced them.
+      // so they are read here and handed to the one transcribe call.
       final language =
           await _ref.read(selectedTranscriptionLanguageProvider.future);
       final skipSilence = await _ref.read(silenceSkippingEnabledProvider.future);
@@ -148,10 +120,7 @@ class TranscriptionRunner {
       return (result: result, speakerSpans: speakerSpans, language: language);
     } finally {
       stopPolling();
-      // Slices are scratch. Deleted on both paths, because a failed run leaves
-      // one behind just as readily as a successful one, and they are written
-      // to the cache rather than beside the media precisely so a leak is the
-      // OS's to reclaim rather than something counted into the project's size.
+      // Slices are scratch.
       if (slice != null) {
         try {
           await slice.delete();
@@ -161,17 +130,9 @@ class TranscriptionRunner {
   }
 
   /// Where range slices are written inside the cache directory.
-  ///
-  /// Never beside the media: `discardClipMedia` enumerates a fixed list of
-  /// files and would strand one, and `projectMediaBytes` would count it into
-  /// the size the library reports for the project.
   static const String _sliceDir = 'transcribe_slices';
 
   /// Removes slices a previous run left behind.
-  ///
-  /// Called before a run rather than relying only on the `finally` above: a
-  /// process killed mid-transcription never reaches it, and without this the
-  /// leftovers would accumulate one per crash forever.
   static Future<void> sweepSlices() async {
     try {
       final dir = Directory(p.join(
@@ -183,15 +144,6 @@ class TranscriptionRunner {
   }
 
   /// Diarization and its two correction passes.
-  ///
-  /// **Deliberately never fatal.** A transcript without speaker labels is still
-  /// the thing the user asked for, whereas failing here would throw away a
-  /// transcription that already succeeded and cost the most time.
-  ///
-  /// Note the labels a run produces are cluster indices with meaning only
-  /// inside that run, so two clips diarized separately have unrelated speaker
-  /// numbering. That is a property of the engine, not of this split — see
-  /// `docs/engine-architecture.md`.
   Future<List<SpeakerSpan>> _identifySpeakers({
     required String wavPath,
     required WhisperTranscribeResponse result,
@@ -220,11 +172,7 @@ class TranscriptionRunner {
     }
 
     // Challenges short spans segmentation appears to have invented, before
-    // anything reads them. This has to come first: a spurious span edge cannot
-    // be repaired downstream, because once it exists whichever side a word
-    // falls on decides that word's speaker -- which is how two transcription
-    // models end up disagreeing about the same audio. Uses no transcript at
-    // all, so the correction is identical for every model.
+    // anything reads them.
     if (spans.isNotEmpty) {
       try {
         final before = spans;
@@ -248,10 +196,7 @@ class TranscriptionRunner {
     }
 
     // Re-checks doubtful attributions against the audio itself, which is the
-    // only thing that can reach a turn segmentation never reported. Non-fatal
-    // for the same reason as diarization, one step weaker: a failure here costs
-    // nothing that was not already in hand, because the unrefined spans are
-    // still good.
+    // only thing that can reach a turn segmentation never reported.
     if (spans.isNotEmpty) {
       try {
         final words = wordTimingsOf(result);

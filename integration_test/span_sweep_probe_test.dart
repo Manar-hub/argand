@@ -9,29 +9,8 @@ import 'package:integration_test/integration_test.dart';
 
 import 'support/diarization_truth.dart';
 
-/// How well do diarization's **spans** match the labelled turns, and which
+/// How well do diarization's spans match the labelled turns, and which
 /// segmentation parameters move that?
-///
-/// **Why score spans directly.** Every previous sweep in this project measured
-/// parameters through the whole pipeline — transcribe, assign, refine — which
-/// is slow, and which hides where an error came from. Spans are produced from
-/// audio alone: whisper is not involved, no model is selected, and the result
-/// is identical for every transcription model. So span quality can be scored on
-/// its own, in seconds per setting rather than minutes, and a defect found here
-/// is a defect no downstream rule can be blamed for.
-///
-/// This exists because a span dump showed the shipped configuration reporting
-/// one 6.3-second block of a single speaker over a stretch the labels say
-/// alternates four times, plus an 810ms handover in the middle of a sentence
-/// that the labels say never happens. Those two facts explain a model-dependent
-/// failure completely: with a spurious edge present, whether a word lands left
-/// or right of it decides its speaker, so two models that time the same word
-/// differently disagree — and no attribution rule downstream can undo it.
-///
-/// **The metric is per-millisecond agreement**, after mapping diarization's
-/// arbitrary cluster ids onto the labels' by best overlap. Overlapping spans
-/// are resolved by preferring the shorter span, matching how attribution breaks
-/// that tie. Silence the labels do not cover is not scored.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -57,9 +36,6 @@ void main() {
   }
 
   /// Per-millisecond agreement with the labelled turns, sampled every 10ms.
-  ///
-  /// Cluster ids are arbitrary, so every mapping of observed ids onto label
-  /// ids is tried and the best kept — the same approach the word scorer uses.
   ({double agreement, int scored, Map<int, int> mapping}) scoreSpans(
     List<SpeakerSpan> spans,
     DiarizationTruth truth,

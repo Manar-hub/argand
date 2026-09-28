@@ -13,18 +13,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// The library's Phase 6 surfaces, driven by taps rather than read from source.
-///
-/// `WidgetTester` builds the real widget tree over a real in-memory database,
-/// so a control wired to the wrong provider, a dialog that does not appear, or
-/// a row that overflows fails here with no device involved.
-///
-/// **`ProjectScreen` is deliberately not here.** It builds a `MediaPlayer`, and
-/// `video_player` has no host implementation -- the controller leaves a pending
-/// timer that trips `_verifyInvariants`, fails the test that created it and
-/// then wedges every test after it. Those controls are driven on a real device
-/// instead, in `integration_test/undo_redo_test.dart`.
-///
-/// What none of this claims is that any of it *looks* right. That needs eyes.
 void main() {
   late AppDatabase database;
   late TranscriptRepository repository;
@@ -37,11 +25,6 @@ void main() {
   tearDown(() => database.close());
 
   /// Advances a bounded number of frames.
-  ///
-  /// Not `pumpAndSettle`: the screen shows a `CircularProgressIndicator` while
-  /// its providers resolve, and an indeterminate spinner never reaches
-  /// quiescence -- so settling waits for a frame that will not come and the run
-  /// looks hung. Fixed frames give the providers time without that trap.
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 16; i++) {
       await tester.pump(const Duration(milliseconds: 50));
@@ -49,13 +32,6 @@ void main() {
   }
 
   /// `testWidgets`, plus an explicit unmount before the test ends.
-  ///
-  /// Drift schedules a zero-duration timer from `StreamQueryStore.markAsClosed`
-  /// when a query stream is cancelled, and `ProviderScope` cancels them all as
-  /// it disposes. Left to the framework's own teardown that happens *after* the
-  /// last pump, so the timer is still pending when `_verifyInvariants` runs --
-  /// which fails the test and then wedges every test after it. Unmounting here
-  /// and pumping once lets it fire while the clock is still running.
   void uiTest(String description, Future<void> Function(WidgetTester) body) {
     testWidgets(description, (tester) async {
       await body(tester);
@@ -142,6 +118,13 @@ void main() {
         'Interview with the entire department, part three, the final cut',
       );
       await tester.pumpWidget(host(const LibraryScreen(), textScale: 2));
+      await settle(tester);
+      // The tall create panels push the list below the fold at this scale.
+      await tester.scrollUntilVisible(
+        find.textContaining('Interview with the entire'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       await settle(tester);
 
       expect(tester.takeException(), isNull);

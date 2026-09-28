@@ -1,11 +1,6 @@
 import 'dart:typed_data';
 
 /// The parts of a RIFF/WAVE header this project needs to verify.
-///
-/// Exists because a WAV can be perfectly well-formed and still be wrong: the
-/// header describes a format, and nothing guarantees the samples underneath
-/// were produced at that rate. Comparing [duration] against the source media's
-/// own duration is what catches that.
 class WavHeader {
   const WavHeader({
     required this.channels,
@@ -23,10 +18,6 @@ class WavHeader {
   final int dataBytes;
 
   /// Byte offset of the first sample within the file.
-  ///
-  /// Not a constant 44: the chunk walk below exists precisely because encoders
-  /// may place `LIST`, `fact` or other chunks ahead of `data`. Anything that
-  /// reads samples must seek here rather than assuming a canonical header.
   final int dataOffset;
 
   /// How long the samples actually run for, derived from the data size rather
@@ -38,12 +29,6 @@ class WavHeader {
   }
 
   /// Parses the leading header of a RIFF/WAVE file.
-  ///
-  /// Only the header is needed, so callers can hand over the first few hundred
-  /// bytes instead of a whole multi-megabyte file.
-  ///
-  /// Throws [FormatException] if this is not a WAV or the required chunks are
-  /// missing.
   static WavHeader parse(Uint8List bytes) {
     if (bytes.length < 12) {
       throw const FormatException('Too short to be a WAV file');

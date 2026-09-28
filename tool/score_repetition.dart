@@ -1,22 +1,4 @@
 // Scores whisper-cli transcript dumps for decoder repetition loops.
-//
-// Engine parameter work is measured natively rather than on-device: a
-// `flutter test` cycle reinstalls a 432MB debug APK for every run, which costs
-// minutes, while `whisper-cli.exe` answers the same parameter question in
-// seconds against the same whisper.cpp. This script closes that loop by scoring
-// the CLI's output with the *same* detector the app uses, so a native
-// measurement and an on-device one are directly comparable.
-//
-// Deliberately imports `lib/core/text/repetition.dart` rather than
-// reimplementing the scan. A second copy of the rule would be free to drift,
-// and then two runs could disagree for reasons that have nothing to do with
-// whisper.
-//
-// Usage:
-//   dart run tool/score_repetition.dart <file.txt> [more.txt ...]
-//
-// Input is whisper-cli's default stdout/`-otxt` form; leading `[hh:mm:ss.mmm
-// --> hh:mm:ss.mmm]` stamps are stripped before scanning.
 
 import 'dart:io';
 

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,23 +12,11 @@ import '../../core/whisper/vad_controller.dart';
 import '../../core/whisper/whisper_model_catalog.dart';
 import '../../core/whisper/whisper_model_controller.dart';
 import '../../l10n/app_localizations.dart';
+import '../settings/pack_screens.dart';
 import 'translate_sheet.dart';
 
 /// The choices that shape a transcription run: model, language, silence
 /// skipping and diarization.
-///
-/// **Shown where the run is started, not in a settings screen.** These are
-/// decisions about the work about to happen, and they used to sit behind the
-/// library's app bar, which meant choosing them required knowing to look before
-/// starting anything. This widget is the single copy, placed at each of the
-/// three points a transcription actually begins: creating a project, importing
-/// a file, and running a transcribe layer.
-///
-/// **The values remain one app-wide preference**, stored in `Settings` exactly
-/// as before. Nothing here is per-project; a change made in any of the three
-/// places is the default for the next run anywhere. That is deliberate, and it
-/// is why this needed no schema change and no change to
-/// `TranscriptionRunner`, which still reads the same providers it always did.
 class TranscriptionOptions extends ConsumerWidget {
   const TranscriptionOptions({super.key, this.dense = false});
 
@@ -58,20 +47,36 @@ class TranscriptionOptions extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // A picker over fewer than two models is just clutter; the rest still
-        // earns its place.
-        if (models.length >= 2) ...[
-          _SectionHeader(label: l10n.transcriptionModelTitle, dense: dense),
-          for (final model in models)
-            _ChoiceTile(
-              dense: dense,
-              selected: model == selectedModel,
-              title: _labelFor(l10n, model),
-              onTap: () =>
-                  ref.read(selectedWhisperModelProvider.notifier).select(model),
-            ),
-          const Divider(),
-        ],
+        // Always shown, even with one model on the device: it used to hide
+        // below two, so once Small became a download the choice vanished from
+        // where a run starts.
+        _SectionHeader(label: l10n.transcriptionModelTitle, dense: dense),
+        for (final model in models)
+          _ChoiceTile(
+            dense: dense,
+            selected: model == selectedModel,
+            title: whisperModelLabel(l10n, model),
+            onTap: () =>
+                ref.read(selectedWhisperModelProvider.notifier).select(model),
+          ),
+        ListTile(
+          dense: dense,
+          contentPadding: dense
+              ? const EdgeInsets.symmetric(horizontal: AppSpacing.xs)
+              : null,
+          leading: const Icon(Icons.download_outlined),
+          title: Text(
+            l10n.transcriptionMoreModels,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          // The same page as Settings' -- a model added there is chosen
+          // here on the way back.
+          onTap: () => Navigator.of(context).push(
+            CupertinoPageRoute<void>(builder: (_) => const ModelPacksScreen()),
+          ),
+        ),
+        const Divider(),
         _SectionHeader(label: l10n.transcriptionLanguageTitle, dense: dense),
         for (final option in TranscriptionLanguage.values)
           _ChoiceTile(
@@ -178,10 +183,6 @@ class _SectionHeader extends StatelessWidget {
 }
 
 /// One row in a mutually exclusive group.
-///
-/// Text is deliberately left to wrap rather than capped with `maxLines`:
-/// these strings are localized and the surface already scrolls, so growing is
-/// always preferable to hiding half of an option's explanation.
 class _ChoiceTile extends StatelessWidget {
   const _ChoiceTile({
     required this.selected,
@@ -200,9 +201,7 @@ class _ChoiceTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     // `ListTile.selected` tints the whole row with the primary colour, which
-    // for a fill colour like yellow means unreadable text. Selection is shown
-    // by the check mark and the weight instead, with the colour carried by the
-    // icon where it sits on the page rather than behind letterforms.
+    // for a fill colour like yellow means unreadable text.
     return ListTile(
       dense: dense,
       contentPadding: dense
@@ -224,22 +223,29 @@ class _ChoiceTile extends StatelessWidget {
 }
 
 /// Localized name for a known model, falling back to its raw id.
-///
-/// The fallback is what keeps this honest once Tier 2 delivers models this
-/// build has never heard of: they still render, just under their identifier
-/// rather than a translated name.
-String _labelFor(AppLocalizations l10n, WhisperModelDescriptor model) {
+String whisperModelLabel(AppLocalizations l10n, WhisperModelDescriptor model) {
   return switch (model.id) {
     'base' => l10n.modelNameBase,
     'small-q5_1' => l10n.modelNameSmallQ51,
-    _ => model.id,
+    _ => readableModelId(model.id),
   };
+}
+
+/// A model dropped into the folder, named from its id: the size first, as
+/// the named models read, then whatever else the filename says --
+/// `medium-q4_0` -> `Medium (q4_0)`.
+String readableModelId(String id) {
+  final dash = id.indexOf('-');
+  final size = dash < 0 ? id : id.substring(0, dash);
+  final rest = dash < 0 ? '' : id.substring(dash + 1);
+  if (size.isEmpty) return id;
+  final name = '${size[0].toUpperCase()}${size.substring(1)}';
+  return rest.isEmpty ? name : '$name ($rest)';
 }
 
 /// Exhaustive over [TranscriptionLanguage] rather than falling back to the
 /// code, unlike the model labels above: this enum is closed and every entry is
-/// one this build deliberately offers, so a missing string is a bug the
-/// compiler should catch rather than something to paper over at runtime.
+/// one this build deliberately offers.
 String _languageLabel(AppLocalizations l10n, TranscriptionLanguage language) {
   return switch (language) {
     TranscriptionLanguage.auto => l10n.languageAuto,
@@ -248,18 +254,6 @@ String _languageLabel(AppLocalizations l10n, TranscriptionLanguage language) {
 }
 
 /// Asks for the transcription choices before a run starts.
-///
-/// **One dialog for all three entry points** — creating a project is handled by
-/// its own naming dialog, but importing a file, receiving a share and running a
-/// transcribe layer all arrive here. A single surface means the options cannot
-/// drift apart between the places a run can begin.
-///
-/// [warning] carries anything the caller needs said first, which today is the
-/// re-run notice: re-transcribing discards word corrections and speaker names.
-/// It is shown above the options rather than as a second dialog, because two
-/// modals in sequence for one decision is one too many.
-///
-/// Returns true when the user chose to go ahead.
 Future<bool> showTranscriptionOptions(
   BuildContext context, {
   String? warning,

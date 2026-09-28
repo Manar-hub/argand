@@ -274,7 +274,7 @@ final class MediaPlayerProvider
   }
 }
 
-String _$mediaPlayerHash() => r'd25ea9057e86b3b3be61af08d9bfd54e0d2869e5';
+String _$mediaPlayerHash() => r'9b6b79685f49148371b8ac0012b45f0176f91a2e';
 
 /// The player for one clip.
 ///

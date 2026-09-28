@@ -13,15 +13,6 @@ import 'transcript_repository.dart';
 /// Plays, in the preview, the sound of *other* clips that reaches under the
 /// picture being shown -- an L-cut carrying on under the next clip, a J-cut
 /// starting before its own.
-///
-/// **Its own players, never the shared picture decoders.** Each sound under
-/// the playhead gets an audio-only player for its file, held within a few
-/// frames of where the playhead says it should be and paused the moment the
-/// picture pauses. Draws nothing.
-///
-/// Heard while the picture under the playhead plays: the preview plays one
-/// clip at a time, so a tail under the next clip is heard when playback runs
-/// there.
 class OverlapAudio extends ConsumerStatefulWidget {
   const OverlapAudio({
     super.key,

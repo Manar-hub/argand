@@ -6,39 +6,15 @@ import 'project_timeline.dart';
 enum LayerGrip { start, end, whole }
 
 /// Shortest a layer may be dragged to.
-///
-/// Matched to what the engine can say anything about: sherpa discards speech
-/// under 0.2s and whisper's VAD floor is 250ms, so a layer below this could be
-/// drawn but never usefully run. Stopping the drag here is kinder than letting
-/// it shrink to nothing and refusing later.
 const int minimumLayerMs = 250;
 
 /// How close an edge must come to a landmark before it snaps to it, in pixels.
-///
-/// **In pixels rather than milliseconds** so the pull feels the same at every
-/// zoom: at a wide zoom-out a few pixels is many seconds, and a millisecond
-/// threshold would make snapping either unreachable or inescapable depending
-/// on the scale.
 const double snapDistance = 12;
 
 /// The result of dragging a layer: where it would now sit.
 typedef LayerBounds = ({int startMs, int endMs});
 
 /// Applies a drag of [deltaMs] to a layer and returns where it lands.
-///
-/// **All the rules live here rather than in the gesture handler.** A drag that
-/// is clamped only when it is released looks broken while it is happening —
-/// the bar passes through its neighbour and then jumps back — so the limits
-/// are applied every frame, which means they have to be a pure function of the
-/// drag rather than of any widget state.
-///
-/// [lowerBoundMs] and [upperBoundMs] are the neighbouring layers' facing edges,
-/// or the ends of the project. The layer is held inside them, so dragging into
-/// a neighbour simply stops.
-///
-/// [snapTargets] are moments worth landing exactly on — clip boundaries and the
-/// playhead. An edge within [snapDistance] pixels of one takes its value
-/// instead, which is what makes a precise edge reachable with a thumb.
 LayerBounds applyLayerDrag({
   required LayerBounds layer,
   required LayerGrip grip,
@@ -82,10 +58,6 @@ LayerBounds applyLayerDrag({
       // Snapped by whichever edge actually reached a landmark, then moved as
       // one piece. Snapping both independently would stretch the layer while
       // the user was only trying to slide it.
-      //
-      // Note an edge that found nothing is returned unchanged, so "how far did
-      // snapping move it" is zero for it — which is why the choice is made on
-      // *whether* each edge snapped first, and only then on which moved least.
       final snappedStart = snap(rawStart);
       final snappedEnd = snap(rawEnd);
       final startSnapped = snappedStart != rawStart;
@@ -110,11 +82,6 @@ LayerBounds applyLayerDrag({
 }
 
 /// Moments a layer edge should land exactly on.
-///
-/// Clip boundaries, because a layer covering "this clip" is the common case
-/// and hitting the seam by eye is not; and the playhead, which turns "park it
-/// where I want the edge" into a way of placing an edge precisely without fine
-/// motor control.
 List<int> layerSnapTargets({
   required ProjectTimeline timeline,
   int? playheadMs,
@@ -129,10 +96,6 @@ List<int> layerSnapTargets({
 }
 
 /// How far a layer may be dragged before it meets its neighbours.
-///
-/// Returns the facing edge of the layer before and after this one, falling
-/// back to the ends of the project. Layers on a track may not overlap, so
-/// these are hard walls rather than suggestions.
 ({int lowerMs, int upperMs}) layerBoundsWithin({
   required Iterable<LayerBounds> others,
   required LayerBounds layer,

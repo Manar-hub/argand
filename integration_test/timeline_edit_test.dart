@@ -15,18 +15,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// The timeline's editing gestures, driven on a device.
-///
-/// **These are only provable here.** `timeline_mode_test.dart` deliberately
-/// does not pump `ProjectScreen` on the host, because both modes build a
-/// `MediaPlayer` and `video_player` has no host implementation. Selection,
-/// splitting and the preview are exactly the parts that behaviour hides, so
-/// they get driven against the real screen instead.
-///
-/// Requires the fixture:
-///
-/// ```
-/// adb push alberta.mp4 /data/local/tmp/alberta.mp4
-/// ```
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -45,13 +33,6 @@ void main() {
   tearDown(() => database.close());
 
   /// Takes the screen down while the database is still open.
-  ///
-  /// **The order matters and is not the default one.** The shared decoder
-  /// saves its playback position from `onDispose`, which cannot await, and
-  /// `flutter_test` disposes the widget tree in its *own* teardown -- after
-  /// this file's. So closing the database in `tearDown` races a write that has
-  /// not been issued yet, and drift reports a rolled-back transaction on a
-  /// test that already passed. Disposing here puts the write first.
   Future<void> closeScreen(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox.shrink());
     for (var i = 0; i < 10; i++) {
@@ -95,18 +76,6 @@ void main() {
   }
 
   /// Whether the timeline is showing [label] as selected.
-  ///
-  /// Read off the semantics tree rather than off a provider, because what is
-  /// being checked is that the *screen* agrees -- a provider holding the right
-  /// value while the tile swallowed the tap is exactly the bug.
-  /// Taps a part of [finder] that is actually on screen.
-  ///
-  /// **`tester.tap` aims at the centre, which does not work here.** A clip's
-  /// width *is* its duration, so a 42-second clip is a thousand points wide on
-  /// a 448-point screen and its centre is somewhere off to the right. Aiming
-  /// there misses entirely -- and misses differently depending on where the
-  /// timeline happens to be scrolled, which is a flaky test rather than a
-  /// flaky app. A person taps the part they can see; so does this.
   Future<void> tapVisible(WidgetTester tester, Finder finder) async {
     final rect = tester.getRect(finder);
     final screen = Offset.zero & tester.view.physicalSize / tester.view.devicePixelRatio;
@@ -143,10 +112,8 @@ void main() {
     await settle(tester);
     expect(isSelected(tester, clip.title), isTrue);
 
-    // **The regression.** Selecting a clip grows trim handles at both ends,
-    // and those are `HitTestBehavior.opaque`. On a narrow tile they cover it
-    // completely, so a handle that only listened for drags swallowed every
-    // tap and the clip could never be let go of again.
+    // The regression. Selecting a clip grows trim handles at both ends, and
+    // those are `HitTestBehavior.opaque`.
     await tapVisible(tester, tile);
     await settle(tester);
     expect(

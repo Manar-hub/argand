@@ -6,25 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Why a retyped line splits where it does.
-///
-/// Reported from `syria.mp4`: the caption read *"This is a good visit also
-/// yeah"*, was retyped as *"look at this. This is also shia-"*, and came back as
-/// two captions broken at a plausible time. The question was whether that was
-/// chance.
-///
-/// Two separate mechanisms produce that outcome and they are worth keeping
-/// apart:
-///
-///  - **That it splits at all** is the full stop. `groupIntoCues` breaks after
-///    any word `endsSentence` accepts. Deterministic, and nothing to do with
-///    timing.
-///  - **Where in time it splits** is `planSentenceEdit`, and depends entirely on
-///    how `alignWords` paired the old words against the new ones. That is what
-///    this file pins down.
-///
-/// The timings below are evenly spaced and are **not** `syria.mp4`'s real ones —
-/// that clip has no ground truth (open debt 8). They show the mechanism and the
-/// proportion, not the millisecond error on that clip.
 void main() {
   const oldText = 'This is a good visit also yeah';
   const newText = 'look at this. This is also shia-';
@@ -166,8 +147,7 @@ void main() {
     test('does not collapse to zero width', () {
       // `_retime` gives an insertion with no original words of its own a
       // fallback range of "end of the previous kept word" to "start of the next
-      // kept word". At the very start of a sentence those can be the same
-      // number, which would leave the inserted words with no duration at all.
+      // kept word".
       final original = <EditableWord>[
         (id: 'w0', text: 'visit', startMs: 1000, endMs: 1400),
         (id: 'w1', text: 'also', startMs: 1400, endMs: 1800),

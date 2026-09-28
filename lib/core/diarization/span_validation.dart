@@ -1,35 +1,9 @@
 /// Challenges short spans that segmentation may have invented.
-///
-/// **Why this layer exists.** Every attribution rule in this pipeline reads
-/// diarization's spans as given and argues about how to map words onto them.
-/// That cannot fix a span which should not be there. On a two-speaker interview
-/// the segmenter reports a brief handover in the middle of one speaker's
-/// sentence, flanked on both sides by that same speaker — and once that edge
-/// exists, whether a word lands left or right of it decides its speaker. Two
-/// whisper models placing the same word a few hundred milliseconds apart then
-/// disagree about who said it, which is how a *more accurate* transcription
-/// model ends up with *worse* speaker labels.
-///
-/// **Why it is the right layer.** Spans come from audio alone; whisper never
-/// touches them. A correction made here is therefore identical for every
-/// transcription model by construction, rather than by tuning. Nothing
-/// downstream needs to know: the output is the same `SpeakerSpan` list the rest
-/// of the pipeline already consumes.
-///
-/// **What it does not do.** It never invents a boundary, never moves one, and
-/// never deletes audio. It only re-labels a short span to the speaker
-/// surrounding it, and only when the audio agrees on a clear margin. A short
-/// span that genuinely holds a different voice — a one-word interjection, which
-/// this material is full of — sounds like that voice and survives untouched.
 library;
 
 import 'speaker_span.dart';
 
 /// Thresholds for [suspectSpans] and [applyValidations].
-///
-/// Every duration is absolute rather than a fraction of the file: a spurious
-/// handover is short in seconds, not short relative to how long the recording
-/// happens to run.
 class SpanValidation {
   const SpanValidation({
     this.maxSuspectMs = 1200,
@@ -58,24 +32,10 @@ class SpanValidation {
 
   /// Below this, the region is treated as unable to answer rather than as
   /// evidence.
-  ///
-  /// A clean stretch of one voice scores 0.7-0.9 against its own print. A short
-  /// span sitting in the pause between two utterances is mostly breath and room
-  /// tone, and scores far lower against *everyone* — at which point whichever
-  /// speaker edges ahead is noise, not a finding. Measured: a genuine
-  /// interjection scored 0.569 for its own speaker, while a span the labels say
-  /// never happened scored 0.359 and 0.273, both far under any clean region on
-  /// the same clip.
   final double minConfidentSimilarity;
 
   /// How much of the suspect the challenger must also claim before structure
   /// alone is allowed to decide it.
-  ///
-  /// A challenger *overlapping* the suspect means segmentation has both people
-  /// talking at once here — and a real handover does not work that way: the
-  /// next speaker does not start before the current one's span ends. Combined
-  /// with audio too weak to answer, that is the signature of an inserted
-  /// boundary rather than a turn.
   final int minChallengerOverlapMs;
 
   /// Trimmed from each end before embedding. Span edges are where the
@@ -141,12 +101,6 @@ class SuspectSpan {
 }
 
 /// Short spans whose surroundings belong to a single other speaker.
-///
-/// "Surrounded" is measured by coverage rather than by list adjacency, because
-/// diarization emits overlapping spans and the span before this one in the list
-/// is not reliably the span before it in the audio. A challenger must hold
-/// audio on **both** sides: a short span at a genuine turn boundary has the
-/// other speaker on one side only, and re-labelling it would erase a real turn.
 List<SuspectSpan> suspectSpans(
   List<SpeakerSpan> spans, {
   SpanValidation config = const SpanValidation(),
@@ -222,10 +176,6 @@ List<SuspectSpan> suspectSpans(
 }
 
 /// Whether the audio says a suspect belongs to its challenger.
-///
-/// [similarities] maps speaker to cosine similarity for the suspect's region.
-/// An empty map means the region could not be embedded, which is not evidence
-/// against the incumbent — it is no evidence at all, so nothing moves.
 bool challengerWins(
   SuspectSpan suspect,
   Map<int, double> similarities, {
@@ -239,10 +189,7 @@ bool challengerWins(
   if (challenger - incumbent >= config.minMargin) return true;
 
   // The audio cannot answer, and the geometry says this boundary was never
-  // real: the challenger is already speaking inside this span. Deciding on
-  // structure here rather than on a noise-level difference is the whole point
-  // of the confidence floor -- without it, whichever speaker happens to edge
-  // ahead in a stretch of breath and room tone gets to keep the span.
+  // real: the challenger is already speaking inside this span.
   final confident = (incumbent > challenger ? incumbent : challenger) >=
       config.minConfidentSimilarity;
   if (!confident &&

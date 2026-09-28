@@ -10,6 +10,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
 import '../../core/timeline/item_look.dart';
 import '../../core/timeline/timeline_selection.dart';
+import '../../core/timeline/timeline_sentences.dart';
 import '../../l10n/app_localizations.dart';
 import 'clip_controller.dart';
 import 'timeline_history.dart';
@@ -18,9 +19,6 @@ import 'transcript_repository.dart';
 part 'style_panel.g.dart';
 
 /// How a sentence looks: its own look, else its layer's, else the default.
-///
-/// Watches the sentence's words and the project's layers, so the panel shows
-/// the change it just made.
 @riverpod
 Future<ItemLook> sentenceLook(Ref ref, String projectId, String sentenceId) {
   final sentence = sentenceOf(
@@ -47,17 +45,12 @@ Future<ItemLook> sentenceLook(Ref ref, String projectId, String sentenceId) {
 /// The panel's items: what about the look is being changed.
 enum _StyleItem { font, color, shadow, mode, highlight }
 
-/// Whether a change applies to what is selected, or to every caption.
-enum _StyleScope { selected, all }
+/// What a change reaches: what is selected, everything its speakers say, or
+/// every caption.
+enum _StyleScope { selected, speaker, all }
 
 /// Font, colours, shadow and caption style for what is selected -- one text,
 /// several sentences, a whole layer -- or for every caption at once.
-///
-/// **Laid out like the video settings panel**: the items in a row on the
-/// page, the chosen item's options on a flat card below, with the same cells
-/// and the same motion -- so every panel in the editor reads as one kind of
-/// thing, and every cell keeps a tone of its own against what it sits on
-/// even on dark, which draws no outlines.
 class StylePanel extends ConsumerStatefulWidget {
   const StylePanel({super.key, required this.projectId, this.anchor});
 
@@ -83,24 +76,103 @@ class _StylePanelState extends ConsumerState<StylePanel> {
       ? Duration.zero
       : const Duration(milliseconds: 220);
 
-  /// What a change reaches: the selected texts, sentences and layers -- or,
-  /// with nothing stylable selected or "All captions" chosen, every layer.
-  List<TimelineItem> _targets(Set<TimelineItem> selection, bool all) {
-    if (all) {
-      final layers =
-          ref.read(projectLayersProvider(widget.projectId)).value ?? const [];
-      return [
-        for (final layer in layers)
-          (kind: TimelineItemKind.layer, id: layer.id),
+  /// The selected texts, sentences, translation lines and layers.
+  List<TimelineItem> _selected(Set<TimelineItem> selection) => [
+        for (final item in selection)
+          if (item.kind != TimelineItemKind.clip &&
+              item.kind != TimelineItemKind.audio &&
+              item.kind != TimelineItemKind.image)
+            item,
       ];
+
+  /// Who speaks a sentence or a translation line -- the sentence's first
+  /// word's speaker, as its colour is chosen -- or null when undiarized.
+  int? _speakerOf(TimelineItem item, List<TimelineSentence> sentences) {
+    switch (item.kind) {
+      case TimelineItemKind.sentence:
+        final at = sentenceOf(item)!;
+        return sentences
+            .where((s) =>
+                s.transcriptId == at.transcriptId &&
+                s.fromPosition == at.fromPosition)
+            .firstOrNull
+            ?.speaker;
+      case TimelineItemKind.translation:
+        final line = ref
+            .read(projectTranslationLinesProvider(widget.projectId))
+            .where((l) => l.line.id == item.id)
+            .firstOrNull
+            ?.line;
+        if (line == null) return null;
+        return sentences
+            .where((s) =>
+                s.transcriptId == line.transcriptId &&
+                s.fromPosition <= line.firstWord &&
+                line.firstWord <= s.toPosition)
+            .firstOrNull
+            ?.speaker;
+      case TimelineItemKind.clip:
+      case TimelineItemKind.layer:
+      case TimelineItemKind.text:
+      case TimelineItemKind.audio:
+      case TimelineItemKind.image:
+        return null;
     }
-    return [
-      for (final item in selection)
-        if (item.kind != TimelineItemKind.clip &&
-            item.kind != TimelineItemKind.audio &&
-            item.kind != TimelineItemKind.image)
-          item,
-    ];
+  }
+
+  /// What a change reaches, for the scope chosen over [selected].
+  List<TimelineItem> _targets(List<TimelineItem> selected, _StyleScope scope) {
+    final sentences = ref.read(projectSentencesProvider(widget.projectId));
+    final lines = ref.read(projectTranslationLinesProvider(widget.projectId));
+    final captions = selected.isEmpty ||
+        selected.any((t) =>
+            t.kind == TimelineItemKind.sentence ||
+            t.kind == TimelineItemKind.layer);
+    final translations =
+        selected.any((t) => t.kind == TimelineItemKind.translation);
+
+    switch (selected.isEmpty ? _StyleScope.all : scope) {
+      case _StyleScope.selected:
+        return selected;
+      case _StyleScope.speaker:
+        final speakers = {
+          for (final item in selected)
+            if (item.kind == TimelineItemKind.sentence ||
+                item.kind == TimelineItemKind.translation)
+              _speakerOf(item, sentences),
+        };
+        final sentencePicked =
+            selected.any((t) => t.kind == TimelineItemKind.sentence);
+        return [
+          if (sentencePicked)
+            for (final sentence in sentences)
+              if (speakers.contains(sentence.speaker))
+                sentenceItem(
+                  transcriptId: sentence.transcriptId,
+                  fromPosition: sentence.fromPosition,
+                  toPosition: sentence.toPosition,
+                ),
+          if (translations)
+            for (final line in lines)
+              if (speakers.contains(_speakerOf(
+                (kind: TimelineItemKind.translation, id: line.line.id),
+                sentences,
+              )))
+                (kind: TimelineItemKind.translation, id: line.line.id),
+        ];
+      case _StyleScope.all:
+        final layers =
+            ref.read(projectLayersProvider(widget.projectId)).value ??
+                const [];
+        return [
+          if (captions)
+            for (final layer in layers)
+              (kind: TimelineItemKind.layer, id: layer.id),
+          if (translations)
+            for (final line in lines)
+              (kind: TimelineItemKind.translation, id: line.line.id),
+        ];
+    }
   }
 
   /// [item]'s own look (null when it has none) and the look it shows.
@@ -144,12 +216,9 @@ class _StylePanelState extends ConsumerState<StylePanel> {
   }
 
   /// Applies [edit] to each target's own look, as one undoable step.
-  ///
-  /// **Field by field**: choosing a font for three captions keeps each one's
-  /// colour, rather than copying the first one's whole look onto the others.
   Future<void> _apply(
     List<TimelineItem> targets,
-    bool all,
+    bool resetSentences,
     ItemLook Function(ItemLook) edit,
   ) async {
     final changes = <LookChange>[];
@@ -163,7 +232,9 @@ class _StylePanelState extends ConsumerState<StylePanel> {
       ));
     }
 
-    final transcripts = all
+    // Every caption through its transcription: the sentences' own looks
+    // give way to it.
+    final transcripts = resetSentences
         ? {
             for (final sentence
                 in ref.read(projectSentencesProvider(widget.projectId)))
@@ -189,14 +260,19 @@ class _StylePanelState extends ConsumerState<StylePanel> {
         ref.watch(projectTextLayersProvider(widget.projectId)).value ??
             const [];
 
-    final selected = _targets(selection, false);
-    // Nothing stylable selected: the panel speaks for every caption.
-    final all = _scope == _StyleScope.all || selected.isEmpty;
-    final targets = _targets(selection, all);
-    final captions = all ||
-        targets.any((t) =>
-            t.kind == TimelineItemKind.sentence ||
-            t.kind == TimelineItemKind.layer);
+    // Rebuilt as the rows the targets come from change.
+    ref.watch(projectSentencesProvider(widget.projectId));
+    final lines = ref.watch(projectTranslationLinesProvider(widget.projectId));
+
+    final selected = _selected(selection);
+    final targets = _targets(selected, _scope);
+    // Captions -- rather than only texts or translations -- among what the
+    // change reaches: they have caption styles as well.
+    final captions = targets.any((t) =>
+        t.kind == TimelineItemKind.sentence ||
+        t.kind == TimelineItemKind.layer);
+    final resetSentences = (selected.isEmpty || _scope == _StyleScope.all) &&
+        targets.any((t) => t.kind == TimelineItemKind.layer);
 
     // What the controls show: the first target's look.
     final first = targets.firstOrNull;
@@ -211,6 +287,14 @@ class _StylePanelState extends ConsumerState<StylePanel> {
               .watch(sentenceLookProvider(widget.projectId, first!.id))
               .value ??
           ItemLook.defaults,
+      // Its own, else its transcription's, as it is drawn.
+      TimelineItemKind.translation => () {
+          final line =
+              lines.where((l) => l.line.id == first!.id).firstOrNull;
+          return ItemLook.decode(line?.line.look) ??
+              layers.where((l) => l.id == line?.layerId).firstOrNull?.look ??
+              ItemLook.defaults;
+        }(),
       _ => ItemLook.defaults,
     };
 
@@ -231,7 +315,7 @@ class _StylePanelState extends ConsumerState<StylePanel> {
 
     void change(ItemLook Function(ItemLook) edit) {
       if (targets.isEmpty) return;
-      _apply(targets, all, edit);
+      _apply(targets, resetSentences, edit);
     }
 
     // **Grows up from the toolbar**: the Style button, a link up to the row
@@ -278,6 +362,16 @@ class _StylePanelState extends ConsumerState<StylePanel> {
                 captions: captions,
                 selected: selected,
                 targets: targets,
+                scoped: selected.any((t) =>
+                    t.kind == TimelineItemKind.sentence ||
+                    t.kind == TimelineItemKind.layer ||
+                    t.kind == TimelineItemKind.translation),
+                perSpeaker: selected.any((t) =>
+                    t.kind == TimelineItemKind.sentence ||
+                    t.kind == TimelineItemKind.translation),
+                onlyTranslations: selected.isNotEmpty &&
+                    selected.every(
+                        (t) => t.kind == TimelineItemKind.translation),
                 items: items,
                 item: item,
                 current: current,
@@ -306,6 +400,9 @@ class _StylePanelState extends ConsumerState<StylePanel> {
     required bool captions,
     required List<TimelineItem> selected,
     required List<TimelineItem> targets,
+    required bool scoped,
+    required bool perSpeaker,
+    required bool onlyTranslations,
     required List<(_StyleItem, IconData, String)> items,
     required _StyleItem item,
     required ItemLook current,
@@ -316,15 +413,21 @@ class _StylePanelState extends ConsumerState<StylePanel> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Only when there is a choice: with captions selected, style
-        // just them or the whole transcription.
-        if (captions && selected.isNotEmpty) ...[
+        // Only when there is a choice: with captions or translation lines
+        // selected, style just them, everything their speakers say, or
+        // every one.
+        if (scoped) ...[
           AppSegmentRow<_StyleScope>(
-            selected: _scope,
+            selected: !perSpeaker && _scope == _StyleScope.speaker
+                ? _StyleScope.selected
+                : _scope,
             items: {
               _StyleScope.selected:
                   l10n.styleScopeSelected(selected.length),
-              _StyleScope.all: l10n.styleScopeAll,
+              if (perSpeaker) _StyleScope.speaker: l10n.styleScopeSpeaker,
+              _StyleScope.all: onlyTranslations
+                  ? l10n.styleScopeAllTranslations
+                  : l10n.styleScopeAll,
             },
             onSelected: (scope) => setState(() => _scope = scope),
           ),
@@ -365,10 +468,9 @@ class _StylePanelState extends ConsumerState<StylePanel> {
                   onTap: () => setState(() => _item = value),
                 ),
             ],
-            // **Anchored at the bottom**, where the panel is anchored: it
-            // grows up from the toolbar, so a change of height has to move
-            // its top edge, not its bottom. Top-anchored, the old options
-            // vanished and the new ones dropped in from above.
+            // Anchored at the bottom, where the panel is anchored: it grows up
+            // from the toolbar, so a change of height has to move its top edge,
+            // not its bottom.
             child: AnimatedSize(
               duration: _motion,
               curve: Curves.easeOutCubic,

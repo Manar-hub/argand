@@ -1,14 +1,6 @@
 part of 'timeline_screen.dart';
 
 /// One lane, as both the gutter and the track column need to see it.
-///
-/// Height is declared here rather than measured, because the gutter has to
-/// lay its controls out to the same rhythm without being able to see the
-/// lanes. One list, read twice, is what keeps a control beside the track it
-/// operates.
-///
-/// [newTrack] marks the dotted lane a drag shows under the last track: where
-/// the items will land if dropped there, on a track the drop makes.
 class _TrackSpec {
   const _TrackSpec({
     required this.trackId,
@@ -149,12 +141,8 @@ class _LayerBand extends StatelessWidget {
   }
 }
 
-/// A text, an image or a translation line on its track: an icon, and its
-/// words or a thumbnail.
-///
-/// **Neighbours share one line.** Where two of a kind touch, the outline
-/// runs round the pair and a single rule divides them, so a run of
-/// translation reads as one band cut into lines rather than a row of boxes.
+/// A text, an image or a translation line on its track: an icon, and its words
+/// or a thumbnail.
 class _ItemTile extends StatelessWidget {
   const _ItemTile({
     required this.icon,

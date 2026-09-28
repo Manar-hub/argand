@@ -16,6 +16,7 @@ import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
 import '../monetization/placeholder_ad_screen.dart';
 import '../monetization/pro_offer.dart';
+import '../monetization/pro_screen.dart';
 import 'transcript_repository.dart';
 import 'video_canvas.dart';
 import 'video_export_controller.dart';
@@ -27,10 +28,6 @@ sealed class ExportDecision {
 }
 
 /// Render the timeline to video with these options.
-///
-/// When [ExportOptions.waiver] is set, the ad has already been watched (or Pro
-/// is owned) by the time this exists: the sheet does not close on an
-/// unbranded export until it has been paid for.
 final class VideoExportDecision extends ExportDecision {
   const VideoExportDecision(this.options);
 
@@ -55,18 +52,6 @@ final class SubtitleExportDecision extends ExportDecision {
 enum _ExportTab { video, srt, vtt, pro }
 
 /// Everything to decide before an export, in one sheet.
-///
-/// **One sheet, with the format across the top.** The first version was a
-/// format list that opened a second sheet for video, so choosing video cost a
-/// tap and a new surface while SRT and VTT exported from the list itself. A
-/// segmented row puts the four side by side and lets each keep only the
-/// options that apply to it.
-///
-/// **The ad plays from inside the sheet, before anything renders.** An
-/// unbranded export returns from here only after the ad has been watched to
-/// the end; if it is closed early or cannot load, the sheet stays open and
-/// says why. Nothing is exported until the user has seen what they are going
-/// to get.
 Future<ExportDecision?> showExportSheet(
   BuildContext context,
   String projectId,
@@ -128,11 +113,9 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
 
     return SafeArea(
       child: SizedBox(
-        // **One height for every tab.** Sized to its content, the sheet
-        // shrank when a shorter tab was chosen and the tab row slid down the
-        // screen -- so the next tap on a tab landed above the sheet and closed
-        // it. A fixed height keeps the row under the finger, with the body
-        // scrolling inside it and the footer always in reach.
+        // One height for every tab. Sized to its content, the sheet shrank when
+        // a shorter tab was chosen and the tab row slid down the screen -- so
+        // the next tap on a tab landed above the sheet and closed it.
         height: MediaQuery.sizeOf(context).height * _sheetHeightFraction,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -410,10 +393,6 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
   }
 
   /// Turns watermark removal on only when an ad could actually play.
-  ///
-  /// Checked here, at the moment of choosing, rather than when the sheet
-  /// opens: this is the point the user asks for an ad, and a privacy-first app
-  /// should not reach for the network before anyone has.
   Future<void> _setRemoveWatermark(AppLocalizations l10n, bool on) async {
     if (!on) {
       setState(() {
@@ -486,20 +465,12 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
       Navigator.of(context).pop(VideoExportDecision(options));
 
   /// The Pro purchase, which does not exist yet.
-  ///
-  /// A dialog rather than a snackbar: a snackbar raised from inside a modal
-  /// sheet appears on the page underneath it, behind the sheet, where nobody
-  /// sees it.
-  Future<void> _getPro() => showProComingSoon(context);
+  Future<void> _getPro() => showProScreen(context);
 
 }
 
-/// The part of the sheet that never scrolls away: the Pro offer and the
-/// button that acts.
-///
-/// **Get Pro sits beside every export**, above the button the user came to
-/// press. It is seen each time without standing in the way: a strip, not a
-/// dialog, and never between the user and a free export.
+/// The part of the sheet that never scrolls away: the Pro offer and the button
+/// that acts.
 class _ExportFooter extends StatelessWidget {
   const _ExportFooter({
     required this.showProStrip,
@@ -549,12 +520,6 @@ class _ExportFooter extends StatelessWidget {
 }
 
 /// The professional formats Pro will add.
-///
-/// **Honest about what exists.** None of these are built yet, and each row
-/// says "Coming with Pro" rather than offering an export that would fail.
-/// They are listed now because they are what the purchase is for beyond the
-/// watermark, and new output is the only kind of thing Pro may sell
-/// (CLAUDE.md §2) -- SRT and VTT stay free on their own tabs.
 class _ProFormats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -631,12 +596,6 @@ class _LockedFormat extends StatelessWidget {
 }
 
 /// A setting that is on or off, drawn on the app's own surface.
-///
-/// A `SwitchListTile` was the first version and looked like a settings row from
-/// another app: no outline, no fill, nothing tying it to the chips beside it.
-///
-/// [note] explains a state the user did not choose -- the ad could not load,
-/// or was closed early -- right where they are looking.
 class _ToggleCard extends StatelessWidget {
   const _ToggleCard({
     required this.title,
@@ -762,10 +721,8 @@ class _ChipRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // One strip across the sheet, a rule between presets and none round each
-    // -- the same row every other set of choices uses. Labels ellipsize
-    // rather than wrap, so a large text scale shortens a word instead of
-    // pushing a preset off the row.
+    // One strip across the sheet, a rule between presets and none round each --
+    // the same row every other set of choices uses.
     return AppStrip(onCard: true, children: children);
   }
 }
@@ -837,17 +794,6 @@ class _OptionChip extends StatelessWidget {
 }
 
 /// Shows how far the render has got, and offers to stop it.
-///
-/// **Not dismissible by tapping away.** The only ways out are cancelling and
-/// the render finishing, because a progress window that can be lost behind the
-/// app leaves a minutes-long job running with nothing to stop it.
-///
-/// Returns true when the user stopped the render from here.
-///
-/// **Only that.** Whether a render that ran to the end succeeded is the
-/// render's own answer, taken from the future the controller returns -- this
-/// window reports the one thing the render cannot know, which is that somebody
-/// asked it to stop.
 Future<bool> showExportProgress(
   BuildContext context,
   String projectId,
@@ -874,11 +820,6 @@ class _ExportProgressDialog extends ConsumerStatefulWidget {
 
 class _ExportProgressDialogState extends ConsumerState<_ExportProgressDialog> {
   /// Set the moment this window has asked to close.
-  ///
-  /// The controller is reset to idle right after it reports an outcome, and
-  /// that reset is a second state change arriving here. Without this the
-  /// window would pop twice -- the second time taking the screen underneath it
-  /// with it.
   bool _closing = false;
 
   @override
@@ -921,13 +862,7 @@ class _ExportProgressDialogState extends ConsumerState<_ExportProgressDialog> {
         AppDialogAction(
           label: l10n.exportCancel,
           onPressed: () {
-            // **Closed first, then cancelled.** Cancelling puts the controller
-            // back to idle, which the listener above sees as the render simply
-            // ending -- so awaiting the cancel let that listener close this
-            // window as an ordinary finish, and the caller never learned the
-            // user had stopped it. Recording the reason before starting the
-            // cancel is what makes the answer the user's rather than the
-            // race's.
+            // Closed first, then cancelled.
             final notifier = ref
                 .read(videoExportControllerProvider(widget.projectId).notifier);
             _close(cancelled: true);

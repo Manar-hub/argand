@@ -42,23 +42,8 @@ class RefinementResult {
 
 /// Re-checks doubtful attributions against the audio, using the CAM++ speaker
 /// embedding model already bundled for diarization.
-///
-/// **This refines pyannote rather than replacing it.** Segmentation still
-/// decides where turns are; this only answers *who* is speaking in regions
-/// segmentation left doubtful, and only when the answer is clear. With weak
-/// evidence it changes nothing, so its failure mode is "no improvement" rather
-/// than a confident wrong answer.
-///
-/// It exists because reconciliation cannot reach every error. A word can only
-/// be attributed to a speaker segmentation actually reported, and on real
-/// material it sometimes reports none — see [SpeakerRefinement] for the
-/// measured case that motivated this.
 class SpeakerRefiner {
   /// Refines [spans] for the audio in [wavPath].
-  ///
-  /// [assigned] is the pre-refinement per-word attribution, used to know which
-  /// speaker currently holds each sentence. Returns the input unchanged when
-  /// there is nothing worth asking about.
   Future<RefinementResult> refine({
     required String wavPath,
     required List<SpeakerSpan> spans,
@@ -107,23 +92,6 @@ class SpeakerRefiner {
   }
 
   /// Re-labels short spans segmentation appears to have invented.
-  ///
-  /// **Runs before anything reads the spans**, because a spurious span edge
-  /// cannot be repaired downstream: once it exists, whether a word falls left
-  /// or right of it decides that word's speaker, so two transcription models
-  /// that time the same word differently disagree about who said it. Measured
-  /// on `two_speakers.wav`, where an 810ms span in the middle of one speaker's
-  /// sentence split "That's right." one word per speaker under `small-q5_1`
-  /// while `base` was unaffected.
-  ///
-  /// **Takes no transcript.** Suspects come from span geometry and voice prints
-  /// come from [referenceRegionsOf], neither of which consults whisper, so the
-  /// correction is identical for every transcription model by construction
-  /// rather than by tuning.
-  ///
-  /// Non-fatal by contract: returns [spans] unchanged when there is nothing to
-  /// challenge, when fewer than two voices can be learned, or when a region
-  /// yields no embedding. Doing nothing is always a valid outcome here.
   Future<List<SpeakerSpan>> validateSpans({
     required String wavPath,
     required List<SpeakerSpan> spans,
@@ -166,24 +134,6 @@ class SpeakerRefiner {
   }
 
   /// How much each region in [regions] sounds like each speaker.
-  ///
-  /// **This decides nothing.** It answers "who does this stretch sound like",
-  /// and hands the numbers back for a caller to weigh. [refine] uses the same
-  /// voice prints to make a standalone verdict, gated on [SpeakerRefinement
-  /// .minMargin]; this exists because that gate is the wrong shape for evidence
-  /// that only needs to break a tie rather than win outright.
-  ///
-  /// The motivating case: a two-word sentence split across a spurious span
-  /// boundary. Coverage alone puts the words on different speakers, and the
-  /// acoustic margin is far too thin for [refine] to act on alone -- but as one
-  /// term inside a sequence decision it is enough to settle which speaker the
-  /// whole sentence belongs to. [validateSpans] is the consumer: it asks
-  /// whether a short span segmentation reported is really a different voice.
-  ///
-  /// Returns one map per region, speaker to cosine similarity. A region that
-  /// could not be embedded -- too short for CAM++ -- yields an empty map, which
-  /// the sequence decoder treats as "no acoustic opinion" rather than as
-  /// evidence against.
   Future<List<Map<int, double>>> similaritiesFor({
     required String wavPath,
     required List<SpeakerSpan> spans,
@@ -239,13 +189,6 @@ class SpeakerRefiner {
   }
 
   /// Spawns the worker.
-  ///
-  /// Every parameter here is sendable, so the closure below has nothing
-  /// unsendable in scope to capture. Keep it that way: do not add a callback,
-  /// a Future, or a reference to `this` to this signature. An `Isolate.run`
-  /// closure captures the enclosing function's whole context, not just what it
-  /// mentions, and that bit this project once already — see
-  /// docs/engineering-notes.md.
   static Future<List<RefinementDecision>> _spawn({
     required String wavPath,
     required String embeddingModelPath,
@@ -265,12 +208,6 @@ class SpeakerRefiner {
 
 /// Everything both isolate entrypoints need: a validated WAV, a live CAM++
 /// extractor, and a region embedder over them.
-///
-/// Both passes previously carried their own copy of this. The duplicate was
-/// deliberate at the time -- the second pass was being measured against the
-/// first, and sharing code would have meant editing the function under test --
-/// but that comparison is finished, so the copy is now just two places to fix
-/// the same bug.
 class _EmbeddingSession {
   _EmbeddingSession._(this._input, this._extractor, this._header, this._bytesPerMs);
 
@@ -349,14 +286,6 @@ class _EmbeddingSession {
   }
 
   /// One averaged voice print per speaker.
-  ///
-  /// Each proposed reference is split in half and both halves embedded. If they
-  /// do not sound like each other, the span holds more than one voice -- a turn
-  /// segmentation never reported -- and learning from it would fold the wrong
-  /// person into this speaker's print. Testing that acoustically is what
-  /// replaced guessing at it from span length and sentence count, which
-  /// depended on how whisper happened to segment and so changed with the
-  /// transcription model.
   Map<int, Float32List> voicePrints(
     Map<int, List<EmbedRegion>> references,
     SpeakerRefinement config,

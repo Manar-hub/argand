@@ -17,15 +17,6 @@ import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Phase 6 against the real thing: Android's SQLite, the real app documents
 /// directory, and real files on the device filesystem.
-///
-/// The host suite covers the same rules against an in-memory database, which
-/// proves the logic. It cannot prove that the schema opens on Android, that the
-/// JSON payloads survive a round trip through the platform driver, or that
-/// deleting a project actually reclaims bytes -- and the last of those is the
-/// bug this phase exists to fix.
-///
-/// Deliberately does not transcribe. Nothing here depends on whisper, so paying
-/// twenty minutes for a decode would only make the check less likely to be run.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -223,13 +214,6 @@ void main() {
   });
 
   /// The controls themselves, driven by taps.
-  ///
-  /// On a device rather than in `test/`, because `ProjectScreen` builds a
-  /// `MediaPlayer` and `video_player` has no host implementation -- the
-  /// controller leaves a pending timer that trips the widget-test invariants.
-  /// Here the plugin is real. The player still fails to open the fixture's
-  /// `/dev/null` path and falls back to its error state, which is fine: the
-  /// history controls live in the app bar and the transcript renders either way.
   group('the app bar controls', () {
     Future<void> settle(WidgetTester tester) async {
       for (var i = 0; i < 20; i++) {
@@ -255,14 +239,6 @@ void main() {
 
     /// Taps a transcript word by invoking its own `TapGestureRecognizer`
     /// directly, rather than `tester.tap(find.text(word))`.
-    ///
-    /// A cue line is one merged `RichText` with a `TextSpan` per word
-    /// (`_CueLine._spans`), not one widget per word, so `find.text` can't
-    /// address a single word -- it only matches a widget's *entire* rendered
-    /// text, which for a multi-word line is the whole line. Finding the exact
-    /// span and firing its recognizer reaches the same `onWordTap` callback a
-    /// real tap would, without depending on where the word happens to sit on
-    /// screen.
     Future<void> tapWord(WidgetTester tester, String text) async {
       final matches = <TapGestureRecognizer>[];
       void visit(InlineSpan span) {
@@ -451,9 +427,8 @@ void main() {
         'tapping straight to another word commits the first edit instead of '
         'losing it', (tester) async {
       // The inline field has no Save button and no explicit "leaving" event of
-      // its own -- tapping a different word opens a new span directly over
-      // the old one, without the old field ever losing focus first. Confirms
-      // that edit survives instead of being silently dropped by `dispose()`.
+      // its own -- tapping a different word opens a new span directly over the
+      // old one, without the old field ever losing focus first.
       final projectId = repository.newId();
       final transcriptId =
           await seedTranscript(projectId, ['It', 'was', 'brainbeats.']);
@@ -516,10 +491,9 @@ void main() {
         'It was brainbeats.',
       );
 
-      // No Save/Cancel affordance to walk away from -- leave edit mode
-      // without having typed anything, which closes the field. The
-      // repository no-ops on unchanged text, so nothing should be written.
-      // The app-bar icon swaps to `Icons.done` while editing.
+      // No Save/Cancel affordance to walk away from -- leave edit mode without
+      // having typed anything, which closes the field. The repository no-ops on
+      // unchanged text, so nothing should be written.
       await tester.tap(find.byIcon(Icons.done));
       await settle(tester);
 
@@ -622,15 +596,7 @@ void main() {
         (tester) async {
       // This test used to also assert the name appeared as a turn heading in
       // the transcript body -- true of the pre-redesign screen (Phase 3.1's
-      // "Speaker N" heading), but the Script-mode rebuild deliberately
-      // dropped that heading: `project_screen.dart` now marks a turn's
-      // speaker only through the timestamp's colour ("the timestamp is the
-      // speaker signal", `_buildRows`'s `onStampTap` comment). That means a
-      // renamed speaker is currently distinguishable from "Speaker 1" only
-      // through the picker/export, not by reading the transcript -- flagging
-      // this rather than asserting it, since it's not clear it was a
-      // deliberate trade against progress.md Phase 5.8's "the name reaches
-      // the turn label ... free" or a side effect of the rebuild.
+      // "Speaker N" heading).
       final projectId = repository.newId();
       final transcriptId =
           await seedTranscript(projectId, ['One', 'two', 'three.']);

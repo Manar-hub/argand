@@ -77,3 +77,4 @@ packages/**/build/
 # `skills-lock.json` stays tracked so the set is reproducible elsewhere.
 .agents/
 .claude/
+assets/models/*.gguf

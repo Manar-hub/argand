@@ -186,10 +186,6 @@ void main() {
         () async {
       // The real correction this feature exists for: one sentence rendered
       // across two speakers, put onto one, then undone.
-      // Three words each side, not one: attribution smooths turn boundaries,
-      // so a single-word span is absorbed into its neighbour and the fixture
-      // would not be split at all. An earlier version of this test used one
-      // word per speaker and the guard below caught it.
       final transcriptId = await seed(
         ['That', 'is', 'right', 'and', 'so', 'it', 'was'],
         spans: const [

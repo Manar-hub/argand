@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/media/shared_media.dart';
 import '../../core/monetization/monetization.dart';
+import '../../core/monetization/purchases.dart';
 import '../../core/theme/accent_color_controller.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_color_picker.dart';
@@ -21,6 +23,8 @@ import '../../core/theme/theme_reveal.dart';
 import '../../core/text/library_search.dart';
 import '../../l10n/app_localizations.dart';
 import '../monetization/pro_offer.dart';
+import '../monetization/pro_screen.dart';
+import '../settings/pack_screens.dart';
 import '../transcription/transcription_options.dart';
 import '../transcription/editor_mode_controller.dart';
 import '../transcription/import_controller.dart';
@@ -65,9 +69,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   /// Which mode the entry button just tapped wants the resulting project to
   /// open in, consumed the moment the pipeline reports [ImportSucceeded].
-  /// Cleared on every path that is not "a button was just tapped" -- a
-  /// share-sheet arrival, or the previous attempt being cancelled -- so it
-  /// never leaks into an import it was not meant for.
   EditorMode? _pendingImportMode;
 
   @override
@@ -75,15 +76,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     super.initState();
 
     // Media sent here from the system Sharesheet, arriving two ways.
-    //
-    // A cold start already has the intent waiting by the time the engine is up,
-    // so it is *taken* on the first frame -- pulled rather than pushed, which
-    // removes the race between the engine starting and a listener attaching.
-    // A share into an already-running app comes through the stream instead.
-    //
-    // Started here rather than in `main.dart` because this screen is what shows
-    // the import's progress and its result; a listener somewhere with no UI
-    // would kick off an import nothing was rendering.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final channel = ref.read(sharedMediaChannelProvider);
       _shares = channel.shares().listen(_importShared);
@@ -130,11 +122,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   /// Names an empty project and opens it on the timeline.
-  ///
-  /// **No picker, and nothing transcribed.** This is the entry point for
-  /// building something out of several clips: the project is created first and
-  /// media is added to it afterwards, which is the opposite order from
-  /// "Transcribe", where the file *is* the project.
   Future<void> _createProject() async {
     final l10n = AppLocalizations.of(context);
     final title = await showDialog<String>(
@@ -193,11 +180,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return Scaffold(
       appBar: AppBar(
         // The logo in place of the name, its hand in the action colour.
-        title: ArgandLogo(semanticLabel: l10n.appTitle),
+        // Long-pressed in a Test Store build, it resets Pro for another take.
+        title: GestureDetector(
+          onLongPress: proResettable ? () => _resetPro(l10n) : null,
+          child: ArgandLogo(semanticLabel: l10n.appTitle),
+        ),
         // Disabled mid-import: every setting behind this button changes what a
         // later stage of the running pipeline would do -- which weights load,
-        // which language is declared, whether silence is skipped, whether
-        // speakers are labelled.
+        // which language is declared, whether silence is skipped.
         actions: [_SettingsButton(enabled: import is! ImportRunning)],
       ),
       // One scroll, so the import panel travels with the list rather than
@@ -222,7 +212,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     subhead: l10n.createProjectSubhead,
                     onTap: _createProject,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: AppSpacing.md),
                   _ImportPanel(
                     busy: busy,
                     icon: Icons.text_snippet_outlined,
@@ -277,6 +267,42 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 /// Every project, or -- while the search field holds something -- the ones
 /// it finds, each with the line of its transcript that matched.
 extension on _LibraryScreenState {
+  /// Hidden, and only in builds on RevenueCat's Test Store: turns Pro off
+  /// as a new customer, so a demo or a purchase test can run again.
+  Future<void> _resetPro(AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AppDialog(
+        title: l10n.proResetTitle,
+        content: Text(l10n.proResetBody),
+        actions: [
+          AppDialogAction(
+            label: l10n.proResetAction,
+            emphasis: AppDialogEmphasis.danger,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+          AppDialogAction(
+            label: l10n.editCancel,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(proPurchasesProvider).resetForTesting();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(l10n.proResetDone)));
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(SnackBar(content: Text(l10n.proResetFailed)));
+    }
+  }
+
   Widget _results(List<Project> items, AppLocalizations l10n) {
     if (searchTokens(_query).isEmpty) {
       _lastHits = null;
@@ -364,7 +390,12 @@ class _ProjectsHeading extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Text(l10n.projectsHeading, style: theme.textTheme.headlineSmall),
+              // Smaller than the panels above: finding what exists is the
+              // page's second job. Heading, field and button shrink together.
+              Text(
+                l10n.projectsHeading,
+                style: theme.textTheme.headlineSmall?.copyWith(fontSize: 20),
+              ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 // The field on the page's own ground, raised with the hard
@@ -397,6 +428,7 @@ class _ProjectsHeading extends StatelessWidget {
                             // until cleared.
                             onTapOutside: (_) => focusNode.unfocus(),
                             textAlignVertical: TextAlignVertical.center,
+                            style: theme.textTheme.bodyMedium,
                             decoration: InputDecoration(
                               isDense: true,
                               filled: false,
@@ -404,8 +436,13 @@ class _ProjectsHeading extends StatelessWidget {
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
                               hintText: l10n.librarySearchHint,
-                              contentPadding: const EdgeInsets.all(
-                                AppSpacing.md,
+                              hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.6),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.sm + AppSpacing.xxs,
                               ),
                             ),
                           ),
@@ -422,16 +459,17 @@ class _ProjectsHeading extends StatelessWidget {
                                 ),
                         ),
                         // The search button: a grey square flush with the
-                        // field's end, set off by the field's own line --
-                        // pushed down and to the right like an action button,
-                        // into the field.
+                        // field's end, set off by the field's own line.
                         AppPushIn(
                           face: grey,
+                          clip: false,
+                          travel: surface.offset +
+                              Offset(surface.borderWidth, surface.borderWidth),
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: focusNode.requestFocus,
                             child: Container(
-                              width: 48,
+                              width: 40,
                               decoration: BoxDecoration(
                                 border: surface.outlined
                                     ? Border(left: surface.side)
@@ -439,7 +477,7 @@ class _ProjectsHeading extends StatelessWidget {
                               ),
                               child: Icon(
                                 Icons.search,
-                                size: 20,
+                                size: 18,
                                 semanticLabel: l10n.librarySearchHint,
                               ),
                             ),
@@ -460,10 +498,6 @@ class _ProjectsHeading extends StatelessWidget {
 }
 
 /// Asks for a new project's name before it is created.
-///
-/// Prefilled and pre-selected so confirming immediately is a valid answer: the
-/// point of naming here is that a project holding several clips has no filename
-/// to borrow one from, not that the user must invent something before starting.
 class _NameProjectDialog extends StatefulWidget {
   const _NameProjectDialog();
 
@@ -486,10 +520,9 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
 
     return AppDialog(
       title: l10n.createProjectTitle,
-      // **No transcription options here.** This creates an empty project and
+      // No transcription options here. This creates an empty project and
       // transcribes nothing -- media is added afterwards and run separately --
-      // so there is no run for those choices to apply to. They belong where a
-      // transcription actually starts, which is the Transcribe action.
+      // so there is no run for those choices to apply to.
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -514,18 +547,6 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
 
 /// One of the two entry points on the library, as the largest things on the
 /// page.
-///
-/// Tall panels rather than a floating button. Importing is what an empty
-/// library is *for*, and a corner FAB makes the one action people opened the
-/// app to perform the smallest thing on screen. Filled with the accent and
-/// carrying the outline and offset shadow, so each is unmistakable before
-/// there is anything else to look at.
-///
-/// **Two of these, not one**, since the library gained a second entry point:
-/// "Import & edit" opens the result in Timeline mode, "Transcribe" (the
-/// original single button) opens it in Script mode as it always did. Both
-/// run the identical `ImportController` pipeline -- see `_startImport` --
-/// they differ only in which mode the resulting `ProjectScreen` defaults to.
 class _ImportPanel extends StatelessWidget {
   const _ImportPanel({
     required this.busy,
@@ -564,9 +585,11 @@ class _ImportPanel extends StatelessWidget {
           highlightColor: Colors.transparent,
           onTap: busy ? null : onTap,
           child: Container(
+            // Tall: with the logo, these are what the page is about, so they
+            // outweigh the project list below. Icon and type grow with them.
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
-              vertical: AppSpacing.lg,
+              vertical: AppSpacing.xl + AppSpacing.xs,
             ),
             decoration: surface.decoration(
               fill: busy
@@ -575,7 +598,7 @@ class _ImportPanel extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(icon, size: 30, color: ink),
+                Icon(icon, size: 36, color: ink),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
@@ -584,13 +607,16 @@ class _ImportPanel extends StatelessWidget {
                     children: [
                       Text(
                         headline,
-                        style: theme.textTheme.titleMedium?.copyWith(color: ink),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(color: ink, fontSize: 20),
                       ),
-                      const SizedBox(height: AppSpacing.xxs),
+                      const SizedBox(height: AppSpacing.xs),
                       Text(
                         subhead,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: ink.withValues(alpha: 0.75)),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: ink.withValues(alpha: 0.75),
+                          fontSize: 13.5,
+                        ),
                       ),
                     ],
                   ),
@@ -671,10 +697,6 @@ class _RowRule extends StatelessWidget {
 }
 
 /// One project, as a row of the library's grouped list.
-///
-/// Everything needed to choose between two similar recordings is on the face of
-/// it — when it was imported, how long it runs, what it costs on disk — because
-/// the alternative is opening each one to find out.
 class _ProjectTile extends ConsumerStatefulWidget {
   const _ProjectTile({super.key, required this.project, this.hit});
 
@@ -690,10 +712,6 @@ class _ProjectTile extends ConsumerStatefulWidget {
 
 class _ProjectTileState extends ConsumerState<_ProjectTile> {
   /// Whether the row is currently under a finger.
-  ///
-  /// Nothing here stays "selected" the way a segment or a speaker chip does —
-  /// a tap navigates away immediately — so the pressed look is momentary,
-  /// driven by `InkWell.onHighlightChanged` rather than a persisted choice.
   bool _pressed = false;
 
   @override
@@ -716,9 +734,8 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
       child: InkWell(
         borderRadius: surface.borderRadius,
         // The press itself is `PressableSurface`'s job -- the row sinking in
-        // already says "tapped", so Material's own splash/highlight overlay
-        // is switched off rather than layering a second, conflicting kind of
-        // feedback on top.
+        // already says "tapped", so Material's own splash/highlight overlay is
+        // switched off rather than layering a second.
         splashColor: Colors.transparent,
         highlightColor: Colors.transparent,
         onTap: () => _open(context),
@@ -876,10 +893,6 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
   }
 
   /// Copies the project, explaining once what a copy actually costs.
-  ///
-  /// The notice is shown a single time and remembered in `Settings`, because
-  /// "duplicating is free" is surprising and worth saying — and saying every
-  /// time would be nagging.
   Future<void> _duplicate(
     BuildContext context,
     WidgetRef ref,
@@ -913,12 +926,6 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
   }
 
   /// Confirms, then deletes the project and its media for good.
-  ///
-  /// A dialog rather than a snackbar with an undo. Material reserves undo for
-  /// frequent, reversible actions; this one destroys the imported video, so the
-  /// user is told before it happens rather than given seconds to catch it. The
-  /// message names the space recovered, which is the reason most people reach
-  /// for delete in the first place.
   Future<void> _confirmDelete(
     BuildContext context,
     WidgetRef ref,
@@ -1037,9 +1044,7 @@ class _ImportProgress extends StatelessWidget {
           LinearProgressIndicator(
             // Transcription and diarization both report real progress; the
             // remaining stages animate indeterminately rather than faking a
-            // number. Driven off `percent` being present rather than off the
-            // stage, so a future stage that learns to report needs no change
-            // here.
+            // number.
             value: percent == null ? null : percent / 100,
           ),
         ],
@@ -1141,11 +1146,6 @@ String _formatDuration(Duration duration) {
 }
 
 /// A byte count at the largest unit that leaves a readable number.
-///
-/// Binary units (1024), because that is what Android's own storage screens
-/// report -- showing 260 MB beside the system's 248 MB for the same file would
-/// read as a bug. Whole numbers below a gigabyte and one decimal above it: at
-/// that scale the tenth is the part people compare.
 String _formatBytes(AppLocalizations l10n, int bytes) {
   const k = 1024;
   if (bytes < k) return l10n.sizeBytes(bytes);
@@ -1182,20 +1182,9 @@ class _SettingsButton extends StatelessWidget {
   }
 }
 
-/// Everything that changes what the *next* import does: which model runs,
-/// which language the engine is told to expect, whether non-speech audio is
-/// skipped, and whether speakers are labelled.
-///
-/// A bottom sheet rather than the popup menu this replaces. A popup dismisses
-/// itself on every selection, which is wrong for a surface holding several
-/// independent settings, and it cannot host a switch at all. The sheet also
-/// makes the confirmation snackbars redundant — each row shows its own state,
-/// so the change is visible where it was made.
-/// Light, dark, or whatever the device is doing.
-///
-/// Lives in settings rather than in the app bar: it is a standing preference,
-/// not something toggled while working. It exists at all because without it
-/// there is no way to look at the theme the device is not currently in.
+/// Everything that changes what the *next* import does: which model runs, which
+/// language the engine is told to expect, whether non-speech audio is skipped,
+/// and whether speakers are labelled.
 class _ThemeModeControl extends ConsumerStatefulWidget {
   const _ThemeModeControl();
 
@@ -1275,11 +1264,8 @@ class _ThemeModeControlState extends ConsumerState<_ThemeModeControl> {
   }
 }
 
-/// The action colour: every call to action in the app takes it, and the
-/// user picks it here, beside Light and Dark, from presets or the spectrum.
-///
-/// The picker previews under the finger and applies on release, so the whole
-/// app repaints once per choice rather than on every frame of a drag.
+/// The action colour: every call to action in the app takes it, and the user
+/// picks it here, beside Light and Dark, from presets or the spectrum.
 class _AccentColorControl extends ConsumerWidget {
   const _AccentColorControl();
 
@@ -1347,37 +1333,79 @@ class _ProSettingsRow extends ConsumerWidget {
         AppSpacing.lg,
         AppSpacing.sm,
       ),
-      child: ProBanner(onPressed: () => showProComingSoon(context)),
+      child: ProBanner(onPressed: () => showProScreen(context)),
+    );
+  }
+}
+
+enum _SettingsPage { models, languages }
+
+/// A settings row that opens a page of its own: the model and language pack
+/// managers, which are lists too long for the sheet.
+class _SettingsLink extends StatelessWidget {
+  const _SettingsLink({required this.kind});
+
+  final _SettingsPage kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final (title, detail, page) = switch (kind) {
+      _SettingsPage.models => (
+          l10n.settingsModels,
+          l10n.settingsModelsDetail,
+          const ModelPacksScreen(),
+        ),
+      _SettingsPage.languages => (
+          l10n.settingsLanguages,
+          l10n.settingsLanguagesDetail,
+          const LanguagePacksScreen(),
+        ),
+    };
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      title: Text(title),
+      subtitle: Text(detail),
+      trailing: const Icon(Icons.chevron_right),
+      // A plain swipe in from the side, and back with an edge drag.
+      onTap: () => Navigator.of(context).push(
+        CupertinoPageRoute<void>(builder: (_) => page),
+      ),
     );
   }
 }
 
 /// App-level settings.
-///
-/// **Transcription options are deliberately not here.** Model, language,
-/// silence skipping and diarization moved to the three places a run actually
-/// starts -- creating a project, importing a file, and running a transcribe
-/// layer -- because they are decisions about the next run rather than standing
-/// app preferences, and a sheet behind the app bar is somewhere you have to
-/// already know to look. See `TranscriptionOptions`.
-///
-/// The theme stays because it genuinely is app-wide and belongs to no run.
 class _SettingsSheet extends ConsumerWidget {
   const _SettingsSheet();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(bottom: AppSpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _ThemeModeControl(),
-            _AccentColorControl(),
-            _ProSettingsRow(),
-          ],
+    // A modal route keeps the theme it was opened under, so without this the
+    // sheet's own selections would stay in the old action colour while the
+    // user picks a new one right here.
+    final theme = Theme.of(context);
+    final accent = ref.watch(accentColorSettingProvider).value;
+    return Theme(
+      data: accent == null
+          ? theme
+          : theme.brightness == Brightness.dark
+              ? AppTheme.dark(accent: accent)
+              : AppTheme.light(accent: accent),
+      child: const SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(bottom: AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ThemeModeControl(),
+              _AccentColorControl(),
+              _SettingsLink(kind: _SettingsPage.models),
+              _SettingsLink(kind: _SettingsPage.languages),
+              _ProSettingsRow(),
+            ],
+          ),
         ),
       ),
     );

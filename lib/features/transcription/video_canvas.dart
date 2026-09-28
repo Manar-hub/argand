@@ -13,18 +13,6 @@ import '../../l10n/app_localizations.dart';
 import 'transcript_repository.dart';
 
 /// The frame an export will produce, drawn as large as the space allows.
-///
-/// **One drawing of the output, used everywhere it is shown.** The timeline's
-/// stage, the video settings panel and the export sheet each used to decide
-/// for themselves how to fit the picture, and they disagreed: the stage
-/// letterboxed a clip that the export would crop. They now all draw this, so
-/// what is on screen while editing is what ends up in the file.
-///
-/// [picture] should be **fitted** inside its box (`BoxFit.contain`), with the
-/// black ground showing around it. That is what the render does when a shape
-/// is chosen: the whole picture, with bars where it does not reach -- a
-/// landscape clip in a 9:16 frame has them above and below. When no shape is
-/// chosen the frame has the picture's own shape and there are no bars.
 class VideoCanvas extends StatelessWidget {
   const VideoCanvas({
     super.key,
@@ -56,10 +44,6 @@ class VideoCanvas extends StatelessWidget {
 
   /// Set while the watermark's corner is being chosen: every corner of the
   /// frame becomes a target, and a tap on one reports it here.
-  ///
-  /// **Chosen on the picture itself** rather than on a small stand-in for
-  /// it. The stand-in was a black box that said nothing about where the mark
-  /// would sit over this footage; the stage is that footage.
   final ValueChanged<WatermarkCorner>? pickCorner;
 
   /// The corner currently chosen, while [pickCorner] is set. Needed apart
@@ -84,9 +68,7 @@ class VideoCanvas extends StatelessWidget {
                 : const Duration(milliseconds: 220);
 
             // The mark's inset from each edge, the same shares the render's
-            // anchor encodes. Laid out as padding around an alignment rather
-            // than as a Positioned, so moving corners is a glide rather than
-            // a jump.
+            // anchor encodes.
             final inset = EdgeInsets.symmetric(
               horizontal: frame.maxWidth * WatermarkCorner.insetX,
               vertical: frame.maxHeight * WatermarkCorner.insetY,
@@ -238,11 +220,6 @@ class _CornerTargets extends StatelessWidget {
 }
 
 /// The watermark as the render draws it: the name in white on a dark plate.
-///
-/// Sized from the frame rather than the text theme, and never scaled by the
-/// accessibility text setting, because it stands for pixels in the output.
-/// A mark that grew with the reader's font size would promise a bigger mark
-/// than the file contains.
 class WatermarkMark extends StatelessWidget {
   const WatermarkMark({super.key, required this.shortEdge});
 
@@ -271,11 +248,6 @@ class WatermarkMark extends StatelessWidget {
 }
 
 /// The project's first frame, shown in the output's shape.
-///
-/// **The frame's own pixels decide the shape when "Source" is chosen.** The
-/// thumbnail is written at a fixed width with its height scaled to match, so
-/// its proportions are the media's -- to within the truncation that
-/// `mediaRatioFromThumbnail` accounts for.
 class ProjectFramePreview extends ConsumerStatefulWidget {
   const ProjectFramePreview({
     super.key,
@@ -438,11 +410,6 @@ class _ProjectFramePreviewState extends ConsumerState<ProjectFramePreview> {
   }
 
   /// The pixel size, when it is actually known.
-  ///
-  /// **Silent rather than approximate.** A Source *quality* takes its size from
-  /// the clip's real dimensions, which only the native side can read, and a
-  /// source shape recognised only approximately would print a figure that
-  /// could be off by a pixel or two.
   String? _frameLabel(AppLocalizations l10n, double ratio) {
     if (widget.options.aspect.ratio == null && !_sourceRatioExact) {
       return null;

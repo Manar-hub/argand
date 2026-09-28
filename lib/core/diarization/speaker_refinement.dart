@@ -7,31 +7,9 @@ import 'speaker_span.dart';
 
 /// Deciding *who* is speaking in a region pyannote left unresolved, from the
 /// audio rather than from the shape of its spans.
-///
-/// **Why this exists.** Reconciliation can only move a word onto a speaker
-/// segmentation actually reported. On real material it sometimes reports none:
-/// on the development clip the employee's reply "Tokens cost money."
-/// (7920-9400) sits inside one unbroken span attributed to the boss, with no
-/// second-speaker activity anywhere between 7861 and 12468. Every parameter the
-/// library exposes was swept against it and the spans did not move. No rule
-/// over those spans can recover the turn, because the evidence is not in them.
-///
-/// It is in the audio. Measured with CAM++ against voice prints built from
-/// unambiguous stretches of the same clip, that region scores 0.571 for the
-/// employee against 0.266 for the boss. Ten regions were checked this way,
-/// including four already-correct controls, and all ten matched the right
-/// speaker.
-///
-/// This file holds the parts of that with no I/O and no FFI — which sub-regions
-/// are worth asking about, how references are chosen, and how a similarity
-/// score becomes a decision — so the rules are testable on the host VM. Only
-/// [SpeakerRefiner] touches the model.
 
 /// Guards for the refinement pass. Every field is a reason *not* to act: the
 /// pass changes nothing when the evidence is weak.
-///
-/// **These numbers are measured, on one clip.** Treat them as a starting point
-/// that more material should move, not as tuned constants.
 class SpeakerRefinement {
   const SpeakerRefinement({
     this.minRegionMs = 400,
@@ -47,11 +25,6 @@ class SpeakerRefinement {
   });
 
   /// Shortest region worth embedding.
-  ///
-  /// Measured rather than assumed: general guidance for CAM++ suggests about a
-  /// second, but on the development clip a 390ms region ("Appie?") separated
-  /// correctly with a 0.273 margin, and the 750ms "What do you mean?" did too.
-  /// 400ms is the shortest length actually verified here.
   final int minRegionMs;
 
   /// Shortest span usable as a voice-print reference. References carry more
@@ -66,11 +39,6 @@ class SpeakerRefinement {
   final double minSimilarity;
 
   /// How far the winner must beat the runner-up.
-  ///
-  /// This is the real guard. What matters is not how well the winner fits but
-  /// how much better it fits than anyone else, because a lone candidate is
-  /// always "best". Lowest correct margin measured was 0.170; the lowest among
-  /// already-correct controls was 0.206.
   final double minMargin;
 
   /// Ceiling on embeddings per file, so a long recording cannot blow the
@@ -84,46 +52,14 @@ class SpeakerRefinement {
 
   /// How much longer than this file's *median* span a span must be before the
   /// sentences inside it are re-examined.
-  ///
-  /// **Relative, not absolute, and that is the point.** An unusually long span
-  /// is where an unreported turn can hide, but "unusually long" means nothing
-  /// in milliseconds: a rapid exchange and a lecture have completely different
-  /// span distributions. Measuring against the file's own median self-calibrates
-  /// to the material, and — unlike counting sentences — never consults whisper,
-  /// so the trigger cannot shift when the transcription model changes.
   final double longSpanMedianMultiple;
 
-  /// How much of a candidate may sit on the far side of a speaker change
-  /// before the region is refused outright.
-  ///
-  /// **A region containing a known handover cannot be asked about**, because
-  /// its embedding is a blend of two voices and the model answers honestly
-  /// about the blend — which is neither speaker. Both wrong moves measured on
-  /// the reference clip were exactly this shape, on both whisper models:
-  ///
-  /// | region | split across the boundary | outcome |
-  /// |---|---|---|
-  /// | "Tokens cost money." | no boundary inside it | correct |
-  /// | "What do you mean?" | 99 / 1 | correct |
-  /// | "I like that one." | 57 / 43 | **wrong** |
-  /// | "No, of course… that makes sense." | 61 / 39 | **wrong** |
-  ///
-  /// The good moves are clean or almost clean; the bad ones are genuinely
-  /// mixed. 0.25 sits between the two groups with room on either side, and is
-  /// a statement about acoustics rather than a value fitted to a score.
+  /// How much of a candidate may sit on the far side of a speaker change before
+  /// the region is refused outright.
   final double maxBoundaryStraddle;
 
   /// How much a reference span's two halves must sound like each other before
   /// that span is trusted to represent one voice.
-  ///
-  /// **This replaces a proxy with the actual property.** A reference is unsafe
-  /// when it contains someone else's voice, which happens either because
-  /// segmentation declares an overlap or because the span conceals a turn
-  /// nobody reported. The second case was previously guessed at from span
-  /// length and sentence count — model-dependent, and fitted to one clip.
-  /// Splitting the span and asking whether its halves match tests the thing
-  /// directly: one speaker talking is internally consistent, two speakers are
-  /// not.
   final double minReferenceCoherence;
 
   /// Refinement off, for measuring what it contributes. Same shape as
@@ -208,28 +144,6 @@ class RefinementDecision {
 }
 
 /// Chooses which sentences to ask about, and which spans to learn voices from.
-///
-/// **Candidates are sentences whose geometric answer is doubtful**, not every
-/// sentence. Two shapes qualify, and between them they cover both failures
-/// measured on the development clip:
-///
-///  - **more than one speaker overlaps the sentence** — the spans disagree, so
-///    there is a real question ("What do you mean?", "Of course, yeah, that
-///    makes sense.");
-///  - **the sentence sits inside one span that also covers other sentences** —
-///    a stretch long enough to hide a turn that was never reported ("Tokens
-///    cost money.").
-///
-/// A sentence wholly inside a span covering nothing else is left alone: the
-/// segmentation is unambiguous there and embedding it would only add cost and
-/// risk.
-///
-/// **References must not contain the voices under test.** A speaker's
-/// reference spans are those overlapping no other speaker's span *and* no
-/// candidate region. The span enclosing "Tokens cost money." is itself
-/// mixed-speaker, so building the boss's voice print from it would fold the
-/// employee's voice into the very reference the employee is compared against,
-/// and the comparison would quietly mean nothing.
 RefinementPlan planRefinement({
   required List<SpeakerSpan> spans,
   required List<WordTiming> words,
@@ -240,10 +154,7 @@ RefinementPlan planRefinement({
     return const RefinementPlan(references: {}, candidates: []);
   }
 
-  // Sentence extents, and which speaker currently holds each. Cut by the shared
-  // rule in `sentence_units.dart` so refinement and assignment cannot disagree
-  // about where a sentence begins — if they did, a decision measured on one
-  // region would be recorded against a different range of words.
+  // Sentence extents, and which speaker currently holds each.
   final sentences = sentenceUnitsOf(words);
 
   // Median rather than mean: diarization emits a few very long spans and many
@@ -270,9 +181,7 @@ RefinementPlan planRefinement({
     final ambiguous = holders.length > 1;
 
     // Is it buried in a span unusually long *for this file*? That is where a
-    // turn nobody reported can hide. Judged against the file's own median span
-    // rather than a fixed duration or a sentence count, so the trigger depends
-    // only on diarization — which never sees the transcription model.
+    // turn nobody reported can hide.
     var insideLongSpan = false;
     if (!ambiguous) {
       for (final span in spans) {
@@ -307,18 +216,7 @@ RefinementPlan planRefinement({
 
     // Refuse a region that already contains a speaker change. Its embedding
     // would be a blend of two voices, and the model would answer accurately
-    // about the blend — which is neither of them. Measured: every wrong move
-    // on the reference clip was a region split roughly 60/40 across a
-    // boundary, while every correct one was clean or split 99/1.
-    //
-    // A *cut* is a span edge landing strictly inside the region, which is what
-    // splits the audio in two. Two overlapping spans that both cover the whole
-    // region are a different thing entirely — that is the ambiguity this pass
-    // exists to resolve, and it must still be asked about.
-    //
-    // Only the position matters: a cut 9ms from the edge leaves the region
-    // essentially pure, while one near the middle makes it a blend. Measured on
-    // the reference clip, correct moves were cut at 1% and wrong ones at 39-43%.
+    // about the blend — which is neither of them.
     final regionMs = to - from;
     var straddled = false;
     for (final span in spans) {
@@ -357,12 +255,6 @@ RefinementPlan planRefinement({
 }
 
 /// Stretches of audio to learn each speaker's voice from.
-///
-/// **Spans only — no transcript.** Extracted from [planRefinement] so that
-/// passes which have no words to offer can still build voice prints, and so
-/// that every pass which does learns them from exactly the same audio. Nothing
-/// here consults whisper, which is what lets a caller upstream of
-/// transcription use it.
 Map<int, List<EmbedRegion>> referenceRegionsOf(
   List<SpeakerSpan> spans, {
   SpeakerRefinement config = const SpeakerRefinement(),
@@ -379,10 +271,7 @@ Map<int, List<EmbedRegion>> referenceRegionsOf(
       if (sharedWithOther) continue;
 
       // A span may still conceal a turn nobody reported, which would fold
-      // another voice into this speaker's reference. That is checked
-      // acoustically by [SpeakerRefiner], which splits each proposed reference
-      // and requires its halves to match. Guessing at it here from span length
-      // and sentence count was model-dependent and fitted to one clip.
+      // another voice into this speaker's reference.
       clean.add(span);
     }
     if (clean.isEmpty) continue;
@@ -459,24 +348,6 @@ RefinementOutcome decideOne({
 
 /// Rewrites [spans] so a moved region is actually attributed to its new
 /// speaker.
-///
-/// **Inserting a span is not enough, and getting this wrong makes the whole
-/// pass a silent no-op.** [speakerForWord] scores each span by the fraction of
-/// the word it covers, so a word already covered completely by the previous
-/// speaker's span scores 1.0 there — a freshly inserted span covering the same
-/// word only ties, and a tie is decided on span length rather than on the fact
-/// that a decision was just made about this region. The new span can therefore
-/// lose every word it was created to claim, indistinguishable from the pass
-/// finding nothing.
-///
-/// So the region is first carved out of every span belonging to anyone else: a
-/// span straddling it is split into the part before and the part after, and
-/// pieces that collapse to nothing are dropped. Only then is the new span
-/// inserted.
-///
-/// Everything outside moved regions is left exactly as segmentation reported
-/// it, which is what keeps this a refinement rather than a replacement. With no
-/// moves the output equals the input.
 List<SpeakerSpan> applyRefinements(
   List<SpeakerSpan> spans,
   List<RefinementDecision> decisions,
@@ -520,11 +391,9 @@ List<SpeakerSpan> applyRefinements(
 
   working.sort((a, b) => a.startMs.compareTo(b.startMs));
 
-  // The carve-out deliberately leaves the winning speaker's own spans alone,
-  // so applying the same move twice would insert the region a second time
-  // alongside the first. Harmless to attribution, but duplicate spans are
-  // wrong output and would double-count in anything that sums span time, so
-  // exact repeats are dropped and the pass stays idempotent.
+  // The carve-out deliberately leaves the winning speaker's own spans alone, so
+  // applying the same move twice would insert the region a second time
+  // alongside the first.
   final seen = <String>{};
   return [
     for (final s in working)

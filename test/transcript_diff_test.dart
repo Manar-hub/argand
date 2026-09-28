@@ -106,10 +106,7 @@ void main() {
     });
 
     test('two transcripts can agree normalized and differ word for word', () {
-      // This is the whole reason the second number exists. A configuration was
-      // recorded as reproducing its reference "exactly, 0.0% WER" while a
-      // word-for-word reading plainly disagreed; the rate was not wrong, it was
-      // answering a narrower question than the one being asked.
+      // This is the whole reason the second number exists.
       const reference = 'Yes, of course. It was the first one.';
       const candidate = 'yes of course it was the first one';
 

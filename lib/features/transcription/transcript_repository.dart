@@ -37,29 +37,9 @@ import 'editor_mode_controller.dart';
 part 'transcript_repository.g.dart';
 
 /// The `Settings` key holding where playback last stopped in [clipId].
-///
-/// Namespaced like every other per-entity key because `Settings` is one shared
-/// key/value table -- the same reason `whisper_model_controller.dart`
-/// namespaces its own.
-///
-/// **Keyed by media path**, having been keyed by clip and, before that, by
-/// project. The decoder is shared by file now, because splitting a clip must
-/// not reload the picture, and a position belongs to whatever owns the
-/// decoder. Two clips over one file therefore share where you were in it.
-///
-/// Keys written under the old `clip.<id>.positionMs` shape are simply never
-/// read again. They are soft-deletable settings rows, not worth a migration.
 String playbackPositionKey(String mediaPath) => 'media.\$mediaPath.positionMs';
 
 /// All persistence for projects and their transcripts.
-///
-/// Widgets never touch Drift directly (CLAUDE.md 4) -- they read the streams
-/// and call the methods exposed here through Riverpod.
-///
-/// It also owns the [MediaConverter] for the one operation where the database
-/// and the filesystem have to agree: deleting a project must remove both its
-/// rows and its media, and splitting that across two callers is how one of them
-/// gets forgotten.
 class TranscriptRepository {
   TranscriptRepository(this._db, this._media);
 
@@ -98,11 +78,6 @@ class TranscriptRepository {
   Future<Transcript?> findTranscript(String id) => _db.findTranscript(id);
 
   /// Adds a layer covering [startMs]–[endMs] on the project timeline.
-  ///
-  /// Returns null when the range would overlap a layer already on that track.
-  /// **Layers on one track may not overlap**, which is what makes "which layer
-  /// owns this audio" a question with one answer — and the check lives here so
-  /// both drawing a new layer and dragging an existing one are held to it.
   Future<String?> addLayer({
     required String projectId,
     required int startMs,
@@ -136,16 +111,6 @@ class TranscriptRepository {
   }
 
   /// Cuts a layer in two at [atProjectMs].
-  ///
-  /// Returns the new layer's id, or null when the split was refused -- either
-  /// half would be under [minimumLayerMs], or the playhead is outside the
-  /// layer entirely.
-  ///
-  /// **Shrinks the original before adding the tail.** Adding it first would be
-  /// rejected by the very overlap rule the two halves are about to satisfy,
-  /// because the original still covers that range at that moment. If the add
-  /// fails anyway the shrink is undone, so a refused split leaves the layer as
-  /// it was rather than silently shortened.
   Future<String?> splitLayer({
     required String layerId,
     required int atProjectMs,
@@ -253,10 +218,6 @@ class TranscriptRepository {
   }
 
   /// Restyles everything in [changes] as one undoable step.
-  ///
-  /// [resetSentencesIn] names transcripts whose sentences styled on their own
-  /// should go back to following their layer -- what "all captions" means, so
-  /// the whole transcription ends up matching.
   Future<void> applyLooks({
     required String projectId,
     required List<LookChange> changes,
@@ -507,12 +468,6 @@ class TranscriptRepository {
 
   /// Commits one drag or resize on the timeline -- everything it moved, the
   /// tracks it made, the clip order it changed -- as one undoable step.
-  ///
-  /// **Times arrive in project time, and are written as each row keeps
-  /// them.** A transcription, a text and an image are stored in project time;
-  /// a translation line and a sentence's words in their clip's; a sound as
-  /// offsets from its picture. Each is moved by how far its edges moved, so
-  /// the conversion needs nothing but the difference.
   Future<void> placeItems({
     required String projectId,
     required List<ItemPlacement> placements,
@@ -867,14 +822,8 @@ class TranscriptRepository {
     );
   }
 
-  /// Sets one caption line's translation to [content], as one undoable step
-  /// -- Script mode's edit, independent of the transcript's own words.
-  ///
-  /// [lineIds] are the lines shown under that caption line: the first takes
-  /// the text and any others are retired, so it reads as one line again. With
-  /// none, a line is added over the caption's words and time, in the
-  /// transcript's translation language, on its translation track. Empty
-  /// [content] retires them all.
+  /// Sets one caption line's translation to [content], as one undoable step --
+  /// Script mode's edit, independent of the transcript's own words.
   Future<void> setCueTranslation({
     required String transcriptId,
     required List<String> lineIds,
@@ -1015,9 +964,6 @@ class TranscriptRepository {
   }
 
   /// Discards what a layer produced, keeping the layer itself.
-  ///
-  /// For re-running: the request stands, only its answer is being replaced.
-  /// Soft, like every other delete here, so a future sync has the tombstones.
   Future<void> discardLayerTranscripts(String layerId) =>
       _db.softDeleteTranscriptsForLayer(layerId);
 
@@ -1046,13 +992,6 @@ class TranscriptRepository {
   /// Translates [transcriptId] into [to], sentence by sentence, and keeps the
   /// result beside the transcript -- replacing any translation it had. The
   /// transcript itself is not touched.
-  ///
-  /// The language packs must already be on the device (the sheet fetches
-  /// them). Throws [TranslationException] when the transcript's language is
-  /// not one [translator] knows, or the engine fails.
-  ///
-  /// With [words], only the sentences in those word positions are translated
-  /// -- a selection -- and only the translation over them is replaced.
   Future<void> translateTranscript({
     required String transcriptId,
     required String to,
@@ -1068,10 +1007,9 @@ class TranscriptRepository {
     }
 
     final all = await _db.watchWords(transcriptId).first;
-    // **One line per caption line**, the rows Script mode shows and the
-    // captions the video shows -- cut exactly as they are (`captionCues`),
-    // so each has its translation and none has two. A selection takes the
-    // captions its words fall in, whole.
+    // One line per caption line, the rows Script mode shows and the captions
+    // the video shows -- cut exactly as they are (`captionCues`), so each has
+    // its translation and none has two.
     final cues = [
       for (final cue in groupIntoCues(all))
         if (words == null ||
@@ -1132,13 +1070,9 @@ class TranscriptRepository {
     ]);
   }
 
-  /// Translates each of [transcriptIds] into [to], fetching any language
-  /// pack missing at either end first. Returns why it stopped, or null when
-  /// every transcript was translated.
-  ///
-  /// A transcript listed in [ranges] has only those word ranges translated --
-  /// the sentences that were selected -- each on its own; the rest of its
-  /// translation is left as it was.
+  /// Translates each of [transcriptIds] into [to], fetching any language pack
+  /// missing at either end first. Returns why it stopped, or null when every
+  /// transcript was translated.
   Future<TranslationFailure?> translateAll({
     required List<String> transcriptIds,
     required String to,
@@ -1221,11 +1155,6 @@ class TranscriptRepository {
       _db.fillMissingClipWaveform(clipId, peaks);
 
   /// Creates an empty project, with no media and nothing transcribed.
-  ///
-  /// The shape "Create project" produces: a named shell the user then adds
-  /// clips to. Import still creates a project and its first clip together, so
-  /// this is an alternative entry rather than a stage every project passes
-  /// through.
   Future<String> createEmptyProject({required String title}) async {
     final projectId = newId();
     await _db.createEmptyProject(projectId: projectId, title: title);
@@ -1233,15 +1162,6 @@ class TranscriptRepository {
   }
 
   /// Copies [fileName]'s bytes in as a new clip at the end of the timeline.
-  ///
-  /// **No transcription happens here.** Adding media and transcribing it are
-  /// separate events: a project can carry several clips and only some are worth
-  /// the minutes whisper and diarization cost, so the engine runs only when the
-  /// user asks for it on a specific clip.
-  ///
-  /// The duration probe is best-effort by design ([MediaConverter.probeDuration]
-  /// returns null rather than throwing), so a container the prober dislikes
-  /// still yields a usable clip.
   Future<MediaClip> addClip({
     required String projectId,
     required String fileName,
@@ -1306,42 +1226,24 @@ class TranscriptRepository {
     return clip;
   }
 
-  /// Removes one clip and its media, leaving the rest of the project intact.
-  ///
-  /// Same ordering and the same guard as [deleteProject]: rows first so the
-  /// clip disappears from the timeline even if the filesystem step fails, and
-  /// the filesystem step is best-effort because by then the removal has already
-  /// succeeded as far as the user is concerned.
+  /// Takes a clip off the timeline, as one undoable step.
   Future<void> removeClip(String clipId) async {
     final clip = await _db.findClip(clipId);
-    if (clip == null) return;
+    if (clip == null || clip.deletedAt != null) return;
 
-    await _db.softDeleteClip(clipId);
-    // Only once nothing else plays this file -- the position belongs to the
-    // media now, and another clip or another project may still want it.
-    await _db.softDeleteSetting(playbackPositionKey(clip.mediaPath));
-
-    // A duplicated project points a clip of its own at the same file, so the
-    // bytes only go when nothing else still needs them.
-    final stillNeeded = await _db.projectsSharingMedia(
-      clip.mediaPath,
-      excluding: clip.projectId,
+    await _db.setClipRetired(clipId: clipId, retired: true);
+    await recordTimelineEvent(
+      projectId: clip.projectId,
+      kind: TimelineEventKind.clipRemove,
+      payload: TimelineEventPayload(
+        before: {'clipId': clipId, 'retired': false},
+        after: {'clipId': clipId, 'retired': true},
+      ),
     );
-    if (stillNeeded > 0) return;
-
-    try {
-      await _media.discardClipMedia(clipId: clipId, mediaPath: clip.mediaPath);
-    } catch (error) {
-      debugPrint('Removed clip $clipId but could not remove its media: $error');
-    }
   }
 
   /// Writes a new clip order for one project. See [AppDatabase.reorderClips].
   /// Trims a clip to [window], which must already be a legal one.
-  ///
-  /// The window comes from `applyTrim`, which is pure and clamps against the
-  /// media and the minimum length; re-deriving those limits here would be a
-  /// second copy of the rule and the two would drift.
   Future<void> trimClip({
     required String clipId,
     required ClipWindow window,
@@ -1397,11 +1299,6 @@ class TranscriptRepository {
   }
 
   /// Moves the cut between two clips, writing both sides together.
-  ///
-  /// Separate from [trimClip] because it is a different operation, not a
-  /// convenience: trimming changes how long the project is, rolling never
-  /// does. Written in one transaction so the pair cannot be caught with a gap
-  /// or an overlap between them.
   Future<void> rollCut({
     required String leftClipId,
     required String rightClipId,
@@ -1422,11 +1319,6 @@ class TranscriptRepository {
   }
 
   /// Splits the clip at [atClipMs], measured from the start of what it plays.
-  ///
-  /// Returns the new clip's id, or null when the split was refused -- which
-  /// happens when either side would fall below [minimumClipMs]. Refusing is
-  /// better than making a sliver that cannot be played, and null lets the
-  /// caller say so.
   Future<String?> splitClip({
     required String clipId,
     required int atClipMs,
@@ -1469,22 +1361,6 @@ class TranscriptRepository {
       _db.reorderClips(projectId: projectId, orderedIds: orderedIds);
 
   /// Removes a project: its row, its per-project settings, and its media.
-  ///
-  /// **The row is soft-deleted and the media is not.** A tombstone row costs a
-  /// few hundred bytes and is what a future sync will need to propagate the
-  /// deletion; the media directory holds the imported video plus the extracted
-  /// WAV, which is hundreds of megabytes that nothing else would ever reclaim.
-  /// It lives in app-internal storage, so the user cannot clear it from the
-  /// Files app either -- only by wiping the whole app's data.
-  ///
-  /// Database first, filesystem second. If the media deletion fails, the
-  /// project is gone from the library and some bytes leak; the other order
-  /// would leave a visible project whose video no longer opens.
-  ///
-  /// The filesystem step is guarded for the same reason the import rollback
-  /// guards it: by the time it runs the deletion has already succeeded from the
-  /// user's point of view, and turning a leaked file into a thrown error would
-  /// report a failure that did not happen.
   Future<void> deleteProject(String id) async {
     final project = await _db.findProject(id);
     // Read before the soft delete, which retires them along with the project.
@@ -1499,19 +1375,7 @@ class TranscriptRepository {
     if (project == null) return;
 
     // Duplicates share their files, so the media only goes when nothing else
-    // can still open it. Asked per clip and *after* the soft delete, excluding
-    // this project, so the answer is exactly "does anyone else still need
-    // this" -- and asked of the database rather than the filesystem, so the
-    // decision needs no path lookup.
-    //
-    // Conservative on purpose: one shared file spares the whole directory.
-    // Duplicates share every clip in practice, and leaking a file is a cost
-    // the user can recover from while deleting another project's video is not.
-    //
-    // **Only files in this project's own directory decide it.** A duplicate's
-    // clips live in the original's directory, which this never deletes; they
-    // spared the duplicate's own directory anyway, and an image added to the
-    // duplicate -- the only thing in it -- was left behind for good.
+    // can still open it.
     bool ownFile(String path) => p.split(path).contains(id);
     for (final path in [
       for (final clip in clips) clip.mediaPath,
@@ -1529,15 +1393,6 @@ class TranscriptRepository {
   }
 
   /// Copies a project so a second edit can diverge from the same source.
-  ///
-  /// **The media is shared, not copied.** A phone cannot afford a second copy
-  /// of a several-hundred-megabyte video, and re-transcribing would cost
-  /// minutes of whisper and diarization to arrive at the same words. What is
-  /// copied is the cheap part -- the transcript rows -- which is what lets each
-  /// duplicate carry its own corrections.
-  ///
-  /// [title] comes from the caller because the "copy" wording is interface text
-  /// (CLAUDE.md 4).
   Future<String> duplicateProject({
     required String projectId,
     required String title,
@@ -1552,9 +1407,6 @@ class TranscriptRepository {
 
   /// Corrects one word's text, leaving its timing alone. See
   /// [AppDatabase.updateWordText] for why that separation matters.
-  ///
-  /// Records an undo event in the same transaction as the write, so the two
-  /// cannot come apart.
   Future<void> updateWordText(String wordId, String text) async {
     final trimmed = text.trim();
 
@@ -1579,10 +1431,6 @@ class TranscriptRepository {
   }
 
   /// Moves a whole turn onto [speaker], correcting a diarization mistake.
-  ///
-  /// Diarization is right most of the time and never right always: the models
-  /// resolve some regions confidently and others not at all, and the person
-  /// listening is the only real authority. This is how they say so.
   Future<void> reassignSpeaker({
     required String transcriptId,
     required int fromPosition,
@@ -1627,19 +1475,6 @@ class TranscriptRepository {
   }
 
   /// Applies a retyped sentence to the words at [fromPosition]..[toPosition].
-  ///
-  /// The correction the user actually makes is rarely one word for one word:
-  /// "brainbeats" heard for "praying beads" is a single mishearing that spans a
-  /// word boundary, and there is no way to express it one word at a time. So
-  /// the unit of editing is the sentence, and the word count is allowed to
-  /// change.
-  ///
-  /// [planSentenceEdit] decides the timings — the sentence keeps its own span,
-  /// untouched words keep their exact timestamps, and a changed run divides the
-  /// span it replaces. See that function for why none of that may move.
-  ///
-  /// Returns false when nothing changed, so the caller can tell a real edit
-  /// from a dialog dismissed with the text as it was.
   Future<bool> replaceSentence({
     required String transcriptId,
     required int fromPosition,
@@ -1675,10 +1510,7 @@ class TranscriptRepository {
       // words therefore inherit it with no ambiguity about whose they are.
       final speakerId = existing.first.speakerId;
 
-      // Ids for the new words are minted **here**, not left to `spliceWords`.
-      // The event has to record the id a word was actually given, or a redo
-      // would insert a second row for the same word and strand the first as a
-      // soft-deleted orphan.
+      // Ids for the new words are minted here, not left to `spliceWords`.
       final after = [
         for (final word in plan.words)
           (
@@ -1732,12 +1564,6 @@ class TranscriptRepository {
   }
 
   /// Gives [speaker] a custom name, or clears it when [name] is blank.
-  ///
-  /// **Deliberately not in the undo log.** The log is keyed on word rows and
-  /// replays edits to them; a name lives on the transcript and is its own undo
-  /// — retype it. An event kind for this would be machinery for nothing, and it
-  /// would put a rename in the same history as a text correction, where undoing
-  /// a typo would first have to step back through a renaming.
   Future<void> renameSpeaker({
     required String transcriptId,
     required int speaker,
@@ -1763,10 +1589,6 @@ class TranscriptRepository {
       _step(transcriptId, forward: false);
 
   /// Everything that has happened to this project, oldest first.
-  ///
-  /// **Both logs, ordered by when things happened.** Which table an event
-  /// lives in is storage, not history: a word edit and a split are the same
-  /// kind of fact to someone pressing undo.
   Future<({List<HistoryStep> steps, Set<String> undone})> projectHistory(
     String projectId,
   ) async {
@@ -1817,10 +1639,6 @@ class TranscriptRepository {
   }
 
   /// Applies one timeline event in the given direction.
-  ///
-  /// Wrapped in a transaction for the same reason [_step] is: applying the
-  /// change and marking the event cannot come apart, or the log would claim a
-  /// state the project is not in and every later undo would be wrong.
   Future<void> _stepTimeline(String eventId, {required bool forward}) async {
     await _db.transaction(() async {
       final event = await _db.findTimelineEvent(eventId);
@@ -1843,9 +1661,6 @@ class TranscriptRepository {
   }
 
   /// Records something that happened, so it can be taken back.
-  ///
-  /// Called by the actions themselves rather than wrapped around them: only
-  /// the action knows what the state was before it ran.
   Future<void> recordTimelineEvent({
     required String projectId,
     required TimelineEventKind kind,
@@ -1861,10 +1676,6 @@ class TranscriptRepository {
   Future<void> redo(String transcriptId) => _step(transcriptId, forward: true);
 
   /// One move along the history, in either direction.
-  ///
-  /// Wrapped in a transaction so applying the change and marking the event
-  /// cannot come apart -- a crash between them would leave the log claiming a
-  /// state the transcript is not in, and every later undo would be wrong.
   Future<void> _step(String transcriptId, {required bool forward}) async {
     await _db.transaction(() async {
       final event = forward
@@ -1905,8 +1716,7 @@ class TranscriptRepository {
         case SentenceEdit(:final fromPosition, :final before, :final after):
           // The run in place right now is whichever side was last applied, so
           // each direction computes its own end rather than trusting a stored
-          // one -- the sentence gets longer or shorter as this is applied and
-          // reversed.
+          // one.
           final current = forward ? before : after;
           final target = forward ? after : before;
 
@@ -1935,26 +1745,6 @@ class TranscriptRepository {
 
   /// Persists a finished import: the project row, its transcript, and one
   /// [Word] row per engine segment.
-  ///
-  /// Written in a single transaction so a failure part-way through cannot
-  /// leave a project with a half-populated transcript.
-  ///
-  /// [language] is what the engine was *asked* for. What gets stored is what it
-  /// actually used: `result.detectedLanguage` when the fork reports one, and the
-  /// request otherwise.
-  ///
-  /// The two differ precisely when the request was [TranscriptionLanguage.auto],
-  /// which is the case worth recording — storing the literal string `auto`
-  /// tells nobody what the transcript is in, so an export cannot label it. A
-  /// pinned request gets its own code back, so the value is right either way.
-  ///
-  /// The fallback exists for platforms whose native entrypoint is unpatched —
-  /// iOS today — where the field is absent and the request is the best
-  /// available answer.
-  /// [speakerSpans] comes from diarization and may be empty — the setting is
-  /// off, the file was too long, or no speech was found. Empty simply leaves
-  /// every `speakerId` null, which is the same state every transcript was in
-  /// before diarization existed.
   Future<void> saveImport({
     required String projectId,
     required String clipId,
@@ -2021,16 +1811,6 @@ class TranscriptRepository {
   }
 
   /// Saves a transcript for a clip that already exists.
-  ///
-  /// The on-demand half of the split: [saveImport] creates a project, its first
-  /// clip and its transcript together, while this attaches words to a clip the
-  /// user added earlier and has now asked to transcribe.
-  ///
-  /// Replacing an existing transcript is not handled here — the caller checks
-  /// first, because re-transcribing would discard corrections the user has
-  /// already made and that is a decision to surface, not to take silently.
-  /// Returns the id of the transcript written, so the caller can record what
-  /// its run produced and take exactly that back later.
   Future<String> saveClipTranscript({
     required String projectId,
     required String clipId,
@@ -2059,13 +1839,7 @@ class TranscriptRepository {
     });
   }
 
-  /// Writes one transcript and its words. **Caller supplies the transaction.**
-  ///
-  /// [offsetMs] is where in the clip the audio the engine saw began. Whisper
-  /// reports times relative to whatever WAV it was handed, so a range starting
-  /// ten seconds into a clip comes back starting at zero — **this is the one
-  /// place that offset is applied.** Putting it anywhere else as well is how a
-  /// double-offset bug appears only for ranges that do not start at zero.
+  /// Writes one transcript and its words. Caller supplies the transaction.
   Future<String> _writeTranscript({
     required String projectId,
     required String clipId,
@@ -2089,10 +1863,7 @@ class TranscriptRepository {
               projectId: projectId,
               clipId: Value(clipId),
               layerId: Value(layerId),
-              // **Not always [offsetMs].** They are the same whenever one
-              // run produced one transcript, but a run spanning several
-              // contiguous clips shifts every word by the *run's* start while
-              // each clip records only its own share of it.
+              // Not always [offsetMs].
               clipStartMs: Value(rangeStartMs ?? offsetMs),
               clipEndMs: Value(rangeEndMs),
               language: Value(result.detectedLanguage ?? language.code),
@@ -2102,13 +1873,6 @@ class TranscriptRepository {
 
       // With `splitOnWord: true` the engine returns one word per segment as a
       // flat list, rather than a nested words array.
-      //
-      // Whitespace-only segments are dropped rather than stored. whisper.cpp
-      // emits them for pauses and around hallucinated output, and an empty
-      // word is not a word: it would inflate the displayed word count, render
-      // as an invisible but tappable gap in the transcript, and later emit a
-      // blank SRT cue. Position is assigned after filtering so it stays a
-      // contiguous 0..n-1 run.
       final segments = (result.segments ?? const <WhisperTranscribeSegment>[])
           .map((segment) => (segment: segment, text: segment.text.trim()))
           .where((entry) => entry.text.isNotEmpty)
@@ -2163,11 +1927,6 @@ TranscriptRepository transcriptRepository(Ref ref) => TranscriptRepository(
     );
 
 /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
-///
-/// Keyed by transcript id rather than project so the caption overlay and the
-/// transcript view read the same instance. Synchronous, with an empty map while
-/// the row loads — the fallback `Speaker N` label is correct in that moment
-/// anyway, so there is nothing to wait for and no spinner to show.
 @riverpod
 SpeakerNames speakerNames(Ref ref, String transcriptId) {
   final transcript = ref.watch(transcriptByIdProvider(transcriptId)).value;
@@ -2178,13 +1937,8 @@ SpeakerNames speakerNames(Ref ref, String transcriptId) {
 Stream<Transcript?> transcriptById(Ref ref, String transcriptId) =>
     ref.watch(appDatabaseProvider).watchTranscript(transcriptId);
 
-/// Whether the undo and redo controls are live for [transcriptId].
-/// Whether the project has anything to undo or redo.
-///
-/// **One history behind one pair of buttons.** Both modes read this, because
-/// splitting a clip and correcting a word are the same kind of fact to someone
-/// pressing undo -- which table they were stored in is not something the
-/// control should have an opinion about.
+/// Whether the undo and redo controls are live for [transcriptId]. Whether the
+/// project has anything to undo or redo.
 @riverpod
 Stream<({bool canUndo, bool canRedo})> projectHistoryState(
   Ref ref,
@@ -2201,10 +1955,6 @@ Stream<({bool canUndo, bool canRedo})> editHistory(
 
 /// Total bytes [projectId] occupies on disk: its imported media plus the
 /// extracted WAV.
-///
-/// Surfaced in the library so consumed space is visible and attributable to a
-/// project, rather than showing up only as an unexplained rise in the app's
-/// size in Android settings.
 @riverpod
 Future<int> projectMediaBytes(Ref ref, String projectId) =>
     ref.watch(mediaConverterProvider).projectMediaBytes(projectId);
@@ -2227,29 +1977,13 @@ Future<Project?> projectById(Ref ref, String projectId) =>
 Stream<List<Word>> transcriptWords(Ref ref, String transcriptId) =>
     ref.watch(transcriptRepositoryProvider).watchWords(transcriptId);
 
-/// Every transcript covering one clip, earliest range first. Empty when
-/// nothing on the clip has been transcribed yet.
-///
-/// Speaker names live on these rows, so a rename has to reach the transcript
-/// view, the caption overlay and the export button with nothing being told to
-/// refresh.
+/// Every transcript covering one clip, earliest range first. Empty when nothing
+/// on the clip has been transcribed yet.
 @riverpod
 Stream<List<Transcript>> clipTranscripts(Ref ref, String clipId) =>
     ref.watch(transcriptRepositoryProvider).watchTranscriptsForClip(clipId);
 
 /// The whole project's script: every word, in timeline order.
-///
-/// **A transcript belongs to a clip, but a script belongs to the project.**
-/// Storage is per clip because word timings are relative to a clip's media and
-/// there is no single continuous recording to store them against. That is an
-/// implementation detail, and it had been leaking: splitting a clip cut the
-/// script in half on screen, and Script mode showed only whichever half the
-/// playhead happened to be over.
-///
-/// [clipOfTranscript] is what lets a word be played. Each word knows which
-/// transcript it belongs to; this says which clip that transcript is on, so a
-/// tap can be turned into a seek without the view having to care that the
-/// script it is showing came from several rows.
 typedef ProjectScript = ({
   List<Word> words,
   Map<String, String> clipOfTranscript,
@@ -2384,11 +2118,6 @@ Stream<List<MediaClip>> projectClips(Ref ref, String projectId) =>
     ref.watch(transcriptRepositoryProvider).watchClips(projectId);
 
 /// Where each of a project's clips falls on one shared time axis.
-///
-/// The single copy of the running sum. The ruler, the track, the playhead and
-/// anything turning a drawn range back into per-clip work all measure with
-/// this — an earlier pass had the ruler and the track folding their own totals
-/// and they drifted apart, which is the bug this exists to make impossible.
 @riverpod
 ProjectTimeline projectTimeline(Ref ref, String projectId) {
   final clips = ref.watch(projectClipsProvider(projectId)).value;
@@ -2397,15 +2126,6 @@ ProjectTimeline projectTimeline(Ref ref, String projectId) {
 }
 
 /// The amplitude readings behind a clip's audio lane, computed on first need.
-///
-/// **Not computed at import.** Deriving these costs a full native decode of
-/// the media, and "+" is specified to copy a file in and do nothing else — so
-/// the lane fills in once the timeline asks for it, and a clip added a moment
-/// ago legitimately draws flat until it does.
-///
-/// Returns an empty list while computing and for media that has no decodable
-/// audio; both cases draw as a flat lane. The result is stored on the clip, so
-/// this decodes once per clip ever rather than once per visit.
 @riverpod
 Future<Uint8List> clipWaveform(Ref ref, String clipId) async {
   final repository = ref.watch(transcriptRepositoryProvider);
@@ -2423,10 +2143,6 @@ Future<Uint8List> clipWaveform(Ref ref, String clipId) async {
 }
 
 /// Every transcribed sentence in a project, in timeline order.
-///
-/// A thin assembly over [sentencesForClip]: this walks the project's clips and
-/// their transcripts, and that does the placing. The arithmetic lives there so
-/// it can be tested without a database.
 @riverpod
 List<TimelineSentence> projectSentences(Ref ref, String projectId) {
   final timeline = ref.watch(projectTimelineProvider(projectId));
@@ -2466,10 +2182,6 @@ List<TimelineSentence> projectSentences(Ref ref, String projectId) {
 }
 
 /// A project's running time, for the library row.
-///
-/// Clips whose duration could not be probed contribute nothing rather than
-/// making the whole total unknown — a slightly short number reads better in the
-/// library than a blank one.
 @riverpod
 Duration projectDuration(Ref ref, String projectId) => Duration(
       milliseconds: ref.watch(projectTimelineProvider(projectId)).totalMs,
@@ -2477,17 +2189,6 @@ Duration projectDuration(Ref ref, String projectId) => Duration(
 
 /// The engine's segments as word timings, filtered exactly as [saveImport]
 /// filters them before writing rows.
-///
-/// Shared so that anything reasoning about words before the save — speaker
-/// refinement, in particular — sees the same list, in the same order, that the
-/// stored rows are built from. If the two ever diverged, a refinement decision
-/// would be recorded against the wrong word range and would land on the wrong
-/// sentence.
-///
-/// With `splitOnWord: true` the engine returns one word per segment as a flat
-/// list. Whitespace-only segments are dropped rather than stored: whisper.cpp
-/// emits them for pauses and around hallucinated output, and an empty word is
-/// not a word.
 List<WordTiming> wordTimingsOf(WhisperTranscribeResponse result) {
   return [
     for (final segment in result.segments ?? const <WhisperTranscribeSegment>[])

@@ -24,12 +24,9 @@ class TranslateNone extends TranslationPick {
   const TranslateNone();
 }
 
-/// Asks which language to translate into, fetching its pack when it is not
-/// on the device yet -- the language list of an offline translator, where
-/// what is downloaded is marked and anything else is a tap away.
-///
-/// [current] is listed first. [noneLabel], when given, adds a first row that
-/// answers [TranslateNone]. Null when dismissed.
+/// Asks which language to translate into, fetching its pack when it is not on
+/// the device yet -- the language list of an offline translator, where what is
+/// downloaded is marked and anything else is a tap away.
 Future<TranslationPick?> pickTranslationLanguage(
   BuildContext context, {
   String? current,
@@ -215,9 +212,6 @@ class _LanguageListState extends ConsumerState<_LanguageList> {
 /// Translates [transcriptIds] into a language the user picks, beside the
 /// transcripts, then says how it went. [hasTranslation] adds "Remove
 /// translation" to the list.
-///
-/// Fetches the transcripts' own language packs too when they are missing --
-/// a pack is needed at both ends.
 Future<void> translateTranscripts(
   BuildContext context,
   WidgetRef ref, {

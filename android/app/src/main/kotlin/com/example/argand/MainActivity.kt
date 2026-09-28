@@ -1,6 +1,8 @@
 package com.example.argand
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -52,10 +54,23 @@ class MainActivity : FlutterActivity() {
         const val THUMBNAIL_WIDTH = 160
 
         const val THUMBNAIL_QUALITY = 70
+
+        /** Which launcher icon the app shows. See [applyLauncherIcon]. */
+        const val LAUNCHER_ICON_CHANNEL = "argand/launcher_icon"
+
+        /** The icon aliases in AndroidManifest.xml, `.Icon<Variant>`. Keep in
+         *  step with `LauncherIcon` in lib/core/theme/launcher_icon.dart. */
+        val ICON_VARIANTS = listOf(
+            "blue", "violet", "teal", "green", "yellow", "orange", "red", "ink",
+        )
     }
 
     private var channel: MethodChannel? = null
     private var thumbnails: MethodChannel? = null
+    private var launcherIcon: MethodChannel? = null
+
+    /** The icon Dart asked for, applied once the app is out of sight. */
+    private var pendingIcon: String? = null
 
     /**
      * Video export, which owns its own channel rather than adding methods
@@ -79,6 +94,19 @@ class MainActivity : FlutterActivity() {
 
         videoExport.attach(flutterEngine.dartExecutor.binaryMessenger)
 
+        launcherIcon = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LAUNCHER_ICON_CHANNEL)
+            .also {
+                it.setMethodCallHandler { call, result ->
+                    val variant = call.argument<String>("variant")
+                    if (call.method != "set" || variant !in ICON_VARIANTS) {
+                        result.notImplemented()
+                    } else {
+                        pendingIcon = variant
+                        result.success(null)
+                    }
+                }
+            }
+
         // Read at configure time rather than in onCreate: a cold start launched
         // by a share has the intent waiting, and Dart asks for it once it is
         // ready rather than racing to be listening first.
@@ -98,10 +126,81 @@ class MainActivity : FlutterActivity() {
         sink.invokeMethod("share", share)
     }
 
+    /**
+     * The icon changes only as the app **closes** (backed out of), never
+     * when it is merely hidden.
+     *
+     * Swapping the launcher entry disables the alias this task was started
+     * from. Done on every stop, it did that while the Play Store's purchase
+     * sheet or an ad covered the app, and the next tap on the icon started a
+     * second copy of the app beside the first. Closing is the one moment
+     * nothing is in flight; a colour picked and never backed out of shows on
+     * the icon after the next close instead.
+     */
+    override fun onStop() {
+        super.onStop()
+        if (isFinishing) applyPendingIcon()
+    }
+
     override fun onDestroy() {
+        if (isFinishing) applyPendingIcon()
         videoExport.detach()
         io.shutdown()
         super.onDestroy()
+    }
+
+    private fun applyPendingIcon() {
+        pendingIcon?.let(::applyLauncherIcon)
+        pendingIcon = null
+    }
+
+    /**
+     * Shows [variant]'s alias in the launcher and hides the others.
+     *
+     * An Android launcher icon is a resource fixed at build time, so the icon
+     * cannot take any colour -- only one of the variants built in. Enabling
+     * and disabling `<activity-alias>` components is the platform's way to
+     * swap between them; DONT_KILL_APP keeps the running app alive. Nothing
+     * is touched when the right one is already showing, since every change
+     * makes the launcher redraw.
+     */
+    private fun applyLauncherIcon(variant: String) {
+        try {
+            swapLauncherIcon(variant)
+        } catch (_: IllegalArgumentException) {
+            // A development build: the aliases are not in its manifest, and
+            // its icon stays as it is.
+        }
+    }
+
+    private fun swapLauncherIcon(variant: String) {
+        val manager = packageManager
+        fun component(name: String) =
+            ComponentName(this, "$packageName.Icon${name.replaceFirstChar { it.uppercase() }}")
+        fun enabled(name: String): Boolean {
+            val state = manager.getComponentEnabledSetting(component(name))
+            return if (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT) {
+                name == "blue" // The manifest enables only blue.
+            } else {
+                state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            }
+        }
+        if (enabled(variant) && ICON_VARIANTS.none { it != variant && enabled(it) }) return
+
+        // The new one first, so there is never a moment with no icon at all.
+        manager.setComponentEnabledSetting(
+            component(variant),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        for (other in ICON_VARIANTS) {
+            if (other == variant || !enabled(other)) continue
+            manager.setComponentEnabledSetting(
+                component(other),
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP,
+            )
+        }
     }
 
     private fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {

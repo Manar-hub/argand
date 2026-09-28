@@ -3,22 +3,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 /// The Argand logo: a phasor -- a circle with a hand from its centre -- whose
 /// wave runs on into the line under the name.
-///
-/// **Two layers, one box.** The body (circle, wave, name) and the hand are
-/// separate single-colour SVGs sharing a viewBox, so stacked at one size they
-/// line up exactly and each takes its own colour: the body the page's ink,
-/// the hand the user's action colour ([ColorScheme.primary], set in the
-/// settings sheet) -- so the logo changes with every button the user
-/// recolours, fading to the new colour rather than jumping.
-///
-/// The name is outlined paths, not text: the line under it is drawn to those
-/// exact outlines, so it is never re-typed in a font.
 class ArgandLogo extends StatelessWidget {
   const ArgandLogo({
     super.key,
     required this.semanticLabel,
     this.height = 32,
     this.markOnly = false,
+    this.ink,
+    this.hand,
   });
 
   final String semanticLabel;
@@ -26,6 +18,29 @@ class ArgandLogo extends StatelessWidget {
 
   /// The square mark alone, without the name.
   final bool markOnly;
+
+  /// Overrides for a logo set on a coloured block (the Pro pages): the body
+  /// defaults to the page's ink, the hand to the action colour.
+  final Color? ink;
+  final Color? hand;
+
+  /// Loads every layer into flutter_svg's cache, so the logo draws on its
+  /// first frame; called before `runApp`. Never fails the launch.
+  static Future<void> precache() async {
+    for (final prefix in ['argand_lockup', 'argand_mark']) {
+      for (final layer in ['body', 'hand']) {
+        final loader = SvgAssetLoader('assets/brand/${prefix}_$layer.svg');
+        try {
+          await svg.cache.putIfAbsent(
+            loader.cacheKey(null),
+            () => loader.loadBytes(null),
+          );
+        } on Object {
+          // Drawn when it loads instead, as before.
+        }
+      }
+    }
+  }
 
   /// The lockup's viewBox, `565.3 x 129.7`.
   static const _lockupAspect = 565.3 / 129.7;
@@ -46,18 +61,13 @@ class ArgandLogo extends StatelessWidget {
           children: [
             SvgPicture.asset(
               'assets/brand/${prefix}_body.svg',
-              colorFilter: ColorFilter.mode(scheme.onSurface, BlendMode.srcIn),
+              colorFilter:
+                  ColorFilter.mode(ink ?? scheme.onSurface, BlendMode.srcIn),
             ),
-            TweenAnimationBuilder<Color?>(
-              tween: ColorTween(end: scheme.primary),
-              duration: const Duration(milliseconds: 300),
-              builder: (context, color, _) => SvgPicture.asset(
-                'assets/brand/${prefix}_hand.svg',
-                colorFilter: ColorFilter.mode(
-                  color ?? scheme.primary,
-                  BlendMode.srcIn,
-                ),
-              ),
+            SvgPicture.asset(
+              'assets/brand/${prefix}_hand.svg',
+              colorFilter:
+                  ColorFilter.mode(hand ?? scheme.primary, BlendMode.srcIn),
             ),
           ],
         ),

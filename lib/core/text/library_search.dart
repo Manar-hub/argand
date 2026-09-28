@@ -1,15 +1,8 @@
-/// The text side of the library search: turning what was typed into tokens,
-/// and deciding whether a run of transcript words says them.
-///
-/// Pure, so the matching rules are tested without a database. The database
-/// finds candidate words with `LIKE` on the first token; this confirms the
-/// whole phrase against the words that follow it.
+/// The text side of the library search: turning what was typed into tokens, and
+/// deciding whether a run of transcript words says them.
 library;
 
 /// What [query] asks for, one entry per typed word, lower-cased.
-///
-/// Empty when there is nothing to look for, which callers treat as "no
-/// search" rather than "matches nothing".
 List<String> searchTokens(String query) => query
     .toLowerCase()
     .split(RegExp(r'\s+'))

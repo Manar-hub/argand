@@ -11,47 +11,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Diagnostic, not a pass/fail test.
-///
-/// **The question it answers.** `guess.mp4` transcribes correctly until a burst
-/// of laughter, at which point the decoder emits a "ha ha ha" loop and the real
-/// speech in that window is never transcribed. The same audio through stock
-/// `whisper-cli` is clean.
-///
-/// That bounds the problem hard: the audio is transcribable, the model can
-/// transcribe it, and the default parameters handle laughter correctly. So the
-/// loop comes from one of *our* deviations from those defaults — `temperature_inc`
-/// 0.2 -> 0.0 (via `noFallback`), `suppress_nst` false -> true,
-/// `split_on_word`/`max_len` false/0 -> true/1, and VAD off -> on.
-///
-/// The mechanism is visible in the source. `main.cpp:321-324` turns `noFallback`
-/// into `temperature_inc = 0.0f`; `whisper.cpp:6868` then builds a
-/// single-element temperature ladder; and `whisper.cpp:7565` gates the whole
-/// quality check on `it != temperatures.size() - 1`, which with one temperature
-/// is never true. The entropy detector at `whisper.cpp:7541` still fires and
-/// still sets `decoder.failed` — its verdict is simply never read. **whisper.cpp
-/// detects the loop and then discards the detection.**
-///
-/// **Run one test at a time**, cheapest first:
-///
-/// ```
-/// flutter test integration_test/repetition_probe_test.dart -d <dev> --plain-name locate
-/// flutter test integration_test/repetition_probe_test.dart -d <dev> --plain-name ladder
-/// ```
-///
-/// Reads a **pre-extracted WAV** and a model **already on disk**, both from
-/// `/data/local/tmp`. Neither is an optimisation detail: making the probe
-/// convert the 39MB `.mp4` itself, and copy a 148MB model out of the asset
-/// bundle, cost half an hour before the first measurement and is what this
-/// rewrite removes.
-///
-/// ```
-/// adb push guesswav.wav            /data/local/tmp/guess.wav
-/// adb push assets/models/ggml-base.bin /data/local/tmp/ggml-base.bin
-/// ```
-///
-/// It changes nothing that ships: `WhisperService.transcribeWav` hard-codes the
-/// locked parameters, so this builds its own [TranscribeRequest] and calls
-/// [Whisper.transcribe] directly rather than widening that signature.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -99,10 +58,6 @@ void main() {
   }
 
   /// Runs one configuration and reports what came out.
-  ///
-  /// Words are derived by splitting every segment on whitespace rather than
-  /// assuming one segment per word, so a `splitOnWord: false` row is measured
-  /// on the same footing as the rest.
   Future<void> run(
     String wavPath,
     String label, {
@@ -199,9 +154,7 @@ void main() {
       }
       // Row A is the configuration the app actually ships, which it had stopped
       // being: these defaults still carried `noFallback: true` after production
-      // moved to `false`, so every row was measured against a baseline nothing
-      // ran. Flash attention is a context parameter set natively and on in both
-      // the app and `whisper-cli`, so it is not a row here.
+      // moved to `false`.
       await run(wav.path, 'A shipped');
       await run(wav.path, 'B nofallback-on', noFallback: true);
       await run(wav.path, 'C nst-off', suppressNst: false);

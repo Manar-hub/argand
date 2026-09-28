@@ -522,11 +522,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clipSelected => 'Clip selected.';
 
   @override
-  String clipRemoveManyTitle(int count) {
-    return 'Remove $count clips?';
-  }
-
-  @override
   String get timelineToolStyle => 'Style';
 
   @override
@@ -648,16 +643,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get clipAdd => 'Add a clip';
-
-  @override
-  String get clipRemove => 'Remove';
-
-  @override
-  String get clipRemoveTitle => 'Remove this clip?';
-
-  @override
-  String get clipRemoveMessage =>
-      'This deletes the clip\'s media from your device, along with anything transcribed from it. It cannot be undone.';
 
   @override
   String get clipMoveEarlier => 'Move earlier';
@@ -879,14 +864,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportGetPro => 'Get Pro';
 
   @override
-  String get exportProSoon => 'Purchases aren\'t connected yet.';
-
-  @override
-  String get adPlaceholderLabel => 'Ad placeholder';
+  String get adPlaceholderLabel => 'Test ad';
 
   @override
   String get adPlaceholderBody =>
-      'A rewarded ad plays here once ads are connected.';
+      'Shown when the ad network has nothing to play. Watch to the end to export this video without the watermark, or get Pro to skip ads for good.';
 
   @override
   String get adPlaceholderContinue => 'Continue to export';
@@ -928,4 +910,224 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get videoSettingsWatermarkItem => 'Watermark';
+
+  @override
+  String get settingsModels => 'Transcription models';
+
+  @override
+  String get settingsModelsDetail => 'Add, remove and choose on-device models';
+
+  @override
+  String get settingsLanguages => 'Translation languages';
+
+  @override
+  String get settingsLanguagesDetail => 'Download or remove language packs';
+
+  @override
+  String get languagesNote =>
+      'Each language is a pack of about 30 MB, downloaded once. Text is always translated on this device.';
+
+  @override
+  String get packAdd => 'Add';
+
+  @override
+  String get packRemove => 'Remove';
+
+  @override
+  String get packBuiltIn => 'Built in';
+
+  @override
+  String get packInstalled => 'Downloaded';
+
+  @override
+  String get packNotInstalled => 'Not downloaded';
+
+  @override
+  String get packWaiting => 'Waiting…';
+
+  @override
+  String get packInstalling => 'Installing…';
+
+  @override
+  String get packFailed => 'Couldn\'t download. Try again.';
+
+  @override
+  String get modelNotLoadable => 'Not a Whisper model this app can run';
+
+  @override
+  String packRemoveTitle(String name) {
+    return 'Remove $name?';
+  }
+
+  @override
+  String get packRemoveBody =>
+      'It frees the space it takes, and can be added again at any time.';
+
+  @override
+  String packDownloading(int percent) {
+    return 'Downloading $percent%';
+  }
+
+  @override
+  String packMegabytes(String size) {
+    return '$size MB';
+  }
+
+  @override
+  String modelReady(String details) {
+    return 'Ready · $details';
+  }
+
+  @override
+  String modelLayers(int count) {
+    return '$count layers';
+  }
+
+  @override
+  String get packDownloadingUnknown => 'Downloading…';
+
+  @override
+  String get proBuyLoading => 'Getting the price…';
+
+  @override
+  String get proUnavailable =>
+      'The store can\'t be reached right now. Check your connection.';
+
+  @override
+  String get proRetry => 'Try again';
+
+  @override
+  String get proRestoreNone => 'No Pro purchase was found to restore.';
+
+  @override
+  String get proOffline =>
+      'No connection to the store. Try again when you\'re online.';
+
+  @override
+  String get proFailed => 'The purchase didn\'t go through. Please try again.';
+
+  @override
+  String get modelsNoteShort =>
+      'Larger models are more accurate but consume more resources.';
+
+  @override
+  String get packDownload => 'Download';
+
+  @override
+  String get packDownloadModelBody =>
+      'It\'s saved on this device and can be removed at any time.';
+
+  @override
+  String get packDownloadLanguageBody => 'About 30 MB, downloaded once.';
+
+  @override
+  String packDownloadTitle(String name) {
+    return 'Download $name?';
+  }
+
+  @override
+  String get proNotOnSale => 'Pro isn\'t on sale yet. Please check back soon.';
+
+  @override
+  String get proHeroBadge => 'One-time · No subscription';
+
+  @override
+  String get proHeadline => 'Pay once.\nKeep Argand yours.';
+
+  @override
+  String get proLede =>
+      'Transcription and editing stay free. This removes the extras and keeps the app going.';
+
+  @override
+  String get proSupportTitle => 'Support the developer';
+
+  @override
+  String get proSupportDetail => 'Funds fixes, updates and new features';
+
+  @override
+  String get proNoAdsTitle => 'No ads';
+
+  @override
+  String get proNoAdsDetail => 'Nothing between you and your edit';
+
+  @override
+  String get proNoWatermarkTitle => 'No watermark';
+
+  @override
+  String get proNoWatermarkDetail => 'Clean exports, every time';
+
+  @override
+  String get proFutureTitle => 'Any new future Pro features';
+
+  @override
+  String get proFutureDetail => 'Everything Pro gains later is yours too';
+
+  @override
+  String get proOnce => 'once';
+
+  @override
+  String get proForGood => 'Yours for good.\nNo renewals.';
+
+  @override
+  String get proFinePrint =>
+      'One-time purchase, charged to your Google Play account.';
+
+  @override
+  String get proRestoreShort => 'Restore';
+
+  @override
+  String get proThanksBadge => 'Supporter';
+
+  @override
+  String get proThanksTitle => 'Thank you.';
+
+  @override
+  String get proThanksBody =>
+      'You\'re helping keep Argand independent. The extras are gone for good.';
+
+  @override
+  String get proThanksAds => 'Ads removed';
+
+  @override
+  String get proThanksWatermark => 'Watermark removed from exports';
+
+  @override
+  String get proThanksFuture => 'Every future Pro feature, included';
+
+  @override
+  String get proThanksRestore => 'Restore anytime on a new device';
+
+  @override
+  String get proThanksBack => 'Back to projects';
+
+  @override
+  String proUnlock(String price) {
+    return 'Unlock for $price';
+  }
+
+  @override
+  String get proResetTitle => 'Reset Pro for testing?';
+
+  @override
+  String get proResetBody =>
+      'Starts over as a new test customer, so Pro is off until it\'s bought again. Test Store purchases are simulated and cost nothing.';
+
+  @override
+  String get proResetAction => 'Reset Pro';
+
+  @override
+  String get proResetDone => 'Pro is off. Ready for another take.';
+
+  @override
+  String get proResetFailed =>
+      'Couldn\'t reset Pro. Check the connection and try again.';
+
+  @override
+  String get transcriptionMoreModels => 'Manage models';
+
+  @override
+  String get styleScopeSpeaker => 'Per speaker';
+
+  @override
+  String get styleScopeAllTranslations => 'All translations';
 }

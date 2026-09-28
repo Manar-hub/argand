@@ -5,26 +5,13 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/database/database.dart';
+import '../../core/timeline/clip_trim.dart';
+import 'timeline_blocks.dart';
 import 'transcript_repository.dart';
 
 part 'media_player_controller.g.dart';
 
-/// Owns the platform decoder for one **media file**.
-///
-/// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-/// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-/// rebuild at a boundary where nothing about the media had changed — a visible
-/// reload every time playback crossed a cut the user had just made. Sharing by
-/// path makes that transition seamless, because it is literally the same file
-/// playing on.
-///
-/// Two clips over one file therefore share a decoder *and* a resume position.
-/// That is the trade: one position per file rather than per clip, in exchange
-/// for cuts that do not stutter. Two initialised decoders on a phone is a real
-/// cost, so sharing is the cheaper side anyway.
-///
-/// This is deliberately not the provider screens talk to — see [MediaPlayer],
-/// which stays keyed by clip so no caller had to learn about paths.
+/// Owns the platform decoder for one media file.
 @riverpod
 class MediaController extends _$MediaController {
   /// A video stopped within this much of the end counts as finished, so
@@ -32,10 +19,6 @@ class MediaController extends _$MediaController {
   static const Duration _restartWindow = Duration(seconds: 2);
 
   /// Captured during [build] rather than read on demand.
-  ///
-  /// The position is saved from `onDispose`, by which point `ref` is closing
-  /// and `ref.read` is no longer safe. The database provider is `keepAlive`, so
-  /// holding the instance across disposal is sound.
   late final AppDatabase _db;
 
   @override
@@ -45,12 +28,7 @@ class MediaController extends _$MediaController {
     final controller = VideoPlayerController.file(File(mediaPath));
     // Disposal is tied to the provider, so leaving the screen releases the
     // platform decoder even if playback was still running -- and saves the
-    // position on the way out, which is what makes navigating away remember
-    // where you were.
-    //
-    // Note there is no "app is closing" hook doing this work. Android can kill
-    // a backgrounded process without running any Dart, so anything that must
-    // survive has to be written at the moment it becomes true, not at exit.
+    // position on the way out.
     ref.onDispose(() {
       _write(controller);
       controller.dispose();
@@ -90,31 +68,13 @@ class MediaController extends _$MediaController {
 }
 
 /// The player for one clip.
-///
-/// **Still keyed by clip**, so every screen keeps asking the question it
-/// actually has — "play this clip" — while [MediaController] underneath decides
-/// that two clips over one file share a decoder. Splitting a clip therefore
-/// costs no reload: both halves resolve to the same controller.
-///
-/// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-/// word timings in the database. A trimmed clip's in-point is already folded
-/// into those numbers, so nothing at this layer needs to know about trimming.
 @riverpod
 class MediaPlayer extends _$MediaPlayer {
   /// Word-level timestamps come from whisper.cpp's DTW alignment, which is
-  /// known to drift by a few tens of milliseconds in either direction. Seeking
-  /// to the raw start time therefore lands mid-word often enough to feel
-  /// broken, so playback starts slightly ahead of it.
+  /// known to drift by a few tens of milliseconds in either direction.
   static const Duration _seekLeadIn = Duration(milliseconds: 60);
 
   /// The seek that is waiting for the one in flight, if any.
-  ///
-  /// **Scrubbing issues a seek per scroll frame** -- up to sixty a second --
-  /// and each is an async hop to the platform. Firing them all leaves the
-  /// decoder permanently behind the finger and the picture never settles, so
-  /// only one is ever in flight and only the newest target is kept. The
-  /// intermediate ones are worth nothing: nobody wants to see a frame the
-  /// finger has already passed.
   int? _queuedSeekMs;
   bool _seeking = false;
 
@@ -137,13 +97,79 @@ class MediaPlayer extends _$MediaPlayer {
 
     // The platform player is the most authoritative thing that will ever read
     // this file, so it is what repairs a clip whose duration was never probed
-    // successfully -- including every clip the schema-5 migration inherited
-    // from a project row that had none.
+    // successfully.
     if ((clip.durationMs ?? 0) <= 0) {
       await db.fillMissingClipDuration(clipId, controller.value.duration);
     }
 
+    _keepToClips(controller, clip);
     return controller;
+  }
+
+  /// Stops the file playing past the clip -- see `playbackAfter`.
+  void _keepToClips(VideoPlayerController controller, MediaClip clip) {
+    var clips = ref.read(projectClipsProvider(clip.projectId)).value ??
+        [clip];
+    ref.listen(projectClipsProvider(clip.projectId), (_, next) {
+      final value = next.value;
+      if (value != null) clips = value;
+    });
+    // Where playback stops past the last clip, in this file's time: the words
+    // still on the timeline there run on over black
+    // (`ProjectTimeline.runMsWith`).
+    int? runsOnTo() {
+      final timeline = ref.read(projectTimelineProvider(clip.projectId));
+      final last = timeline.placements.lastOrNull;
+      if (last == null || last.clipId != clipId) return null;
+      final run = ref.read(projectRunMsProvider(clip.projectId));
+      if (run <= timeline.totalMs) return null;
+      return last.mediaStartMs + (run - last.startMs);
+    }
+
+    var inside = false;
+    void onTick() {
+      final value = controller.value;
+      final self = clips.where((c) => c.id == clipId).firstOrNull;
+      if (self == null) {
+        inside = false;
+        return;
+      }
+      final window = clipWindow(self);
+      final positionMs = value.position.inMilliseconds;
+      if (positionMs >= window.startMs && positionMs < window.endMs) {
+        inside = true;
+        return;
+      }
+      // On past the last clip, under the words still there: no jump, no
+      // stop at the out-point -- the picture and sound are hidden
+      // (`ProjectStageCanvas`) and it plays on to where the words end.
+      final end = positionMs >= window.endMs ? runsOnTo() : null;
+      if (end != null) {
+        inside = false;
+        if (value.isPlaying && positionMs >= end) {
+          controller
+            ..pause()
+            ..seekTo(Duration(milliseconds: end));
+        }
+        return;
+      }
+      if (!inside) return;
+      inside = false;
+      // Left backwards (a seek), or paused: nothing to do.
+      if (!value.isPlaying || positionMs < window.endMs) return;
+
+      final next = playbackAfter(self, clips);
+      if (next.seekToMs case final target?) {
+        controller.seekTo(Duration(milliseconds: target));
+      } else if (next.stop) {
+        controller
+          ..pause()
+          ..seekTo(Duration(milliseconds: window.endMs - 1));
+      }
+    }
+
+    controller.addListener(onTick);
+    ref.onDispose(() => controller.removeListener(onTick));
   }
 
   Future<void> seekToWord(int startMs) async {
@@ -156,25 +182,13 @@ class MediaPlayer extends _$MediaPlayer {
   }
 
   /// Seeks to an exact position in the clip's media, with no lead-in.
-  ///
-  /// Distinct from [seekToWord], which deliberately lands slightly *before* its
-  /// target to absorb DTW timestamp drift. Scrubbing has no such drift to
-  /// absorb: the user is pointing at a place on a ruler and expects that place,
-  /// and a 60ms lead-in would make the playhead disagree with the frame under
-  /// it by a visible margin.
-  ///
-  /// Coalesced rather than queued — see [_queuedSeekMs].
   Future<void> seekTo(int positionMs) async {
     _queuedSeekMs = positionMs;
     if (_seeking) return;
 
     _seeking = true;
     try {
-      // **`ref.mounted` on every pass, not just at the start.** Scrubbing
-      // across a clip boundary disposes the player for the clip being left
-      // while this loop is still awaiting a seek on it, and touching `state`
-      // afterwards throws `UnmountedRefException` out of an otherwise healthy
-      // drag -- which is what it did on every crossing.
+      // `ref.mounted` on every pass, not just at the start.
       while (_queuedSeekMs != null && ref.mounted) {
         final next = _queuedSeekMs!;
         _queuedSeekMs = null;

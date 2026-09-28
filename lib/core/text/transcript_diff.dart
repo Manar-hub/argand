@@ -1,20 +1,4 @@
 /// Compares two transcripts word by word.
-///
-/// Repetition detection answers "did the decoder break?". This answers the
-/// separate question "did it hear the right words?" — the failure mode where
-/// `whisper-cli` produces "Chlamydia" and "Yours is creeper from Minecraft"
-/// while the same model in the app produces "Climidial" and "Here's his creeper
-/// for Minecraft". Nothing loops; the words are simply wrong, and no loop metric
-/// can see it.
-///
-/// Word error rate is the standard measure and is what this computes:
-/// `(substitutions + insertions + deletions) / reference words`. It is reported
-/// alongside the actual substitutions, because a bare rate is not reviewable —
-/// a change that trades one wrong word for a different wrong word can move the
-/// number without improving anything.
-///
-/// Pure and host-testable, in the style of `sentence_boundaries.dart` and
-/// `repetition.dart`: no engine, no I/O.
 library;
 
 import 'repetition.dart' show normalizeForRepetition;
@@ -83,14 +67,6 @@ class TranscriptComparison {
 }
 
 /// How a transcript is split into comparable tokens.
-///
-/// The distinction is load-bearing, not cosmetic. A normalized comparison
-/// answers "did the engine hear the right word"; a verbatim one also asks
-/// whether it wrote that word the same way. The two can disagree completely —
-/// a run scoring 0.0% normalized can still differ from its reference in case
-/// and punctuation across most sentences, which is how a configuration came to
-/// be recorded as reproducing the reference "exactly" while a word-for-word
-/// reading plainly did not agree.
 enum TranscriptTokenization {
   /// Case folded, punctuation stripped. `"Chlamydia,"` and `"chlamydia"` are
   /// the same result; `"Climidial"` is not.
@@ -102,15 +78,6 @@ enum TranscriptTokenization {
 }
 
 /// Splits a transcript into comparable words.
-///
-/// [tokenization] chooses whether case and punctuation are differences.
-///
-/// [stripBracketedTags] removes non-timestamp brackets such as `[BLANK_AUDIO]`
-/// and `[LAUGHTER]`. It defaults to true because that is what this function has
-/// always done and the recorded numbers assume it — but it must be **false**
-/// when measuring `suppress_non_speech_tokens`, whose entire effect is whether
-/// those tags are emitted. Scoring that flag with them stripped measures it
-/// with an instrument that cannot see it.
 List<String> transcriptWords(
   String text, {
   TranscriptTokenization tokenization = TranscriptTokenization.normalized,
@@ -130,20 +97,12 @@ List<String> transcriptWords(
 }
 
 /// An actual `[hh:mm:ss.mmm --> hh:mm:ss.mmm]` stamp, and only that.
-///
-/// Deliberately narrow. The previous pattern matched *any* bracketed run, so it
-/// silently deleted `[BLANK_AUDIO]` and `[LAUGHTER]` before scoring — removing
-/// the only tokens `suppress_nst` governs from every comparison that judged it.
 final RegExp _timestamp = RegExp(r'\[[\d:.,\s]*-->[\d:.,\s]*\]');
 
 /// Any other bracketed tag, removed only when the caller asks for it.
 final RegExp _bracketedTag = RegExp(r'\[[^\]]*\]');
 
 /// Aligns [candidate] against [reference] and reports every difference.
-///
-/// Standard Levenshtein alignment with backtracking. Kept O(n*m) in memory
-/// because transcripts here are hundreds of words, not millions, and the
-/// backtrace is what makes the result reviewable rather than just a number.
 TranscriptComparison compareTranscripts(
   List<String> reference,
   List<String> candidate,
@@ -197,14 +156,6 @@ TranscriptComparison compareTranscripts(
 }
 
 /// The Levenshtein cost table for [reference] against [candidate].
-///
-/// Shared by [compareTranscripts], which scores, and [alignWords], which
-/// retimes. Two copies of an alignment would be one copy too many for the same
-/// reason `sentence_units.dart` exists: if they drifted, a transcript would
-/// score against one pairing and be edited against another.
-///
-/// O(n*m) in memory, which is fine here — the inputs are the words of one
-/// sentence, or of one transcript at a few hundred words, never millions.
 List<List<int>> _costMatrix(List<String> reference, List<String> candidate) {
   final n = reference.length;
   final m = candidate.length;
@@ -241,23 +192,9 @@ List<List<int>> _costMatrix(List<String> reference, List<String> candidate) {
 }
 
 /// One step of an alignment: which index on each side it consumes.
-///
-/// Exactly one of the two is null for an insertion or a deletion; both are set
-/// for a match or a substitution. [matched] separates those last two, which is
-/// the distinction that matters to a retimer — a matched word keeps its
-/// timestamps untouched, a substituted one does not.
 typedef WordAlignment = ({int? reference, int? candidate, bool matched});
 
 /// Pairs [reference] against [candidate] word for word, in order.
-///
-/// [compareTranscripts] answers "how different are these"; this answers "which
-/// word became which", which is what an editor needs in order to keep the
-/// timings of the words the user did not touch.
-///
-/// Comparison is on the raw strings. Callers wanting case- or
-/// punctuation-insensitive pairing normalise first — the editor deliberately
-/// does not, because changing "dont" to "don't" *is* an edit the user made and
-/// should be recorded as one.
 List<WordAlignment> alignWords(
   List<String> reference,
   List<String> candidate,
@@ -290,19 +227,6 @@ List<WordAlignment> alignWords(
 }
 
 /// How a candidate's punctuation compares to a reference's.
-///
-/// Reported separately from word error rate because punctuation is not
-/// cosmetic in this app. `sentence_boundaries.dart` turns it into the sentence
-/// units that caption grouping breaks on and that speaker assignment attributes
-/// as a whole — so a decoder change that improves word accuracy while moving
-/// sentence terminators would leave WER looking better and diarization quietly
-/// worse. That failure is invisible to a normalized comparison, and this is the
-/// number that surfaces it.
-///
-/// It is deliberately computed with the *same* `endsSentence`/`endsClause`
-/// predicates the diarization path uses, rather than a private copy: agreement
-/// here therefore means the sentence units themselves agree, which is the
-/// property that actually matters.
 class PunctuationDelta {
   const PunctuationDelta({
     required this.referenceSentenceEnds,
@@ -317,18 +241,11 @@ class PunctuationDelta {
   final int candidateClauseEnds;
 
   /// Positive when the candidate ends more sentences than the reference.
-  ///
-  /// This is the count that moves diarization: one extra terminator is one more
-  /// sentence unit, which re-cuts every downstream attribution decision.
   int get sentenceEndDelta => candidateSentenceEnds - referenceSentenceEnds;
 
   int get clauseEndDelta => candidateClauseEnds - referenceClauseEnds;
 
   /// Whether the candidate would produce the same number of sentence units.
-  ///
-  /// Not proof the boundaries land in the same places — only that the count
-  /// agrees — but a disagreement here is enough on its own to explain a
-  /// diarization score moving after a decoder change.
   bool get sentenceCountMatches => sentenceEndDelta == 0;
 
   @override

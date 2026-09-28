@@ -10,9 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Undo has to take back what the user can see, not only what the timeline
-/// draws. The bug these cover: undoing a transcribe track removed its row from
-/// the track list and left the captions on the video, because the inverse
-/// touched the layer and not the transcripts hanging off it.
+/// draws.
 void main() {
   late AppDatabase database;
   late TranscriptRepository repository;

@@ -20,14 +20,6 @@ const List<int> appColorSwatches = [
 ];
 
 /// A colour: one-tap presets, and a spectrum for any other.
-///
-/// The spectrum is two tracks -- the hue, then dark to light through it --
-/// which reach every vivid colour and its tints and shades while staying
-/// thumb-sized on a phone. It shows the change under the finger as it drags
-/// and applies it once, on release, so one drag is one undo step.
-///
-/// When [defaultLabel] is given, a first cell hands the colour back to the
-/// default (a speaker's colour, or no background).
 class AppColorPicker extends StatefulWidget {
   const AppColorPicker({
     super.key,
@@ -208,11 +200,9 @@ class _Swatch extends StatelessWidget {
                 color: color,
                 grown: grown,
                 dot: _dot,
-                // A fine edge round the small square, so a swatch the colour
-                // of its cell still shows -- white on paper, black on dark --
-                // gone once it fills. On dark it is faint ink, not a frame.
-                // Grown, it reaches over the strip's lines like every chosen
-                // cell.
+                // A fine edge round the small square, so a swatch the colour of
+                // its cell still shows -- white on paper, black on dark -- gone
+                // once it fills. On dark it is faint ink, not a frame.
                 bleed: surface.outlined ? surface.borderWidth : 0,
                 outline: surface.outlined
                     ? surface.outline

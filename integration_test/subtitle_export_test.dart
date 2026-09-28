@@ -14,18 +14,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Caption export, driven on a device.
-///
-/// The serialisers themselves are covered exhaustively on the host
-/// (`test/subtitle_export_test.dart`). What only a device can show is the
-/// screen: that the control appears where it should, that the sheet offers both
-/// formats, and that the controller runs the whole way through against real
-/// rows in Android's SQLite.
-///
-/// **The save dialog itself is not driven.** `FilePicker.saveFile` hands off to
-/// Android's Storage Access Framework, which is another app's UI and outside
-/// the test harness — tapping a format in an automated run would block until
-/// the timeout. The empty-transcript path is exercised instead, because it is
-/// the one route that completes without ever opening that dialog.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 

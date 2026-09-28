@@ -79,10 +79,8 @@ void main() {
 
       expect(header.dataBytes, 16000);
       expect(header.duration, const Duration(milliseconds: 500));
-      // 44 for the canonical header, plus 8 for the LIST chunk header, plus
-      // its 5 bytes of body rounded up to 6 for word alignment. Anything that
-      // seeks to a hardcoded 44 would land inside the LIST chunk and read
-      // metadata as audio.
+      // 44 for the canonical header, plus 8 for the LIST chunk header, plus its
+      // 5 bytes of body rounded up to 6 for word alignment.
       expect(header.dataOffset, 58);
     });
 

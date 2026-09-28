@@ -22,30 +22,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
 /// Diagnostic, not a pass/fail test.
-///
-/// **The question it answers.** On `alberta.mp4` the employee's reply "Tokens
-/// cost money." (7920-9400ms) is attributed to the boss. pyannote emits one
-/// unbroken span `0:7203-12552` there and reports no second-speaker activity
-/// anywhere between 7861 and 12468, and every parameter combination tried so
-/// far produces byte-identical spans in that region.
-///
-/// That leaves two very different explanations, which no amount of parameter
-/// sweeping can tell apart:
-///
-///  1. **The model cannot resolve the turn.** Segmentation genuinely does not
-///     see a speaker change there, in which case no downstream rule and no
-///     tuning will ever recover it.
-///  2. **The model resolves it and the pipeline discards it.** sherpa's
-///     clustering is global across the whole file; a locally-detected change
-///     can be merged away when embeddings from a long region dominate.
-///
-/// Running the *same audio* twice — once as part of the whole file, once as an
-/// isolated slice — separates them. The segmentation model sees a 10-second
-/// sliding window either way, so a slice around the boundary gives it the same
-/// local acoustic context while removing the global clustering pressure.
-///
-/// If the boundary appears in the slice, the model can see it and the problem
-/// is ours to fix. If it appears in neither, tuning is genuinely exhausted.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -118,10 +94,7 @@ void main() {
       // 1. The whole file, for the baseline every other measurement used.
       dump('whole', await SpeakerDiarizer().diarize(wav.path), 0);
 
-      // 2. The slice already known to resolve the turn. Diarization is
-      //    deterministic under fixed input, so if this does not reproduce its
-      //    previous boundaries the slicing helper is corrupting the audio and
-      //    nothing else below can be trusted.
+      // 2. The slice already known to resolve the turn.
       final control = await slice(File(wav.path), 5000, 13000, 'control');
       dump('control-5000-13000',
           await SpeakerDiarizer().diarize(control.path), 5000);
@@ -197,10 +170,8 @@ void main() {
                 matched.add(target);
               }
             }
-            // Span and speaker counts are reported because a run that
-            // collapses to a single speaker produces no boundaries at all,
-            // which is indistinguishable from "found nothing near the target"
-            // unless the collapse is visible.
+            // Span and speaker counts are reported because a run that collapses
+            // to a single speaker produces no boundaries at all.
             final speakers = spans.map((s) => s.speaker).toSet().length;
             debugPrint('SWEEP $label w=$width s=$start '
                 'spans=${spans.length} spk=$speakers '
@@ -217,17 +188,6 @@ void main() {
       }
 
       // Region A -- the "Tokens cost money." interjection.
-      //
-      // Targets are the boundaries diarization *itself* reports when it does
-      // resolve the turn (8642 and 9351 in the control slice), not the
-      // sentence's word times. Scoring against whisper's 7920 was wrong: the
-      // two passes derive boundaries independently and disagree by ~700ms at
-      // the start of this sentence, so a genuine detection was being counted
-      // as a miss.
-      //
-      // Stepped finely, because a 250ms shift of the window start is already
-      // known to change the answer: the control at s=5000 finds 8642 and the
-      // previous sweep at s=5250 did not.
       await sweepRegion(
         label: 'A',
         fromMs: 4000,
@@ -258,10 +218,7 @@ void main() {
       final model = await const WhisperModelCatalog().resolve(null);
       expect(model, isNotNull, reason: 'No model is bundled in this build');
 
-      // Diarized once and reused for both VAD settings. Diarization reads the
-      // WAV directly and never sees whisper's parameters, so VAD cannot move a
-      // span -- running it once and holding it fixed is what isolates VAD's
-      // real effect, which is on word timings alone.
+      // Diarized once and reused for both VAD settings.
       final spans = await SpeakerDiarizer().diarize(wav.path);
       expect(spans, isNotNull);
       debugPrint('TRUTH spans=${spans!.length}');
@@ -324,9 +281,6 @@ void main() {
       expect(await source.exists(), isTrue);
 
       // Extract the WAV twice from the same mp4, through the same code path.
-      // If MediaCodec's output varies at all, every "identical spans" result
-      // measured so far is comparing runs that did not share an input, and the
-      // conclusion that parameters are inert would be unsound.
       final digests = <String>[];
       final spanDumps = <String>[];
 
@@ -552,9 +506,7 @@ void main() {
       ];
 
       // Voice prints from spans that overlap no other speaker's span and none
-      // of the regions above. The span enclosing "Tokens cost money." is itself
-      // mixed-speaker, so including it would put the very voice under test into
-      // the reference it is being compared against.
+      // of the regions above.
       final prints = <int, Float32List>{};
       for (final speaker in spans!.map((s) => s.speaker).toSet()) {
         final refs = <Float32List>[];
@@ -1149,23 +1101,6 @@ void main() {
       // On guess.mp4 -- a group talking fast and interrupting each other --
       // several speakers collapse onto one. That has two opposite causes and
       // they need opposite fixes:
-      //
-      //   * segmentation never sees the interruptions, in which case a second
-      //     boundary source (whisper's turn dashes) has something to add; or
-      //   * segmentation finds them and *clustering* merges them, in which case
-      //     the fix is a parameter and a new mechanism would be working around
-      //     a tuning problem.
-      //
-      // This prints the evidence to tell them apart: the raw span boundaries
-      // regardless of label, then what the two clustering levers do to the
-      // speaker count. `numClusters` matters because Phase 3.4 measured every
-      // other sherpa parameter as inert on alberta while this one moved
-      // syria.mp4, where the threshold does nothing.
-      //
-      // For comparison, whisper's turn dashes on this clip were measured
-      // natively at 34 markers (small-q5_1, suppress_nst off, beam or VAD off),
-      // and scored 16/16 recall against alberta's labels but only 1/10 against
-      // two_speakers -- high precision, unreliable recall.
       const guess = '/data/local/tmp/guess.mp4';
       final source = File(guess);
       expect(await source.exists(), isTrue, reason: 'adb push guess.mp4 first');
@@ -1180,9 +1115,7 @@ void main() {
       debugPrint('COLLAPSE wav=${wav.path}');
 
       // Where the default configuration reports no speaker change at all, from
-      // the first run of this probe. These are the measurement that matters:
-      // total span count can move while both dead zones stay empty, which would
-      // look like progress and be none.
+      // the first run of this probe.
       const deadZones = [(31, 14543), (50690, 72357)];
 
       /// Boundaries regardless of which cluster a span was given. This is the
@@ -1246,14 +1179,6 @@ void main() {
 
       // The duration levers, which act *before* clustering and are the only
       // ones that can add a boundary rather than relabel one.
-      //
-      // minDurationOn discards any segment shorter than itself outright, so at
-      // the 0.2 default every turn under 200ms is deleted before clustering
-      // ever sees it — exactly the length of an interruption. minDurationOff
-      // bridges gaps below itself, per speaker and without regard for who
-      // spoke in between, so lowering it should *stop* turns being swallowed.
-      //
-      // Judge these by inDeadZones, not by span count.
       for (final on in const [0.05, 0.1, 0.2]) {
         for (final off in const [0.0, 0.1, 0.5]) {
           await report(

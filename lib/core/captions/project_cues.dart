@@ -5,22 +5,6 @@ import 'caption_cue.dart';
 import 'caption_grouper.dart';
 
 /// One clip's captions, grouped from its words and put on the clip's own clock.
-///
-/// **The single place a clip's cues are made for anything that leaves the
-/// app.** The burned-in captions and the SRT/VTT files both start here, so the
-/// two break their lines at exactly the same words. An SRT uploaded beside the
-/// exported video shows the same captions the video already has in it.
-///
-/// Words may come from several transcripts when more than one transcribe layer
-/// covers the clip, so they are sorted before grouping; `groupIntoCues`
-/// expects transcript order and would otherwise break cues at the seam.
-///
-/// [window] is the clip's trim range in media time. Words outside it are
-/// dropped and the rest are rebased onto it, because a trimmed clip's clock
-/// starts at its in-point rather than at the start of the file. Filtering
-/// **before** grouping rather than after is deliberate: a cue straddling the
-/// trim point then breaks at the cut instead of being discarded whole or
-/// hanging past the end.
 List<CaptionCue> clipCuesFor(List<Word> words, {ClipWindow? window}) {
   if (words.isEmpty) return const [];
 
@@ -41,18 +25,6 @@ List<CaptionCue> clipCuesFor(List<Word> words, {ClipWindow? window}) {
 }
 
 /// Every clip's captions on the project's clock, in timeline order.
-///
-/// **What a subtitle file has to be.** The exported video is the arrangement,
-/// not any one clip, so a subtitle file written from one clip's transcript in
-/// that clip's own time stops lining up the moment anything is split, trimmed
-/// or added -- which is what the first subtitle export did.
-///
-/// Order and offsets come from [ProjectTimeline], the same source the video
-/// export reads, so the two cannot disagree about where a clip begins.
-///
-/// A cue is cut short at its clip's out-point. Without that, a line spoken
-/// across a cut would carry on over the start of the next clip and push that
-/// clip's first caption late, since players refuse overlapping cues.
 List<CaptionCue> projectSubtitleCues({
   required ProjectTimeline timeline,
   required List<MediaClip> clips,

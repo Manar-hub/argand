@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/monetization/admob_rewarded_source.dart';
 import '../../core/monetization/monetization.dart';
 import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_spacing.dart';
@@ -11,13 +12,13 @@ import '../../l10n/app_localizations.dart';
 
 part 'placeholder_ad_screen.g.dart';
 
-/// Where rewarded ads come from.
-///
-/// The placeholder until an ad SDK is chosen. Kept alive because it holds no
-/// state worth rebuilding and is asked for on every export.
+/// Where rewarded ads come from: Google AdMob, and the built-in test ad below
+/// whenever AdMob has none to show (`FallbackRewardedAds`).
 @Riverpod(keepAlive: true)
-RewardedAds rewardedAds(Ref ref) =>
-    PlaceholderRewardedAds(present: presentPlaceholderAd);
+RewardedAds rewardedAds(Ref ref) => FallbackRewardedAds(
+      primary: SdkRewardedAds(const AdMobRewardedSource()),
+      fallback: PlaceholderRewardedAds(present: presentPlaceholderAd),
+    );
 
 /// Shows the placeholder ad and answers whether it was watched to the end.
 Future<bool> presentPlaceholderAd(BuildContext context) async {
@@ -32,12 +33,6 @@ Future<bool> presentPlaceholderAd(BuildContext context) async {
 }
 
 /// Stands where a rewarded ad will play, and behaves like one.
-///
-/// **Plainly a placeholder, and says so.** Nothing here imitates a real
-/// advert. What it does imitate is the contract: a few seconds must pass
-/// before the reward can be claimed, and closing early claims nothing. That is
-/// what lets the flow around it -- the ad before the export, the export only
-/// after the ad -- be tested now rather than after an ad SDK arrives.
 class PlaceholderAdScreen extends StatefulWidget {
   const PlaceholderAdScreen({super.key});
 

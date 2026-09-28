@@ -9,8 +9,7 @@ void main() {
     test('round-trips every sample losslessly', () {
       // Endpoints and a few interior values. 16-bit PCM has fewer distinct
       // values than float32 has precision, so the round trip must be exact --
-      // if it is not, the denoise pass would degrade audio it chose to leave
-      // alone.
+      // if it is not.
       final original = Int16List.fromList(
         [-32768, -32767, -1, 0, 1, 12345, 32766, 32767],
       );

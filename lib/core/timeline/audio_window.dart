@@ -1,11 +1,6 @@
-/// Where a clip's **sound** sits: its own stretch of the media and its own
-/// span on the timeline, which may reach past its picture (J/L cuts) or stop
-/// short of it.
-///
-/// Stored as two offsets from the picture window (`MediaClips.audio*OffsetMs`)
-/// so a split or a picture trim carries the sound along. Everything here is
-/// pure, mirroring `clip_trim.dart`, so the drag, the lane and the export all
-/// read the same numbers.
+/// Where a clip's sound sits: its own stretch of the media and its own span on
+/// the timeline, which may reach past its picture (J/L cuts) or stop short of
+/// it.
 library;
 
 import 'dart:math' as math;
@@ -32,10 +27,9 @@ ClipWindow audioWindow(MediaClip clip, {AudioOffsets? offsets}) {
   return (startMs: start, endMs: end);
 }
 
-/// Where the sound plays on the timeline, and from where in the media:
-/// clamped to the timeline, so a J-cut on the first clip starts at zero and
-/// an L-cut on the last ends with the video. Null when the clip is not on
-/// [timeline] or its sound has no length left.
+/// Where the sound plays on the timeline, and from where in the media: clamped
+/// to the timeline, so a J-cut on the first clip starts at zero and an L-cut on
+/// the last ends with the video.
 ({int startMs, int endMs, int mediaStartMs})? audioSpan(
   ProjectTimeline timeline,
   MediaClip clip, {
@@ -57,12 +51,8 @@ ClipWindow audioWindow(MediaClip clip, {AudioOffsets? offsets}) {
   return (startMs: start, endMs: end, mediaStartMs: mediaStart);
 }
 
-/// Applies a drag on one end of a clip's sound and returns the offsets it
-/// lands on.
-///
-/// Clamped every frame, as `applyTrim` is: never before the file starts or
-/// after it ends, never off either end of the timeline, never shorter than
-/// [minimumClipMs]. The other end stays where it is.
+/// Applies a drag on one end of a clip's sound and returns the offsets it lands
+/// on.
 AudioOffsets applyAudioTrim({
   required MediaClip clip,
   required ClipEdge edge,

@@ -2,14 +2,6 @@ import '../database/database.dart';
 
 /// One caption as it would appear on screen: a short run of words, the span
 /// they occupy, and who said them.
-///
-/// **Derived, never stored.** Cues are presentation logic over the word-level
-/// timestamps already in the database (see docs/engine-architecture.md), not a
-/// separate transcription pass and not a table. Persisting them would fork the
-/// truth: an edit to a word would have to be replayed into a cached cue, and
-/// the two would drift. Recomputing is cheap — a single pass over a few hundred
-/// words — and it is what makes a future grouping-mode switch (Tier 2) a
-/// display change rather than a migration.
 class CaptionCue {
   CaptionCue({
     required this.words,
@@ -38,9 +30,7 @@ class CaptionCue {
 
   /// The words behind this cue, kept so the caption stays *structured text*
   /// rather than a flattened string — per-word timing is what tap-to-seek,
-  /// karaoke-style highlighting and non-destructive editing all need, and
-  /// throwing it away here would rasterize the caption early in spirit if not
-  /// in pixels.
+  /// karaoke-style highlighting and non-destructive editing all need.
   final List<Word> words;
 
   final int startMs;
@@ -57,12 +47,6 @@ class CaptionCue {
   int get durationMs => endMs - startMs;
 
   /// The same cue moved along the clock by [deltaMs], never before zero.
-  ///
-  /// **Only the cue's span moves; its words keep their stored times.** Words
-  /// are rows in media time and stay the truth. A shifted cue is the caption as
-  /// it will appear somewhere else -- on a trimmed clip's own clock, or at its
-  /// place on the project's -- which is a question about the output, not about
-  /// the words.
   CaptionCue shiftedBy(int deltaMs) => CaptionCue(
         words: words,
         startMs: startMs + deltaMs < 0 ? 0 : startMs + deltaMs,

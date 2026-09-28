@@ -12,19 +12,6 @@ import 'waveform.dart';
 part 'waveform_service.g.dart';
 
 /// Derives a clip's amplitude readings for the timeline's audio lane.
-///
-/// **Deliberately not `AudioDecoder.getWaveform`.** That helper exists and
-/// would be one call, but `docs/engine-architecture.md` records that
-/// `performGetWaveform` still carries the upstream resample-ratio flaw the
-/// fork fixed only for `convertToWav` — the same bug that decoded HE-AAC at
-/// half speed and produced fluent nonsense. Its readings would be stretched by
-/// whatever factor the container misreported. Going through the corrected
-/// 16kHz extraction and reducing the samples here inherits the fix instead of
-/// re-opening the bug for a cosmetic feature.
-///
-/// **Extraction is serialized.** Decoding is minutes of native CPU on a long
-/// clip, and a project with eight clips would otherwise start eight decoders
-/// the moment the timeline opened. Lanes therefore fill in one after another.
 class WaveformService {
   WaveformService(this._converter);
 
@@ -34,11 +21,6 @@ class WaveformService {
   Future<void> _queue = Future.value();
 
   /// Extracts [mediaPath]'s audio and reduces it to peak readings.
-  ///
-  /// Returns an empty list when the media cannot be decoded — a clip with no
-  /// audio track, or a container the native decoder rejects. That is a flat
-  /// lane, never a thrown error: a waveform is a navigation aid, and failing
-  /// to draw one must not take the timeline down with it.
   Future<Uint8List> peaksFor(String mediaPath) {
     final result = _queue.then((_) => _extract(mediaPath));
     // The queue must survive a failure, or one undecodable clip would wedge
@@ -49,9 +31,8 @@ class WaveformService {
 
   Future<Uint8List> _extract(String mediaPath) async {
     // Written to the cache directory rather than beside the media:
-    // `discardClipMedia` enumerates a fixed list of files and would strand
-    // this one, and `projectMediaBytes` would count it into the size the
-    // library reports for the project.
+    // `discardClipMedia` enumerates a fixed list of files and would strand this
+    // one.
     final dir = await getTemporaryDirectory();
     final scratch = File(p.join(
       dir.path,

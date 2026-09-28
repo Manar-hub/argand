@@ -9,22 +9,10 @@ typedef ClipPlacement = ({
   int durationMs,
 
   /// Where this clip's window begins inside its media file.
-  ///
-  /// **The difference between the two timebases, in one number.** Project time
-  /// counts from the start of the arrangement; media time counts from the start
-  /// of the file, which is what the player seeks in and what word timings are
-  /// stored in. Before clips could be trimmed these differed by
-  /// [startMs] alone; now they differ by [startMs] minus this.
   int mediaStartMs,
 });
 
 /// A range's intersection with one clip, in both timebases at once.
-///
-/// [clipStartMs]/[clipEndMs] are what the engine needs — offsets into that
-/// clip's own media file, past its in-point if it has been trimmed. [projectStartMs]/[projectEndMs] are what the timeline
-/// draws. Carrying both is the point: converting between them requires the
-/// clip's placement, and every caller that had to redo that conversion would
-/// be a second copy of the rule.
 typedef ClipRange = ({
   String clipId,
   int clipStartMs,
@@ -34,32 +22,10 @@ typedef ClipRange = ({
 });
 
 /// Where each clip falls on one shared project-wide time axis.
-///
-/// **Word timings stay clip-relative** — whisper is fed one clip's audio and
-/// reports offsets into it, and there is no compositor that could define a
-/// single continuous recording. What this adds is the *arrangement*: clips lie
-/// end to end in `position` order, so a project has a total length and every
-/// clip has a start, which is what a ruler measures and what lets a range drawn
-/// on the timeline be turned back into per-clip work.
-///
-/// Pure and synchronous, holding no providers and touching no database beyond
-/// the [MediaClip] rows handed in, so the rule is host-testable and lives in
-/// exactly one place. The alternative — each widget folding its own running
-/// sum — is how the ruler and the track came to disagree in the first place.
-///
-/// **Intervals are half-open, `[start, end)`.** A range ending exactly on a
-/// clip boundary yields nothing in the next clip, which is the only rule under
-/// which two adjacent ranges tile without sharing a millisecond.
 class ProjectTimeline {
   const ProjectTimeline._(this.placements, this.totalMs);
 
   /// Lays clips end to end in the order given.
-  ///
-  /// A clip with no usable duration contributes zero and occupies a zero-width
-  /// slot rather than being dropped: it still exists, still plays, and still
-  /// shows on the track — it simply cannot be measured yet. `MediaPlayer`
-  /// repairs such a duration the first time it opens the clip, at which point
-  /// the timeline rebuilds from the corrected rows.
   factory ProjectTimeline.fromClips(List<MediaClip> clips) {
     final placements = <ClipPlacement>[];
     var offset = 0;
@@ -99,15 +65,7 @@ class ProjectTimeline {
     return null;
   }
 
-  /// Converts a position inside one clip's **media** to project time.
-  ///
-  /// [clipMs] is measured from the start of the file, not from the start of
-  /// what the clip plays — that is the timebase word timings are stored in and
-  /// the one the player seeks in, so it is the one this accepts. A trimmed
-  /// clip's in-point is subtracted here, in the single place that knows it.
-  ///
-  /// Null when the clip is not part of this arrangement — it was removed, or
-  /// the timeline was built from a different project.
+  /// Converts a position inside one clip's media to project time.
   int? projectMsOf({required String clipId, required int clipMs}) {
     final placement = placementOf(clipId);
     if (placement == null) return null;
@@ -115,11 +73,6 @@ class ProjectTimeline {
   }
 
   /// Which clip covers [projectMs], and how far into it that lands.
-  ///
-  /// Clamped to the arrangement rather than returning null past the ends: the
-  /// playhead can be dragged beyond the last frame, and the honest answer there
-  /// is "the end of the last clip", not "nowhere".
-  /// [clipMs] comes back in **media** time, ready to hand to the player.
   ({String clipId, int clipMs})? clipAt(int projectMs) {
     if (placements.isEmpty) return null;
 
@@ -144,16 +97,31 @@ class ProjectTimeline {
     return (clipId: last.clipId, clipMs: last.mediaStartMs + last.durationMs);
   }
 
+  /// How long the project runs: to the end of its clips -- or on past the last
+  /// one, to [contentEndMs], when something is still on the timeline there.
+  int runMsWith({required int contentEndMs, int? lastFileMs}) {
+    if (placements.isEmpty || lastFileMs == null) return totalMs;
+    final last = placements.last;
+    final fileEnd = last.startMs + (lastFileMs - last.mediaStartMs);
+    final end = contentEndMs < fileEnd ? contentEndMs : fileEnd;
+    return end > totalMs ? end : totalMs;
+  }
+
+  /// Where [projectMs] falls past the end of the clips, while the project
+  /// still runs ([runMsWith]): in the last clip's file, beyond its out-point.
+  /// Null inside the clips, and from [runMs] on.
+  ({String clipId, int clipMs})? tailAt(int projectMs, {required int runMs}) {
+    if (placements.isEmpty || projectMs < totalMs || projectMs >= runMs) {
+      return null;
+    }
+    final last = placements.last;
+    return (
+      clipId: last.clipId,
+      clipMs: last.mediaStartMs + (projectMs - last.startMs),
+    );
+  }
+
   /// Splits a project-timeline range into the per-clip work it implies.
-  ///
-  /// Returns **every** non-empty intersection, slivers included. This is
-  /// geometry and holds no policy: a caller drawing coverage wants the slivers
-  /// because they are real, while a caller about to run an engine has its own
-  /// minimum below which a range cannot be answered. Mixing the two here would
-  /// make the drawing wrong to serve the engine.
-  ///
-  /// Zero-duration clips can never intersect anything, so they are skipped by
-  /// the same arithmetic that handles a range falling in a gap.
   List<ClipRange> rangesFor({required int startMs, required int endMs}) {
     if (endMs <= startMs) return const [];
 

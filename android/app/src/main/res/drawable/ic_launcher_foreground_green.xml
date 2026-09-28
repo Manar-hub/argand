@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The launcher icon, hand in green (#2FA85A).
+    The Argand mark (assets/brand/argand_mark_*.svg, viewBox 200x200), scaled
+    into the adaptive icon's 66dp safe zone. Generated with the other
+    variants; see lib/core/theme/launcher_icon.dart.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.32"
+        android:scaleY="0.32"
+        android:translateX="22"
+        android:translateY="22">
+        <path
+            android:pathData="M13,100 a44,44 0 1,0 88,0 a44,44 0 1,0 -88,0"
+            android:strokeColor="#14151A"
+            android:strokeWidth="11" />
+        <path
+            android:pathData="M109.0,68.9 C111.6,58.9,114.2,57.5,116.8,63.6 C119.4,69.6,122.0,82.5,124.6,94.8 C127.2,107.1,129.8,118.3,132.4,123.5 C135.0,128.7,137.6,127.8,140.2,122.5 C142.8,117.3,145.4,108.1,148.0,100.0 C150.6,91.9,153.2,85.3,155.8,82.9 C158.4,80.5,161.0,82.3,163.6,86.5 C166.2,90.7,168.8,97.1,171.4,102.3 C174.0,107.4,176.6,111.1,179.2,112.0 C181.8,112.9,184.4,111.0,187.0,107.8"
+            android:strokeColor="#14151A"
+            android:strokeWidth="11"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M57,100 L88.1,68.9"
+            android:strokeColor="#2FA85A"
+            android:strokeWidth="11"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M78.1,68.9 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0"
+            android:fillColor="#2FA85A" />
+    </group>
+</vector>

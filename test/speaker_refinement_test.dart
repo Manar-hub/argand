@@ -276,10 +276,7 @@ void main() {
 
     test('still finds references when most sentences are candidates', () {
       // The bug this pins: an earlier rule rejected any span that touched a
-      // region under test. On real material almost every sentence is a
-      // candidate, so that rejected every span for both speakers, left no
-      // voice prints, and turned the whole pass into a silent no-op -- which
-      // looks exactly like "found nothing worth changing".
+      // region under test.
       final words = [
         for (final s in [
           (60, 2390, 8), (2390, 2780, 2), (2780, 4120, 5), (4120, 5120, 4),
@@ -309,10 +306,7 @@ void main() {
     });
 
     test('the trigger does not depend on how the model segments sentences', () {
-      // The property that matters for model independence. Same audio, same
-      // spans, two different sentence segmentations -- as base and small-q5_1
-      // genuinely produce -- must ask about the same region, because the
-      // trigger is a span-duration comparison and never consults whisper.
+      // The property that matters for model independence.
       List<RefinementCandidate> candidatesFor(List<WordTiming> words) =>
           planRefinement(
             spans: alberta,
@@ -357,9 +351,6 @@ void main() {
 
       // 0:7203-12552 conceals the employee's reply, and segmentation also
       // declares an overlap with 1:5161-7861 -- which is what excludes it here.
-      // A span that conceals a turn *without* any declared overlap is caught
-      // acoustically instead, by the coherence check in SpeakerRefiner, since
-      // no span-shape rule can see it.
       for (final regions in plan.references.values) {
         expect(
           regions.any((r) => r.startMs == 7203 && r.endMs == 12552),
@@ -369,10 +360,9 @@ void main() {
     });
 
     test('refuses a region a speaker change cuts through the middle of', () {
-      // "I like that one." 36650-37650. Span 1:37088-39772 opens 388ms into
-      // the trimmed region, splitting it 43/57 -- so its audio is a blend of
-      // both voices and the embedding describes neither. This is the exact
-      // region that moved to the wrong speaker before this guard existed.
+      // "I like that one." 36650-37650. Span 1:37088-39772 opens 388ms into the
+      // trimmed region, splitting it 43/57 -- so its audio is a blend of both
+      // voices and the embedding describes neither.
       final words = sentence(36650, 37650, 4);
       final plan = planRefinement(
         spans: alberta,
@@ -389,8 +379,7 @@ void main() {
     test('still asks when the change lands right at the edge', () {
       // "What do you mean?" 7170-7920. Span 1:5161-7861 ends 9ms before the
       // trimmed region does -- a cut, but one leaving the region essentially
-      // pure, so it must still be asked about. This region moved *correctly*,
-      // and a blanket "no cuts" rule would have thrown that fix away.
+      // pure, so it must still be asked about.
       final words = sentence(7170, 7920, 4);
       final plan = planRefinement(
         spans: alberta,
@@ -451,10 +440,7 @@ void main() {
         );
 
     test('a moved region actually wins its words afterwards', () {
-      // The test that matters. Inserting a span is not enough: speakerForWord
-      // breaks ties toward the longer span, so without carving the region out
-      // of 0:7203-12552 the new span would lose every word it was created to
-      // claim, and the pass would be a silent no-op.
+      // The test that matters.
       final refined = applyRefinements(alberta, [move(7970, 9350, 0, 1)]);
 
       expect(

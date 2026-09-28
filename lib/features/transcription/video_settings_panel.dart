@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/monetization/monetization.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_spacing.dart';
@@ -15,6 +16,7 @@ import 'media_player_controller.dart';
 import 'overlap_audio.dart';
 import 'transcript_repository.dart';
 import '../../core/timeline/audio_window.dart';
+import '../../core/timeline/clip_trim.dart';
 import 'stage_editor.dart';
 import 'video_canvas.dart';
 import 'video_settings.dart';
@@ -28,11 +30,6 @@ enum VideoSettingsItem { aspect, resolution, watermark }
 typedef VideoSettingsPanelState = ({bool open, VideoSettingsItem item});
 
 /// Whether a project's video settings are open, and on which item.
-///
-/// A provider rather than widget state because two separate parts of the
-/// screen answer to it: the transport row, which hides its buttons, and the
-/// body, which shows the panel. It also remembers the last item for as long
-/// as the project is open, so reopening the panel lands where it was left.
 @riverpod
 class VideoSettingsPanelController extends _$VideoSettingsPanelController {
   @override
@@ -49,9 +46,6 @@ class VideoSettingsPanelController extends _$VideoSettingsPanelController {
 }
 
 /// How long every movement in the panel takes.
-///
-/// One figure for all of them, so the buttons fading, the panel arriving and
-/// the content changing read as one motion rather than several.
 const Duration _motion = Duration(milliseconds: 220);
 
 /// Zero when the user has asked for no animation (docs/design-direction.md
@@ -60,9 +54,6 @@ Duration _motionFor(BuildContext context) =>
     MediaQuery.disableAnimationsOf(context) ? Duration.zero : _motion;
 
 /// The gear that opens the panel, in both modes' transport rows.
-///
-/// **Turns a quarter and takes the accent while open**, so the same button
-/// reads as the way out: there is no separate close control to find.
 class VideoSettingsGear extends ConsumerWidget {
   const VideoSettingsGear({super.key, required this.projectId});
 
@@ -94,11 +85,6 @@ class VideoSettingsGear extends ConsumerWidget {
 }
 
 /// Fades a control out while the panel is open, and back in after.
-///
-/// **Fades rather than removes.** Taking the button out of the row would
-/// shift what is left of it, and the play button would drift off centre just
-/// as the user's eye goes to it. An invisible button that cannot be pressed
-/// holds its place.
 class HiddenWhileSettingsOpen extends ConsumerWidget {
   const HiddenWhileSettingsOpen({
     super.key,
@@ -127,15 +113,6 @@ class HiddenWhileSettingsOpen extends ConsumerWidget {
 }
 
 /// The project's video settings, laid over whatever sits below the stage.
-///
-/// **Inline, not a window.** It covers the timeline (or the transcript) and
-/// leaves the stage above in view, so a new shape or corner shows on the
-/// real preview as it is chosen -- which is what made a preview inside the
-/// panel unnecessary, and most of the old panel's clutter with it.
-///
-/// What is behind is dimmed and blurred, the one soft effect in an otherwise
-/// flat style: it says "set aside for a moment" without hiding where the user
-/// is. The panel's own surfaces keep the flat fill and hard outline.
 class VideoSettingsPanel extends ConsumerStatefulWidget {
   const VideoSettingsPanel({
     super.key,
@@ -450,9 +427,6 @@ class _ShapeGlyph extends StatelessWidget {
 }
 
 /// The sizes, with those the footage cannot fill greyed out.
-///
-/// **No pixel count.** The name of the size is what people choose by; the
-/// exact frame is the render's business.
 class _ResolutionOptions extends ConsumerWidget {
   const _ResolutionOptions({
     required this.projectId,
@@ -551,12 +525,6 @@ class _WatermarkOptions extends StatelessWidget {
 const double stageHeight = 300;
 
 /// The stage's picture in the project's frame, as both modes draw it.
-///
-/// **One widget for both stages**, so Script and Timeline cannot drift apart:
-/// the project's shape, the picture fitted inside it with black bars as the
-/// render fits it and then framed as the clip says, the texts and captions
-/// where they will be burned in, the watermark where it will be -- and, while
-/// the Watermark item is open, every corner of the frame as a target.
 class ProjectStageCanvas extends ConsumerWidget {
   const ProjectStageCanvas({
     super.key,
@@ -592,6 +560,7 @@ class ProjectStageCanvas extends ConsumerWidget {
         VideoSettings.defaults;
     final panel = ref.watch(videoSettingsPanelControllerProvider(projectId));
     final picking = panel.open && panel.item == VideoSettingsItem.watermark;
+    final pro = ref.watch(proUnlockedProvider).value ?? false;
 
     // The gutter's eyes reach the preview: hidden video leaves the frame
     // black, hidden audio plays silent -- as the export will.
@@ -614,6 +583,10 @@ class ProjectStageCanvas extends ConsumerWidget {
     if (player != null && player.value.volume != (muted ? 0.0 : 1.0)) {
       player.setVolume(muted ? 0 : 1);
     }
+    // Black outside the clip.
+    final shown = clip == null ? null : clipWindow(clip);
+    final offClip = shown != null &&
+        (mediaPositionMs < shown.startMs || mediaPositionMs >= shown.endMs);
 
     return VideoCanvas(
       ratio: settings.aspect.ratio ?? sourceSize.width / sourceSize.height,
@@ -622,7 +595,7 @@ class ProjectStageCanvas extends ConsumerWidget {
         clipId: clipId,
         sourceSize: sourceSize,
         picture: Opacity(
-          opacity: hidden.video ? 0 : 1,
+          opacity: hidden.video || offClip ? 0 : 1,
           child: picture,
         ),
       ),
@@ -648,7 +621,12 @@ class ProjectStageCanvas extends ConsumerWidget {
             ),
         ],
       ),
-      watermark: settings.previewWatermark ? settings.corner : null,
+      // Pro exports have no watermark, so the preview has none either --
+      // except while its corner is being picked, which needs something to
+      // point at.
+      watermark: settings.previewWatermark && (!pro || picking)
+          ? settings.corner
+          : null,
       pickCorner: picking
           ? (corner) => ref
               .read(projectVideoSettingsProvider(projectId).notifier)

@@ -18,10 +18,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// The export sheet, driven by taps over a real in-memory database.
-///
-/// The ad is a stand-in whose network and outcome each test chooses, which is
-/// what lets the flow around it -- offline keeps the watermark, closing early
-/// exports nothing, finishing exports unbranded -- be proven on the host.
 void main() {
   late AppDatabase database;
   late TranscriptRepository repository;
@@ -87,9 +83,6 @@ void main() {
   }
 
   /// Opens the sheet from a button and remembers what it returned.
-  ///
-  /// [online] and [watchesToEnd] decide how the stand-in ad behaves; [shown]
-  /// counts how often it actually reached the screen.
   Future<({ExportDecision? Function() result, int Function() shown})> open(
     WidgetTester tester,
     String projectId, {
@@ -298,9 +291,6 @@ void main() {
   uiTest('the tab row stays put when the tab changes', (tester) async {
     // Sized to its content, the sheet shrank on a shorter tab and the row slid
     // down, so the next tap on a tab landed above the sheet and closed it.
-    //
-    // The row itself is measured, not a label in it: a selected segment's
-    // label sinks a few pixels by design, which is the press, not the row.
     await open(tester, await seedTranscribed());
     final row = find.byWidgetPredicate((widget) => widget is AppSegmentRow);
     final onVideo = tester.getRect(row);

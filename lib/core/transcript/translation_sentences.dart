@@ -1,13 +1,4 @@
 /// How a transcript is translated and the translation put back in time.
-///
-/// **The whole text at once, then timed.** Translating sentence by sentence
-/// kept each line's timing trivially but stripped every sentence of the ones
-/// around it -- pronouns, ellipses and half-finished thoughts came back
-/// wrong. So the transcript goes to the translator as running text (in long
-/// runs, see [translationBatches]), and the translation is cut into its *own*
-/// back into pieces, one per caption line, by an educated guess at where
-/// each line's meaning falls ([alignToSegments]). The words need not line up
-/// one for one; each piece only needs to arrive while its meaning is said.
 library;
 
 import 'dart:math' as math;
@@ -139,22 +130,6 @@ int endStrength(String text) {
 
 /// [translated] -- the translation of [sources], read as one text -- cut into
 /// exactly one piece per source, in order.
-///
-/// **An educated guess, not the translator's sentences.** A translator merges
-/// sentences, splits them and moves commas, so its sentence count cannot be
-/// trusted to match. Each piece is instead sized to its source's share of the
-/// text -- the translation's own length absorbs the language's expansion --
-/// and the cuts are drawn to punctuation that ends the way the source piece
-/// does: a sentence end where the source ended a sentence, a comma where it
-/// paused. The best set of cuts is found by dynamic programming over every
-/// word boundary (every character, in a script written without spaces),
-/// trading how far each piece is from its size against how well its end
-/// matches -- the idea behind Gale and Church's sentence alignment.
-///
-/// So a merged sentence is cut in the middle, at a comma when there is one;
-/// a sentence split in two stays one piece; and no piece is empty while there
-/// are words enough to go round. With fewer words than sources, the extra
-/// sources get empty pieces rather than repeats.
 List<String> alignToSegments({
   required List<String> sources,
   required String translated,

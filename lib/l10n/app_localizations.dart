@@ -988,12 +988,6 @@ abstract class AppLocalizations {
   /// **'Clip selected.'**
   String get clipSelected;
 
-  /// Heading of the dialog confirming removal of several clips
-  ///
-  /// In en, this message translates to:
-  /// **'Remove {count} clips?'**
-  String clipRemoveManyTitle(int count);
-
   /// Bottom toolbar button that opens fonts, colours and caption styles
   ///
   /// In en, this message translates to:
@@ -1227,24 +1221,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a clip'**
   String get clipAdd;
-
-  /// Menu entry that removes a clip from the project
-  ///
-  /// In en, this message translates to:
-  /// **'Remove'**
-  String get clipRemove;
-
-  /// Heading of the dialog confirming a clip's removal
-  ///
-  /// In en, this message translates to:
-  /// **'Remove this clip?'**
-  String get clipRemoveTitle;
-
-  /// Body of the clip-removal confirmation, stating that the media is permanently deleted
-  ///
-  /// In en, this message translates to:
-  /// **'This deletes the clip\'s media from your device, along with anything transcribed from it. It cannot be undone.'**
-  String get clipRemoveMessage;
 
   /// Menu entry that moves a clip one place towards the start of the timeline
   ///
@@ -1660,22 +1636,16 @@ abstract class AppLocalizations {
   /// **'Get Pro'**
   String get exportGetPro;
 
-  /// Shown when Get Pro is tapped before purchases exist
-  ///
-  /// In en, this message translates to:
-  /// **'Purchases aren\'t connected yet.'**
-  String get exportProSoon;
-
   /// Header of the stand-in shown where a rewarded ad will play
   ///
   /// In en, this message translates to:
-  /// **'Ad placeholder'**
+  /// **'Test ad'**
   String get adPlaceholderLabel;
 
   /// Explains that this is not a real advert
   ///
   /// In en, this message translates to:
-  /// **'A rewarded ad plays here once ads are connected.'**
+  /// **'Shown when the ad network has nothing to play. Watch to the end to export this video without the watermark, or get Pro to skip ads for good.'**
   String get adPlaceholderBody;
 
   /// Button shown once the placeholder ad has finished
@@ -1755,6 +1725,396 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Watermark'**
   String get videoSettingsWatermarkItem;
+
+  /// Settings sheet row opening the transcription model manager
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription models'**
+  String get settingsModels;
+
+  /// Second line of the Transcription models settings row
+  ///
+  /// In en, this message translates to:
+  /// **'Add, remove and choose on-device models'**
+  String get settingsModelsDetail;
+
+  /// Settings sheet row opening the translation language pack manager
+  ///
+  /// In en, this message translates to:
+  /// **'Translation languages'**
+  String get settingsLanguages;
+
+  /// Second line of the Translation languages settings row
+  ///
+  /// In en, this message translates to:
+  /// **'Download or remove language packs'**
+  String get settingsLanguagesDetail;
+
+  /// Explanation at the top of the language pack manager
+  ///
+  /// In en, this message translates to:
+  /// **'Each language is a pack of about 30 MB, downloaded once. Text is always translated on this device.'**
+  String get languagesNote;
+
+  /// Button that downloads and installs a model or language pack
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get packAdd;
+
+  /// Button that deletes a downloaded model or language pack
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get packRemove;
+
+  /// Status of a model or language that ships with the app and cannot be removed
+  ///
+  /// In en, this message translates to:
+  /// **'Built in'**
+  String get packBuiltIn;
+
+  /// Status of a downloaded language pack
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get packInstalled;
+
+  /// Status of a model or language pack that is not on the device
+  ///
+  /// In en, this message translates to:
+  /// **'Not downloaded'**
+  String get packNotInstalled;
+
+  /// Status while a download is queued
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting…'**
+  String get packWaiting;
+
+  /// Status while a downloaded pack is moved into place
+  ///
+  /// In en, this message translates to:
+  /// **'Installing…'**
+  String get packInstalling;
+
+  /// Status after a download failed
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download. Try again.'**
+  String get packFailed;
+
+  /// Status of an installed model file whose header is not a whisper.cpp model
+  ///
+  /// In en, this message translates to:
+  /// **'Not a Whisper model this app can run'**
+  String get modelNotLoadable;
+
+  /// Title of the dialog confirming a model or language pack removal
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}?'**
+  String packRemoveTitle(String name);
+
+  /// Body of the dialog confirming a model or language pack removal
+  ///
+  /// In en, this message translates to:
+  /// **'It frees the space it takes, and can be added again at any time.'**
+  String get packRemoveBody;
+
+  /// Status while a pack downloads
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {percent}%'**
+  String packDownloading(int percent);
+
+  /// A pack's size on the device
+  ///
+  /// In en, this message translates to:
+  /// **'{size} MB'**
+  String packMegabytes(String size);
+
+  /// Status of an installed model that can run, with what its file says about it, e.g. 'small · q5_1 · 12 layers'
+  ///
+  /// In en, this message translates to:
+  /// **'Ready · {details}'**
+  String modelReady(String details);
+
+  /// A model's encoder depth, in its status line
+  ///
+  /// In en, this message translates to:
+  /// **'{count} layers'**
+  String modelLayers(int count);
+
+  /// Status while a pack downloads and its size is not known
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get packDownloadingUnknown;
+
+  /// Buy button while the price loads from the store
+  ///
+  /// In en, this message translates to:
+  /// **'Getting the price…'**
+  String get proBuyLoading;
+
+  /// Shown when the Pro offer could not be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'The store can\'t be reached right now. Check your connection.'**
+  String get proUnavailable;
+
+  /// Buy button when the offer could not be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get proRetry;
+
+  /// Shown when Restore found nothing
+  ///
+  /// In en, this message translates to:
+  /// **'No Pro purchase was found to restore.'**
+  String get proRestoreNone;
+
+  /// Shown when a purchase or restore failed for lack of connection
+  ///
+  /// In en, this message translates to:
+  /// **'No connection to the store. Try again when you\'re online.'**
+  String get proOffline;
+
+  /// Shown when a purchase failed
+  ///
+  /// In en, this message translates to:
+  /// **'The purchase didn\'t go through. Please try again.'**
+  String get proFailed;
+
+  /// Note at the top of the model manager
+  ///
+  /// In en, this message translates to:
+  /// **'Larger models are more accurate but consume more resources.'**
+  String get modelsNoteShort;
+
+  /// Confirm button of the download prompt
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get packDownload;
+
+  /// Download prompt body for a transcription model
+  ///
+  /// In en, this message translates to:
+  /// **'It\'s saved on this device and can be removed at any time.'**
+  String get packDownloadModelBody;
+
+  /// Download prompt body for a translation language
+  ///
+  /// In en, this message translates to:
+  /// **'About 30 MB, downloaded once.'**
+  String get packDownloadLanguageBody;
+
+  /// Title of the prompt before downloading a model or language pack
+  ///
+  /// In en, this message translates to:
+  /// **'Download {name}?'**
+  String packDownloadTitle(String name);
+
+  /// Shown on the Pro page when the store has no Pro product set up
+  ///
+  /// In en, this message translates to:
+  /// **'Pro isn\'t on sale yet. Please check back soon.'**
+  String get proNotOnSale;
+
+  /// Badge under the logo on the Pro page
+  ///
+  /// In en, this message translates to:
+  /// **'One-time · No subscription'**
+  String get proHeroBadge;
+
+  /// Pro page headline, two lines
+  ///
+  /// In en, this message translates to:
+  /// **'Pay once.\nKeep Argand yours.'**
+  String get proHeadline;
+
+  /// Pro page line under the headline
+  ///
+  /// In en, this message translates to:
+  /// **'Transcription and editing stay free. This removes the extras and keeps the app going.'**
+  String get proLede;
+
+  /// Pro benefit
+  ///
+  /// In en, this message translates to:
+  /// **'Support the developer'**
+  String get proSupportTitle;
+
+  /// Pro benefit detail
+  ///
+  /// In en, this message translates to:
+  /// **'Funds fixes, updates and new features'**
+  String get proSupportDetail;
+
+  /// Pro benefit
+  ///
+  /// In en, this message translates to:
+  /// **'No ads'**
+  String get proNoAdsTitle;
+
+  /// Pro benefit detail
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing between you and your edit'**
+  String get proNoAdsDetail;
+
+  /// Pro benefit
+  ///
+  /// In en, this message translates to:
+  /// **'No watermark'**
+  String get proNoWatermarkTitle;
+
+  /// Pro benefit detail
+  ///
+  /// In en, this message translates to:
+  /// **'Clean exports, every time'**
+  String get proNoWatermarkDetail;
+
+  /// Pro benefit
+  ///
+  /// In en, this message translates to:
+  /// **'Any new future Pro features'**
+  String get proFutureTitle;
+
+  /// Pro benefit detail
+  ///
+  /// In en, this message translates to:
+  /// **'Everything Pro gains later is yours too'**
+  String get proFutureDetail;
+
+  /// After the price on the Pro page
+  ///
+  /// In en, this message translates to:
+  /// **'once'**
+  String get proOnce;
+
+  /// Beside the price on the Pro page, two lines
+  ///
+  /// In en, this message translates to:
+  /// **'Yours for good.\nNo renewals.'**
+  String get proForGood;
+
+  /// Small print under the unlock button
+  ///
+  /// In en, this message translates to:
+  /// **'One-time purchase, charged to your Google Play account.'**
+  String get proFinePrint;
+
+  /// Top-bar button that restores an earlier Pro purchase
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get proRestoreShort;
+
+  /// Badge on the thank-you after buying Pro
+  ///
+  /// In en, this message translates to:
+  /// **'Supporter'**
+  String get proThanksBadge;
+
+  /// Thank-you headline after buying Pro
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you.'**
+  String get proThanksTitle;
+
+  /// Thank-you line after buying Pro
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re helping keep Argand independent. The extras are gone for good.'**
+  String get proThanksBody;
+
+  /// Thank-you check list item
+  ///
+  /// In en, this message translates to:
+  /// **'Ads removed'**
+  String get proThanksAds;
+
+  /// Thank-you check list item
+  ///
+  /// In en, this message translates to:
+  /// **'Watermark removed from exports'**
+  String get proThanksWatermark;
+
+  /// Thank-you check list item
+  ///
+  /// In en, this message translates to:
+  /// **'Every future Pro feature, included'**
+  String get proThanksFuture;
+
+  /// Thank-you check list item
+  ///
+  /// In en, this message translates to:
+  /// **'Restore anytime on a new device'**
+  String get proThanksRestore;
+
+  /// Thank-you button back to the library
+  ///
+  /// In en, this message translates to:
+  /// **'Back to projects'**
+  String get proThanksBack;
+
+  /// Pro page buy button with the store's price
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock for {price}'**
+  String proUnlock(String price);
+
+  /// Hidden test-only dialog title (long-press the logo in a Test Store build)
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Pro for testing?'**
+  String get proResetTitle;
+
+  /// Hidden test-only dialog body
+  ///
+  /// In en, this message translates to:
+  /// **'Starts over as a new test customer, so Pro is off until it\'s bought again. Test Store purchases are simulated and cost nothing.'**
+  String get proResetBody;
+
+  /// Hidden test-only dialog confirm
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Pro'**
+  String get proResetAction;
+
+  /// Shown after Pro was reset for testing
+  ///
+  /// In en, this message translates to:
+  /// **'Pro is off. Ready for another take.'**
+  String get proResetDone;
+
+  /// Shown when resetting Pro for testing failed
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reset Pro. Check the connection and try again.'**
+  String get proResetFailed;
+
+  /// Row under the model choice in the transcribe dialog; opens the model management page
+  ///
+  /// In en, this message translates to:
+  /// **'Manage models'**
+  String get transcriptionMoreModels;
+
+  /// Style panel scope: apply the change to everything said by the speakers of what is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Per speaker'**
+  String get styleScopeSpeaker;
+
+  /// Style panel scope when only translation lines are selected: apply to every translation line
+  ///
+  /// In en, this message translates to:
+  /// **'All translations'**
+  String get styleScopeAllTranslations;
 }
 
 class _AppLocalizationsDelegate

@@ -26,6 +26,7 @@ import 'editor_mode_controller.dart';
 import 'export_sheet.dart';
 import 'video_settings_panel.dart';
 import 'media_player_controller.dart';
+import 'project_fullscreen.dart';
 import 'subtitle_export_controller.dart';
 import 'timeline_screen.dart';
 import 'transcript_edit_controller.dart';
@@ -45,9 +46,6 @@ class ProjectScreen extends ConsumerStatefulWidget {
   final String projectId;
 
   /// Which mode to open in, chosen by the library's two entry points.
-  /// Null when reopening a project from the list -- that path instead
-  /// resolves to whichever mode [SessionEditorMode.select] last recorded for
-  /// it, falling back to [EditorMode.script] if nothing was ever recorded.
   final EditorMode? initialMode;
 
   /// Where to put the playhead once the media is ready: a clip and a time in
@@ -74,13 +72,8 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
 
     final initial = widget.initialMode;
     if (initial != null) {
-      // Already known -- the entry point decided, so there is nothing to
-      // look up. Deferred to a microtask because Riverpod forbids modifying
-      // a provider synchronously from `initState` -- that still runs while
-      // Flutter's build phase for this frame is in progress, even though it
-      // is this widget's *own* first build. A microtask runs right after,
-      // before the frame is painted, so there is still no flash of the
-      // wrong mode.
+      // Already known -- the entry point decided, so there is nothing to look
+      // up.
       Future.microtask(() {
         if (!mounted) return;
         ref
@@ -91,17 +84,12 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
     }
 
     // Reopened from the list: nothing decided which mode to show, so ask
-    // Settings for whatever this project was left in last. Losing the race
-    // with the first frame is fine -- Script mode is the default either way,
-    // and this only nudges the mode if the stored value differs from it.
+    // Settings for whatever this project was left in last.
     _restoreLastMode();
   }
 
   /// Shows [at]'s clip and, once its player has loaded, moves both the media
   /// and the timeline's playhead onto that moment.
-  ///
-  /// Listened for rather than awaited: the player loads when the screen first
-  /// builds it, and holding the subscription keeps it alive until then.
   void _openAt(({String clipId, int startMs}) at) {
     ref.read(selectedClipProvider(widget.projectId).notifier).select(at.clipId);
     _seekOnReady = ref.listenManual(
@@ -193,13 +181,7 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
-          // **Export sits in both modes and needs no transcript.** Rendering
-          // the timeline to video is a project-level act covering every clip,
-          // so gating it on the selected clip having been transcribed made it
-          // unreachable for exactly the projects most likely to want it, and
-          // invisible from Timeline mode where it most obviously belongs. What
-          // the sheet offers still depends on what exists; being able to open
-          // it does not.
+          // Export sits in both modes and needs no transcript.
           if (!editing)
             _ExportButton(projectId: widget.projectId),
           // Script mode's own controls. Timeline mode has its own toolbar
@@ -217,10 +199,7 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
             ),
           ],
         ],
-        // **No mode switch up here any more.** It moved into the video
-        // settings panel, opened from the gear under the stage in both modes:
-        // a switch that changes what the whole screen is belongs with the
-        // other things that change what the screen shows, not in the bar.
+        // No mode switch up here any more.
       ),
       body: project.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -249,9 +228,6 @@ class _ProjectScreenState extends ConsumerState<ProjectScreen> {
 }
 
 /// Opens the export sheet.
-///
-/// Shows a spinner in place of the icon while a file is being written, so a
-/// second tap cannot start an overlapping export and open two save dialogs.
 class _ExportButton extends ConsumerWidget {
   const _ExportButton({required this.projectId});
 
@@ -322,10 +298,6 @@ class _ExportButton extends ConsumerWidget {
 }
 
 /// Renders the video the sheet decided on, with its progress on screen.
-///
-/// **The ad is already over by the time this runs.** An unbranded export
-/// reaches here only with a waiver the sheet obtained, so nothing about paying
-/// for it happens after the file exists.
 Future<void> _renderVideo(
   BuildContext context,
   WidgetRef ref,
@@ -351,15 +323,6 @@ Future<void> _renderVideo(
 }
 
 /// Chooses how much of the transcript one tap opens, and explains the gestures.
-///
-/// The banner is where a user already looks to learn what editing does, so the
-/// choice lives here rather than as a third icon in the app bar.
-///
-/// **Word is not a convenience setting.** A retyped run keeps the outer span of
-/// what it replaced and divides the inside between the new words, so a smaller
-/// run means a smaller re-estimate. Editing one word confines any timing change
-/// to that word; editing the line spreads it across the line. The hint says so
-/// in each mode, because a user cannot pick sensibly without knowing it.
 class _EditScopeBanner extends ConsumerWidget {
   const _EditScopeBanner({
     required this.transcriptId,
@@ -382,14 +345,7 @@ class _EditScopeBanner extends ConsumerWidget {
     final scope = ref.watch(transcriptEditScopeSettingProvider);
     final anchor = ref.watch(speakerRangeAnchorProvider);
 
-    // Opaque, and its own gutters. It floats over the transcript now, so
-    // without a background the text would scroll visibly through it; and it no
-    // longer sits inside the scroll view, so it has to supply the margins that
-    // padding used to give it.
-    //
-    // The shadow is the app's usual one — hard, no blur, straight down — and
-    // it is what stops the transcript looking sheared off where it passes
-    // beneath. Full width, so it reads as an edge rather than as a card.
+    // Opaque, and its own gutters.
     final surface = context.surface;
 
     return DecoratedBox(
@@ -426,10 +382,7 @@ class _EditScopeBanner extends ConsumerWidget {
               onSelected: (value) {
                 // Neither a pending anchor nor an open field may survive the
                 // scope it was made in: the anchor would turn the next tap
-                // anywhere into a range assignment, and the field would be
-                // editing by a rule the user has just changed. Flush the
-                // field before closing it -- see
-                // `_InlineFieldState.dispose()`.
+                // anywhere into a range assignment.
                 ref.read(speakerRangeAnchorProvider.notifier).clear();
                 inlineFieldKey.currentState?.flush();
                 ref.read(inlineEditProvider.notifier).close();
@@ -478,13 +431,6 @@ class _EditScopeBanner extends ConsumerWidget {
 }
 
 /// The speakers a tap can assign, and the one it will.
-///
-/// Offers the transcript's own speakers plus **one more**, up to
-/// `SpeakerPalette.length`. Without that extra slot a block diarization gave
-/// entirely to one person could never be split: the second speaker has no words
-/// yet, so nothing would offer them. A speaker added this way has no acoustic
-/// evidence behind it, which is fine for the same reason reassignment exists at
-/// all — the person listening is the authority.
 class _SpeakerPalette extends ConsumerWidget {
   const _SpeakerPalette({required this.transcriptId, required this.speakers});
 
@@ -538,14 +484,6 @@ class _SpeakerPalette extends ConsumerWidget {
 }
 
 /// One speaker in the Speakers-scope palette.
-///
-/// Chosen fills with **that speaker's own colour**, not the theme's generic
-/// selection tint (`ChoiceChip`'s default, which this replaces) — picking a
-/// name should look like picking that person, the same signal the transcript
-/// and the caption overlay already give, not like picking any other option in
-/// the app. `AppTheme.inkOn` keeps the label readable against whichever
-/// colour that turns out to be, the same way it already does for the accent
-/// buttons.
 class _SpeakerChip extends StatelessWidget {
   const _SpeakerChip({
     required this.selected,
@@ -608,26 +546,6 @@ class _SpeakerChip extends StatelessWidget {
 }
 
 /// Undo and redo for the transcript's edit history.
-///
-/// The history is a table, not a field on this widget, so it survives leaving
-/// the project and relaunching the app: reopening a transcript a week later
-/// still offers to undo the last correction made to it.
-///
-/// Each button is disabled rather than hidden when it has nothing to do. A
-/// control that vanishes shifts the two beside it, and the app bar would
-/// reshuffle under the user's finger as they worked through a history.
-/// Undo/redo for a transcript's edit history. Public because Timeline mode
-/// reuses it verbatim in its own preview controls (`timeline_screen.dart`)
-/// rather than duplicating it.
-/// Undo and redo for the whole project.
-///
-/// **One history, one pair of buttons, both modes.** Keyed by project rather
-/// than by transcript: two stacks let undo take back a word edit while a later
-/// split stands, which assembles a document from two points in time and says
-/// nothing about it.
-///
-/// The button does not name what it will undo and does not move you to it. It
-/// takes back the last thing that happened, wherever that was.
 class HistoryControls extends ConsumerWidget {
   const HistoryControls({super.key, required this.projectId});
 
@@ -674,10 +592,6 @@ class _ProjectBody extends ConsumerStatefulWidget {
 
 class _ProjectBodyState extends ConsumerState<_ProjectBody> {
   /// Which of the clip's transcribed ranges is showing, when it has several.
-  ///
-  /// Null, or an id no longer present, both fall back to the first range —
-  /// which is what keeps this sane when the selected range is re-transcribed
-  /// or its layer removed out from under the screen.
   String? _selectedRangeId;
 
   @override
@@ -716,10 +630,7 @@ class _ProjectBodyState extends ConsumerState<_ProjectBody> {
       );
     }
 
-    // **The whole project, in timeline order.** Storage is per clip because
-    // word timings are relative to a clip's media, but that is an
-    // implementation detail and it was leaking: splitting a clip cut the
-    // script in half on screen and showed only the half the playhead was over.
+    // The whole project, in timeline order.
     final script = ref.watch(projectScriptProvider(project.id));
 
     final transcripts = ref.watch(clipTranscriptsProvider(clipId));
@@ -739,11 +650,6 @@ class _ProjectBodyState extends ConsumerState<_ProjectBody> {
         // The player needs the transcript id to draw captions over the video.
         // Null until the transcript loads, and null forever for a clip nobody
         // has transcribed -- the overlay simply does not appear.
-        //
-        // Deliberately the *selected* range rather than all of them merged:
-        // each range is its own diarization run, so a merged overlay would
-        // show one person in two colours and two names as the playhead crossed
-        // a boundary.
         _PlayerPane(
           projectId: project.id,
           clipId: clipId,
@@ -775,14 +681,8 @@ class _ProjectBodyState extends ConsumerState<_ProjectBody> {
                       onSelected: (id) => setState(() => _selectedRangeId = id),
                     ),
                   ),
-                // The player casts no shadow of its own — the transcript draws it,
-                // from inside its own stack. Two reasons. A column sibling paints
-                // before the one that follows it, so anything cast here would be
-                // covered by the transcript anyway. And putting it at the top of the
-                // transcript's viewport is what lets it *merge* with the edit bar's
-                // shadow: when the bar has slid fully away its own shadow lands on
-                // exactly that line, so the two become one instead of stacking into a
-                // double rule.
+                // The player casts no shadow of its own — the transcript draws
+                // it, from inside its own stack. Two reasons.
                 Expanded(
                   child: transcripts.when(
                     loading: () => const Center(child: CircularProgressIndicator()),
@@ -819,9 +719,6 @@ class _ProjectBodyState extends ConsumerState<_ProjectBody> {
 }
 
 /// A transcript's clip-relative range, for the range selector.
-///
-/// A null range means the whole clip — what a transcript written before layers
-/// existed carries — so it gets the plain label rather than a fabricated span.
 String _rangeLabel(Transcript transcript) {
   final start = transcript.clipStartMs;
   final end = transcript.clipEndMs;
@@ -897,22 +794,13 @@ class _Player extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // A fixed-height black stage, with the picture letterboxed inside
-            // it. The height cap stops a portrait video pushing the transcript
-            // off screen; the black is what makes the caption bar below read as
-            // part of the player. Without it the caption floats over page
-            // background beside a narrow portrait video, which looks like a
-            // stray tooltip rather than a caption.
+            // it.
             SizedBox(
               // The same stage as the timeline's, so switching modes does not
               // shrink the picture.
               height: hasVideo ? stageHeight : 120,
               width: double.infinity,
-              // **The output's frame, as the timeline draws it.** Both
-              // modes show the same picture: the project's shape, cropped the
-              // way the render crops, the watermark where it will be, and
-              // the captions inside the frame where they will be burned in
-              // -- live widgets here, never rasterized
-              // (docs/engine-architecture.md).
+              // The output's frame, as the timeline draws it.
               child: hasVideo
                   ? ColoredBox(
                       color: theme.colorScheme.surfaceContainerHighest,
@@ -977,6 +865,19 @@ class _Player extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(_formatPosition(value.position)),
+                // The same fullscreen preview as the timeline's: the whole
+                // edited frame, not the bare video.
+                if (hasVideo)
+                  IconButton(
+                    tooltip: l10n.timelineFullscreen,
+                    icon: const AppIcon(AppGlyph.fullscreen),
+                    onPressed: () => showProjectFullscreen(
+                      context,
+                      projectId: projectId,
+                      clipId: clipId,
+                      controller: controller,
+                    ),
+                  ),
                 VideoSettingsGear(projectId: projectId),
               ],
             ),
@@ -988,15 +889,6 @@ class _Player extends ConsumerWidget {
 }
 
 /// The caption for the current playback position, drawn over the video.
-///
-/// **Shared by both modes.** Script mode and the timeline draw the same
-/// overlay from the same [captionCuesProvider], so a sentence edited in one is
-/// already edited in the other -- there is no syncing step because there is
-/// only ever one set of cues, derived from the word rows both modes read.
-///
-/// This is the Tier 1 caption surface: one grouping mode, coloured by speaker,
-/// and structured all the way down — the cue keeps its words, so nothing here
-/// has flattened the caption into pixels or even into a bare string.
 class CaptionOverlay extends ConsumerWidget {
   const CaptionOverlay({
     super.key,
@@ -1035,8 +927,6 @@ class CaptionOverlay extends ConsumerWidget {
             textAlign: TextAlign.center,
             // Bounded so a large accessibility text scale cannot grow the
             // caption past the video and shove the controls off screen.
-            // Truncation is close to unreachable in practice because grouping
-            // already caps a cue at CaptionStyle.maxCharacters.
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -1065,9 +955,6 @@ class _TranscriptView extends ConsumerStatefulWidget {
   final String clipId;
 
   /// The range the *controls* act on -- edit scope, speaker names, undo.
-  ///
-  /// Null when the clip under the playhead has not been transcribed but others
-  /// have, which is ordinary once a project holds several clips.
   final Transcript? transcript;
 
   /// Every word in the project, and which clip each transcript sits on.
@@ -1078,22 +965,6 @@ class _TranscriptView extends ConsumerStatefulWidget {
 }
 
 /// Holds the transcript's scroll, because the edit bar above it has to follow.
-///
-/// **The bar slides, it does not collapse.** A first pass shrank its height as
-/// you scrolled, which reads as the page eating a control rather than as the
-/// control leaving. It now moves up by exactly the distance the transcript
-/// moves, so it travels at the speed of the text and disappears under the
-/// player — and comes straight back the moment you scroll the other way,
-/// without a trip to the top.
-///
-/// It is **stacked over** the transcript rather than sitting above it in a
-/// column, which is what makes the one-to-one tracking possible. It also fixes
-/// a bug the collapsing version had: shrinking a widget in the column changed
-/// the viewport height, which changed `maxScrollExtent`, which could clamp the
-/// offset back to zero — and zero reads as "at the top", so the bar reopened,
-/// the viewport shrank again, and the two chased each other for as long as a
-/// finger was down. An overlay never touches the scroll extent, so that loop
-/// cannot form.
 class _TranscriptViewState extends ConsumerState<_TranscriptView>
     with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
@@ -1101,17 +972,10 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
 
   /// Reaches whichever `_InlineField` is currently open, from outside the
   /// widget that owns it, so it can be flushed *before* something replaces or
-  /// clears `InlineEdit`'s span -- see `_InlineFieldState.dispose()` for why
-  /// that can't happen reactively instead. Shared with `_EditScopeBanner` and
-  /// `_WordFlowContent`, the other two places that mutate that span.
+  /// clears `InlineEdit`'s span.
   final _inlineFieldKey = GlobalKey<_InlineFieldState>();
 
   /// Drives the bar in and out when edit mode is entered or left.
-  ///
-  /// Separate from the scroll, which moves the bar too. Entering edit mode used
-  /// to make the control appear from nothing between two frames, which reads as
-  /// a glitch rather than as a thing arriving; it now slides down into place
-  /// and pushes the transcript down with it, and reverses on the way out.
   late final AnimationController _toggle = AnimationController(
     duration: const Duration(milliseconds: 220),
     vsync: this,
@@ -1164,10 +1028,6 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
   }
 
   /// Re-reads the bar's height after every layout.
-  ///
-  /// Cheap, and it has to be every time: the bar grows when the Speakers scope
-  /// reveals its swatches and when the system text scale changes, and a stale
-  /// height would leave the transcript padded for the wrong thing.
   void _measureBar() {
     final box = _barKey.currentContext?.findRenderObject() as RenderBox?;
     final height = box?.size.height ?? _barHeight;
@@ -1205,12 +1065,8 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
     });
 
     final shown = _shown.value;
-    // Stays mounted through the exit animation, and through the entrance
-    // before the first frame of it has been measured.
-    // **Also needs a range to act on.** The bar edits one transcript, and the
-    // clip under the playhead may not have been transcribed while others have
-    // -- ordinary once a project holds several clips. The script still shows
-    // in full; only the controls that need a target stand down.
+    // Stays mounted through the exit animation, and through the entrance before
+    // the first frame of it has been measured. Also needs a range to act on.
     final barPresent = widget.transcript != null &&
         (shown > 0 || ref.watch(transcriptEditModeProvider));
 
@@ -1224,9 +1080,7 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
     {
 
         // Every speaker this transcript actually contains, in the order they
-        // first appear. That is the set a turn can be reassigned to: inventing
-        // a speaker who never spoke would produce a colour and a label with
-        // nothing behind them.
+        // first appear.
         final speakers = <int>{
           for (final word in items)
             if (int.tryParse(word.speakerId ?? '') case final int speaker)
@@ -1234,10 +1088,7 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
         }.toList();
 
         // The word count scrolls with the text rather than being pinned above
-        // it. Pinned, it put a second horizontal edge between the player and
-        // the transcript, so the one shadow that should mark that boundary
-        // became two bands forty pixels apart. It is a fact about the
-        // transcript, not a control, and nothing is lost by letting it go.
+        // it.
         return Stack(
                 children: [
                   Positioned.fill(
@@ -1248,10 +1099,6 @@ class _TranscriptViewState extends ConsumerState<_TranscriptView>
                       controller: _scroll,
                       heading: l10n.wordCount(items.length),
                       // Starts the text below the bar rather than behind it.
-                      // Constant while scrolling, which is precisely why the
-                      // scroll extent cannot move underneath the gesture; it
-                      // only changes while the bar is arriving or leaving, and
-                      // then the text travels with it.
                       topInset: _barHeight * shown,
                       inlineFieldKey: _inlineFieldKey,
                     ),
@@ -1295,11 +1142,6 @@ class _WordFlow extends ConsumerWidget {
   final List<Word> words;
 
   /// Which clip each transcript sits on.
-  ///
-  /// The script spans the whole project now, so a word's own clip is the one
-  /// that has to be played -- [clipId] is merely where the playhead is, and
-  /// tapping a word in a different clip would otherwise seek the wrong file to
-  /// a time that means nothing in it.
   final Map<String, String> clipOfTranscript;
 
   /// Owned by [_TranscriptViewState], which needs it to drive the edit bar.
@@ -1366,11 +1208,6 @@ class _WordFlowContent extends ConsumerWidget {
   final List<Word> words;
 
   /// Which clip each transcript sits on.
-  ///
-  /// The script spans the whole project now, so a word's own clip is what has
-  /// to be played -- [clipId] is merely where the playhead is, and tapping a
-  /// word from another clip would otherwise seek the wrong file to a time that
-  /// means nothing in it.
   final Map<String, String> clipOfTranscript;
 
   final int? positionMs;
@@ -1484,23 +1321,6 @@ class _WordFlowContent extends ConsumerWidget {
   }
 
   /// Every caption line in the transcript, in order, separated by one rule.
-  ///
-  /// **Flat on purpose.** An earlier pass nested the lines under a per-turn
-  /// widget with a speaker chip above each group and extra air between groups.
-  /// That gave the page two rhythms — a tight one inside a turn and a loose one
-  /// between turns — so the eye read the gaps as structure and the transcript
-  /// came out lumpy. Every line now sits the same distance from its neighbours
-  /// whether or not the speaker changed, and **the timestamp carries the
-  /// speaker** instead: coloured from the same `SpeakerPalette` the captions use,
-  /// so who is talking is legible without a label taking up a line.
-  ///
-  /// The unit is a caption cue, not a paragraph and not a sentence.
-  /// `groupIntoCues` is the identical call the caption overlay makes, so a row
-  /// here is exactly one line as it appears over the video — same punctuation
-  /// breaks, same length and gap limits. Cues never straddle a speaker, since
-  /// that grouping breaks on speaker change before anything else, so slicing per
-  /// turn gives the same answer as grouping the whole transcript.
-  /// Whether [open] covers the whole of [cue].
 bool _covers(({int from, int to})? open, CaptionCue cue) =>
     open != null &&
     open.from <= cue.words.first.position &&
@@ -1520,13 +1340,9 @@ List<Widget> _cueRows(
       final open = ref.watch(inlineEditProvider);
       final rows = <Widget>[];
 
-    // **Each translation line under the caption row it overlaps most**, in
-    // its own transcript -- by time, not word position, so retyping the
-    // transcript (which renumbers its words) never moves a translation to
-    // the wrong row. Lines are made one per row, so this is exact until
-    // something is retimed; two landing on one row are read as one.
-    // Grouped once, and the same rows drawn below: the lines are matched to
-    // these very cues.
+    // Each translation line under the caption row it overlaps most, in its own
+    // transcript -- by time, not word position, so retyping the transcript
+    // (which renumbers its words) never moves a translation to the wrong row.
     final cuesOf = {for (final turn in turns) turn: groupIntoCues(turn.words)};
     final rowsOf = <String, List<CaptionCue>>{};
     for (final MapEntry(key: turn, value: cues) in cuesOf.entries) {
@@ -1576,10 +1392,8 @@ List<Widget> _cueRows(
             open: open,
             inlineFieldKey: inlineFieldKey,
             // Captured from this build's `open`, not re-read live: this field
-            // can be flushed pre-emptively (see `_correct`) after the
-            // provider has already moved on to a different span, and reading
-            // the provider at that point would commit this text into the
-            // *new* span instead of the one this field was opened for.
+            // can be flushed pre-emptively (see `_correct`) after the provider
+            // has already moved on to a different span.
             onCommit: (text) => _commit(
               ref,
               transcriptId: turn.words.first.transcriptId,
@@ -1592,13 +1406,8 @@ List<Widget> _cueRows(
             editing: editing,
             anchor: anchor,
             speaker: turn.speaker,
-            // In Line scope the unit is the row, so the row is the target
-            // — including the empty space after a short line. Tapping to the
-            // right of "right?" did nothing before, because a `TextSpan`'s
-            // recogniser only covers its own glyphs.
-            //
-            // Null in Word scope, where empty space names no word, and null on
-            // the row already open, where the taps belong to the field.
+            // In Line scope the unit is the row, so the row is the target —
+            // including the empty space after a short line.
             onRowTap: editing &&
                     scope == TranscriptEditScope.line &&
                     !_covers(open, cue)
@@ -1609,9 +1418,7 @@ List<Widget> _cueRows(
                 : _seekToWord(ref, turn.words[o]),
             // The timestamp is the speaker signal, so in edit mode it is also
             // the speaker control -- the thing you tap is the thing you are
-            // changing, which is the same rule the removed chip followed. It is
-            // the only route to reassigning a turn and to renaming a speaker,
-            // both of which used to hang off that chip.
+            // changing, which is the same rule the removed chip followed.
             onStampTap: editing && speakers.length > 1
                 ? () => _reassignTurn(context, ref, turn, speakers)
                 : () => _seekToWord(ref, cue.words.first),
@@ -1648,20 +1455,6 @@ List<Widget> _cueRows(
   }
 
   /// Opens the word at [offset] within [turn], or the sentence containing it.
-  ///
-  /// **Which one is the user's choice, and it is a real one.** A retyped run
-  /// keeps the outer span of what it replaced and divides the inside between
-  /// the new words, so the run is exactly the blast radius of any re-estimated
-  /// timing. Line is the default because the corrections people actually make
-  /// often span a word boundary — "brainbeats" for "praying beads" cannot be
-  /// typed one word at a time — and seeing the line gives the context being
-  /// corrected against. Word is there for when the timing matters more, and
-  /// confines the change to that one word's box.
-  ///
-  /// In line mode the unit is the sentence **within this turn**, not across the
-  /// transcript. A turn is one voice by construction, so every word the editor
-  /// can add inherits an unambiguous speaker — a sentence that straddled a
-  /// handover would have no such answer.
   Future<void> _correct(
     BuildContext context,
     WidgetRef ref,
@@ -1676,12 +1469,9 @@ List<Widget> _cueRows(
       return;
     }
 
-    // **Line means the row, not the sentence.** It used to mean the sentence
+    // Line means the row, not the sentence. It used to mean the sentence
     // containing the tapped word, which was right when the transcript was one
-    // undivided run of prose. Now a row is a caption cue, and a sentence can
-    // span two of them — so a sentence-sized target opened a field on *both*
-    // rows, each holding half the span and each able to commit over the other.
-    // The unit the user points at is the unit they should get.
+    // undivided run of prose.
     final slice = switch (scope) {
       TranscriptEditScope.word => [turn.words[offset]],
       TranscriptEditScope.line => cue.words,
@@ -1690,10 +1480,8 @@ List<Widget> _cueRows(
     if (slice.isEmpty) return;
 
     // Tapping straight from one word/line to another replaces the open span
-    // without the first field ever losing focus, so nothing else would
-    // commit it. Flush it now, while it is still mounted and a `ref.read`
-    // inside its `onCommit` is safe -- `dispose()` explains why this can't
-    // be left to happen reactively once the span has already moved on.
+    // without the first field ever losing focus, so nothing else would commit
+    // it.
     inlineFieldKey.currentState?.flush();
 
     ref.read(inlineEditProvider.notifier).open(
@@ -1703,11 +1491,6 @@ List<Widget> _cueRows(
   }
 
   /// Writes a retyped span back, and closes the editor.
-  ///
-  /// The repository decides whether anything actually changed, so a field
-  /// dismissed with the text untouched costs no undo slot. A single-word span
-  /// needs no special case: `replaceSentence` takes `from == to`, and the
-  /// planner then divides that one word's span and nothing else.
   static Future<void> _commit(
     WidgetRef ref, {
     required String transcriptId,
@@ -1725,16 +1508,6 @@ List<Widget> _cueRows(
   }
 
   /// One half of a two-tap speaker range.
-  ///
-  /// The first tap remembers where the range starts; the second applies it and
-  /// forgets. Tapping the anchor itself assigns that one word, which is the
-  /// common case of moving a single stray word off the wrong speaker.
-  ///
-  /// Two taps rather than a drag because the transcript scrolls vertically and
-  /// a paint stroke would fight the scroll gesture. The range spans the
-  /// transcript rather than being clamped to a turn: splitting means taking
-  /// *part* of a turn, and sweeping across two half-turns to merge them is
-  /// equally legitimate.
   Future<void> _assignSpeaker(WidgetRef ref, Word word) async {
     final anchor = ref.read(speakerRangeAnchorProvider);
     if (anchor == null) {
@@ -1775,9 +1548,7 @@ List<Widget> _cueRows(
     if (chosen == null || chosen == turn.speaker) return;
 
     // Addressed by position: a turn is a contiguous run, and the correction
-    // applies to all of it. Reassigning one half of a wrongly-split sentence
-    // makes the two turns merge back on the next rebuild, with no separate
-    // merge action needed.
+    // applies to all of it.
     await ref.read(transcriptRepositoryProvider).reassignSpeaker(
           transcriptId: turn.words.first.transcriptId,
           fromPosition: turn.words.first.position,
@@ -1788,14 +1559,6 @@ List<Widget> _cueRows(
 }
 
 /// The hairline between two cues.
-///
-/// Faded rather than a full-strength divider. The page already carries speaker
-/// chips and a playhead highlight; a solid rule between every line would
-/// out-shout both and turn the transcript back into a grid. This should read
-/// as a seam, not as a border.
-/// A sentence's translation, under the line that ends the sentence: a short
-/// rule, then the translated text in the quieter ink, set in the words'
-/// column so it reads as belonging to them.
 class _TranslationLine extends StatefulWidget {
   const _TranslationLine({
     super.key,
@@ -1816,10 +1579,6 @@ class _TranslationLine extends StatefulWidget {
 }
 
 /// A caption row's translation, under it: a short rule, then the line.
-///
-/// **Its own words, edited on their own.** Retyping it changes the
-/// translation and nothing else -- the transcript above is not touched and
-/// nothing is translated again -- and emptying it removes it.
 class _TranslationLineState extends State<_TranslationLine> {
   TextEditingController? _field;
   final _focus = FocusNode();
@@ -1883,6 +1642,9 @@ class _TranslationLineState extends State<_TranslationLine> {
         textDirection: translationDirectionOf(field.text),
         decoration: const InputDecoration(
           isCollapsed: true,
+          // Explicitly none: a collapsed field still takes the theme's
+          // padding, which moved the words when the field opened.
+          contentPadding: EdgeInsets.zero,
           filled: false,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
@@ -1913,19 +1675,63 @@ class _TranslationLineState extends State<_TranslationLine> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.editable && field == null ? _open : null,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Across the text column, from the words' edge: the length of
+            // what it separates, and short of the row rule (`_CueRule`),
+            // which also runs under the timestamps.
             ColoredBox(
               color: appHairline(theme),
-              child: const SizedBox(height: appHairlineWidth, width: 32),
+              child: const SizedBox(height: appHairlineWidth),
             ),
-            const SizedBox(height: AppSpacing.xs),
-            line,
+            // Room for the edit box, open or not, so opening it moves
+            // nothing.
+            const SizedBox(height: AppSpacing.sm),
+            if (field == null)
+              line
+            else
+              // Script's edit box -- the action colour, 2pt, square -- drawn
+              // *around* the text rather than padding it, so the words stay
+              // exactly where they were when the field opens.
+              CustomPaint(
+                foregroundPainter: _EditBoxPainter(
+                  color: theme.colorScheme.primary,
+                ),
+                child: line,
+              ),
           ],
         ),
       ),
     );
   }
+}
+
+/// The inline edit box's outline, painted outside the child's bounds: as far
+/// out as `_InlineField`'s padding and border reach, without taking any room.
+class _EditBoxPainter extends CustomPainter {
+  _EditBoxPainter({required this.color});
+
+  final Color color;
+
+  static const _stroke = 2.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const dx = AppSpacing.xs + _stroke / 2;
+    const dy = AppSpacing.xxs + _stroke / 2;
+    final rect =
+        Rect.fromLTRB(-dx, -dy, size.width + dx, size.height + dy);
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _stroke,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _EditBoxPainter old) => old.color != color;
 }
 
 class _CueRule extends StatelessWidget {
@@ -1944,13 +1750,6 @@ class _CueRule extends StatelessWidget {
 }
 
 /// One caption line: its start time, then its words.
-///
-/// The timestamp is a control rather than a label — tapping it seeks there,
-/// which is how a transcript panel is expected to behave. It works in edit
-/// mode too, since moving the playhead never changes the transcript.
-///
-/// State exists only to own the tap recognisers. A `TapGestureRecognizer` holds
-/// a gesture-arena entry and must be disposed, and there is one per word.
 class _CueLine extends StatefulWidget {
   const _CueLine({
     required this.cue,
@@ -2000,10 +1799,7 @@ class _CueLine extends StatefulWidget {
   final VoidCallback onStampTap;
   final ValueChanged<String> onCommit;
 
-  /// Shared across every `_InlineField` this transcript can build. At most
-  /// one is ever open at a time (`InlineEdit` holds a single span), so one
-  /// key is enough to let a caller reach the live field and flush it before
-  /// replacing it — see `_WordFlowContent._correct`.
+  /// Shared across every `_InlineField` this transcript can build.
   final GlobalKey<_InlineFieldState> inlineFieldKey;
 
   @override
@@ -2012,9 +1808,7 @@ class _CueLine extends StatefulWidget {
 
 class _CueLineState extends State<_CueLine> {
   /// Room for `mm:ss`, scaled with the text so a large accessibility setting
-  /// cannot clip it. Every row has to agree on the same gutter or the left
-  /// edge of the transcript goes ragged, so this is a shared constant rather
-  /// than an intrinsic measurement.
+  /// cannot clip it.
   static const double _stampWidth = 46;
 
   final _recognizers = <TapGestureRecognizer>[];
@@ -2092,15 +1886,7 @@ class _CueLineState extends State<_CueLine> {
   TextStyle _lineStyle(ThemeData theme) =>
       theme.textTheme.bodyLarge!.copyWith(fontSize: 19, height: 1.7);
 
-  /// Either the cue's words, or a field standing in for the part being
-  /// retyped.
-  ///
-  /// Two shapes, because the two scopes mean different things. Retyping a
-  /// **line** replaces the row wholesale: the correction usually spans several
-  /// words -- "brainbeats" for "praying beads" cannot be typed one word at a
-  /// time -- so the field has to hold the run. Retyping a **word** leaves the
-  /// rest of the line set as prose and opens a box around that one word, which
-  /// keeps the sentence readable while its one wrong word is fixed.
+  /// Either the cue's words, or a field standing in for the part being retyped.
   Widget _body(ThemeData theme) {
     final open = widget.open;
     final words = widget.cue.words;
@@ -2121,16 +1907,6 @@ class _CueLineState extends State<_CueLine> {
   }
 
   /// The speaker's colour, in the version that can be read as text.
-  ///
-  /// Two passes got this wrong in opposite directions. Fitting each hue by
-  /// blending it toward black made the light theme readable and muddy — amber
-  /// went olive, cyan went teal — because blending with black desaturates.
-  /// Using the raw fills in both themes kept them vivid and left amber at
-  /// 1.28:1 on the cream ground, which is close to invisible.
-  ///
-  /// `SpeakerPalette.textColorFor` is the third answer: a purpose-built set
-  /// for the light ground, full saturation at the lightest tone that clears
-  /// 4.5:1, with the dark theme still using the fills unchanged.
   Color _stampColour(ThemeData theme) {
     return SpeakerPalette.textColorFor(
       widget.speaker,
@@ -2154,9 +1930,7 @@ class _CueLineState extends State<_CueLine> {
       _recognizers.add(recognizer);
 
       // A single word open for retyping becomes a field in the middle of the
-      // prose. `WidgetSpan` is what makes that possible: it takes part in line
-      // breaking like any other word, so the sentence still wraps correctly
-      // around the box.
+      // prose.
       if (widget.open case final open?
           when open.from == word.position && open.to == word.position) {
         spans.add(
@@ -2185,8 +1959,7 @@ class _CueLineState extends State<_CueLine> {
           recognizer: recognizer,
           style: base.copyWith(
             backgroundColor: switch ((anchored, active)) {
-              // Selection, so it takes the selection colour rather than the
-              // call-to-action fill.
+              // Selection, so it takes the selection colour.
               (true, _) => theme.colorScheme.secondary,
               (false, true) => theme.colorScheme.primaryContainer,
               _ => null,
@@ -2199,9 +1972,7 @@ class _CueLineState extends State<_CueLine> {
             fontWeight: anchored ? FontWeight.w700 : null,
             // Edit mode has to say "these words are targets, not seek points".
             // A per-word tint did that when words were tiles and cannot here:
-            // the gaps between them stay untinted, so a line comes out
-            // striped. An underline is the text-native way to say it and
-            // leaves the page reading as prose.
+            // the gaps between them stay untinted, so a line comes out striped.
             decoration: widget.editing && !anchored
                 ? TextDecoration.underline
                 : null,
@@ -2224,14 +1995,6 @@ class _CueLineState extends State<_CueLine> {
 }
 
 /// The transcript line, or word, being retyped — in place.
-///
-/// **No dialog.** Retyping is a keyboard task and a keyboard already covers
-/// half the screen; a modal on top of that hides the very context the
-/// correction is being made against. Here the surrounding lines stay put and
-/// readable, and the only new thing on screen is the keyboard.
-///
-/// Set in the transcript's own type so the words do not jump size or weight
-/// the moment they become editable.
 class _InlineField extends StatefulWidget {
   const _InlineField({
     super.key,
@@ -2241,17 +2004,8 @@ class _InlineField extends StatefulWidget {
     required this.onCommit,
   });
 
-  /// Identifies *which* span this field is editing -- `(from, to)` works,
-  /// since records compare by value.
-  ///
-  /// Every `_InlineField` in the transcript shares one `GlobalKey` (see
-  /// `_CueLine.inlineFieldKey`), so a caller elsewhere can reach and flush
-  /// whichever one is currently open. That means a tap that moves straight
-  /// from one word to another **reuses this State object** for what is
-  /// logically a new editing session, rather than disposing it and creating
-  /// a fresh one -- Flutter has no way to know the two widgets aren't the
-  /// same field just because their `initial` text differs. `didUpdateWidget`
-  /// compares this key and resets the session when it changes.
+  /// Identifies *which* span this field is editing -- `(from, to)` works, since
+  /// records compare by value.
   final Object sessionKey;
 
   final String initial;
@@ -2288,10 +2042,7 @@ class _InlineFieldState extends State<_InlineField> {
     super.initState();
     _focus.addListener(_onFocusChange);
 
-    // Bring the row into view straight away, keyboard or not. A row can be
-    // half off the bottom when it is tapped, and on a device whose keyboard
-    // floats -- Gboard's floating mode, a physical keyboard -- no inset ever
-    // arrives to trigger the second scroll below.
+    // Bring the row into view straight away, keyboard or not.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_shown) return;
       _shown = true;
@@ -2304,10 +2055,7 @@ class _InlineFieldState extends State<_InlineField> {
     super.didUpdateWidget(oldWidget);
     if (widget.sessionKey == oldWidget.sessionKey) return;
 
-    // The shared `GlobalKey` handed this widget the *previous* field's
-    // State. Start a fresh session rather than carrying over its text,
-    // commit flag and scroll guards -- otherwise the box for the new word
-    // would open still showing the old one's (possibly edited) content.
+    // The shared `GlobalKey` handed this widget the *previous* field's State.
     _committed = false;
     _shown = false;
     _raised = false;
@@ -2329,15 +2077,7 @@ class _InlineFieldState extends State<_InlineField> {
 
   @override
   void dispose() {
-    // Deliberately does **not** flush here. A field can be torn down without
-    // ever losing focus first -- tapping a different word or line, switching
-    // Line/Word/Speakers scope, and leaving edit mode all replace or clear
-    // `InlineEdit`'s span directly -- and committing needs `ref.read`, which
-    // Flutter refuses to run during `dispose()` ("Looking up a deactivated
-    // widget's ancestor is unsafe"). Those three call sites flush *this*
-    // field through [flush], via `inlineFieldKey`, before they touch the
-    // provider -- i.e. while the field is still fully mounted and a lookup is
-    // safe -- so by the time `dispose()` runs there is nothing left to do.
+    // Deliberately does not flush here.
     _focus
       ..removeListener(_onFocusChange)
       ..dispose();
@@ -2346,23 +2086,11 @@ class _InlineFieldState extends State<_InlineField> {
   }
 
   /// Losing focus commits rather than discards.
-  ///
-  /// Tapping away from a half-typed correction almost always means "that will
-  /// do", not "throw it away", and there is no visible Save to press instead.
-  /// Nothing is risked by being wrong: the repository compares the text and
-  /// spends no undo slot when it is unchanged, and a real change is one undo
-  /// away.
   void _onFocusChange() {
     if (!_focus.hasFocus && mounted) flush();
   }
 
   /// Commits whatever is typed, once.
-  ///
-  /// Called from the normal blur/submit path, and pre-emptively (via
-  /// `inlineFieldKey.currentState?.flush()`) by anything about to replace or
-  /// clear the open span — see `dispose()` for why it can't wait and do this
-  /// itself. Idempotent, so a normal blur followed by the field's own
-  /// teardown never double-commits.
   void flush() {
     if (_committed) return;
     _committed = true;
@@ -2375,9 +2103,7 @@ class _InlineFieldState extends State<_InlineField> {
 
     // Again once the keyboard has taken its space, because that changes what
     // "visible" means: the scaffold shrinks the body, and a row that was in
-    // view a moment ago can now be underneath the keys. Gated on a real inset,
-    // so a floating keyboard -- which covers nothing -- does not scroll the
-    // page for no reason.
+    // view a moment ago can now be underneath the keys.
     if (_raised || MediaQuery.viewInsetsOf(context).bottom == 0) return;
     _raised = true;
 
@@ -2417,14 +2143,7 @@ class _InlineFieldState extends State<_InlineField> {
           horizontal: AppSpacing.xs,
           vertical: AppSpacing.xxs,
         ),
-        // A box, not a fill. The fill used to carry the "this is being
-        // edited" signal, but it borrowed `primaryContainer` -- the same
-        // colour the playhead highlight uses for "this is playing" -- so the
-        // two unrelated meanings read as one. The border alone is enough, and
-        // it uses the accent (`colorScheme.primary`): already tuned per
-        // theme against its own ground (`AppTheme._yellow` / `_blue`, chosen
-        // in `AppTheme.light/dark`), so it never has to share a colour with
-        // anything else on screen.
+        // A box, not a fill.
         border: OutlineInputBorder(
           borderRadius: BorderRadius.zero,
           borderSide: BorderSide(color: theme.colorScheme.primary, width: 2),
@@ -2443,13 +2162,6 @@ class _InlineFieldState extends State<_InlineField> {
 }
 
 /// The speakers a tap can assign, and the one it will.
-///
-/// Offers the transcript's own speakers plus **one more**, up to
-/// `SpeakerPalette.length`. Without that extra slot a block diarization gave
-/// entirely to one person could never be split: the second speaker has no
-/// words yet, so nothing would offer them. A speaker added this way has no
-/// acoustic evidence behind it, which is fine for the same reason reassignment
-/// exists at all — the person listening is the authority.
 class _SpeakerPicker extends ConsumerWidget {
   const _SpeakerPicker({
     required this.speakers,
@@ -2522,11 +2234,6 @@ class _SpeakerPicker extends ConsumerWidget {
   }
 
   /// Gives one speaker a name, or clears it back to the numbered default.
-  ///
-  /// Not routed through the undo log. The log replays edits to word rows; a
-  /// name lives on the transcript, and retyping it is its own undo. Putting it
-  /// in the history would also mean undoing a typo had to step back through a
-  /// renaming first.
   Future<void> _rename(
     BuildContext context,
     WidgetRef ref,
@@ -2555,10 +2262,6 @@ class _SpeakerPicker extends ConsumerWidget {
 }
 
 /// One text field for a speaker's name.
-///
-/// An empty field is meaningful rather than invalid: it clears the name and
-/// restores `Speaker N`, which the note under the field says outright so the
-/// user does not have to discover it.
 class _SpeakerNameEditor extends StatefulWidget {
   const _SpeakerNameEditor({required this.speaker, required this.initial});
 
@@ -2620,11 +2323,6 @@ class _SpeakerNameEditorState extends State<_SpeakerNameEditor> {
 }
 
 /// Index of the word being spoken at [positionMs], or -1 before the first one.
-///
-/// Falls back to the most recent word that has already started rather than
-/// requiring an exact span match: DTW timestamps leave small gaps between
-/// consecutive words, and an exact test would make the highlight flicker off
-/// in each gap.
 int _activeWordIndex(List<Word> words, int positionMs) {
   var candidate = -1;
   for (var i = 0; i < words.length; i++) {

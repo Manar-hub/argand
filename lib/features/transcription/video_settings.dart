@@ -10,14 +10,8 @@ import 'transcript_repository.dart';
 
 part 'video_settings.g.dart';
 
-/// How a project's video is framed: the shape and size it renders at, where
-/// its watermark goes, and whether the preview shows that watermark.
-///
-/// **One set per project, shared by the timeline and the export sheet.** The
-/// shape is decided while editing -- a 9:16 reel is cut differently from a
-/// 16:9 video -- so it belongs to the project, and the preview has to show it
-/// from the moment it is chosen rather than only at export. The export sheet
-/// reads and writes the same values, so the two can never disagree.
+/// How a project's video is framed: the shape and size it renders at, where its
+/// watermark goes, and whether the preview shows that watermark.
 class VideoSettings {
   const VideoSettings({
     this.aspect = ExportAspect.source,
@@ -33,10 +27,6 @@ class VideoSettings {
   final WatermarkCorner corner;
 
   /// Whether the timeline draws the watermark over the preview.
-  ///
-  /// **The preview only.** Whether an export carries the mark is decided at
-  /// export, by an ad or by Pro; this just lets someone see the picture
-  /// without it while they work.
   final bool previewWatermark;
 
   VideoSettings copyWith({
@@ -59,9 +49,6 @@ class VideoSettings {
 
   /// [exportOptions] for a source with [sourceShortEdge] pixels on its short
   /// edge: the chosen size, brought down to one the footage can fill.
-  ///
-  /// The stored choice is left alone, so a project set to 4K keeps asking for
-  /// 4K when a 4K clip is added later.
   ExportOptions exportOptionsFor(int? sourceShortEdge) =>
       exportOptions.copyWith(quality: quality.fitTo(sourceShortEdge));
 
@@ -114,10 +101,6 @@ class VideoSettings {
 }
 
 /// The `Settings` key a project's video settings live under.
-///
-/// The key/value table rather than new columns on `Projects`: the same choice
-/// CLAUDE.md §2 makes for per-project unlocks, and for the same reason -- a
-/// setting like this needs no migration.
 String videoSettingsKey(String projectId) => 'project.$projectId.video';
 
 /// A project's video settings, changed live.
@@ -132,10 +115,6 @@ class ProjectVideoSettings extends _$ProjectVideoSettings {
   }
 
   /// Applies [next] now and stores it.
-  ///
-  /// **Shown before it is saved.** The preview follows a tap in the same frame
-  /// rather than after a database round trip, which is what makes changing the
-  /// shape feel like moving a control rather than submitting a form.
   Future<void> change(VideoSettings next) async {
     state = AsyncData(next);
     await ref
@@ -146,10 +125,6 @@ class ProjectVideoSettings extends _$ProjectVideoSettings {
 
 /// The pixel size of the project's footage: its first clip, which is what the
 /// render sizes every export from.
-///
-/// Null until there is a clip, and whenever the size cannot be read. Used to
-/// offer only the export sizes the footage can fill; unknown is treated as
-/// "assume 1080p" there, never as zero.
 @riverpod
 Future<({int width, int height})?> projectSourceSize(
   Ref ref,

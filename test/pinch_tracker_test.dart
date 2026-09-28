@@ -118,9 +118,8 @@ void main() {
 
     test('a phantom pointer cannot wedge the gesture', () {
       // The failure this exists for: an up that never arrives used to leave a
-      // finger on the track forever, and every later pinch found three
-      // pointers and refused to measure. The newest two win, so the next real
-      // pinch works.
+      // finger on the track forever, and every later pinch found three pointers
+      // and refused to measure.
       final tracker = PinchTracker();
       tracker.down(1, const Offset(0, 0)); // never lifted
 

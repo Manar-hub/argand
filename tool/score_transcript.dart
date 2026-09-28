@@ -1,44 +1,4 @@
 // Scores whisper transcript dumps for word accuracy against a reference.
-//
-// Companion to `tool/score_repetition.dart`. That one answers "did the decoder
-// break?"; this one answers "did it hear the right words?" — the failure where
-// nothing loops but the app produces "Climidial" where whisper-cli produces
-// "Chlamydia".
-//
-// **The reference is a proxy, not ground truth.** It is normally a `whisper-cli`
-// run under a configuration judged better by inspection, so WER here measures
-// distance from that configuration rather than distance from what was actually
-// said. Read it as "closer to the good result", and always read the printed
-// substitutions rather than the rate alone.
-//
-// **Three numbers, because one was misleading.** A normalized comparison folds
-// case and drops punctuation, which is right for "did it hear the word" and
-// wrong for everything else — a run reported as reproducing the reference
-// "exactly, 0.0% WER" can still differ word-for-word on case and punctuation
-// across most of the transcript. So this prints:
-//
-//   WER   normalized: content only, case and punctuation discarded
-//   VERB  verbatim:   the word-for-word number, differences included
-//   PUNCT sentence and clause terminator counts against the reference
-//
-// The punctuation line is not decoration. `sentence_boundaries.dart` turns
-// those terminators into the sentence units that speaker assignment attributes
-// as a whole, so a lever that improves WER while moving terminators makes
-// diarization worse in a way the rate alone cannot show.
-//
-// Imports `lib/core/text/transcript_diff.dart` rather than reimplementing the
-// alignment, so a native measurement and an on-device one cannot disagree for
-// reasons unrelated to whisper.
-//
-// Usage:
-//   dart run tool/score_transcript.dart --reference ref.txt run1.txt [run2.txt ...]
-//   dart run tool/score_transcript.dart --reference ref.txt --edits 30 run1.txt
-//   dart run tool/score_transcript.dart --reference ref.txt --keep-tags run1.txt
-//
-// `--keep-tags` stops `[BLANK_AUDIO]` and `[LAUGHTER]` being stripped before
-// scoring. Required when measuring `suppress_non_speech_tokens`, whose whole
-// effect is whether those tags appear: with them stripped the flag is being
-// judged by an instrument that cannot see it.
 
 import 'dart:io';
 

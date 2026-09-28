@@ -66,6 +66,8 @@ dependencies:
   # The Argand logo: body and hand are separate single-colour SVGs, so the
   # hand can take the user's action colour (lib/core/theme/argand_logo.dart).
   flutter_svg: ^2.3.0
+  purchases_flutter: ^10.13.2
+  google_mobile_ads: ^9.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

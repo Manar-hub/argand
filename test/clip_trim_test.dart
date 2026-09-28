@@ -176,10 +176,7 @@ void main() {
   });
 
   group('media time survives a trim', () {
-    // **The property that broke silently.** Measuring trimmed clips changed
-    // what `clipAt` returned without changing what its callers expected, so
-    // scrubbing over a trimmed clip seeked to the wrong frame and its
-    // sentences drew in the wrong place. Both conversions speak media time.
+    // The property that broke silently.
     final timeline = ProjectTimeline.fromClips([
       clip(id: 'a', position: 0, trimStartMs: 4000, trimEndMs: 10000),
       clip(id: 'b', position: 1),
@@ -232,10 +229,9 @@ void main() {
   });
 
   group('rolling the cut between two halves of a split', () {
-    // **The 14s file that became a 22s project.** Splitting german.mp4 at 6s
-    // and dragging one half outward re-covered footage the other half already
-    // played: 14 + 8 = 22, with the overlap playing twice. Rolling gives one
-    // side exactly what the other gives up.
+    // The 14s file that became a 22s project. Splitting german.mp4 at 6s and
+    // dragging one half outward re-covered footage the other half already
+    // played: 14 + 8 = 22, with the overlap playing twice.
     const german = '/media/german.mp4';
     MediaClip left({int end = 6000}) => clip(
           id: 'L',
@@ -331,6 +327,52 @@ void main() {
       ]);
 
       expect(timeline.totalMs, 14000);
+    });
+  });
+
+  group('playbackAfter', () {
+    // One 40 s file, cut in three; the pieces listed in timeline order.
+    MediaClip piece(String id, int from, int to, {String file = 'a'}) => clip(
+          id: id,
+          durationMs: 40000,
+          trimStartMs: from,
+          trimEndMs: to,
+          mediaPath: '/media/$file.mp4',
+        );
+
+    test('the last clip stops at its out-point, not the end of the file', () {
+      final first = piece('a1', 0, 10000);
+      expect(playbackAfter(first, [first]), (stop: true, seekToMs: null));
+    });
+
+    test('a piece cut out between two is skipped over', () {
+      final first = piece('a1', 0, 10000);
+      final third = piece('a3', 20000, 40000);
+      expect(
+        playbackAfter(first, [first, third]),
+        (stop: false, seekToMs: 20000),
+      );
+    });
+
+    test('touching pieces of one file play straight on', () {
+      final first = piece('a1', 0, 10000);
+      final second = piece('a2', 10000, 40000);
+      expect(
+        playbackAfter(first, [first, second]),
+        (stop: false, seekToMs: null),
+      );
+    });
+
+    test('the next clip on another file, or earlier in this one, stops', () {
+      final first = piece('a2', 10000, 20000);
+      expect(
+        playbackAfter(first, [first, piece('b', 0, 5000, file: 'b')]),
+        (stop: true, seekToMs: null),
+      );
+      expect(
+        playbackAfter(first, [first, piece('a1', 0, 10000)]),
+        (stop: true, seekToMs: null),
+      );
     });
   });
 }

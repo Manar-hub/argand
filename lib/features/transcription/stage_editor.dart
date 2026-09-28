@@ -25,11 +25,6 @@ import 'transcript_repository.dart';
 part 'stage_editor.g.dart';
 
 /// Placements being changed right now, before they are saved.
-///
-/// **Held apart from the database while a finger is down.** A drag produces
-/// sixty positions a second; writing each would put sixty rows in the undo
-/// log and sixty queries behind every frame. The stage draws from here while
-/// the gesture runs, and one write -- one undo step -- lands when it ends.
 @riverpod
 class StageLive extends _$StageLive {
   @override
@@ -49,9 +44,6 @@ class StageLive extends _$StageLive {
 const Duration _settle = Duration(milliseconds: 220);
 
 /// Where [item] sits: being dragged, or as stored.
-///
-/// Sentences have no row of their own, so their stored placement is passed
-/// in [sentences], resolved from their words by whoever has them.
 ItemTransform placementOf(
   TimelineItem item, {
   required Map<TimelineItem, ItemTransform> live,
@@ -89,16 +81,96 @@ ItemTransform placementOf(
   };
 }
 
+/// Where each of [items] sits now, as a gesture or a tool starts to move or
+/// size them: `from` is where it is drawn, `own` what undo puts back -- null
+/// for a sentence or translation line still following its layer.
+Map<TimelineItem, ({ItemTransform from, ItemTransform? own})>
+    selectedPlacements(
+  WidgetRef ref,
+  String projectId,
+  Iterable<TimelineItem> items,
+) {
+  final clips = ref.read(projectClipsProvider(projectId)).value ?? const [];
+  final layers = ref.read(projectLayersProvider(projectId)).value ?? const [];
+  final texts = ref.read(projectTextLayersProvider(projectId)).value ?? const [];
+  final images = ref.read(projectImageLayersProvider(projectId)).value ??
+      const <ImageLayer>[];
+  final layerIds = idsOfKind(items.toSet(), TimelineItemKind.layer);
+
+  final result = <TimelineItem, ({ItemTransform from, ItemTransform? own})>{};
+  for (final item in items) {
+    switch (item.kind) {
+      case TimelineItemKind.audio:
+        // Sound has no place on the picture.
+        continue;
+      case TimelineItemKind.sentence:
+        final sentence = sentenceOf(item)!;
+        final words =
+            ref.read(transcriptWordsProvider(sentence.transcriptId)).value;
+        final word = words
+            ?.where((w) => w.position == sentence.fromPosition)
+            .firstOrNull;
+        // Words not in hand: it keeps its place rather than being moved
+        // from a guess.
+        if (word == null) continue;
+        final own = word.captionPlacement;
+        final layerId = ref
+            .read(projectSentencesProvider(projectId))
+            .where((s) =>
+                s.transcriptId == sentence.transcriptId &&
+                s.fromPosition == sentence.fromPosition)
+            .firstOrNull
+            ?.layerId;
+        if (own == null && layerIds.contains(layerId)) continue;
+        final layer = layers.where((l) => l.id == layerId).firstOrNull;
+        result[item] = (
+          from: own ?? layer?.captionPlacement ?? ItemTransform.captionDefault,
+          own: own,
+        );
+      case TimelineItemKind.translation:
+        final line = ref
+            .read(projectTranslationLinesProvider(projectId))
+            .where((l) => l.line.id == item.id)
+            .firstOrNull;
+        if (line == null) continue;
+        final own = line.line.x == null
+            ? null
+            : ItemTransform(
+                x: line.line.x!,
+                y: line.line.y ?? 0,
+                scale: line.line.scale ?? 1,
+              );
+        if (own == null && layerIds.contains(line.layerId)) continue;
+        result[item] = (
+          from: placementOf(
+            item,
+            live: const {},
+            clips: clips,
+            layers: layers,
+            texts: texts,
+            translations: ref.read(projectTranslationTextsProvider(projectId)),
+          ),
+          own: own,
+        );
+      case TimelineItemKind.clip:
+      case TimelineItemKind.layer:
+      case TimelineItemKind.text:
+      case TimelineItemKind.image:
+        final from = placementOf(
+          item,
+          live: const {},
+          clips: clips,
+          layers: layers,
+          texts: texts,
+          images: images,
+        );
+        result[item] = (from: from, own: from);
+    }
+  }
+  return result;
+}
+
 /// Which item on the stage is having its words typed, if any.
-///
-/// **A provider rather than editor state** because the tools start it from
-/// outside the stage: the Text tool adds a text and opens it for typing
-/// straight away, and the strip's Edit text does the same for a selected one.
-///
-/// **Kept alive**, because the ask can come before anything listens: right
-/// after a project opens the player is still loading and there is no stage
-/// yet. Auto-disposed, the request was dropped at the end of that frame and
-/// the new text appeared without its keyboard.
 @Riverpod(keepAlive: true)
 class StageEditing extends _$StageEditing {
   @override
@@ -123,10 +195,6 @@ class StageEditing extends _$StageEditing {
 }
 
 /// The clip's picture, placed as its framing says, inside the output frame.
-///
-/// Fitted first (the render's `LAYOUT_SCALE_TO_FIT`), then moved, turned and
-/// scaled -- the order the render applies them in, so zooming in crops at the
-/// frame's edge and zooming out shows black around the picture.
 class StagePicture extends ConsumerWidget {
   const StagePicture({
     super.key,
@@ -206,16 +274,6 @@ Widget _placed(ItemTransform t, Size frame, {required Widget child}) {
 
 /// Everything drawn over the picture -- captions and texts -- and, when
 /// [editable], everything that edits it.
-///
-/// **One gesture surface for every kind of item.** A drag, pinch or twist
-/// anywhere on the frame moves whatever is selected, all of it at once; a tap
-/// picks an item; a hold adds it to a multi-selection; tapping the selected
-/// text or caption again types into it where it stands. Resizing from a
-/// corner handle is the same gesture started on a handle.
-///
-/// **Each caption is its own sentence.** Tapping one picks that sentence
-/// alone, to move, size or retype without touching the others; picking its
-/// layer (on the timeline) moves every sentence not placed on its own.
 class StageEditor extends ConsumerStatefulWidget {
   const StageEditor({
     super.key,
@@ -271,6 +329,9 @@ class _StageEditorState extends ConsumerState<StageEditor> {
   Map<TimelineItem, _ShownCaption> _shown = const {};
 
   Map<TimelineItem, ItemTransform>? _start;
+
+  /// What undo puts back for each item in [_start] (`selectedPlacements`).
+  Map<TimelineItem, ItemTransform?> _startOwn = const {};
   Offset _startFocal = Offset.zero;
 
   /// Set when the gesture began on a corner handle: the centre it scales
@@ -343,10 +404,9 @@ class _StageEditorState extends ConsumerState<StageEditor> {
   }) {
     final fresh = _editingNotifier.fresh;
     _field?.dispose();
-    // **A cursor at the end, nothing selected.** Selecting the words put the
+    // A cursor at the end, nothing selected. Selecting the words put the
     // platform's highlight and drag handles around them -- the words looked
-    // replaced before anything was typed. Now they stay exactly as they were,
-    // and only become editable.
+    // replaced before anything was typed.
     final start = fresh ? '' : text;
     _field = TextEditingController(text: start)
       ..selection = TextSelection.collapsed(offset: start.length);
@@ -409,48 +469,19 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     if (mounted) setState(() {});
   }
 
-  ({
-    List<MediaClip> clips,
-    List<TranscribeLayer> layers,
-    List<TextLayer> texts,
-    List<TextLayer> translations,
-    List<ImageLayer> images,
-  }) _rows() => (
-        clips: ref.read(projectClipsProvider(widget.projectId)).value ??
-            const [],
-        layers: ref.read(projectLayersProvider(widget.projectId)).value ??
-            const [],
-        texts: ref.read(projectTextLayersProvider(widget.projectId)).value ??
-            const [],
-        translations:
-            ref.read(projectTranslationTextsProvider(widget.projectId)),
-        images: ref.read(projectImageLayersProvider(widget.projectId)).value ??
-            const [],
-      );
-
   void _gestureStart(ScaleStartDetails details) {
     final selection = ref.read(timelineSelectionProvider(widget.projectId));
     if (selection.isEmpty || _editing != null) return;
 
-    final rows = _rows();
+    // Everything selected, on screen or not -- see `selectedPlacements`.
+    final placements = selectedPlacements(ref, widget.projectId, selection);
     _start = {
-      for (final item in selection)
-        // A sentence not on screen has no words in hand to place; it keeps
-        // its place rather than being moved from a guess.
-        if (item.kind != TimelineItemKind.sentence || _shown.containsKey(item))
-          item: placementOf(
-            item,
-            live: const {},
-            clips: rows.clips,
-            layers: rows.layers,
-            texts: rows.texts,
-            translations: rows.translations,
-            images: rows.images,
-            sentences: {
-              for (final entry in _shown.entries)
-                entry.key: entry.value.placement,
-            },
-          ),
+      for (final MapEntry(key: item, value: at) in placements.entries)
+        item: at.from,
+    };
+    _startOwn = {
+      for (final MapEntry(key: item, value: at) in placements.entries)
+        item: at.own,
     };
     _startFocal = details.focalPoint;
     _resizeCentre =
@@ -529,16 +560,6 @@ class _StageEditorState extends ConsumerState<StageEditor> {
 
     final live = ref.read(stageLiveProvider(widget.projectId));
     final repository = ref.read(transcriptRepositoryProvider);
-    // A translation line that followed its layer goes back to following it
-    // on undo, like a sentence: its own placement, if it had one.
-    final ownTranslation = <TimelineItem, ItemTransform?>{};
-    for (final item in start.keys) {
-      if (item.kind != TimelineItemKind.translation) continue;
-      final line = await repository.findTranslationLine(item.id);
-      ownTranslation[item] = line?.x == null
-          ? null
-          : ItemTransform(x: line!.x!, y: line.y ?? 0, scale: line.scale ?? 1);
-    }
     await repository.applyPlacements(
       projectId: widget.projectId,
       changes: [
@@ -546,13 +567,10 @@ class _StageEditorState extends ConsumerState<StageEditor> {
           (
             kind: item.kind,
             id: item.id,
-            // A sentence that followed its layer goes back to following it
-            // on undo, rather than being pinned where the layer was.
-            before: switch (item.kind) {
-              TimelineItemKind.sentence => _shown[item]?.own,
-              TimelineItemKind.translation => ownTranslation[item],
-              _ => from,
-            },
+            // A sentence or translation line that followed its layer goes
+            // back to following it on undo, rather than being pinned where
+            // the layer was.
+            before: _startOwn[item],
             after: live[item] ?? from,
           ),
       ],
@@ -568,6 +586,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     required List<Transcript> transcripts,
     required List<TranscribeLayer> layers,
     required List<TimelineSentence> sentences,
+    Map<TimelineItem, ItemTransform> live = const {},
   }) {
     final shown = <TimelineItem, _ShownCaption>{};
     for (final transcript in transcripts) {
@@ -597,8 +616,13 @@ class _StageEditorState extends ConsumerState<StageEditor> {
         transcript: transcript,
         cue: cue,
         item: item,
-        placement:
-            own ?? layer?.captionPlacement ?? ItemTransform.captionDefault,
+        // Following its layer -- live, while the layer is being dragged.
+        placement: own ??
+            (layer == null
+                ? null
+                : live[(kind: TimelineItemKind.layer, id: layer.id)] ??
+                    layer.captionPlacement) ??
+            ItemTransform.captionDefault,
         own: own,
         look: cue.words.first.ownLook ?? layer?.look ?? ItemLook.defaults,
         trackId: cue.words.first.captionTrackId ?? layer?.trackId,
@@ -636,6 +660,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     _shown = _captionsNow(
       transcripts: transcripts,
       layers: layers,
+      live: live,
       sentences: transcripts.isEmpty
           ? const []
           : ref.watch(projectSentencesProvider(projectId)),
@@ -883,10 +908,8 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     );
   }
 
-  /// A caption or text: its words as the render draws them -- or, while it
-  /// is being typed into, a field in exactly that style, in exactly that
-  /// place, so typing reads as changing the words on the picture rather than
-  /// filling in a form.
+  /// A caption or text: its words as the render draws them -- or, while it is
+  /// being typed into, a field in exactly that style, in exactly that place.
   Widget _item({
     required TimelineItem item,
     required bool selected,
@@ -898,10 +921,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     TextDirection? direction,
   }) {
     if (item == _editing && _field != null) {
-      // **Exactly the resting look, now editable.** No outline or handles
-      // while typing, the same style, no text scaling, and a text layer's
-      // padding spaces drawn as plate on either side -- so nothing on the
-      // picture moves or changes the moment the cursor appears.
+      // Exactly the resting look, now editable.
       final field = TextField(
         controller: _field,
         focusNode: _focus,
@@ -1028,9 +1048,6 @@ Widget _anchored(ItemTransform t, Size frame, {required Widget child}) {
 }
 
 /// A selected item's outline and corner handles.
-///
-/// In the theme's accent, flat and hard-edged like the rest of the app, and
-/// kept the same thickness however far the item is scaled.
 class _Outline extends StatelessWidget {
   const _Outline({super.key, required this.scale, required this.child});
 
@@ -1040,7 +1057,7 @@ class _Outline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.secondary;
     final unit = 1 / (scale <= 0 ? 1 : scale);
     final handle = 10 * unit;
 
@@ -1055,7 +1072,7 @@ class _Outline extends StatelessWidget {
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: accent,
-              border: Border.all(color: Colors.black, width: 1.2 * unit),
+              border: Border.all(color: Colors.white, width: 1.2 * unit),
             ),
           ),
         );
@@ -1070,7 +1087,12 @@ class _Outline extends StatelessWidget {
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                border: Border.all(color: accent, width: 2 * unit),
+                border: Border.all(color: Colors.white, width: 3.2 * unit),
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: accent, width: 2 * unit),
+                ),
               ),
             ),
           ),

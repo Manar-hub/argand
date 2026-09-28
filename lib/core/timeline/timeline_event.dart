@@ -1,11 +1,6 @@
 import 'dart:convert';
 
 /// What happened to a project's arrangement.
-///
-/// **Adding a kind is the whole cost of making a new action undoable.** The
-/// code is stored rather than the index, so inserting a case here cannot
-/// reinterpret rows already written — and anything specific to an action lives
-/// in its payload, so no column and no migration is involved.
 enum TimelineEventKind {
   clipSplit('clipSplit'),
   clipTrim('clipTrim'),
@@ -53,10 +48,6 @@ enum TimelineEventKind {
   final String code;
 
   /// Null for a code this build does not know.
-  ///
-  /// An event written by a newer build is skipped rather than crashed on, the
-  /// same tolerance `EditEventKind` already has — one unreadable row must not
-  /// wedge the button for good.
   static TimelineEventKind? fromCode(String code) {
     for (final kind in TimelineEventKind.values) {
       if (kind.code == code) return kind;
@@ -66,11 +57,6 @@ enum TimelineEventKind {
 }
 
 /// One reversible change, carrying enough state to be applied either way.
-///
-/// **Before and after, not a diff.** Storing what changed would mean replaying
-/// the arrangement from the beginning to know what a value used to be; storing
-/// both ends means undo and redo are the same operation with the two halves
-/// swapped, which is why this needs no separate redo stack.
 class TimelineEventPayload {
   const TimelineEventPayload({required this.before, required this.after});
 
@@ -83,9 +69,6 @@ class TimelineEventPayload {
   String encode() => jsonEncode({'before': before, 'after': after});
 
   /// Null when the JSON is not the shape this build expects.
-  ///
-  /// Corrupt or newer-format rows are dropped by the caller rather than
-  /// throwing, for the same reason an unknown kind is.
   static TimelineEventPayload? decode(String json) {
     try {
       final map = jsonDecode(json);
@@ -109,9 +92,6 @@ class TimelineEventPayload {
 }
 
 /// Where one undo step should land, whichever log it came from.
-///
-/// The transcript log and the timeline log are read as one history ordered by
-/// time, so the button does not need to know which table answered.
 enum HistoryLog { transcript, timeline }
 
 /// One entry in the merged history.
@@ -122,13 +102,6 @@ typedef HistoryStep = ({
 });
 
 /// Merges two logs into the single history the user actually made.
-///
-/// **Ordered by when things happened, not by which table they live in.** A
-/// history split by kind lets undo skip a more recent change and rebuild a
-/// state that never existed — a word restored while a later cut stays.
-///
-/// [transcript] and [timeline] must each already be in their own order;
-/// this only interleaves them.
 List<HistoryStep> mergeHistory({
   required List<HistoryStep> transcript,
   required List<HistoryStep> timeline,
@@ -147,9 +120,6 @@ HistoryStep? nextUndo(List<HistoryStep> history, Set<String> undone) {
 }
 
 /// The oldest undone step, or null when there is nothing to redo.
-///
-/// Oldest rather than newest so redo retraces the path undo took, instead of
-/// jumping to the far end of it.
 HistoryStep? nextRedo(List<HistoryStep> history, Set<String> undone) {
   for (final step in history) {
     if (undone.contains(step.id)) return step;

@@ -7,14 +7,9 @@ import 'timeline_selection.dart';
 /// One lane as the move rules see it.
 typedef TrackSlot = ({String id, TrackKind kind});
 
-/// Anything on a track, as the one set of move and resize rules sees it --
-/// a clip, its sound, a transcription, a sentence, a translation line, a
-/// text or an image alike.
-///
-/// **Every kind goes through the same rules.** What differs between kinds is
-/// said here as data -- the walls it may not pass, whether it may change
-/// track -- rather than as a separate drag for each track, which is how the
-/// kinds came to be able to do different things.
+/// Anything on a track, as the one set of move and resize rules sees it -- a
+/// clip, its sound, a transcription, a sentence, a translation line, a text or
+/// an image alike.
 typedef TimelineBlock = ({
   TimelineItem item,
   String trackId,
@@ -83,16 +78,6 @@ bool _exempt(TimelineBlock a, TimelineBlock b) =>
     a.layerId != null && a.layerId == b.layerId;
 
 /// Where [moving] would land, dragged [deltaMs] along and [deltaRows] down.
-///
-/// **Rigid:** the whole group moves by the same amount, and that amount is
-/// held back so that no item passes its walls -- a group never deforms.
-/// Rows above the top are refused the same way: the group stops at the top
-/// track. Rows past the last track become new tracks under it, in order.
-///
-/// Items that cannot change track keep theirs while the rest move, and a
-/// layer carries the sentences that follow it. A media item may not land on
-/// the video or audio track, and nothing may land on top of an item it would
-/// collide with; either makes the plan invalid rather than moving anything.
 MovePlan planMove({
   required List<TimelineBlock> blocks,
   required Set<TimelineItem> moving,
@@ -207,10 +192,6 @@ MovePlan planMove({
 }
 
 /// Where [block] lands with one edge dragged [deltaMs].
-///
-/// Held inside its own walls and by whatever else is on its track, never
-/// shorter than [minimumLayerMs], and snapped to [snapTargets] the way a
-/// transcription's edges always have been (`applyLayerDrag`).
 LayerBounds planResize({
   required TimelineBlock block,
   required List<TimelineBlock> blocks,

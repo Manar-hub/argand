@@ -12,13 +12,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// On-device checks for the parts of the pipeline that only exist natively.
-///
-/// `flutter test` cannot cover any of this: `audio_decoder` is a thin shim
-/// over MediaCodec/AVFoundation and whisper.cpp is an FFI call into a native
-/// library, so both are absent from the host VM.
-///
-/// Fixtures are pushed to `/data/local/tmp` before running, see
-/// docs/progress.md for the exact commands.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -48,11 +41,6 @@ void main() {
   }
 
   /// Converts [fixture] and asserts the result is genuinely transcribable.
-  ///
-  /// The duration comparison is the point. A wrong resampling ratio still
-  /// yields a valid 16kHz mono header -- only the sample *count* betrays it,
-  /// which is exactly how an HE-AAC extraction bug reached a release build
-  /// unnoticed. See docs/engine-architecture.md.
   Future<void> expectTranscribableExtraction(
     String fixture,
     String projectId,
@@ -108,9 +96,7 @@ void main() {
 
   testWidgets('extracts at the right rate from HE-AAC video', (tester) async {
     // Regression test. HE-AAC carries SBR, so MediaExtractor reports the AAC
-    // core sample rate while MediaCodec decodes to double it. Deriving the
-    // resampling ratio from the container instead of the decoder produced
-    // audio at half speed and twice the length -- valid, and useless.
+    // core sample rate while MediaCodec decodes to double it.
     await expectTranscribableExtraction(heAacFixture, 'itest-heaac');
   });
 
@@ -177,9 +163,7 @@ void main() {
     expect(header.dataBytes, greaterThan(0));
 
     // The duration assertion, not the format one, is what catches a real bug
-    // here -- the same lesson the HE-AAC extraction failure taught. A dropped
-    // flush() truncates the tail, and a chunking error stretches or shortens
-    // the whole file, neither of which touches the header.
+    // here -- the same lesson the HE-AAC extraction failure taught.
     final drift = (header.duration - source.duration).abs();
     expect(
       drift,
@@ -206,10 +190,7 @@ void main() {
       skipSilence: true,
     );
 
-    // Deliberately not asserting the *text*. Whether denoising helps or hurts
-    // word error rate on a given clip is the open question this phase leaves
-    // for measurement (docs/progress.md); what a test can pin down is that the
-    // pass produces something the engine can still decode into timed words.
+    // Deliberately not asserting the *text*.
     expect(result.text.trim(), isNotEmpty);
     expect(result.segments ?? const [], isNotEmpty);
 
@@ -217,14 +198,6 @@ void main() {
   });
 
   /// The assertion that gates the VAD fork patch.
-  ///
-  /// With VAD on, whisper.cpp decodes a *compacted* buffer containing only the
-  /// speech runs, then maps the resulting times back through
-  /// `state->vad_mapping_table`. Upstream refused to allow this alongside
-  /// `splitOnWord` at all, on the grounds that word output "requires stable
-  /// timestamps". This test is what makes removing that guard defensible:
-  /// if the remap were broken, word times would land on the compacted
-  /// timeline and run off the end of the media.
   testWidgets('silence skipping keeps word times on the original timeline',
       (tester) async {
     final media = await stage(audioFixture, 'itest-vad-timeline');
@@ -361,15 +334,7 @@ void main() {
   testWidgets('diarization reports progress through a bound callback',
       (tester) async {
     // Regression test for a bug the other diarization tests could not catch,
-    // because they all call diarize() with no onProgress. A Dart closure
-    // captures its whole enclosing scope, so passing a callback that is a
-    // *method on an object* dragged that object's unsendable fields into the
-    // isolate message. Isolate.run then failed before running any of the body,
-    // and since diarization is non-fatal the import quietly saved with no
-    // speakers -- indistinguishable from diarization finding nothing.
-    //
-    // The callback here is deliberately a bound instance method, not a bare
-    // closure over an int, because that is the shape that broke.
+    // because they all call diarize() with no onProgress.
     final collector = _ProgressCollector();
 
     final media = await stage(twoSpeakerFixture, 'itest-diarize-progress');

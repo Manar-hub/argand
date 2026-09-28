@@ -15,35 +15,6 @@ import 'support/diarization_truth.dart';
 
 /// Re-anchors a fixture's time references to a current run, printing a `turns`
 /// block to paste back in.
-///
-/// **Why this is needed.** `scoreWordsAgainstTruth` asks "who was speaking at
-/// millisecond X", which is decoder-independent *as a method*. But a fixture
-/// with no explicit `turns` derives its anchors from `sentences[].startMs/endMs`
-/// — times captured when the labels were written. Decoder changes since then
-/// (`noFallback: false`, flash attention) moved whisper's word timings, so those
-/// anchors no longer line up with any run. On `two_speakers.wav` sentence 14 had
-/// drifted 520ms, far enough that its midpoint landed in the previous speaker's
-/// turn, and the scorer marked the base model **wrong** on a sentence it
-/// attributes exactly as labelled — reporting base at 5.8% word error against
-/// small-q5_1's 2.0% and inverting the two models.
-///
-/// **Alignment is by text, never by position.** An earlier version paired run
-/// sentence *i* with label sentence *i* and refused whenever the counts
-/// differed, which made `alberta.mp4` (25 sentences against 24 labels)
-/// unscoreable. That refusal was wrong: two models legitimately cut the same
-/// speech differently, and a label sentence that comes back as two run
-/// sentences is a correct transcription either way. Diarization scoring must be
-/// agnostic to that. So this aligns the two **word streams** with an edit
-/// distance and lets each run word inherit the speaker of the label word it
-/// matches; a split label maps to both halves and both inherit its speaker.
-///
-/// **What this changes, and what it must not.** Only the *times* are
-/// re-measured. Every speaker comes from the human labels, and consecutive
-/// same-speaker words are merged into turns, so merging happens strictly within
-/// one speaker and cannot invent a boundary the labels did not already assert.
-///
-/// Anchors come from the **base** model deliberately: it is the release model
-/// and the one the labels were authored against.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -63,9 +34,6 @@ void main() {
 
   /// For each candidate word, the index of the reference word it aligns to, or
   /// null where it matched nothing (an insertion).
-  ///
-  /// Plain Levenshtein alignment with a backtrace. Both streams are a couple of
-  /// hundred words, so the quadratic table costs nothing.
   List<int?> alignToReference(List<String> reference, List<String> candidate) {
     final n = reference.length;
     final m = candidate.length;
@@ -166,9 +134,6 @@ void main() {
           'sentences');
 
       // Each run word takes the speaker of the label word it aligned to.
-      // Unaligned words (whisper heard something the labels do not contain)
-      // inherit the previous decided speaker, which keeps a turn contiguous
-      // rather than punching a hole in it.
       final perWord = <int?>[];
       int? previous;
       var aligned = 0;

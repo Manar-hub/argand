@@ -57,12 +57,18 @@ final class WhisperModelCatalogProvider
 String _$whisperModelCatalogHash() =>
     r'95c77b14f8ade2ff15d8de964a955bc6622c941f';
 
-/// Models offered in the picker.
+/// Models offered in the picker: the ones this build ships **and** that are
+/// on the device -- the install-time default, and any on-demand model added
+/// in Settings -> Transcription models. Refreshed when one is added or
+/// removed (`AssetPackProgress`).
 
 @ProviderFor(availableWhisperModels)
 final availableWhisperModelsProvider = AvailableWhisperModelsProvider._();
 
-/// Models offered in the picker.
+/// Models offered in the picker: the ones this build ships **and** that are
+/// on the device -- the install-time default, and any on-demand model added
+/// in Settings -> Transcription models. Refreshed when one is added or
+/// removed (`AssetPackProgress`).
 
 final class AvailableWhisperModelsProvider
     extends
@@ -74,7 +80,10 @@ final class AvailableWhisperModelsProvider
     with
         $FutureModifier<List<WhisperModelDescriptor>>,
         $FutureProvider<List<WhisperModelDescriptor>> {
-  /// Models offered in the picker.
+  /// Models offered in the picker: the ones this build ships **and** that are
+  /// on the device -- the install-time default, and any on-demand model added
+  /// in Settings -> Transcription models. Refreshed when one is added or
+  /// removed (`AssetPackProgress`).
   AvailableWhisperModelsProvider._()
     : super(
         from: null,
@@ -102,4 +111,4 @@ final class AvailableWhisperModelsProvider
 }
 
 String _$availableWhisperModelsHash() =>
-    r'3fd8fa3883da390e134eadfd6ecf94186834d468';
+    r'c29e0338f64185918bb930158d4f1316d078a17e';

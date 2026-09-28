@@ -6,14 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The schema-2 tables, written by hand so the migration is exercised against a
 /// database this build did not create.
-///
-/// Left at **2** deliberately as the schema grows: upgrading from the oldest
-/// version anyone can still be running exercises every `if (from < n)` block in
-/// order, which is the case a device that skipped releases actually hits.
-///
-/// Verbose on purpose. `createAll()` would produce schema 3 and the upgrade
-/// path would never run -- which is exactly the path that touches a real user's
-/// transcripts, and the only one that can destroy them.
 const _schemaV2 = [
   '''
   CREATE TABLE projects (
@@ -295,9 +287,7 @@ void main() {
 
       // Deliberately null. Deriving these needs a full native decode per clip,
       // so back-filling a library during a migration would block the first
-      // launch after an update for minutes. Null already means "not computed
-      // yet", and the timeline fills it in on first sight -- the same path a
-      // newly added clip takes.
+      // launch after an update for minutes.
       expect(clip.waveform, isNull);
     });
 
@@ -319,9 +309,7 @@ void main() {
       final clip = (await db.clipsForProject('p1')).single;
 
       // Null is what "never trimmed" means, and it is why schema 8 needed no
-      // backfill. Writing 0 and the duration instead would make an untouched
-      // clip indistinguishable from one deliberately trimmed to its full
-      // length -- and would break for a clip whose duration never probed.
+      // backfill.
       expect(clip.trimStartMs, isNull);
       expect(clip.trimEndMs, isNull);
     });
@@ -442,10 +430,7 @@ void main() {
     addTearDown(upgraded.close);
     addTearDown(fresh.close);
 
-    // Indexes as well as tables. `createTable` emits a table's declared
-    // indexes on the upgrade path too, so an index that exists on only one
-    // route is real drift -- and an index is exactly the kind of thing that
-    // goes missing silently, costing query speed rather than correctness.
+    // Indexes as well as tables.
     Future<List<String>> schemaOf(AppDatabase db) async {
       final rows = await db
           .customSelect(

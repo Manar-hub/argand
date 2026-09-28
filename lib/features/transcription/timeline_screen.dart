@@ -12,7 +12,6 @@ import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/media/media_converter.dart';
 import '../../core/media/thumbnail_service.dart';
-import '../../core/theme/app_dialog.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_panel_cells.dart';
@@ -21,7 +20,6 @@ import '../../core/timeline/clip_trim.dart';
 import '../../core/timeline/item_transform.dart';
 import '../../core/timeline/layer_drag.dart';
 import '../../core/timeline/pinch_tracker.dart';
-import '../../core/timeline/project_timeline.dart';
 import '../../core/timeline/timeline_items.dart';
 import '../../core/timeline/timeline_selection.dart';
 import '../../core/timeline/timeline_zoom.dart';
@@ -31,6 +29,7 @@ import 'editor_mode_controller.dart';
 import 'layer_transcription_controller.dart';
 import 'import_controller.dart' show ImportStage;
 import 'media_player_controller.dart';
+import 'project_fullscreen.dart';
 import 'project_screen.dart' show CaptionOverlay, HistoryControls;
 import 'stage_editor.dart';
 import 'timeline_blocks.dart';
@@ -46,59 +45,19 @@ import 'video_settings_panel.dart';
 part 'timeline_lanes.dart';
 
 /// Height of every track row.
-///
-/// **One height for all of them, deliberately.** Lanes sized to their own
-/// content -- a tall filmstrip, a short waveform, a shorter layer bar -- made
-/// the stack read as a ragged pile rather than as tracks, and gave the gutter
-/// three different rhythms to line its controls up with. A single value also
-/// puts a floor under the lane: the controls beside a track stack an eye above
-/// a drag handle, and a lane shorter than those two icons plus their gap
-/// overflows its own gutter.
-///
-/// Tall enough to hit with a thumb on a phone: 56 was a fingertip's width
-/// short of comfortable.
 const double _trackHeight = 68;
 
 /// Height of the preview stage, in every state it can be in.
-///
-/// Loading, failed, video and audio all reserve this, so nothing below the
-/// preview moves as a clip loads or as the selection changes.
 const double _stageHeight = stageHeight;
 
 /// Width of the fixed playhead line.
 const double _playheadWidth = 2;
 
 /// Corner radius shared by everything that sits *on* a track -- clip tiles, the
-/// "+" tile, layer rectangles. Deliberately tighter than the theme's card
-/// radius and deliberately one constant: when these were specified separately
-/// they drifted to 14, 6 and 4, and the row read as three unrelated shapes.
+/// "+" tile, layer rectangles.
 final BorderRadius _tileRadius = BorderRadius.zero;
 
 /// Timeline mode: the clip/track view of the editing screen.
-///
-/// **The track is a true time axis.** A clip's width is exactly its duration
-/// times the current scale — no minimum width, no gaps between tiles. An
-/// earlier pass clamped short clips and spaced them apart, which meant the
-/// ruler and the tiles disagreed by a little more with every clip, and nothing
-/// drawn at a given millisecond could be trusted to land over the media playing
-/// at that millisecond. Clips are separated by a hairline drawn *inside* their
-/// own width instead. A very short clip therefore draws very narrow, which is
-/// honest: it is short.
-///
-/// **The playhead is fixed at the centre and the content moves under it.**
-/// Leading and trailing padding of half the viewport is what lets both the
-/// first and last frame reach it, and scrolling is the scrub gesture — so there
-/// is no second scrubber in the player, which would be a different scale
-/// claiming to mean the same thing.
-///
-/// **A project is a list of clips here, not a single file.** The preview and
-/// Script mode both follow whichever clip is selected; each carries its own
-/// transcript, its own speakers and its own undo history, because word timings
-/// are relative to a clip's own media.
-///
-/// **Adding a clip never transcribes it.** "+" copies a file in and nothing
-/// more; transcription is minutes of CPU and runs only when the user asks for
-/// it on a selected clip. That separation is the whole point of this screen.
 class TimelineBody extends ConsumerStatefulWidget {
   const TimelineBody({super.key, required this.project});
 
@@ -115,38 +74,45 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
   /// Whether the style panel is showing above the toolbar.
   bool _styleOpen = false;
 
-  /// The clips the Zoom and Rotate tools act on: the selected ones, or -- with
-  /// none selected -- the clip on the stage, which is then selected so its
-  /// outline shows what the tool is touching.
-  List<String> _toolClips(String? clipOnStage, {bool select = true}) {
+  /// What the Zoom and Rotate tools act on: whatever is selected -- captions, a
+  /// translation, texts, pictures, clips -- or, with nothing selected, the clip
+  /// on the stage.
+  List<TimelineItem> _toolItems(String? clipOnStage, {bool select = true}) {
     final projectId = widget.project.id;
-    final chosen = idsOfKind(
-      ref.read(timelineSelectionProvider(projectId)),
-      TimelineItemKind.clip,
-    ).toList();
+    final chosen = [
+      for (final item in ref.read(timelineSelectionProvider(projectId)))
+        if (item.kind != TimelineItemKind.audio) item,
+    ];
     if (chosen.isNotEmpty || clipOnStage == null) return chosen;
 
+    final clip = (kind: TimelineItemKind.clip, id: clipOnStage);
     if (select) {
-      ref
-          .read(timelineSelectionProvider(projectId).notifier)
-          .selectOnly((kind: TimelineItemKind.clip, id: clipOnStage));
+      ref.read(timelineSelectionProvider(projectId).notifier).selectOnly(clip);
     }
-    return [clipOnStage];
+    return [clip];
   }
 
-  /// A quarter turn clockwise on each clip the tool acts on, as one step.
+  /// A quarter turn clockwise on each item the tool acts on, as one step.
+  /// Captions and translations stay level -- a turned subtitle is a puzzle,
+  /// not a style -- so only clips, texts and pictures turn.
   Future<void> _rotate(String? clipOnStage) async {
     final projectId = widget.project.id;
-    final clips = ref.read(projectClipsProvider(projectId)).value ?? const [];
+    final turnable = [
+      for (final item in _toolItems(clipOnStage))
+        if (item.kind == TimelineItemKind.clip ||
+            item.kind == TimelineItemKind.text ||
+            item.kind == TimelineItemKind.image)
+          item,
+    ];
     final changes = <PlacementChange>[
-      for (final id in _toolClips(clipOnStage))
-        if (clips.where((c) => c.id == id).firstOrNull case final clip?)
-          (
-            kind: TimelineItemKind.clip,
-            id: id,
-            before: clip.framing,
-            after: clip.framing.quarterTurned(),
-          ),
+      for (final MapEntry(key: item, value: at)
+          in selectedPlacements(ref, projectId, turnable).entries)
+        (
+          kind: item.kind,
+          id: item.id,
+          before: at.own,
+          after: at.from.quarterTurned(),
+        ),
     ];
     await ref
         .read(transcriptRepositoryProvider)
@@ -154,10 +120,6 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
   }
 
   /// Puts a text on the picture at the playhead and opens it for typing.
-  ///
-  /// **No dialog.** The text appears where it will be seen, with its word
-  /// selected and the keyboard up, so typing replaces it in place -- the way
-  /// every phone editor adds a title. Left empty, it is removed again.
   Future<void> _addText() async {
     final projectId = widget.project.id;
     final words = AppLocalizations.of(context).textPlaceholder;
@@ -234,12 +196,6 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
   }
 
   /// Cuts everything selected, at the playhead.
-  ///
-  /// **Whatever is selected, not whatever is playing.** Clips are cut through
-  /// `splitClip`; a transcribe layer is shortened to the playhead and a second
-  /// one takes the rest of its range. Selecting a clip and the layer over it
-  /// and splitting once cuts both at the same moment, which is the only way
-  /// the two stay lined up through an edit.
   Future<void> _splitSelection(int projectMs) async {
     final l10n = AppLocalizations.of(context);
     final repository = ref.read(transcriptRepositoryProvider);
@@ -305,13 +261,8 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
     );
   }
 
-  /// The Transcribe tool: runs the selected transcribe layer, or draws one
-  /// over the selected clip -- or the clip on screen -- and runs that.
-  ///
-  /// **One button for the whole job.** Transcribing used to take two steps in
-  /// two places: add a layer in the strip under the tracks, then press
-  /// Transcribe beside it. The layer is still made and still editable
-  /// afterwards; it is simply not a separate chore any more.
+  /// The Transcribe tool: runs the selected transcribe layer, or draws one over
+  /// the selected clip -- or the clip on screen -- and runs that.
   Future<void> _transcribeHere(String? clipOnStage) async {
     final projectId = widget.project.id;
     final selection = ref.read(timelineSelectionProvider(projectId));
@@ -372,10 +323,9 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
           );
     });
 
-    // **The preview follows the playhead, not the selection.** Selection now
-    // means "what the tools act on" and can hold several things at once, so it
-    // cannot also mean "what is on screen". Falls back to the first clip
-    // before the playhead has moved at all.
+    // The preview follows the playhead, not the selection. Selection now means
+    // "what the tools act on" and can hold several things at once, so it cannot
+    // also mean "what is on screen".
     final selectedId = timeline.clipAt(playheadMs)?.clipId ??
         (clips.isEmpty ? null : clips.first.id);
     // The first range on the clip, for the caption strip and the "is this
@@ -433,10 +383,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                       ),
                     ),
                   ),
-                  // **Pinned, not scrolled with the tracks.** With a few text
-                  // rows the tracks outgrow the screen, and a strip at their
-                  // foot took Delete and Done out of sight just when several
-                  // things were selected.
+                  // Pinned, not scrolled with the tracks.
                   _SelectionStrip(projectId: projectId),
                   AnimatedSize(
                     duration: MediaQuery.disableAnimationsOf(context)
@@ -449,7 +396,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                     child: _zoomOpen
                         ? _ZoomBar(
                             projectId: projectId,
-                            clipIds: _toolClips(selectedId, select: false),
+                            items: _toolItems(selectedId, select: false),
                           )
                         : _styleOpen
                             ? StylePanel(
@@ -467,7 +414,7 @@ class _TimelineBodyState extends ConsumerState<TimelineBody> {
                     zoomOpen: _zoomOpen,
                     styleOpen: _styleOpen,
                     onZoom: () {
-                      if (!_zoomOpen) _toolClips(selectedId);
+                      if (!_zoomOpen) _toolItems(selectedId);
                       setState(() {
                         _zoomOpen = !_zoomOpen;
                         _styleOpen = false;
@@ -558,13 +505,7 @@ class _TimelinePreview extends ConsumerWidget {
   final String projectId;
   final String clipId;
 
-  /// **What the stage is keyed by, rather than [clipId].**
-  ///
-  /// Watching the per-clip player meant crossing a split changed the family
-  /// key, and a fresh key starts in `loading` -- so the spinner flashed and
-  /// the picture jumped at every cut, even though the decoder underneath was
-  /// already warm and shared. Both halves of a split name the same file, so
-  /// keying by the file means nothing changes at the boundary at all.
+  /// What the stage is keyed by, rather than [clipId].
   final String mediaPath;
 
   final String? transcriptId;
@@ -619,14 +560,12 @@ class _TimelinePlayer extends ConsumerStatefulWidget {
 }
 
 class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
-  void _openFullscreen() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _FullscreenPlayer(controller: widget.controller),
-        fullscreenDialog: true,
-      ),
-    );
-  }
+  void _openFullscreen() => showProjectFullscreen(
+        context,
+        projectId: widget.projectId,
+        clipId: widget.clipId,
+        controller: widget.controller,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -643,22 +582,11 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              // **One height, whatever is on it.** An audio clip used to get a
-              // shorter stage, which read well in isolation and badly in
-              // motion: `value.size` is zero until the first frame arrives, so
-              // every video clip was briefly mistaken for audio and the whole
-              // timeline below jumped as it loaded. A fixed stage costs some
-              // empty ground under an audio clip and buys a screen that does
-              // not move while you are looking at it.
+              // One height, whatever is on it.
               height: _stageHeight,
               width: double.infinity,
               child: hasVideo
-                  // **The output's frame, not the clip's.** The stage used to
-                  // letterbox whatever the clip was, which showed a landscape
-                  // clip whole even when the project was 9:16 and the export
-                  // would crop half of it away. It now draws the frame the
-                  // render produces, in the project's shape, with the picture
-                  // cropped the same way and the watermark where it will be.
+                  // The output's frame, not the clip's.
                   ? ColoredBox(
                       // Ground around the frame in a different tone from the
                       // frame's own black, so its edges -- the edges of the
@@ -705,8 +633,6 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
             ),
             // Play sits in the middle with the utilities pushed to the edges,
             // so the one control used constantly is the one under the thumb.
-            // A `Stack` rather than spacers because centring by flex would
-            // drift as the right-hand group changes width with undo/redo.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
               child: Stack(
@@ -715,9 +641,7 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
                   Row(
                     children: [
                       // Fullscreen and history step aside while the video
-                      // settings are open: the panel below is about the
-                      // frame, and a stray undo there would take back an
-                      // edit the user cannot see.
+                      // settings are open: the panel below is about the frame.
                       HiddenWhileSettingsOpen(
                         projectId: widget.projectId,
                         child: IconButton(
@@ -728,12 +652,7 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
                       ),
                       const Spacer(),
                       VideoSettingsGear(projectId: widget.projectId),
-                      // **Not gated on the selected clip having a
-                      // transcript.** The history is the project's, so a
-                      // project whose only action was a split had no way to
-                      // undo it -- and undoing a transcription took the
-                      // buttons away with the transcript it removed, stranding
-                      // every earlier step behind a control that had vanished.
+                      // Not gated on the selected clip having a transcript.
                       HiddenWhileSettingsOpen(
                         projectId: widget.projectId,
                         child: HistoryControls(projectId: widget.projectId),
@@ -783,45 +702,6 @@ class _TimelinePlayerState extends ConsumerState<_TimelinePlayer> {
 /// Pushed by the preview's fullscreen button. Reuses the same controller --
 /// there is exactly one player per clip, owned by [mediaPlayerProvider], so
 /// opening this route does not start a second decoder.
-class _FullscreenPlayer extends StatelessWidget {
-  const _FullscreenPlayer({required this.controller});
-
-  final VideoPlayerController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: AspectRatio(
-                aspectRatio: controller.value.aspectRatio,
-                child: VideoPlayer(controller),
-              ),
-            ),
-            Positioned(
-              top: AppSpacing.sm,
-              right: AppSpacing.sm,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The ruler and the clip row, sharing one horizontal scroll and one scale.
-///
-/// **Sharing the controller is what makes this a timeline.** Two independently
-/// scrolling rows measured in different units would be a ruler drawn near some
-/// clips; one scroll offset and one scale means the tick above a
-/// clip boundary is genuinely the time that boundary falls at.
 class _TimelineTrack extends ConsumerStatefulWidget {
   const _TimelineTrack({
     required this.projectId,
@@ -855,41 +735,17 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   final _scroll = ScrollController();
 
   /// How wide one second is drawn, now that it is the user's to change.
-  ///
-  /// **Still the one scale everything measures with.** The ruler's ticks, each
-  /// clip's width, the waveform, the layers and the playhead's position all
-  /// derive from this single value, so they cannot drift apart at any zoom.
   double _pps = defaultPixelsPerSecond;
 
   /// The scale when the current pinch began, and the project time that was
   /// under the playhead at that moment.
-  ///
-  /// Zoom is anchored to the playhead rather than to the pinch's midpoint:
-  /// the playhead is where the user is working and where playback is, and an
-  /// anchor that wandered with the fingers would move the thing being examined
-  /// out from under the line examining it.
   double _pinchStartPps = defaultPixelsPerSecond;
   int _pinchAnchorMs = 0;
 
   /// The fingers on the track, and what scale they are asking for.
-  ///
-  /// **Fed from raw pointer events rather than a scale recogniser.** A
-  /// `GestureDetector` here loses: the scroll view's own drag recogniser
-  /// claims the gesture as soon as it passes touch slop, the scale recogniser
-  /// is rejected by the arena, and its callbacks then never fire at all — the
-  /// track just scrolls sideways under a pinch. `Listener` takes no part in
-  /// the arena, so it sees every pointer whatever else has claimed them.
-  ///
-  /// The scroll is still switched off while two fingers are down, so a pinch
-  /// does not also scrub.
   final _pinch = PinchTracker();
 
   /// True while the *user* is dragging the track.
-  ///
-  /// The playhead is driven from two directions — dragging scrubs the player,
-  /// and playback scrolls the track — so without a flag each would hear its own
-  /// echo and fight the other. Whoever moved last wins, and this says which
-  /// that was.
   bool _scrubbing = false;
 
   /// The position playback last reported, so an unchanged frame does not
@@ -897,13 +753,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   int _followedMs = -1;
 
   /// The controller currently being followed.
-  ///
-  /// Held so the listener can be moved when the selection changes. Following
-  /// playback has to be a *listener* rather than a `ref.watch`: watching the
-  /// provider yields the controller, and a controller is not rebuilt when its
-  /// position advances — only its own `ValueListenable` reports that. Rebuilding
-  /// the track on every tick would also mean re-laying out every filmstrip
-  /// image sixty times a second, so this deliberately scrolls without setState.
   VideoPlayerController? _followed;
 
   @override
@@ -922,10 +771,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   }
 
   /// Project time currently under the playhead.
-  ///
-  /// The offset *is* the playhead — content is padded by half the viewport —
-  /// so this is the one conversion between pixels and time, used by both the
-  /// scrub and the zoom anchor.
   int get _playheadMs => _scroll.hasClients
       ? msAtOffset(offset: _scroll.offset, pixelsPerSecond: _pps)
       : 0;
@@ -967,11 +812,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   }
 
   /// Captures what the pinch now measures from.
-  ///
-  /// Called whenever the tracker changes which fingers it is measuring, not
-  /// only when a pinch first begins: a pair that changed mid-gesture starts
-  /// from a new distance, and leaving the old scale in place would make the
-  /// zoom jump the moment the next finger moved.
   void _restartPinch() {
     _pinchStartPps = _pps;
     _pinchAnchorMs = _playheadMs;
@@ -984,13 +824,9 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 
     setState(() => _pps = next);
 
-    // Re-anchor after the layout that the new scale forces, or the offset
-    // would be applied against the old content width and the playhead would
-    // slide off the moment it was holding.
-    //
-    // This also cleans up after the scroll: the drag that was already under
-    // way when the second finger landed may have moved the offset, and
-    // re-asserting the anchor overrides it.
+    // Re-anchor after the layout that the new scale forces, or the offset would
+    // be applied against the old content width and the playhead would slide off
+    // the moment it was holding.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
       final target = offsetForAnchor(
@@ -1025,11 +861,8 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 
     final positionMs = controller.value.position.inMilliseconds;
 
-    // **The clip that is playing, not the one the playhead is over.** Both
-    // halves of a split share one decoder, and its position is in media time.
-    // Mapping that through the playhead's clip subtracts the wrong in-point,
-    // so the timeline scrolled to a moment neither half is at -- which is the
-    // timeline yanking itself away from under the user.
+    // The clip that is playing, not the one the playhead is over. Both halves
+    // of a split share one decoder, and its position is in media time.
     for (final clip in widget.clips) {
       if (clip.mediaPath != path) continue;
 
@@ -1042,15 +875,28 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
       if (projectMs != null) _followPlayback(projectMs);
       return;
     }
+
+    // Past the last clip's out-point, where the file plays on under words
+    // still on the timeline: the playhead goes on with it.
+    final timeline = ref.read(projectTimelineProvider(widget.projectId));
+    final last = timeline.placements.lastOrNull;
+    final lastClip = last == null
+        ? null
+        : widget.clips.where((c) => c.id == last.clipId).firstOrNull;
+    if (lastClip == null ||
+        lastClip.mediaPath != path ||
+        positionMs < clipWindow(lastClip).endMs) {
+      return;
+    }
+    final projectMs =
+        timeline.projectMsOf(clipId: lastClip.id, clipMs: positionMs);
+    if (projectMs != null &&
+        projectMs <= ref.read(projectRunMsProvider(widget.projectId))) {
+      _followPlayback(projectMs);
+    }
   }
 
   /// Turns a scroll offset into a seek.
-  ///
-  /// The offset *is* the playhead: content is padded by half the viewport, so
-  /// the pixel under the centre line is `offset` pixels into the project. Which
-  /// clip that lands in, and how far into it, is [ProjectTimeline]'s to answer —
-  /// this only has to notice when the answer changes clip, because that is a
-  /// selection change as well as a seek.
   void _onScroll() {
     if (!_scroll.hasClients) return;
 
@@ -1066,13 +912,16 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
         .read(timelinePlayheadProvider(widget.projectId).notifier)
         .moveTo(projectMs);
 
-    final at = timeline.clipAt(projectMs);
+    // Past the clips, the last one's file plays on under the words still
+    // there -- see `ProjectTimeline.runMsWith`.
+    final at = timeline.tailAt(
+          projectMs,
+          runMs: ref.read(projectRunMsProvider(widget.projectId)),
+        ) ??
+        timeline.clipAt(projectMs);
     if (at == null) return;
 
-    // **Script mode reads this, so it has to keep moving.** Decoupling the
-    // preview from the selection left nothing writing it, which pinned
-    // `resolvedSelectedClipProvider` to the first clip -- so after a split the
-    // second half's words were unreachable in Script mode entirely.
+    // Script mode reads this, so it has to keep moving.
     if (at.clipId != ref.read(selectedClipProvider(widget.projectId))) {
       ref
           .read(selectedClipProvider(widget.projectId).notifier)
@@ -1101,10 +950,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   }
 
   /// The clip being trimmed, and where its edges currently sit.
-  ///
-  /// Held here rather than written on every frame, for the same reason a layer
-  /// drag is: sixty writes a second, none of them a decision the user has made
-  /// yet. The database learns the result once, when the finger lifts.
   String? _trimmingId;
   ClipWindow? _trimmed;
   ClipEdge _trimEdge = ClipEdge.end;
@@ -1118,21 +963,14 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
     return clipWindow(clip);
   }
 
-  /// A clip's width *is* its duration -- the **trimmed** one. See the class doc
-  /// on [TimelineBody] for why there is no minimum and no gap.
-  ///
-  /// Measuring `durationMs` here while the ruler measured the trim is exactly
-  /// the drift `ProjectTimeline` exists to prevent: the tiles and the times
-  /// above them would disagree for every trimmed clip.
+  /// A clip's width *is* its duration -- the trimmed one. See the class doc on
+  /// [TimelineBody] for why there is no minimum and no gap.
   double _widthOf(MediaClip clip) {
     final window = _windowOf(clip);
     return (window.endMs - window.startMs) / 1000 * _pps;
   }
 
   /// The clip on the other side of this edge, when the two are one cut.
-  ///
-  /// Only ever the immediate neighbour, and only when it plays the same file
-  /// and meets this one exactly -- which is what a split leaves behind.
   MediaClip? _partnerAcross(MediaClip clip, ClipEdge edge) {
     final index = widget.clips.indexWhere((other) => other.id == clip.id);
     if (index < 0) return null;
@@ -1172,10 +1010,9 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 
     final partnerId = _partnerId;
     if (partnerId != null) {
-      // **Rolling, not resizing.** Extending one half of a split back over the
-      // other made the project longer than the file it came from and played
-      // the overlap twice. Moving the cut gives one side exactly what the
-      // other gives up, so the pair always covers the same span.
+      // Rolling, not resizing. Extending one half of a split back over the
+      // other made the project longer than the file it came from and played the
+      // overlap twice.
       final partner =
           widget.clips.firstWhere((other) => other.id == partnerId);
       final left = _trimEdge == ClipEdge.end ? clip : partner;
@@ -1280,14 +1117,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
     );
   }
 
-  /// The audio track: each clip's **sound**, drawn at where it plays.
-  ///
-  /// **Independent of the picture.** A sound can be trimmed shorter than its
-  /// clip or carried past it -- under the next clip (an L-cut) or ahead of
-  /// its own (a J-cut) -- so each is placed from its own span
-  /// (`audio_window.dart`), not from the clip's width. Where two sounds
-  /// overlap the lane splits into rows, one per layer of overlap, so both
-  /// stay visible and both can be picked.
+  /// The audio track: each clip's sound, drawn at where it plays.
   Widget _audioRow(double trackWidth) {
     final timeline = ref.watch(projectTimelineProvider(widget.projectId));
     double x(int ms) => ms / 1000 * _pps;
@@ -1780,10 +1610,9 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
     );
   }
 
-  /// One media track -- or, with [newTrack], the dotted lane a drop would
-  /// make: transcriptions with their sentences, texts, images and
-  /// translation lines, each answering taps, holds, drags and its grips the
-  /// same way.
+  /// One media track -- or, with [newTrack], the dotted lane a drop would make.
+  /// transcriptions with their sentences, texts, images and translation lines,
+  /// each answering taps, holds, drags and its grips the same way.
   Widget _mediaLane({
     required String? trackId,
     int? newTrack,
@@ -1799,11 +1628,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
     final invalid = _move?.plan?.valid == false;
     double x(int ms) => ms / 1000 * _pps;
 
-    // **Each item stays where it is while it is carried.** The widget that
-    // took the finger has to live until the finger lifts -- rebuilt, or
-    // moved to another lane, it loses the drag -- so it keeps its place,
-    // faded, and what is carried is drawn apart from it, as a ghost at
-    // where it would land.
+    // Each item stays where it is while it is carried.
     final here = [
       if (newTrack == null)
         for (final block in contents.blocks)
@@ -1856,7 +1681,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
           final sentence = contents.sentences[block.item];
           final fill = SpeakerPalette.colorFor(
             sentence?.speaker,
-            fallback: theme.colorScheme.secondary,
+            fallback: theme.colorScheme.onSurface,
           );
           return DecoratedBox(
             decoration: BoxDecoration(
@@ -2012,14 +1837,11 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final timeline = ref.watch(projectTimelineProvider(widget.projectId));
     final contents = ref.watch(timelineContentsProvider(widget.projectId));
     final selection = ref.watch(timelineSelectionProvider(widget.projectId));
 
     // Follow playback: the player reports a position inside the selected clip,
-    // which the timeline turns into a position on the shared axis. Watched
-    // here only to learn *which* controller to listen to -- the position
-    // itself arrives through the listener, not through a rebuild.
+    // which the timeline turns into a position on the shared axis.
     final selected = widget.selectedId;
     final selectedClip = selected == null
         ? null
@@ -2029,7 +1851,10 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
       selectedClip?.mediaPath,
     );
 
-    final trackWidth = timeline.totalMs / 1000 * _pps;
+    // As long as the project runs, which past a removed tail is longer than
+    // its clips: the words there stay reachable.
+    final runMs = ref.watch(projectRunMsProvider(widget.projectId));
+    final trackWidth = runMs / 1000 * _pps;
     final tracks = _visibleTracks(contents, trackWidth);
     _specs = tracks;
 
@@ -2050,14 +1875,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
         final lead = (constraints.maxWidth - _gutterWidth) / 2;
 
         return Listener(
-          // **Wraps the whole track section, not just the scrolling strip.**
-          // A pinch is only a pinch if both fingers are seen, and a listener
-          // sized to the strip alone misses any gesture where one finger falls
-          // above or below it.
-          //
-          // Translucent so it does not depend on a child hit-testing at the
-          // point a finger lands: the gaps between tracks are not filled by
-          // anything, and a finger in one of them still counts.
+          // Wraps the whole track section, not just the scrolling strip.
           behavior: HitTestBehavior.translucent,
           onPointerDown: _onPointerDown,
           onPointerMove: _onPointerMove,
@@ -2071,10 +1889,9 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // The gutter sits inside this widget rather than beside
-                    // it, which is what lets each control line up with the
-                    // lane it belongs to: both are laid out from the same list
-                    // of track heights, so they cannot drift apart.
+                    // The gutter sits inside this widget rather than beside it,
+                    // which is what lets each control line up with the lane it
+                    // belongs to.
                     _TrackGutter(
                       tracks: tracks,
                       topInset: _rulerHeight + AppSpacing.xs,
@@ -2090,10 +1907,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                         alignment: Alignment.topCenter,
                         children: [
                           NotificationListener<ScrollNotification>(
-                            // Only a drag counts as scrubbing. `jumpTo` while
-                            // following playback emits no start/end
-                            // notification, so the flag stays false and the
-                            // seek loop never closes.
+                            // Only a drag counts as scrubbing.
                             onNotification: (notification) {
                               if (notification is ScrollStartNotification &&
                                   notification.dragDetails != null) {
@@ -2115,10 +1929,9 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                                 key: _lanesKey,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // **The ruler always seeks**, even while
-                                  // a selection locks the timeline for
-                                  // dragging: it holds no items, so a drag
-                                  // or tap here can only mean "go there".
+                                  // The ruler always seeks, even while a
+                                  // selection locks the timeline for dragging.
+                                  // it holds no items.
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
                                     onHorizontalDragStart: (_) =>
@@ -2133,7 +1946,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                                       d.localPosition.dx,
                                     ),
                                     child: _TimeRuler(
-                                      totalMs: timeline.totalMs,
+                                      totalMs: runMs,
                                       width: trackWidth,
                                       pixelsPerSecond: _pps,
                                     ),
@@ -2147,13 +1960,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                                       child: SizedBox(
                                         height: track.height,
                                         // A hidden track keeps its lane rather
-                                        // than collapsing it. Collapsing would
-                                        // take the eye that unhides it away
-                                        // along with the content.
-                                        //
-                                        // A long press on an empty spot
-                                        // selects the whole track; a tap there
-                                        // puts the selection down.
+                                        // than collapsing it.
                                         child: track.visible
                                             ? GestureDetector(
                                                 behavior:
@@ -2184,10 +1991,7 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
                           ),
                           // Drawn over the tracks rather than scrolling with
                           // them: it marks a place on the screen, not a place
-                          // in the media. Runs the full height of the stack so
-                          // a layer and the clip beneath it are cut by the same
-                          // line -- which is the whole claim that they share
-                          // one axis.
+                          // in the media.
                           IgnorePointer(
                             child: Container(
                               width: _playheadWidth,
@@ -2258,15 +2062,13 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
         .reorderTracks(projectId: widget.projectId, order: order);
   }
 
-  /// Selects everything on a track: every clip on the video track, every
-  /// sound on the audio track, and on any other everything drawn there --
-  /// but a transcription's own sentences only with it, not as items of
-  /// their own, so removing the lot takes the transcription and not its
-  /// words one by one.
+  /// Selects everything on a track: every clip on the video track, every sound
+  /// on the audio track, and on any other every item drawn there -- a
+  /// transcription and each of its sentences, each shown selected, so a drag.
   void _selectTrack(String trackId) {
     final items = {
       for (final block in _contents.blocks)
-        if (block.trackId == trackId && !block.follows) block.item,
+        if (block.trackId == trackId) block.item,
     };
     if (items.isEmpty) return;
     HapticFeedback.selectionClick();
@@ -2276,12 +2078,6 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
   }
 
   /// The lanes to draw, top to bottom as the project's tracks are ordered.
-  ///
-  /// **A track with nothing on it is not drawn**: an empty lane is a
-  /// rectangle that explains nothing. The video track always is, holding the
-  /// "+" that adds a clip; the audio track once there is a clip. While a drag
-  /// would drop things below the last track, the lanes it would make follow,
-  /// dotted.
   List<_TrackSpec> _visibleTracks(TimelineContents contents, double width) {
     final hidden = ref.watch(hiddenTracksProvider(widget.projectId));
     final occupied = {for (final block in contents.blocks) block.trackId};
@@ -2348,16 +2144,9 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
 
 
 /// Width of the controls column beside the tracks.
-///
-/// Every point this takes is a point the time axis does not get, and on a
-/// phone the axis is the scarce thing.
 const double _gutterWidth = 32;
 
 /// Roughly how wide one filmstrip frame is drawn.
-///
-/// The strip divides its width by this to decide how many frames it has room
-/// for, then lays them out with `Expanded`, so each lands near this width
-/// without the row ever overflowing by a partial frame.
 const double _filmstripFrameWidth = 48;
 
 /// How many frames a clip [width] points wide has room for.
@@ -2365,17 +2154,10 @@ int _filmstripSlots(double width) =>
     width <= 0 ? 1 : math.max(1, (width / _filmstripFrameWidth).round());
 
 /// How long a freshly drawn layer covers, before the user resizes it.
-///
-/// Never zero: a zero-width layer would be invisible and untappable, so there
-/// would be no way to fix it.
 const int _defaultLayerMs = 10000;
 
 /// Draws a transcribe layer over [clipId] -- or, with no clip, over the first
 /// free stretch -- and returns its id, or null if there was no room.
-///
-/// **Spans the clip when it can.** Transcribing a whole clip is the common
-/// case by a wide margin, and a layer that had to be resized to reach the end
-/// of one would make the ordinary thing the fiddly thing.
 Future<String?> _addLayer(
   BuildContext context,
   WidgetRef ref, {
@@ -2430,22 +2212,13 @@ Future<void> _transcribeLayer(
   if (!context.mounted) return;
 
   // The options come first, every time -- this is the moment they apply to.
-  //
-  // **Re-running is offered rather than refused**, but never silently: it
-  // discards word corrections and speaker names, which are the parts the
-  // user typed rather than the parts the engine produced. That warning rides
-  // inside this dialog instead of being a second one, because two modals in
-  // a row for a single decision is one too many.
   final confirmed = await showTranscriptionOptions(
     context,
     warning: existing.isEmpty ? null : l10n.layerRerunBody,
   );
   if (!confirmed) return;
 
-  // **Read now, not before the dialog.** The controller is auto-disposed:
-  // one fetched while nothing was listening -- the Transcribe tool draws the
-  // layer and asks straight away -- could be thrown away while the options
-  // were open, and the run then went to a controller that no longer existed.
+  // Read now, not before the dialog.
   final controller =
       ref.read(layerTranscriptionControllerProvider(layerId).notifier);
   if (existing.isEmpty) {
@@ -2456,12 +2229,6 @@ Future<void> _transcribeLayer(
 }
 
 /// What can be done with the selection, one line under the tracks.
-///
-/// **Actions follow what is selected**, the way a contextual toolbar does:
-/// a clip offers moving and deleting, a transcribe layer offers running it, a
-/// multi-selection offers acting on all of it and a way out. Moving a clip
-/// used to hide behind a long press on it, which is now how multi-select
-/// starts.
 class _SelectionStrip extends ConsumerWidget {
   const _SelectionStrip({required this.projectId});
 
@@ -2472,8 +2239,7 @@ class _SelectionStrip extends ConsumerWidget {
 
   /// What a selection's Translate covers: the whole transcription of each
   /// selected layer, and just the words of each selected sentence --
-  /// neighbouring sentences joined into one run, so they keep each other's
-  /// context.
+  /// neighbouring sentences joined into one run.
   Future<_TranslationScope> _scopeOf(
     WidgetRef ref,
     Set<TimelineItem> selection,
@@ -2544,41 +2310,24 @@ class _SelectionStrip extends ConsumerWidget {
     );
   }
 
-  /// Deletes everything selected, confirming first when a clip is among it:
-  /// a clip's media is deleted outright, which cannot be undone.
+  /// Deletes everything selected, as undoable steps. A clip comes off the
+  /// timeline; its media stays with the project (`removeClip`), so there is
+  /// nothing to confirm.
   Future<void> _delete(
     BuildContext context,
     WidgetRef ref,
     Set<TimelineItem> selection,
   ) async {
-    final l10n = AppLocalizations.of(context);
     final clipIds = idsOfKind(selection, TimelineItemKind.clip);
 
-    if (clipIds.isNotEmpty) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AppDialog(
-          title: clipIds.length == 1
-              ? l10n.clipRemoveTitle
-              : l10n.clipRemoveManyTitle(clipIds.length),
-          content: Text(l10n.clipRemoveMessage),
-          actions: [
-            AppDialogAction(
-              label: l10n.clipRemove,
-              emphasis: AppDialogEmphasis.danger,
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-            AppDialogAction(
-              label: l10n.editCancel,
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-    }
-
     final repository = ref.read(transcriptRepositoryProvider);
+    // A transcription selected with its sentences -- a whole track -- is
+    // removed whole: its words go with it, not one sentence at a time.
+    final layerIds = idsOfKind(selection, TimelineItemKind.layer);
+    final wholeLayers = {
+      for (final sentence in ref.read(projectSentencesProvider(projectId)))
+        if (layerIds.contains(sentence.layerId)) sentence.transcriptId,
+    };
     // A sound is removed from the timeline, not deleted: its picture stays,
     // and Restore -- or undo -- puts it back.
     final sounds = idsOfKind(selection, TimelineItemKind.audio)
@@ -2609,7 +2358,9 @@ class _SelectionStrip extends ConsumerWidget {
     // removing words renumbers every word after them.
     final sentences = [
       for (final item in selection)
-        ?sentenceOf(item),
+        if (sentenceOf(item) case final sentence?
+            when !wholeLayers.contains(sentence.transcriptId))
+          sentence,
     ]..sort((a, b) => b.fromPosition.compareTo(a.fromPosition));
     for (final sentence in sentences) {
       await repository.removeSentence(
@@ -3102,48 +2853,20 @@ class _WavePainter extends CustomPainter {
       old.peaks != peaks || old.color != color;
 }
 
-/// The transcribe track: one rectangle per layer, laid out on the same axis
-/// as the clips above it.
-///
-/// A layer is a *request* — it exists before anything has run, and running it
-/// is what produces words. Its rectangle is positioned from project-timeline
-/// milliseconds, which is only meaningful because the clip row is a true time
-/// axis; if clips were still clamped and spaced, a layer could not sit over
-/// the media it describes.
-/// Width of the grab area at each end of a selected layer.
-///
-/// **Fixed, and straddling the edge rather than carved out of the bar.** A
-/// handle sized as a fraction of the layer would be untouchable on a short one
-/// and absurd on a long one; taking it out of the bar's own width would leave
-/// a short layer with no middle to drag. Half in and half out costs the bar
-/// [_layerHandleWidth] / 2 of its middle and keeps the target the same size at
-/// every zoom and every duration.
+/// The transcribe track: one rectangle per layer, laid out on the same axis as
+/// the clips above it.
 const double _layerHandleWidth = 40;
 
 /// The visible grip inside that grab area.
-///
-/// Wide enough to hold its arrow. The first version was 10pt with a 12pt icon
-/// inside it, so the glyph fought its own container and looked like a mistake.
 const double _layerGripWidth = 18;
 
 /// The outward arrow on a grip.
-///
-/// Sized to sit inside [_layerGripWidth] rather than fill it, so the grip
-/// reads as a surface with a mark on it instead of a box around an icon.
 const double _gripArrowSize = 14;
 
-/// The grip's corner rounding, applied to its **inner** edge only.
-///
-/// Square, like every corner in the sharp-corner style: the edge of the tile
-/// thickening into something to hold.
+/// The grip's corner rounding, applied to its inner edge only.
 BorderRadius _gripRadius({required bool atStart}) => BorderRadius.zero;
 
 /// The controls column beside the tracks: one row per lane.
-///
-/// **Laid out from the same track list the lanes are**, with the same heights
-/// and the same gaps, so each control sits beside the track it operates. An
-/// earlier version had a single eye and a single reorder button for the whole
-/// stack, which meant neither said which track it meant.
 class _TrackGutter extends StatelessWidget {
   const _TrackGutter({
     required this.tracks,
@@ -3227,17 +2950,9 @@ class _TrackControls extends StatefulWidget {
 
 class _TrackControlsState extends State<_TrackControls> {
   /// How far the handle has been dragged since the last swap.
-  ///
-  /// Reset on every swap rather than compared against the original position,
-  /// so a long drag steps through several tracks instead of jumping the whole
-  /// distance at once.
   double _dragged = 0;
 
   /// How far the handle travels before the track moves a place.
-  ///
-  /// Deliberately not the track's own height: a 34pt lane would swap almost
-  /// immediately, and a 92pt one would feel stuck. A fixed distance makes
-  /// every track answer the drag at the same rate.
   static const double _swapDistance = 28;
 
   void _onDrag(DragUpdateDetails details) {
@@ -3315,9 +3030,7 @@ class _TrackControlsState extends State<_TrackControls> {
 }
 
 /// Whether [item] is the one thing selected, outside multi-select: the only
-/// time it shows the handles that resize it. With several picked, the ends
-/// are not offered -- a drag would have to mean all of them or one of them,
-/// and neither is obvious.
+/// time it shows the handles that resize it.
 bool _resizable(WidgetRef ref, String projectId, TimelineItem item) {
   final selection = ref.watch(timelineSelectionProvider(projectId));
   return selection.length == 1 &&
@@ -3339,15 +3052,6 @@ BorderSide _clipDivider(ThemeData theme, AppSurface surface) =>
 const double _rulerHeight = 28;
 
 /// A measuring rule: a long tick for each labelled value, short ticks between.
-///
-/// **The label is centred on its tick**, which an earlier pass got wrong by
-/// positioning text from its left edge — the glyphs then sat beside the moment
-/// they named rather than on it, and at a glance the whole ruler read as
-/// shifted.
-///
-/// The labelled interval widens until labels cannot collide, so the ruler
-/// needs no special handling at any zoom — it relabels itself as the scale
-/// changes. Minor ticks subdivide that interval into five.
 class _TimeRuler extends StatelessWidget {
   const _TimeRuler({
     required this.totalMs,
@@ -3503,11 +3207,7 @@ class _ClipTile extends ConsumerWidget {
 
     final duration = Duration(milliseconds: window.endMs - window.startMs);
 
-    // **Frames are counted from the drawn width, not from the duration.**
-    // Counting by duration meant a fixed number of frames stretched across
-    // whatever width the clip happened to occupy, so zooming in magnified
-    // three pictures instead of revealing more of the clip — the strip got
-    // bigger and said no more than before.
+    // Frames are counted from the drawn width, not from the duration.
     final slots = _filmstripSlots(width);
     final count = ThumbnailService.frameCountForSlots(slots, duration);
     final frames = ref
@@ -3533,21 +3233,13 @@ class _ClipTile extends ConsumerWidget {
                 onTap: onTap,
                 onLongPress: onLongPress,
                 child: Container(
-                  // The border is drawn *inside* the tile's width rather than as a gap
-                  // beside it. A gap would add pixels the timeline does not have time
-                  // for, and every clip boundary after the first would sit later than
-                  // the moment it represents.
+                  // The border is drawn *inside* the tile's width rather than
+                  // as a gap beside it.
                   decoration: BoxDecoration(
                     borderRadius: _tileRadius,
                     color: theme.colorScheme.surfaceContainerHighest,
-                    // The selected clip takes the theme's own call to action, the same
-                    // signal `_Segment` uses for a chosen option. An unselected clip
-                    // gets no frame -- only a divider where it meets the clip before
-                    // it, which is the one thing the outline was needed for. Drawn
-                    // inside the tile's width rather than as a gap beside it: a gap
-                    // would add pixels the timeline does not have, and every clip
-                    // boundary after the first would sit later than the moment it
-                    // represents.
+                    // The selected clip takes the theme's own call to action,
+                    // the same signal `_Segment` uses for a chosen option.
                     border: selected
                         ? Border.all(
                             color: theme.colorScheme.primary,
@@ -3572,10 +3264,7 @@ class _ClipTile extends ConsumerWidget {
                             for (var slot = 0; slot < slots; slot++)
                               Expanded(
                                 child: Image.file(
-                                  // The frame nearest this slot's moment. Once the
-                                  // strip has more slots than there are extracted
-                                  // frames, neighbouring slots repeat a picture rather
-                                  // than stretching one across the gap.
+                                  // The frame nearest this slot's moment.
                                   File(frames[slot * frames.length ~/ slots]),
                                   fit: BoxFit.cover,
                                   height: _trackHeight,
@@ -3589,10 +3278,7 @@ class _ClipTile extends ConsumerWidget {
                 ),
               ),
             ),
-            // **Handles sit inside the tile, never straddling its edge.**
-            // Flutter does not hit-test the part of a child that falls outside
-            // its parent, so an overhanging grab area is decoration and every
-            // drag lands on whatever is behind it.
+            // Handles sit inside the tile, never straddling its edge.
             if (handles)
               for (final (edge, atStart) in const [
                 (ClipEdge.start, true),
@@ -3606,21 +3292,13 @@ class _ClipTile extends ConsumerWidget {
                   width: math.max(8, math.min(_layerHandleWidth, width / 2)),
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    // **Opaque, so it must answer taps as well as drags.** On
-                    // a tile narrower than twice a handle the two cover it
-                    // completely, and without this the item could be selected
-                    // and then never deselected -- every tap landed on a
-                    // handle that only listened for drags.
+                    // Opaque, so it must answer taps as well as drags.
                     onTap: onTap,
                     onHorizontalDragStart: (_) => onTrimStart(edge),
                     onHorizontalDragUpdate: (details) =>
                         onTrimUpdate(details.delta.dx),
                     onHorizontalDragEnd: (_) => onTrimEnd(),
-                    // **Drawn on the edge, grabbed from inside it.** The grip
-                    // sits flush to the end it moves so it reads as the edge
-                    // itself, while the area that answers a thumb reaches
-                    // inward from there -- the two do not have to be the same
-                    // rectangle, and only one of them can leave the tile.
+                    // Drawn on the edge, grabbed from inside it.
                     child: Align(
                       alignment:
                           atStart ? Alignment.centerLeft : Alignment.centerRight,
@@ -3691,20 +3369,9 @@ class _AddClipTile extends StatelessWidget {
 }
 
 /// The kinds of track that can be stacked on the timeline.
-///
-/// **Only [transcribe] can be added today.** The others each need their
-/// content composited into the exported video, and nothing in the app does
-/// that yet — captions are still structured data right up to export, and there
-/// is no compositor to burn a second layer in. They are listed rather than
-/// hidden because the stack is the thing being chosen from, and a menu that
-/// showed one entry would misdescribe what a track is; each says what it is
-/// waiting on rather than simply refusing.
 enum _TrackKind { transcribe, audio, text, image, video }
 
 /// Adds a track to the stack.
-///
-/// Sits outside the horizontal scroll: this adds a track, it is not one, so it
-/// stays put while the timeline moves beneath the playhead.
 class _AddTrackRow extends StatelessWidget {
   const _AddTrackRow({
     required this.onAdd,
@@ -3839,38 +3506,45 @@ const int _defaultTextMs = 3000;
 const double _textTrackHeight = 52;
 
 /// The zoom slider, docked above the toolbar while Zoom is on.
-///
-/// **Live while dragging, saved once on release** -- the same bargain the
-/// stage's pinch makes (see `StageLive`), so one slide is one undo step.
 class _ZoomBar extends ConsumerStatefulWidget {
-  const _ZoomBar({required this.projectId, required this.clipIds});
+  const _ZoomBar({required this.projectId, required this.items});
 
   final String projectId;
 
-  /// What the slider scales.
-  final List<String> clipIds;
+  /// What the slider scales: what is selected, else the clip on the stage.
+  final List<TimelineItem> items;
 
   @override
   ConsumerState<_ZoomBar> createState() => _ZoomBarState();
 }
 
 class _ZoomBarState extends ConsumerState<_ZoomBar> {
-  Map<String, ItemTransform>? _start;
+  Map<TimelineItem, ({ItemTransform from, ItemTransform? own})>? _start;
 
-  Map<String, ItemTransform> _stored() {
-    final clips =
-        ref.read(projectClipsProvider(widget.projectId)).value ?? const [];
-    return {
-      for (final clip in clips)
-        if (widget.clipIds.contains(clip.id)) clip.id: clip.framing,
-    };
+  /// Where each item sits, from the first one's scale -- the one the slider
+  /// shows.
+  Map<TimelineItem, ({ItemTransform from, ItemTransform? own})> _stored() =>
+      selectedPlacements(ref, widget.projectId, widget.items);
+
+  /// [from] scaled by the same factor that takes the first item to [scale],
+  /// so a selection of different sizes keeps its proportions.
+  ItemTransform _scaled(
+    ItemTransform from,
+    double scale,
+    Map<TimelineItem, ({ItemTransform from, ItemTransform? own})> start,
+  ) {
+    final lead = start.values.firstOrNull?.from.scale ?? 1;
+    final factor = lead <= 0 ? 1.0 : scale / lead;
+    return from.copyWith(
+      scale: (from.scale * factor).clamp(0.2, ItemTransform.maxScale).toDouble(),
+    );
   }
 
   void _slide(double scale) {
     final start = _start ??= _stored();
     ref.read(stageLiveProvider(widget.projectId).notifier).show({
-      for (final MapEntry(key: id, value: from) in start.entries)
-        (kind: TimelineItemKind.clip, id: id): from.copyWith(scale: scale),
+      for (final MapEntry(key: item, value: at) in start.entries)
+        item: _scaled(at.from, scale, start),
     });
   }
 
@@ -3880,12 +3554,12 @@ class _ZoomBarState extends ConsumerState<_ZoomBar> {
     await ref.read(transcriptRepositoryProvider).applyPlacements(
       projectId: widget.projectId,
       changes: [
-        for (final MapEntry(key: id, value: from) in start.entries)
+        for (final MapEntry(key: item, value: at) in start.entries)
           (
-            kind: TimelineItemKind.clip,
-            id: id,
-            before: from,
-            after: from.copyWith(scale: scale),
+            kind: item.kind,
+            id: item.id,
+            before: at.own,
+            after: _scaled(at.from, scale, start),
           ),
       ],
     );
@@ -3900,16 +3574,17 @@ class _ZoomBarState extends ConsumerState<_ZoomBar> {
     final theme = Theme.of(context);
     final surface = context.surface;
     final live = ref.watch(stageLiveProvider(widget.projectId));
-    final clips =
-        ref.watch(projectClipsProvider(widget.projectId)).value ?? const [];
+    // Rebuilt as the rows change, so the value follows an undo.
+    ref.watch(projectClipsProvider(widget.projectId));
+    ref.watch(projectLayersProvider(widget.projectId));
+    ref.watch(projectTextLayersProvider(widget.projectId));
+    ref.watch(projectImageLayersProvider(widget.projectId));
 
-    final first = widget.clipIds.firstOrNull;
-    final clip = clips.where((c) => c.id == first).firstOrNull;
-    final scale = (first == null
-            ? null
-            : live[(kind: TimelineItemKind.clip, id: first)]?.scale) ??
-        clip?.scale ??
-        1;
+    // The first item the slider moves speaks for the rest.
+    final lead = _stored().entries.firstOrNull;
+    final scale =
+        (lead == null ? null : live[lead.key]?.scale ?? lead.value.from.scale) ??
+            1;
     const lowest = 0.5;
     const highest = ItemTransform.maxScale;
 
@@ -3935,8 +3610,8 @@ class _ZoomBarState extends ConsumerState<_ZoomBar> {
                   value: scale.clamp(lowest, highest).toDouble(),
                   min: lowest,
                   max: highest,
-                  onChanged: widget.clipIds.isEmpty ? null : _slide,
-                  onChangeEnd: widget.clipIds.isEmpty ? null : _release,
+                  onChanged: lead == null ? null : _slide,
+                  onChangeEnd: lead == null ? null : _release,
                 ),
               ),
               const Icon(Icons.zoom_in, size: 20),
@@ -3957,11 +3632,6 @@ class _ZoomBarState extends ConsumerState<_ZoomBar> {
 }
 
 /// The tools at the foot of the screen, each one working.
-///
-/// **No placeholders.** Audio, Effects, Overlay and Filter were buttons that
-/// only said "coming soon", which costs a tap to learn nothing. The row now
-/// holds what the editor actually does: cut, frame the picture, add words,
-/// transcribe.
 class _BottomToolbar extends StatelessWidget {
   /// How many tools the strip holds, and where Style sits among them -- what
   /// the Style panel's link down to its button is measured from. Keep in step
@@ -4067,24 +3737,23 @@ class _ToolbarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // The tool that is open is a chosen state, so it takes the selection
-    // ink, not the action colour.
-    // At rest, the strip's own fill (`AppStrip`'s cells), so the face that
-    // moves is indistinguishable from the strip until it does.
+    // The tool that is open is a chosen state, so it takes the selection ink,
+    // not the action colour.
     final fill = active
         ? theme.colorScheme.secondary
         : theme.colorScheme.surfaceContainerHighest;
     final ink =
         active ? theme.colorScheme.onSecondary : theme.colorScheme.onSurface;
 
-    // The open tool's block reaches over the strip's lines, like every
-    // chosen cell. Pressed, the cell pushes down and to the right into the
-    // strip, as the library's search button does.
+    // The open tool's block reaches over the strip's lines, like every chosen
+    // cell. Pressed, the cell sinks straight down into the strip, less than a
+    // raised button's drop: it is set in the strip, not standing off it.
     return AppSelectedBleed(
       selected: active,
       color: fill,
       child: AppPushIn(
         face: fill,
+        travel: Offset(0, context.surface.offset.dy * 0.75),
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
@@ -4122,10 +3791,6 @@ String _formatPosition(Duration position) {
 }
 
 /// One pipeline stage as a sentence, with its percentage where there is one.
-///
-/// The stage vocabulary is shared with import rather than duplicated per
-/// caller, so a run started from the library and a run started from a layer
-/// describe themselves in the same words.
 String stageLabel(AppLocalizations l10n, ImportStage stage, int? percent) =>
     switch (stage) {
       ImportStage.preparingModel => l10n.stagePreparingModel,

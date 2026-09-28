@@ -37,6 +37,10 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- The launcher entry of development builds, which is what
+                 `flutter run` starts. Release builds remove it
+                 (src/release/AndroidManifest.xml) and show the icon aliases
+                 below instead; development builds remove the aliases. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -61,6 +65,105 @@
                 <data android:mimeType="audio/*"/>
             </intent-filter>
         </activity>
+        <!-- The launcher icon, one alias per colour of its hand, all opening
+             MainActivity. Exactly one is enabled: blue, the default, until
+             the user picks an action colour, then the variant nearest it
+             (lib/core/theme/launcher_icon.dart; switched in MainActivity when
+             the app goes to the background). -->
+        <activity-alias
+            android:name=".IconBlue"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_blue"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconViolet"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_violet"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconTeal"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_teal"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconGreen"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_green"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconYellow"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_yellow"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconOrange"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_orange"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconRed"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_red"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconInk"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_ink"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <!-- Google AdMob, for the rewarded ad that removes the watermark from
+             one export. Google's public TEST app id: replace with the real one
+             before a release (lib/core/monetization/admob_rewarded_source.dart). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

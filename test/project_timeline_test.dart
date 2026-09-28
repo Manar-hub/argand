@@ -1,4 +1,5 @@
 import 'package:argand/core/database/database.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:argand/core/timeline/project_timeline.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -178,6 +179,56 @@ void main() {
       final ranges = timeline.rangesFor(startMs: 4940, endMs: 5000);
       expect(ranges, hasLength(1));
       expect(ranges.single.clipEndMs - ranges.single.clipStartMs, 60);
+    });
+  });
+
+  group('a removed tail', () {
+    // A 40 s file, cut at 15.5 s and the rest removed: one clip playing
+    // 0-15.5 s, with the words still running to 38 s.
+    final kept = _clip('a', 40000).copyWith(trimEndMs: const Value(15500));
+    final timeline = ProjectTimeline.fromClips([kept]);
+
+    test('the project runs on to where the words end', () {
+      expect(timeline.totalMs, 15500);
+      expect(
+        timeline.runMsWith(contentEndMs: 38000, lastFileMs: 40000),
+        38000,
+      );
+    });
+
+    test('but no further than the file reaches', () {
+      expect(
+        timeline.runMsWith(contentEndMs: 55000, lastFileMs: 40000),
+        40000,
+      );
+    });
+
+    test('nothing past the clips: it ends with them', () {
+      expect(
+        timeline.runMsWith(contentEndMs: 12000, lastFileMs: 40000),
+        15500,
+      );
+      expect(timeline.runMsWith(contentEndMs: 38000), 15500);
+    });
+
+    test('past the clips, the playhead lands in the file beyond the cut', () {
+      expect(timeline.tailAt(20000, runMs: 38000),
+          (clipId: 'a', clipMs: 20000));
+      // Inside the clip, and from the end of the run on, it is not the tail.
+      expect(timeline.tailAt(10000, runMs: 38000), isNull);
+      expect(timeline.tailAt(38000, runMs: 38000), isNull);
+    });
+
+    test('behind an earlier clip, the tail is still the last clip\'s file',
+        () {
+      final two = ProjectTimeline.fromClips([
+        _clip('x', 5000, position: 0),
+        kept.copyWith(position: 1),
+      ]);
+      expect(two.totalMs, 20500);
+      expect(two.runMsWith(contentEndMs: 43000, lastFileMs: 40000), 43000);
+      // 25 s into the project is 20 s into a's file.
+      expect(two.tailAt(25000, runMs: 43000), (clipId: 'a', clipMs: 20000));
     });
   });
 }

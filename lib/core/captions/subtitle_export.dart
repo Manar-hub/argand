@@ -1,11 +1,6 @@
 import 'caption_cue.dart';
 
 /// A subtitle container this app can write.
-///
-/// Both are plain text wrappers around the user's own transcript, so both are
-/// free and always will be (CLAUDE.md §2). The paid line falls at professional
-/// *interchange* formats — ASS/SSA and similar — which exist to feed another
-/// editing tool's pipeline rather than to read or share your captions.
 enum SubtitleFormat {
   srt(
     extension: 'srt',
@@ -23,12 +18,6 @@ enum SubtitleFormat {
 }
 
 /// How long a subtitle line may run before it wraps.
-///
-/// **The one layout choice worth handing to the user.** Forty-two characters is
-/// the broadcast convention and suits a landscape frame; on a 9:16 video the
-/// same line covers most of the picture's width, which is why short-form
-/// platforms settle nearer thirty. Everything else about the file is decided
-/// by the captions themselves.
 enum SubtitleLineLength {
   standard(42),
   short(32);
@@ -39,10 +28,6 @@ enum SubtitleLineLength {
 }
 
 /// Knobs for turning cues into a subtitle file.
-///
-/// Separate from [CaptionStyle], which decides *where cues break*. These decide
-/// how an already-grouped cue is written down, and the two are independent: the
-/// same grouping exports identically to both formats.
 class SubtitleOptions {
   const SubtitleOptions({
     this.minCueMs = 100,
@@ -52,13 +37,6 @@ class SubtitleOptions {
   });
 
   /// Shortest cue the file may contain.
-  ///
-  /// A **validity** floor, not a readability rule -- subtitling practice wants
-  /// closer to a second, but the grouper already decides what a cue contains
-  /// and this only exists because a player rejects or skips a cue that ends
-  /// where it starts. Word timings come from whisper's DTW alignment, which
-  /// occasionally emits a zero-length or inverted span. Kept small so that a
-  /// run of degenerate cues cannot push later ones noticeably out of sync.
   final int minCueMs;
 
   /// Separation forced between one cue's end and the next cue's start.
@@ -75,19 +53,6 @@ class SubtitleOptions {
 }
 
 /// Serialises [cues] into [format].
-///
-/// [speakerLabel] names the speaker of a cue, and is null when the file should
-/// carry no attribution. It is given the whole cue rather than a speaker number
-/// because names are stored per transcript, and a project's cues come from
-/// several: the same number can be two different people in two different runs,
-/// so only the cue's own words say whose names to use.
-///
-/// It is injected rather than built here because "Speaker 1" is interface text
-/// and belongs to the localisation layer (CLAUDE.md §4) — this file stays free
-/// of strings the user reads.
-///
-/// The two formats differ only in their timestamp separator, their header, and
-/// how they mark a speaker, so they share one pass.
 String formatSubtitles(
   List<CaptionCue> cues, {
   required SubtitleFormat format,
@@ -127,16 +92,6 @@ String formatSubtitles(
 
 /// Forces the cue list into timings a player will accept: strictly increasing,
 /// never overlapping, never zero-length.
-///
-/// None of those hold on the way in. `CaptionCue` already takes the *maximum*
-/// word end to stop a cue finishing before it starts, and its own documentation
-/// notes that DTW timestamps drift — so two cues can overlap, and a cue built
-/// from a single clipped word can have no duration at all.
-///
-/// Cues are pushed later rather than earlier when they collide, so a cue never
-/// appears before the word it transcribes. With [SubtitleOptions.minCueMs] at
-/// 100ms the accumulated shift stays imperceptible unless a transcript is
-/// almost entirely degenerate, in which case its timings were unusable anyway.
 List<(int, int)> _normalise(List<CaptionCue> cues, SubtitleOptions options) {
   final result = <(int, int)>[];
   var cursor = 0;
@@ -181,10 +136,6 @@ String _body(
 }
 
 /// Breaks [text] into at most [SubtitleOptions.maxLines] readable lines.
-///
-/// Splits on the space nearest the middle rather than filling greedily: a
-/// greedy fill leaves a long first line and an orphan second, which reads worse
-/// than two balanced ones at the same total length.
 List<String> _wrap(String text, SubtitleOptions options) {
   if (text.length <= options.maxLineCharacters) return [text];
 
@@ -233,10 +184,6 @@ int? _balancedSplit(String text, int maxLineCharacters) {
 }
 
 /// `HH:MM:SS` plus milliseconds after [separator].
-///
-/// Hours are always written. WebVTT permits `MM:SS.mmm`, but the long form is
-/// valid in both formats and one code path is worth more than three saved
-/// characters per line.
 String _timestamp(int totalMs, String separator) {
   final ms = totalMs < 0 ? 0 : totalMs;
   final hours = ms ~/ 3600000;
@@ -254,12 +201,6 @@ String _timestamp(int totalMs, String separator) {
 
 /// WebVTT reads `<`, `>` and `&` as markup, so a transcript containing them
 /// would silently lose text or produce a malformed cue.
-///
-/// Deliberately not applied to SubRip: it has no markup layer, and writing
-/// `&amp;` there would put a literal ampersand-a-m-p on screen. Some players
-/// do honour a subset of HTML tags in SubRip, which is a real if rare hazard —
-/// noted rather than guessed at, since escaping would break the common case to
-/// serve the uncommon one.
 String _escapeVtt(String text) => text
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

@@ -1,8 +1,4 @@
 /// What kind of thing on the timeline a selection refers to.
-///
-/// Deliberately open to growth: audio, text and image items are planned tracks
-/// and will be selectable the same way. The editing tools switch on this, so
-/// adding a kind is what makes a new track editable.
 enum TimelineItemKind {
   clip,
   layer,
@@ -19,15 +15,6 @@ enum TimelineItemKind {
 typedef TimelineItem = ({TimelineItemKind kind, String id});
 
 /// What a tap on [item] leaves selected.
-///
-/// **A tap picks one thing to work on**, the way every editor behaves: it
-/// replaces whatever was selected, and tapping the one selected thing again
-/// puts it down. Building a set of several is a deliberate act -- a long
-/// press, see [longPressSelection] -- after which taps add and remove
-/// ([multi]) until the set is emptied or put away.
-///
-/// The earlier rule, where every tap toggled, made the common case (edit this
-/// one clip) cost a second tap to clear the last thing touched.
 Set<TimelineItem> tapSelection(
   Set<TimelineItem> selection,
   TimelineItem item, {
@@ -47,10 +34,6 @@ Set<TimelineItem> longPressSelection(
     toggleSelection(selection, item);
 
 /// Toggles [item] in [selection] and returns the result.
-///
-/// The multi-select rule: tap adds, tap again removes, so a set can be built
-/// to act on several things at once -- cutting a clip and the transcribe layer
-/// over it in the same stroke.
 Set<TimelineItem> toggleSelection(
   Set<TimelineItem> selection,
   TimelineItem item,
@@ -61,11 +44,6 @@ Set<TimelineItem> toggleSelection(
 }
 
 /// Drops anything from [selection] that no longer exists.
-///
-/// A clip can be removed, a layer deleted, a split can replace rows. A
-/// selection holding an id that is gone would have the tools operate on
-/// nothing and report success, which is worse than the item quietly leaving the
-/// selection.
 Set<TimelineItem> prunedSelection(
   Set<TimelineItem> selection, {
   required Set<String> clipIds,
@@ -100,9 +78,6 @@ Set<String> idsOfKind(Set<TimelineItem> selection, TimelineItemKind kind) => {
     };
 
 /// A sentence as a selectable item: which transcript, and which words.
-///
-/// Encoded into the item's id because a sentence has no row of its own --
-/// sentences are derived from words -- and a selection holds ids.
 TimelineItem sentenceItem({
   required String transcriptId,
   required int fromPosition,

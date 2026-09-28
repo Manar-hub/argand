@@ -6,14 +6,9 @@ import 'package:flutter/material.dart';
 /// export, the two settings, undo and redo, play and pause, fullscreen.
 enum AppGlyph { export, settings, gear, undo, redo, play, pause, fullscreen }
 
-/// One of the app's own icons, in the style's geometry rather than
-/// Material's: **square caps, mitred corners, no rounding** -- the same hard
-/// edges as every card and button -- with the sliders' knobs as squares, as
-/// the app's own slider thumb (`AppSquareThumb`) is.
-///
-/// Drawn on Material's 24-unit grid at its 2-unit stroke, and sized and
-/// coloured from the ambient [IconTheme] like an [Icon], so it drops into an
-/// [IconButton] and follows its disabled colour and `iconSize`.
+/// One of the app's own icons, in the style's geometry rather than Material's.
+/// square caps, mitred corners, no rounding -- the same hard edges as every
+/// card and button -- with the sliders' knobs as squares.
 class AppIcon extends StatelessWidget {
   const AppIcon(this.glyph, {super.key, this.size, this.color});
 

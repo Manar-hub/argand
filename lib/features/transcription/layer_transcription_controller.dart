@@ -15,11 +15,6 @@ import 'transcription_run.dart';
 part 'layer_transcription_controller.g.dart';
 
 /// Shortest range worth handing to the engine.
-///
-/// Sherpa discards speech under `minDurationOn` of 0.2s and whisper's VAD
-/// floor is 250ms, so anything below this produces an empty transcript at the
-/// cost of a full model run. A sliver this size is almost always the tail of a
-/// layer overhanging the clip beneath it rather than something the user drew.
 const int minimumTranscribableMs = 250;
 
 /// What transcribing one layer is doing right now.
@@ -55,30 +50,6 @@ class LayerTranscriptionFailed extends LayerTranscriptionStatus {
 }
 
 /// Transcribes exactly the stretch of timeline a layer covers.
-///
-/// **A layer is a request; this is what answers it.** The layer says which
-/// audio matters, and a run here produces one transcript per clip the layer
-/// overlaps — never one per layer, because word timings are relative to a
-/// clip's own media and a single transcript spanning two clips would have no
-/// coherent timebase.
-///
-/// Clips are run **one after another, never in parallel**. Two whisper
-/// contexts is not a throughput win on a phone, and the emulator already dies
-/// at three sequential runs; a layer covering four clips would be four at
-/// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded. A failed run costs the attempt and nothing else:
-/// the clips still play and the layer still stands, so the action can simply
-/// be taken again -- the same reasoning import uses for not rolling back a
-/// clip that is already committed.
-///
-/// Two engine properties leak through here and are worth knowing:
-///
-/// - **Language auto-detection reads only the opening ~30s** of whatever it is
-///   given, so two layers over one clip can independently detect different
-///   languages. Pinning the language in settings avoids it.
-/// - **Speaker numbers come from each diarization run** and are cluster
-///   indices with meaning only inside it. They already did not correspond
-///   across clips; with layers they no longer correspond *within* one either.
 @riverpod
 class LayerTranscriptionController extends _$LayerTranscriptionController {
   @override
@@ -86,20 +57,9 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
       const LayerTranscriptionIdle();
 
   /// Runs the engine over each clip the layer covers.
-  ///
-  /// Does nothing if the layer already has transcripts: re-running is
-  /// destructive of word corrections and speaker names, so it goes through
-  /// [rerun] where the caller has confirmed it.
   Future<void> transcribe() => _run(replacing: false);
 
   /// Transcribes again, discarding what this layer produced before.
-  ///
-  /// **Allowed, unlike re-transcribing a whole clip.** A layer is a request,
-  /// and re-running it with a different model or language is an obvious thing
-  /// to want. Refusing outright would be routed around by deleting the layer
-  /// and redrawing it, which loses exactly the same data with no warning at
-  /// all — so the destructive path is offered openly, and the caller is
-  /// expected to have said what is lost.
   Future<void> rerun() => _run(replacing: true);
 
   Future<void> _run({required bool replacing}) async {
@@ -124,7 +84,7 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
         // Dropped with a reason rather than silently: a sliver under the
         // engine's own floor comes back empty, and an empty transcript beside
         // the others looks like a failure rather than like a range too short
-        // to say anything.
+        // to.
         if (range.clipEndMs - range.clipStartMs >= minimumTranscribableMs)
           range
         else
@@ -162,12 +122,7 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
         final from = group.first.clipStartMs;
         final to = group.last.clipEndMs;
 
-        // **One run for the whole recording, not one per clip.** Splitting a
-        // clip does not make it two recordings, but a run per clip meant a
-        // diarization run per clip -- and speaker numbers are cluster indices
-        // with meaning only inside the run that produced them. The same person
-        // either side of a cut came back as two speakers, in two colours,
-        // because nothing had ever compared them.
+        // One run for the whole recording, not one per clip.
         final outcome = await TranscriptionRunner(ref).run(
           mediaPath: mediaPath,
           range: (startMs: from, endMs: to),
@@ -239,17 +194,6 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
   }
 
   /// Records the run, so undo takes back the transcription itself.
-  ///
-  /// **A separate event from the layer that asked for it.** Drawing a layer
-  /// and running the engine over it are two actions at two moments; with only
-  /// the first recorded, undo after transcribing reached past the words to the
-  /// track underneath them -- which is how the track disappeared while its
-  /// captions stayed on the video.
-  ///
-  /// A rerun's *discarded* words are not part of this. Undoing a rerun retires
-  /// what the rerun wrote without restoring what it replaced, because the
-  /// discard is not in the history either; the layer is left ready to be run
-  /// again, which is the state the rerun started from.
   Future<void> _record(
     TranscriptRepository repository,
     String projectId,
@@ -275,11 +219,6 @@ class LayerTranscriptionController extends _$LayerTranscriptionController {
 }
 
 /// Groups ranges that are really one recording.
-///
-/// Two ranges belong together when they play the **same file** and meet
-/// exactly -- which is what splitting a clip produces. Anything else starts a
-/// new group: a different file is a different recording, and a gap means the
-/// audio between was deliberately cut out and must not be transcribed.
 List<List<ClipRange>> groupContiguousRanges(
   List<ClipRange> ranges,
   Map<String, MediaClip> clips,
@@ -309,10 +248,6 @@ List<List<ClipRange>> groupContiguousRanges(
 }
 
 /// The part of [whole] that falls in `[fromMs, toMs)`, in the run's own time.
-///
-/// Used to share one run's words out among the clips it covered. Half-open, so
-/// a segment starting exactly on a cut belongs to the clip after it and no word
-/// is stored twice.
 WhisperTranscribeResponse segmentsWithin(
   WhisperTranscribeResponse whole, {
   required int fromMs,

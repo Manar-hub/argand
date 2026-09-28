@@ -1,10 +1,6 @@
 import 'dart:convert';
 
 /// Which mutation an [EditEventPayload] records.
-///
-/// The [code] is what gets stored, so these strings are part of the on-disk
-/// format: renaming one silently orphans every event already written on a
-/// user's device. Add cases, never rename them.
 enum EditEventKind {
   wordText('wordText'),
   speaker('speaker'),
@@ -25,17 +21,6 @@ enum EditEventKind {
 }
 
 /// One reversible edit, carrying enough state to be applied in both directions.
-///
-/// **Each payload stores its own inverse.** Undo could instead re-derive the
-/// prior state from the transcript, but that only works while the edit is the
-/// most recent thing that touched those rows -- and it is exactly *not*, once a
-/// second edit lands on the same word. Storing `before` alongside `after` makes
-/// an event self-contained, which is what lets the log be replayed in either
-/// direction from any position.
-///
-/// This is the event log `docs/engine-architecture.md` prescribes: discrete
-/// operations rather than whole-document snapshots, so the cost per edit is
-/// bytes rather than the size of the transcript.
 sealed class EditEventPayload {
   const EditEventPayload();
 
@@ -46,11 +31,6 @@ sealed class EditEventPayload {
   String encode() => jsonEncode(toJson());
 
   /// Rebuilds a payload from its stored [kind] and [json].
-  ///
-  /// Returns null rather than throwing when either is unusable -- an unknown
-  /// kind from a newer build, malformed JSON, a field of the wrong type. A
-  /// corrupt row must not be able to take down the editor; the caller drops the
-  /// event and carries on with the rest of the log.
   static EditEventPayload? decode(String kind, String json) {
     final resolved = EditEventKind.fromCode(kind);
     if (resolved == null) return null;
@@ -72,10 +52,6 @@ sealed class EditEventPayload {
 }
 
 /// One word row, captured whole.
-///
-/// A sentence edit can add and remove words, not just change their text, so its
-/// inverse cannot be described as a field-level delta the way a
-/// [WordTextEdit] can. The whole row goes in, both sides.
 class WordSnapshot {
   const WordSnapshot({
     required this.id,
@@ -124,15 +100,6 @@ class WordSnapshot {
 }
 
 /// A whole sentence retyped.
-///
-/// Unlike the other two kinds this can change how many words exist, which is
-/// why both sides are full row snapshots rather than a description of the
-/// difference: applying it in either direction is the same operation with the
-/// two lists swapped.
-///
-/// [fromPosition] is where the run starts. Its end is implied by whichever list
-/// is currently in place, so undo and redo each compute their own — the run
-/// gets longer or shorter as the edit is applied and reversed.
 class SentenceEdit extends EditEventPayload {
   const SentenceEdit({
     required this.fromPosition,
@@ -187,11 +154,6 @@ class SentenceEdit extends EditEventPayload {
 }
 
 /// A correction to one word's text.
-///
-/// Timings are deliberately absent. `updateWordText` writes `word` and nothing
-/// else, so there is no timestamp to restore -- and an undo that "helpfully"
-/// reset `startMs`/`endMs` would desynchronise tap-to-seek, the playback
-/// highlight and every caption boundary from the audio.
 class WordTextEdit extends EditEventPayload {
   const WordTextEdit({
     required this.wordId,
@@ -223,12 +185,6 @@ class WordTextEdit extends EditEventPayload {
 }
 
 /// A speaker reassignment over a contiguous run of positions.
-///
-/// [before] is a per-position map rather than a single value, for two reasons.
-/// A run reassigned today is uniform by construction -- turns *are* runs of one
-/// speaker -- but an undiarized transcript carries nulls, and a future caller
-/// that reassigns an arbitrary selection would span several speakers. A map
-/// round-trips all three cases; a scalar would silently flatten the last two.
 class SpeakerEdit extends EditEventPayload {
   const SpeakerEdit({
     required this.fromPosition,

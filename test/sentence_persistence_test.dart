@@ -8,9 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Sentence editing against a real database.
-///
-/// The word count changes here, which puts `position` contiguity and the undo
-/// log under pressure in a way the pure planner tests cannot reach.
 void main() {
   late AppDatabase database;
   late TranscriptRepository repository;
@@ -235,10 +232,6 @@ void main() {
 
     test('one changed word gives the same result in either scope', () async {
       // Worth pinning, because it is not obvious and it is the common case.
-      // `planSentenceEdit` aligns before retiming, so a line edit that changes
-      // exactly one word produces a changed run of exactly one word -- the same
-      // run word scope would have forced. The two scopes only diverge when the
-      // alignment cannot match, i.e. when several words are rewritten at once.
       final texts = ['It', 'was', 'brainbeats', 'again', 'today.'];
 
       final byWordId = await seed(texts);

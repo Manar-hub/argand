@@ -7,18 +7,8 @@ import 'app_surface.dart';
 // toolbar, the video settings panel, the style panel, the export sheet --
 // shared so none of them can drift apart in look or feel.
 
-/// A row of cells in **one** box, with a rule between neighbours -- the same
-/// rule, at the same thickness, as between the library's projects.
-///
-/// Cells draw no frame of their own: a box round every choice made a row of
-/// five look like five unrelated things. The chosen cell fills its own area
-/// instead.
-///
-/// [expand] shares the width out evenly; off, each cell takes its own width,
-/// for a strip inside a horizontal scroller. [onCard] says what the strip
-/// sits on, which decides its tones on dark: there is no outline there, so
-/// the cells take whichever tone the background is not, and the rules are cut
-/// in the background's.
+/// A row of cells in one box, with a rule between neighbours -- the same rule,
+/// at the same thickness, as between the library's projects.
 class AppStrip extends StatelessWidget {
   const AppStrip({
     super.key,
@@ -80,10 +70,9 @@ class AppStrip extends StatelessWidget {
               child: CustomPaint(
                 painter: _RulePainter(
                   color: rule,
-                  // On paper the rule runs on through the strip's edge line
-                  // and ends in a short crossbar there -- lost in the line
-                  // where the line is drawn, a T where a link leaves it
-                  // open. Dark draws no lines, so no bars.
+                  // On paper the rule runs on through the strip's edge line and
+                  // ends in a short crossbar there -- lost in the line where
+                  // the line is drawn, a T where a link leaves it open.
                   bar: surface.outlined && tees ? surface.borderWidth : 0,
                 ),
               ),
@@ -113,10 +102,6 @@ class AppStrip extends StatelessWidget {
       ),
       child: Padding(
         // Inside the outline, so a chosen cell's fill never paints over it.
-        // A bare strip still owns the band its frame's line runs along,
-        // above and below it: its rules end in their Ts there, inside its
-        // own box, so they appear and animate with the row rather than
-        // being clipped away until an animation settles.
         padding: bare
             ? EdgeInsets.symmetric(vertical: surface.borderWidth)
             : EdgeInsets.fromLTRB(
@@ -144,26 +129,8 @@ class AppStrip extends StatelessWidget {
   }
 }
 
-/// A row of items with the chosen item's options beside it, **linked like a
-/// folder tab**.
-///
-/// The options sit in their own rectangle, a small gap from the items. Two
-/// lines run from the chosen item's edges to that rectangle, and the
-/// rectangle's facing edge runs only as far as them: between the two lines it
-/// is open, so item, lines and rectangle read as one outline -- the options
-/// belong to that item. The lines glide to the next item when it is chosen.
-///
-/// [upward] puts the options *above* the items, for a panel that grows up
-/// from the toolbar; otherwise they hang below. [itemsOpening] opens the
-/// items row's own bottom edge between two points, for when the items are
-/// themselves the options of something below (the toolbar's Style button).
-///
-/// On dark, which draws no light lines, the same shape is drawn in tone
-/// instead: the rectangle in the card's tone, and the channel between the
-/// item and the rectangle filled with it.
-///
-/// [child] draws no box of its own: the rectangle is its box. A single row
-/// of choices is a bare [AppStrip]; anything more pads itself.
+/// A row of items with the chosen item's options beside it, linked like a
+/// folder tab.
 class AppLinkedPanel extends StatelessWidget {
   const AppLinkedPanel({
     super.key,
@@ -259,10 +226,9 @@ class AppLinkedPanel extends StatelessWidget {
   }
 }
 
-/// Where cell [index] of a row of [count] cells has its two edges, across a
-/// row [width] wide: the centres of the lines either side of it, as
-/// [AppStrip] lays its cells out -- its outer line at the ends ([border]),
-/// the rules between cells ([rule]) elsewhere.
+/// Where cell [index] of a row of [count] cells has its two edges, across a row
+/// [width] wide: the centres of the lines either side of it, as [AppStrip] lays
+/// its cells out -- its outer line at the ends ([border]).
 (double, double) appLinkEdges({
   required double width,
   required int count,
@@ -431,13 +397,9 @@ class AppOpenFramePainter extends CustomPainter {
       old.openTop != openTop;
 }
 
-/// A rule between two cells, and -- when [bar] is set -- its ends carried
-/// out through the strip's edge line, each finished with a short crossbar as
-/// thick as that line.
-///
-/// Painted past its own box on purpose: the edge line lies outside the
-/// cells' area, and the bar has to sit exactly on it to vanish where the line
-/// is drawn.
+/// A rule between two cells, and -- when [bar] is set -- its ends carried out
+/// through the strip's edge line, each finished with a short crossbar as thick
+/// as that line.
 class _RulePainter extends CustomPainter {
   _RulePainter({required this.color, required this.bar});
 
@@ -675,11 +637,9 @@ class AppChoice extends StatelessWidget {
   }
 }
 
-/// A chosen cell's fill carried out over the frame's line above and below
-/// it -- the band the row owns for that line -- so the choice fills the
-/// whole frame rather than stopping short of it. Where the line is drawn the
-/// two are the same ink; where a link leaves it open, the fill closes the gap
-/// to the T beside it. Never past the frame: the band is inside the row's box.
+/// A chosen cell's fill carried out over the frame's line above and below it --
+/// the band the row owns for that line -- so the choice fills the whole frame
+/// rather than stopping short of it.
 class AppSelectedBleed extends StatelessWidget {
   const AppSelectedBleed({
     super.key,

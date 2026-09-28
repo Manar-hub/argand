@@ -1,20 +1,4 @@
 /// Detects decoder repetition loops in a run of transcribed words.
-///
-/// whisper.cpp can fall into a degenerate decode where it emits the same
-/// phrase over and over until the window's token budget runs out — taking the
-/// real speech in that window with it. The engine already has a detector for
-/// this (an entropy check on the decoded sequence) but its verdict is only
-/// consulted on the temperature-fallback path, so with fallback disabled a
-/// loop reaches the transcript intact.
-///
-/// This module exists so that failure stops being judged by eye. Every earlier
-/// report of it was "I watched the video and the transcript looked wrong",
-/// which cannot be compared across two runs. A loop has a shape — a short
-/// phrase repeated consecutively — and that shape is countable.
-///
-/// Pure and host-testable, in the style of [sentence_boundaries.dart]: no
-/// engine, no I/O, no timing data. Callers that have timings can map the
-/// returned indices back onto their own word list.
 library;
 
 /// One run of consecutive repetitions found in a word list.
@@ -53,9 +37,6 @@ class RepetitionRun {
 }
 
 /// Strips case and punctuation so `"Ha,"`, `"ha."` and `"HA"` are one token.
-///
-/// A loop is a loop whether or not whisper punctuated it, and it frequently
-/// punctuates the last copy differently from the rest.
 String normalizeForRepetition(String word) =>
     word.toLowerCase().replaceAll(_notLetterOrDigit, '');
 
@@ -65,19 +46,6 @@ String normalizeForRepetition(String word) =>
 final RegExp _notLetterOrDigit = RegExp(r'[^\p{L}\p{N}]', unicode: true);
 
 /// Every non-overlapping repetition run in [words], left to right.
-///
-/// [maxPhraseWords] defaults to 8 because this engine has produced both
-/// extremes: a single-word `"ha ha ha"` loop on laughter, and a seven-word
-/// `"I am the director of the project"` loop that ran to 183 words. A limit of
-/// 4 would have missed the second entirely.
-///
-/// [minRepeats] defaults to 3. Two consecutive copies is ordinary English
-/// ("that that", "had had"); three is already unusual and a loop is typically
-/// far more.
-///
-/// Where several phrase lengths describe the same stretch, the one covering
-/// the most words wins — so `"ha"` x6 is preferred over `"ha ha"` x3, which
-/// reports the loop at its true extent rather than an arbitrary factor of it.
 List<RepetitionRun> findRepetitions(
   List<String> words, {
   int maxPhraseWords = 8,
@@ -157,10 +125,6 @@ RepetitionRun? findWorstRepetition(
 }
 
 /// Fraction of [words] consumed by repetition runs, 0.0 to 1.0.
-///
-/// The single number to compare two configurations by: it moves when a loop
-/// gets longer or when a new one appears, and it is comparable across files of
-/// different lengths.
 double repetitionRatio(
   List<String> words, {
   int maxPhraseWords = 8,
@@ -176,30 +140,7 @@ double repetitionRatio(
   return looped / words.length;
 }
 
-/// A loop that never crosses a space, and so is invisible to
-/// [findRepetitions].
-///
-/// **Found by measurement, not by design.** A real failing decode emitted its
-/// loop as one 273-character token — `"Peek-a-peek-a-peek-a-..."` — because
-/// whisper glued the repeats together with hyphens rather than spaces. Word
-/// scanning reported zero loops on a transcript that was visibly broken. Any
-/// detector that only splits on whitespace will make the same mistake, and the
-/// commonly reported `"ha ha ha"` failure has exactly this shape when the
-/// engine writes it as `"hahaha"`.
-///
-/// Returns the shortest repeating unit, so `"peekapeekapeeka"` reports `peeka`
-/// rather than `peekapeeka`. A trailing partial unit is allowed: a loop cut off
-/// mid-phrase by the end of a window is still a loop.
-///
-/// **The loop need not start at the beginning of the token.** Requiring that
-/// was a second false-clean: a real failing decode produced
-/// `"Peek-a-boo-boo-boo-boo-..."`, where a non-repeating lead-in precedes the
-/// loop, and a whole-token periodicity test called it clean. The scan therefore
-/// looks for the longest periodic *suffix*.
-///
-/// [minLength] guards against flagging ordinary words, and applies to the
-/// looping part rather than the whole token. Without it `"hahaha"` and
-/// `"bonbon"` qualify on their own, which says nothing about the decoder.
+/// A loop that never crosses a space, and so is invisible to [findRepetitions].
 RepetitionRun? findWithinWordRepetition(
   String word,
   int index, {
@@ -255,11 +196,6 @@ List<RepetitionRun> findWithinWordRepetitions(
 }
 
 /// Both kinds of loop in one pass, which is the only safe way to ask.
-///
-/// Reporting a single number here would be a trap: a within-word loop occupies
-/// one word slot no matter how long it runs, so folding it into
-/// [repetitionRatio] would score a transcript that is half garbage as barely
-/// affected. [hasLoop] is the honest summary; the two lists carry the detail.
 class RepetitionReport {
   const RepetitionReport({
     required this.acrossWords,

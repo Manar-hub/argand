@@ -1,7 +1,24 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- The INTERNET permission is required for development. Specifically,
          the Flutter tool needs it to communicate with the running application
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Development builds (debug, profile) launch through MainActivity, the
+         entry `flutter run` starts, and drop the colour icon aliases: with
+         them, the entry flutter run launched could be the one the icon
+         switch had disabled ("Activity class ... IconBlue does not exist").
+         Release builds keep the icon that follows the action colour
+         (src/release/AndroidManifest.xml). -->
+    <application>
+        <activity-alias android:name=".IconBlue" tools:node="remove"/>
+        <activity-alias android:name=".IconViolet" tools:node="remove"/>
+        <activity-alias android:name=".IconTeal" tools:node="remove"/>
+        <activity-alias android:name=".IconGreen" tools:node="remove"/>
+        <activity-alias android:name=".IconYellow" tools:node="remove"/>
+        <activity-alias android:name=".IconOrange" tools:node="remove"/>
+        <activity-alias android:name=".IconRed" tools:node="remove"/>
+        <activity-alias android:name=".IconInk" tools:node="remove"/>
+    </application>
 </manifest>

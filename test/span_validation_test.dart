@@ -6,9 +6,7 @@ SpeakerSpan span(int startMs, int endMs, int speaker) =>
     SpeakerSpan(startMs: startMs, endMs: endMs, speaker: speaker);
 
 /// The real span list from `two_speakers.wav`, which is where every threshold
-/// here was measured. Span 6 is the one the labels say never happened: spk1 is
-/// speaking throughout 16910-21000, and spk1's own span 7 resumes at 18374,
-/// *inside* span 6.
+/// here was measured.
 final twoSpeakers = [
   span(31, 2765, 0),
   span(2765, 7810, 1),
@@ -95,9 +93,7 @@ void main() {
 
     test('audio too weak to answer lets the geometry decide', () {
       // The measured case: 0.359 against 0.273, both far below the 0.7-0.9 a
-      // clean stretch of one voice scores on this clip. Whichever speaker edges
-      // ahead there is noise, and the challenger is already speaking inside the
-      // span, so the boundary was never real.
+      // clean stretch of one voice scores on this clip.
       expect(challengerWins(suspect, {0: 0.359, 1: 0.273}), isTrue);
     });
 

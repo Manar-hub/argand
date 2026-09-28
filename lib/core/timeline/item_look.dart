@@ -1,20 +1,11 @@
 /// How a caption or text looks: its font, its colour, and -- for captions --
 /// how its words appear as they are spoken.
-///
-/// Pure data shared by the stage that draws it, the panel that edits it, the
-/// database that keeps it (as JSON, so a new option needs no migration) and
-/// the render that burns it in.
 library;
 
 import 'dart:convert';
 import 'dart:math' as math;
 
 /// The fonts a caption or text can use.
-///
-/// **Each is one bundled file**, declared once in `pubspec.yaml` as its own
-/// family and loaded from the same asset path by the render, so the preview
-/// and the file draw the same glyphs. [standard] is the platform's own face,
-/// which is the one captions have always used.
 enum LookFont {
   standard(null, null, 'Default'),
   poppins('ArgandPoppins', 'assets/fonts/Poppins-Bold.ttf', 'Poppins'),
@@ -46,11 +37,7 @@ enum LookFont {
   /// localised.
   final String label;
 
-  /// The family to draw with. **Never null**: [standard] names the
-  /// platform's face outright, because a null family inherits whatever the
-  /// app's UI text uses -- Plus Jakarta Sans -- while the render draws the
-  /// platform default (Roboto on Android), and the preview would stop
-  /// matching the export.
+  /// The family to draw with.
   String get drawFamily => family ?? 'Roboto';
 }
 
@@ -207,20 +194,8 @@ class ItemLook {
 /// A drop shadow under words: its colour, blur radius and downward offset.
 typedef WordShadow = ({int argb, double blur, double dy});
 
-/// The shadow under words set at [fontSize] pixels with a dial of
-/// [strength], or null for none.
-///
-/// Stronger is both darker and wider. Sizes scale with the words, so a
-/// caption casts the same shadow on a 720p export as on a 4K one.
-///
-/// **Mirrored by `shadowOf` in `VideoExportChannel.kt`**, and both sides use
-/// the same blur-radius convention (Flutter's `Shadow.blurRadius`, Android's
-/// `setShadowLayer` radius: sigma = 0.57735 * radius + 0.5), so the render
-/// casts the shadow the stage shows.
-///
-/// Words with a colour behind them -- a background, or the highlight box --
-/// cast none: Android would shadow the box as well, and a shadow under a
-/// solid box only muddies its edge.
+/// The shadow under words set at [fontSize] pixels with a dial of [strength],
+/// or null for none.
 WordShadow? captionShadowFor(double strength, double fontSize) {
   if (strength <= 0) return null;
   final s = math.min(strength, 1.0);
@@ -238,17 +213,8 @@ typedef TimedText = ({String text, int startMs, int endMs});
 /// One stretch of a caption to draw: its words, and whether they are marked.
 typedef CaptionRun = ({String text, bool marked});
 
-/// What a caption shows at [atMs], in [mode]: the runs to draw, in order,
-/// with the marked ones taking the highlight.
-///
-/// **Mirrored by `CaptionOverlay.runsAt` in `VideoExportChannel.kt`**, so the
-/// render marks the same word at the same moment the stage does.
-///
-/// - Standard: the whole line, unmarked.
-/// - Karaoke: every word, marked once it has started.
-/// - Highlight: every word, the one being said marked.
-/// - Word by word: only the word being said -- or, in a pause between two,
-///   the last one said, so the caption does not blink off mid-sentence.
+/// What a caption shows at [atMs], in [mode]: the runs to draw, in order, with
+/// the marked ones taking the highlight.
 List<CaptionRun> captionRunsAt(
   List<TimedText> words,
   int atMs,

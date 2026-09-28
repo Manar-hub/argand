@@ -33,16 +33,7 @@ mixin _RecordColumns on Table {
 class Projects extends Table with _RecordColumns {
   TextColumn get title => text()();
 
-  /// **Vestigial since schema 5. Do not read it.**
-  ///
-  /// A project used to *be* one media file, and this column held its path.
-  /// Media now lives on [MediaClips], one row per clip, because a project can
-  /// hold several. The column survives only because migrations here are
-  /// strictly additive (see [AppDatabase.migration]) and dropping it would mean
-  /// recreating the table over real user data.
-  ///
-  /// Schema 5's migration copied every existing value into a clip row. New
-  /// projects write `''`, which is why nothing may treat it as a path again.
+  /// Vestigial since schema 5. Do not read it.
   TextColumn get mediaPath => text()();
 
   /// **Vestigial since schema 5**, for the same reason as [mediaPath]. A
@@ -54,14 +45,6 @@ class Projects extends Table with _RecordColumns {
 }
 
 /// One piece of media inside a project, at a position on the timeline.
-///
-/// **Media and transcription are separate events.** A clip is added by copying
-/// a file in; it carries no transcript until the user asks for one, which is
-/// what lets a project hold several clips and transcribe only the ones worth
-/// the minutes. [Transcripts.clipId] is the link, and it stays null until then.
-///
-/// Ordered by [position] rather than `createdAt` so clips can be rearranged
-/// without rewriting timestamps.
 @TableIndex(name: 'media_clips_project_position', columns: {#projectId, #position})
 class MediaClips extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
@@ -71,13 +54,9 @@ class MediaClips extends Table with _RecordColumns {
   /// rewrites a run of rows and would trip one mid-flight.
   IntColumn get position => integer()();
 
-  /// Path to this app's own copy of the media, never the picker's original
-  /// URI. Android content:// permissions are revocable, so a clip that
-  /// referenced one would break the next time the app launched.
-  ///
-  /// Two clips may hold the same path: duplicating a project shares its media
-  /// rather than copying hundreds of megabytes, so this is refcounted by query
-  /// (`projectsSharingMedia`) rather than owned outright.
+  /// Path to this app's own copy of the media, never the picker's original URI.
+  /// Android content:// permissions are revocable, so a clip that referenced
+  /// one would break the next time the app launched.
   TextColumn get mediaPath => text()();
 
   /// Null when `probeDuration` could not read the container -- the same
@@ -85,18 +64,6 @@ class MediaClips extends Table with _RecordColumns {
   IntColumn get durationMs => integer().nullable()();
 
   /// Where this clip begins and ends inside its media file.
-  ///
-  /// **Trimming is stored, never rendered.** The media is shared -- two clips
-  /// may hold the same path, and duplicating a project shares it rather than
-  /// copying hundreds of megabytes -- so cutting bytes out of the file would
-  /// damage every other reference to it. An in/out point costs nothing, stays
-  /// reversible, and is what lets a split be two rows over one file.
-  ///
-  /// **Null means untrimmed, which is not the same as zero.** A clip whose
-  /// container could not be probed has no known end, so a null [trimEndMs]
-  /// resolves to [durationMs] -- itself nullable -- rather than to a number.
-  /// Writing 0 and the duration at creation time would have forced a backfill
-  /// and made "never trimmed" indistinguishable from "trimmed to the whole".
   IntColumn get trimStartMs => integer().nullable()();
   IntColumn get trimEndMs => integer().nullable()();
 
@@ -107,26 +74,10 @@ class MediaClips extends Table with _RecordColumns {
 
   /// Amplitude readings for the audio lane: one byte per bucket, at
   /// `waveformPeaksPerSecond`. See `lib/core/audio/waveform.dart`.
-  ///
-  /// **Null means "not computed yet", never "silent".** Computing it needs a
-  /// full native decode of the media, which is far too slow to run while the
-  /// user waits for "+" to return, so the lane fills in afterwards and a clip
-  /// added a moment ago legitimately has none.
-  ///
-  /// Stored rather than derived on demand, even though the 16kHz WAV it comes
-  /// from is deliberately discarded (CLAUDE.md §5). The two are not comparable:
-  /// that WAV is ~1.9MB per audio-minute and re-extracting it is seconds of
-  /// CPU, whereas this is ~1.2KB per audio-minute and would otherwise be
-  /// recomputed every time the timeline opened.
   BlobColumn get waveform => blob().nullable()();
 
-  /// How the picture sits in the output frame: moved, turned and scaled on
-  /// top of the fit the render already does. See `ItemTransform`.
-  ///
-  /// **Defaults, not nulls.** Unlike the trim points, "untouched" and "at the
-  /// identity" are the same thing here -- a clip nobody has framed is exactly
-  /// one at scale 1, turned 0 degrees, centred -- so the columns carry that
-  /// value and every existing clip gets it without a backfill.
+  /// How the picture sits in the output frame: moved, turned and scaled on top
+  /// of the fit the render already does. See `ItemTransform`.
   RealColumn get scale => real().withDefault(const Constant(1.0))();
 
   /// Degrees, clockwise as seen.
@@ -137,15 +88,8 @@ class MediaClips extends Table with _RecordColumns {
   RealColumn get offsetX => real().withDefault(const Constant(0.0))();
   RealColumn get offsetY => real().withDefault(const Constant(0.0))();
 
-  /// Where this clip's **sound** begins and ends, relative to its picture:
-  /// added to the picture window's start and end (`audio_window.dart`).
-  ///
-  /// **Offsets, not times**, so a split or a picture trim carries the sound
-  /// with it and keeps the cut's shape. A negative start sounds before the
-  /// picture appears (a J-cut); a positive end carries on under the next clip
-  /// (an L-cut); the other signs trim the sound inside its picture. Zero --
-  /// every clip until someone drags its audio -- is sound exactly with its
-  /// picture, as it has always been.
+  /// Where this clip's sound begins and ends, relative to its picture: added to
+  /// the picture window's start and end (`audio_window.dart`).
   IntColumn get audioStartOffsetMs =>
       integer().withDefault(const Constant(0))();
   IntColumn get audioEndOffsetMs => integer().withDefault(const Constant(0))();
@@ -158,23 +102,6 @@ class MediaClips extends Table with _RecordColumns {
 }
 
 /// A stretch of the project timeline the user has asked to have transcribed.
-///
-/// **A layer is a request, not a result.** It exists as soon as the user draws
-/// it and before anything has run; transcribing it produces [Transcripts], one
-/// per clip it overlaps, and those point back here through
-/// [Transcripts.layerId]. A layer with no transcripts has simply not been run
-/// yet.
-///
-/// [startMs] and [endMs] are **project-timeline** milliseconds, not clip
-/// offsets, because a layer may span several clips — which is also why it is
-/// anchored to project time rather than to a clip. Reordering or deleting a
-/// clip underneath a layer therefore changes the audio it covers without moving
-/// the rectangle; the layer stops describing its transcripts, which is
-/// detectable by comparing the two, and is a far more explicable outcome than a
-/// rectangle silently jumping or vanishing.
-///
-/// Half-open, `[startMs, endMs)`, so two adjacent layers tile without both
-/// claiming the same millisecond.
 @TableIndex(
     name: 'transcribe_layers_project_start', columns: {#projectId, #startMs})
 class TranscribeLayers extends Table with _RecordColumns {
@@ -184,12 +111,6 @@ class TranscribeLayers extends Table with _RecordColumns {
   IntColumn get endMs => integer()();
 
   /// Which stacked track the layer sits on. Always 0 today.
-  ///
-  /// One column of insurance: a second track of layers is otherwise a
-  /// migration rather than a UI change, and it costs nothing to carry now.
-  /// Layers on the same track may not overlap, which is what makes "what
-  /// happens when two layers claim the same audio" a question nobody has to
-  /// answer.
   IntColumn get trackIndex => integer().withDefault(const Constant(0))();
 
   /// The [Tracks] row this layer sits on. Null only on a row written before
@@ -197,22 +118,12 @@ class TranscribeLayers extends Table with _RecordColumns {
   TextColumn get trackId => text().nullable()();
 
   /// Where this layer's captions sit in the frame, and how large.
-  ///
-  /// **Per layer, not per project**, so two layers -- two speakers, two
-  /// languages -- can be placed apart. Moving several at once is a matter of
-  /// selecting them together, not of a shared setting.
-  ///
-  /// The default is where captions have always rendered: centred, near the
-  /// bottom (`CAPTION_ANCHOR_Y` in `VideoExportChannel.kt`).
   RealColumn get captionX => real().withDefault(const Constant(0.0))();
   RealColumn get captionY => real().withDefault(const Constant(-0.82))();
   RealColumn get captionScale => real().withDefault(const Constant(1.0))();
 
   /// How this layer's captions look, as `ItemLook` JSON. Null is the default
   /// look captions have always had.
-  ///
-  /// **JSON in one column** rather than a column per option, so the next
-  /// style option costs no migration.
   TextColumn get captionLook => text().nullable()();
 
   @override
@@ -220,14 +131,6 @@ class TranscribeLayers extends Table with _RecordColumns {
 }
 
 /// Words the user put on the picture, for a stretch of the project.
-///
-/// Timed in **project** milliseconds, like [TranscribeLayers], so a text sits
-/// over whatever is playing at that moment rather than belonging to a clip:
-/// reordering clips underneath does not drag the title along with one of them.
-///
-/// Placed with the same four numbers a clip's picture uses (see
-/// `ItemTransform`), so the stage moves, scales and turns every kind of item
-/// the same way.
 @TableIndex(name: 'text_layers_project_start', columns: {#projectId, #startMs})
 class TextLayers extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
@@ -283,16 +186,6 @@ enum TrackKind {
 }
 
 /// One lane of a project's timeline, top to bottom by [position].
-///
-/// **A row, so a track is something items can be moved onto.** Until schema
-/// 15 the lanes were fixed by type -- texts here, captions there -- and the
-/// order lived in a widget. Now every item names the track it sits on, the
-/// user can drag it to another, and dropping below the last one makes a new
-/// one.
-///
-/// A project has exactly one [TrackKind.video] and one [TrackKind.audio]
-/// track; any number of [TrackKind.media] ones. A media track nothing sits on
-/// is simply not drawn.
 @TableIndex(name: 'tracks_project_position', columns: {#projectId, #position})
 class Tracks extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
@@ -309,10 +202,6 @@ class Tracks extends Table with _RecordColumns {
 }
 
 /// A picture the user put over the video, for a stretch of the project.
-///
-/// Timed and placed exactly like [TextLayers]: project milliseconds, and the
-/// four numbers of `ItemTransform`, so the stage and the export handle it the
-/// way they handle a text.
 @TableIndex(name: 'image_layers_project_start', columns: {#projectId, #startMs})
 class ImageLayers extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
@@ -343,16 +232,6 @@ class Transcripts extends Table with _RecordColumns {
   TextColumn get projectId => text().references(Projects, #id)();
 
   /// The clip these words were transcribed from.
-  ///
-  /// Nullable only because schema 5 added it to a table that already had rows
-  /// and an additive `addColumn` cannot introduce NOT NULL; the migration
-  /// back-filled every existing transcript, and everything written since sets
-  /// it. Treat a null here as a row from a database that has not been migrated.
-  ///
-  /// Word timings are relative to the clip's own media. A project-wide axis
-  /// does exist now (`ProjectTimeline`), but it describes the *arrangement* of
-  /// clips rather than a single continuous recording, so it is derived from
-  /// clip durations and never stored on a word.
   TextColumn get clipId => text().nullable().references(MediaClips, #id)();
 
   /// The layer whose run produced this transcript, or null for one written
@@ -360,37 +239,12 @@ class Transcripts extends Table with _RecordColumns {
   TextColumn get layerId => text().nullable().references(TranscribeLayers, #id)();
 
   /// The clip-relative range these words actually cover.
-  ///
-  /// **Stored rather than derived from the layer.** A layer's position is a
-  /// fact about arrangement and moves whenever clips are reordered; this is a
-  /// fact about audio — the range that was fed to the engine at the moment it
-  /// ran — and must not move with it. Deriving it would silently relabel words
-  /// the user has already corrected.
-  ///
-  /// Null means "the whole clip", which is exactly what a pre-schema-6
-  /// transcript is, so legacy rows need no special case: read them as
-  /// `clipStartMs ?? 0` and `clipEndMs ?? clip.durationMs`.
   IntColumn get clipStartMs => integer().nullable()();
   IntColumn get clipEndMs => integer().nullable()();
 
   TextColumn get language => text().withDefault(const Constant('en'))();
 
   /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
-  ///
-  /// A column rather than a `Speakers` table, and the reasoning is recorded so
-  /// it is not re-litigated: a name only has to outlive the transcript it
-  /// belongs to once speaker identity spans *projects* -- cross-project voice
-  /// profiles, which is Tier 3. Until then a table buys a join and a migration
-  /// for nothing.
-  ///
-  /// Shape is `{"0": {"name": "Ana"}}`, an object per speaker rather than a
-  /// bare string, so a future editable colour is a new key instead of a data
-  /// migration. Parsed by `speaker_names.dart`, tolerantly -- a row written by
-  /// a newer build must not break an older one.
-  ///
-  /// Null is the normal state. The derived `Speaker N` label and
-  /// `SpeakerPalette` colour remain the default, so a transcript nobody has
-  /// touched stores nothing and renders exactly as it always did.
   TextColumn get speakerNames => text().nullable()();
 
   /// Whole-transcript text as the engine returned it. Convenient for search
@@ -418,14 +272,9 @@ class Words extends Table with _RecordColumns {
   /// Populated by diarization in a later phase.
   TextColumn get speakerId => text().nullable()();
 
-  /// Where this word's sentence sits as a caption, when it has been placed
-  /// on its own. **Null means "wherever its layer puts captions"**, which is
-  /// every word until the user moves its sentence.
-  ///
-  /// Kept on the word rather than on a sentence row because sentences are
-  /// derived, never stored: every word of a placed sentence carries the same
-  /// values, so a caption finds its placement from its own first word however
-  /// the sentence is later cut into cues.
+  /// Where this word's sentence sits as a caption, when it has been placed on
+  /// its own. Null means "wherever its layer puts captions", which is every
+  /// word until the user moves its sentence.
   RealColumn get captionX => real().nullable()();
   RealColumn get captionY => real().nullable()();
   RealColumn get captionScale => real().nullable()();
@@ -444,17 +293,8 @@ class Words extends Table with _RecordColumns {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// A transcript's translation, one line per sentence, kept **beside** the
+/// A transcript's translation, one line per sentence, kept beside the
 /// transcript rather than in it.
-///
-/// Its own table so nothing that reads a transcript -- the script, the
-/// timeline's sentences, captions, subtitle export -- ever meets it unless it
-/// asks: a translation is an extra, shown where the user turns it on.
-///
-/// A line carries its sentence's timing, in the clip's own time like [Words],
-/// and the positions of the sentence's first and last word, so the script can
-/// put it under the sentence it translates. One language per transcript:
-/// translating again replaces the lines.
 @TableIndex(
     name: 'translation_lines_transcript',
     columns: {#transcriptId, #position})
@@ -491,9 +331,6 @@ class TranslationLines extends Table with _RecordColumns {
 
 /// One reversible edit, appended by `TranscriptRepository` as it mutates a
 /// transcript. Undo and redo walk this log rather than diffing documents.
-///
-/// Rows are ordered by [EditEvents.sequence] rather than `createdAt`: two edits
-/// made in the same millisecond would tie, and undo order has to be total.
 @TableIndex(
     name: 'edit_events_transcript_seq', columns: {#transcriptId, #sequence})
 class EditEvents extends Table with _RecordColumns {
@@ -522,12 +359,6 @@ class EditEvents extends Table with _RecordColumns {
 
 /// Small key/value store for app-level choices that are not domain records --
 /// currently just which transcription model to use.
-///
-/// Carries [_RecordColumns] like every other table (CLAUDE.md 5), so the UUID
-/// primary key is kept even though [key] is what callers actually look up. A
-/// unique index on [key] is what prevents duplicate rows for one setting;
-/// making [key] the primary key instead would have been the more obvious
-/// design but would break the project-wide UUID convention for no real gain.
 @TableIndex(name: 'settings_key', columns: {#key}, unique: true)
 class Settings extends Table with _RecordColumns {
   TextColumn get key => text()();
@@ -538,17 +369,6 @@ class Settings extends Table with _RecordColumns {
 }
 
 /// One reversible thing that happened to a project's arrangement.
-///
-/// **Deliberately generic, and that is the design.** Adding a new undoable
-/// action must not cost a migration: everything specific to an action lives in
-/// [payload], so a new one is a new [kind] code and an entry saying how to
-/// apply it in each direction. Nothing here changes.
-///
-/// Separate from [EditEvents] because that table's `transcriptId` is a non-null
-/// reference to [Transcripts] and a split or a reorder belongs to no
-/// transcript. Relaxing that column means recreating the table, which the
-/// additive-migration rule rules out. The two are read together as one
-/// history, ordered by `createdAt`.
 class TimelineEvents extends Table with _RecordColumns {
   /// References the project so the log inherits its lifecycle -- deleting a
   /// project takes its history with it, with nothing to clean up separately.
@@ -594,24 +414,9 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 15;
 
-  /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents],
-  /// 3 -> 4 added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
-  /// [Transcripts.clipId], moving media off the project row, 5 -> 6 added
-  /// [TranscribeLayers] and the range columns on [Transcripts], 6 -> 7 added
-  /// [MediaClips.waveform], 7 -> 8 added [MediaClips.trimStartMs] and
-  /// [MediaClips.trimEndMs], 8 -> 9 added [TimelineEvents], 9 -> 10 added
-  /// the framing columns on [MediaClips], the caption placement on
-  /// [TranscribeLayers], and [TextLayers], 10 -> 11 added the per-sentence
-  /// caption placement on [Words], 11 -> 12 added the looks (font, colour,
-  /// caption mode) on [TranscribeLayers], [Words] and [TextLayers], 12 -> 13
-  /// added [TranslationLines], 13 -> 14 added the independent audio columns
-  /// on [MediaClips], 14 -> 15 added [Tracks], [ImageLayers] and the track
-  /// columns on every item, placing each project's items on tracks.
-  ///
-  /// `onUpgrade` must stay additive and version-guarded: an installed app
-  /// carries real user transcripts, so a migration that recreated tables would
-  /// destroy them. Each future step gets its own `if (from < n)` block, and
-  /// they run in order for a device that skipped several releases.
+  /// Schema history: 1 -> 2 added [Settings], 2 -> 3 added [EditEvents], 3 -> 4
+  /// added [Transcripts.speakerNames], 4 -> 5 added [MediaClips] and
+  /// [Transcripts.clipId], moving media off the project row.
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (migrator) => migrator.createAll(),
@@ -637,22 +442,11 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(transcripts, transcripts.clipEndMs);
             await _backfillLayers();
           }
-          // **`from >= 5`, not just `from < 7`.** `createTable` builds a table
-          // from its *current* definition, so a database coming from before
-          // schema 5 has just been handed a `media_clips` that already has
-          // this column, and adding it again fails the whole migration with
-          // "duplicate column name". Only a database that already carried the
-          // table from an older build is missing it.
-          //
-          // The same applies to every future column on a table younger than
-          // the schema: pair the version that adds the column with the
-          // version that created the table.
+          // `from >= 5`, not just `from < 7`.
           if (from >= 5 && from < 7) {
             // No backfill. Null already means "not computed yet", so every
             // existing clip simply fills its lane in the first time the
-            // timeline asks -- which is the same path a newly added clip
-            // takes. Decoding every clip in the library during a migration
-            // would block the first launch after an update for minutes.
+            // timeline asks -- which is the same path a newly added clip takes.
             await migrator.addColumn(mediaClips, mediaClips.waveform);
           }
           // Paired with 5 for the same reason as the waveform column above:
@@ -669,10 +463,8 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(mediaClips, mediaClips.trimStartMs);
             await migrator.addColumn(mediaClips, mediaClips.trimEndMs);
           }
-          // Paired with 5, the version that created `media_clips`, and with
-          // 6 for `transcribe_layers`, for the reason given above. Their
-          // defaults are the identity and today's caption position, so no
-          // row needs writing.
+          // Paired with 5, the version that created `media_clips`, and with 6
+          // for `transcribe_layers`, for the reason given above.
           if (from >= 5 && from < 10) {
             await migrator.addColumn(mediaClips, mediaClips.scale);
             await migrator.addColumn(mediaClips, mediaClips.rotation);
@@ -740,24 +532,7 @@ class AppDatabase extends _$AppDatabase {
             await migrator.addColumn(translationLines, translationLines.look);
           }
 
-          // **`createTable` does not create a table's declared indexes.**
-          // `createAll()` does, so a fresh install had them and every upgraded
-          // one silently did not -- `edit_events_transcript_seq` has been
-          // missing on upgraded installs since schema 3, and
-          // `media_clips_project_position` since schema 5. Nothing was
-          // incorrect, queries were just walking tables that should have been
-          // indexed, which is exactly the kind of drift that never announces
-          // itself.
-          //
-          // Run unconditionally rather than inside a version guard, because
-          // this has to repair databases already upgraded past the version
-          // that should have created them — there is no `from` that identifies
-          // "was missing an index it should have had".
-          //
-          // `createIndex` is not idempotent, so the statement each index
-          // carries is rewritten to `IF NOT EXISTS` rather than being
-          // hand-copied here; duplicating the definitions is how they drift
-          // from the annotations they came from.
+          // `createTable` does not create a table's declared indexes.
           for (final index in [
             mediaClipsProjectPosition,
             transcribeLayersProjectStart,
@@ -793,19 +568,6 @@ class AppDatabase extends _$AppDatabase {
       );
 
   /// Gives every existing transcript the layer its clip always implied.
-  ///
-  /// Runs inside the 5 -> 6 step. Each transcript covered a whole clip, so each
-  /// gets a layer spanning that clip's stretch of the project timeline, and
-  /// records the clip-relative range it covers as the whole clip.
-  ///
-  /// **Without this an already-transcribed project would open showing an empty
-  /// layer track beside a full transcript**, and the obvious response is to
-  /// draw a layer over the whole thing and transcribe it a second time. The
-  /// back-fill is what makes "the track shows what has been transcribed" true
-  /// on the first launch after upgrading.
-  ///
-  /// A transcript whose clip cannot be resolved keeps a null [Transcripts.layerId]
-  /// rather than being given an invented rectangle over media nobody can find.
   Future<void> _backfillLayers() async {
     final projectRows = await select(projects).get();
     final now = DateTime.now();
@@ -858,19 +620,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Gives every pre-schema-5 project the clip its media already implied.
-  ///
-  /// Runs inside the 4 -> 5 step. Each project had exactly one media file
-  /// recorded on its own row, so each gets exactly one clip at position 0
-  /// carrying that path, and its transcripts are pointed at that clip.
-  ///
-  /// **Files are not moved.** `mediaPath` is an absolute path, so a migrated
-  /// clip keeps pointing at `<media>/<projectId>/source.<ext>` while clips
-  /// added later live in `<media>/<projectId>/<clipId>/`. Both layouts are
-  /// valid and `MediaConverter` handles the difference when discarding one.
-  ///
-  /// Soft-deleted projects are migrated too: a tombstone row is what a future
-  /// sync needs, and leaving one without a clip would make it the single shape
-  /// the rest of the code no longer expects.
   Future<void> _backfillClips() async {
     final rows = await select(projects).get();
     final now = DateTime.now();
@@ -916,10 +665,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Inserts or updates [key].
-  ///
-  /// Written as read-then-write inside a transaction rather than an upsert on
-  /// the unique index, because a soft-deleted row still occupies that index --
-  /// an upsert would resurrect it with its old `deletedAt` intact.
   Future<void> writeSetting(String key, String value) async {
     final now = DateTime.now();
     await transaction(() async {
@@ -951,10 +696,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Replaces a transcript's stored speaker labels.
-  ///
-  /// Takes the encoded value, null included: `SpeakerNames.encode` returns null
-  /// once the last name is cleared, which puts the row back to the state an
-  /// untouched transcript is in rather than leaving an empty object behind.
   Future<void> writeSpeakerNames(String transcriptId, String? encoded) {
     final now = DateTime.now();
     return (update(transcripts)..where((t) => t.id.equals(transcriptId))).write(
@@ -966,14 +707,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// How many *live* clips outside project [excluding] point at [mediaPath].
-  ///
-  /// The whole of media refcounting. Duplicated projects share one file rather
-  /// than copying hundreds of megabytes, so a file can only be removed once
-  /// nothing still needs it — and "nothing" means no clip a user can still
-  /// open, which is why soft-deleted rows do not count.
-  ///
-  /// Counted over clips rather than projects since schema 5: media hangs off
-  /// [MediaClips] now, and one project can hold several files.
   Future<int> projectsSharingMedia(String mediaPath,
       {required String excluding}) async {
     final rows = await (select(mediaClips)
@@ -992,9 +725,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Creates a project with no media, for the "Create project" entry point.
-  ///
-  /// [Projects.mediaPath] is written empty rather than left out because the
-  /// column is NOT NULL and vestigial — see its doc. Clips carry the media.
   Future<void> createEmptyProject({
     required String projectId,
     required String title,
@@ -1028,16 +758,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Records a clip's running time once something authoritative knows it.
-  ///
-  /// Written only when the row does not already have a usable one.
-  /// `probeDuration` is allowed to fail, and every clip carried over by the
-  /// schema-5 migration inherited whatever the *project* row held -- which for
-  /// anything imported before duration probing worked is either null or, for
-  /// the oldest rows, a literal zero. **Both count as unknown**: a zero-length
-  /// clip cannot exist, so treating it as a real duration would collapse the
-  /// clip to a minimum width on the timeline and leave the ruler nothing to
-  /// measure, permanently. The player repairs it the first time it opens the
-  /// clip and actually knows.
   Future<void> fillMissingClipDuration(String clipId, Duration duration) {
     if (duration <= Duration.zero) return Future.value();
     return (update(mediaClips)
@@ -1053,11 +773,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Stores the amplitude readings backing a clip's audio lane.
-  ///
-  /// Writes only where none are stored yet, so two timelines racing to fill
-  /// the same lane settle on one result rather than the later one winning.
-  /// Nothing invalidates these: a clip's media never changes in place -- the
-  /// app owns its own copy and editing produces new clips.
   Future<void> fillMissingClipWaveform(String clipId, Uint8List peaks) {
     if (peaks.isEmpty) return Future.value();
     return (update(mediaClips)
@@ -1077,9 +792,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Appends a clip to the end of [projectId]'s timeline.
-  ///
-  /// The position is computed here rather than by the caller so two adds cannot
-  /// race to the same slot — the read and the insert share one transaction.
   Future<void> appendClip({
     required String clipId,
     required String projectId,
@@ -1108,11 +820,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Removes a clip and closes the gap its position left behind.
-  ///
-  /// The clip's transcript and words are left live but unreachable, exactly as
-  /// [softDeleteProject] leaves a deleted project's rows: every read path
-  /// starts from the clip, so nothing can still find them, and a future sync
-  /// wants the tombstone rather than a hole.
   Future<void> softDeleteClip(String clipId) {
     final now = DateTime.now();
     return transaction(() async {
@@ -1140,16 +847,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Rewrites the whole project's clip order from [orderedIds].
-  ///
-  /// Takes the full order rather than a from/to pair: a drag produces a new
-  /// arrangement, and writing it wholesale cannot leave two clips claiming one
-  /// position the way an incremental shift can if it is interrupted.
-  /// Stores a clip's in and out points.
-  ///
-  /// The media is untouched: two clips may share one file and duplicating a
-  /// project shares it again, so a trim that rewrote bytes would damage every
-  /// other reference. Nothing here validates the window -- `clipWindow` and
-  /// `applyTrim` own that rule, and they are pure so it can be proven.
   Future<void> trimClip({
     required String clipId,
     required int startMs,
@@ -1190,19 +887,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Splits one clip into two at [atMediaMs], measured in the media's own time.
-  ///
-  /// **Two rows over one file**, not two files. The left keeps the original id
-  /// and everything pointing at it; the right is new, starts where the left
-  /// ends, and every later clip shifts along to make room.
-  ///
-  /// **The transcripts are copied to the right-hand clip rather than moved or
-  /// dropped.** Word timings are relative to the media, so both halves address
-  /// the same numbers and each simply renders the part inside its own window.
-  /// Moving them would strip the left clip of its captions, and dropping them
-  /// would silently lose the second half's -- the kind of loss that only shows
-  /// up at export.
-  ///
-  /// Returns the new clip's id, or null if the clip is gone.
   Future<String?> splitClip({
     required String clipId,
     required int atMediaMs,
@@ -1332,19 +1016,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Every transcript covering one clip, earliest range first.
-  ///
-  /// **Plural since schema 6**, having been a single row with
-  /// `ORDER BY createdAt DESC LIMIT 1` before that. Once a clip can be covered
-  /// by two layers — 0–10s and 40–60s, say — the old shape did not merely lose
-  /// precision, it returned whichever ran most recently and gave no sign the
-  /// other existed.
-  ///
-  /// Watched rather than fetched once because speaker names live on these rows,
-  /// so a rename has to reach the transcript view, the caption overlay and the
-  /// export button without any of them being told to refresh.
-  ///
-  /// Ordered by [Transcripts.clipStartMs], which sorts nulls first in SQLite —
-  /// exactly where a legacy whole-clip transcript belongs.
   Stream<List<Transcript>> watchTranscriptsForClip(String clipId) {
     return (select(transcripts)
           ..where((t) => t.clipId.equals(clipId) & t.deletedAt.isNull())
@@ -1478,9 +1149,6 @@ class AppDatabase extends _$AppDatabase {
 
   /// A transcript's translation, in the order it is said. Empty when it has
   /// none.
-  ///
-  /// By time rather than by position: a selection translated on its own
-  /// numbers its lines from 0, so positions from separate runs interleave.
   Stream<List<TranslationLine>> watchTranslationLines(String transcriptId) {
     return (select(translationLines)
           ..where((t) =>
@@ -1504,11 +1172,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Puts [lines] in place of whatever translation [transcriptId] had, in one
-  /// transaction: the old lines are retired, not overwritten, like every
-  /// other row.
-  ///
-  /// With [words], only the lines over those word positions are replaced --
-  /// a selection translated on its own leaves the rest of the translation be.
+  /// transaction: the old lines are retired, not overwritten, like every other
+  /// row.
   Future<void> replaceTranslation(
     String transcriptId,
     List<TranslationLinesCompanion> lines, {
@@ -1651,15 +1316,8 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Makes sure [projectId] has its video and audio tracks and that every
-  /// transcription, text and translation line sits on a track, and returns
-  /// the tracks, top to bottom.
-  ///
-  /// **Places what is unplaced the way the timeline used to draw it**: one
-  /// track per row of the old text lane, then the translation, then the
-  /// transcriptions, above the video and the audio. Run for every project by
-  /// the schema-15 migration, and again whenever a project opens, so a
-  /// project made since -- or a row a newer path forgot -- is never left off
-  /// the timeline. A project already in order is read and left alone.
+  /// transcription, text and translation line sits on a track, and returns the
+  /// tracks, top to bottom.
   Future<List<Track>> ensureTracks(String projectId) =>
       transaction(() => _placeOnTracks(projectId));
 
@@ -2069,10 +1727,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Removes a layer, and with it the transcripts its run produced.
-  ///
-  /// The words are left live but unreachable, the same bargain
-  /// [softDeleteClip] makes: every read path starts from the transcript, and a
-  /// future sync wants the tombstone rather than a hole.
   Future<void> softDeleteLayer(String layerId) {
     final now = DateTime.now();
     return transaction(() async {
@@ -2100,16 +1754,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Copies a project, its transcript and every word, sharing the media file.
-  ///
-  /// The rows are cheap — a word is about a hundred bytes, so an hour of speech
-  /// is roughly a megabyte — and copying them is what lets each duplicate carry
-  /// its own edits. The alternative, one canonical transcript with per-project
-  /// overlays, would turn every read into a merge to save that megabyte.
-  ///
-  /// The **edit history is deliberately not copied.** A duplicate starts with a
-  /// clean slate: replaying the original's undo log against new rows would let
-  /// an undo reach back past the moment the copy was made, which is not
-  /// something the user could reason about.
   Future<String> duplicateProject({
     required String sourceProjectId,
     required String newProjectId,
@@ -2238,10 +1882,9 @@ class AppDatabase extends _$AppDatabase {
           ),
         );
 
-        // **Every** transcript on the clip, not just one. A clip covered by
-        // two layers would otherwise lose all but the newest, and the
-        // duplicate would show a timeline of layers with no words under most
-        // of them.
+        // Every transcript on the clip, not just one. A clip covered by two
+        // layers would otherwise lose all but the newest, and the duplicate
+        // would show a timeline of layers with no words under most of them.
         for (final transcript in await transcriptsForClip(clip.id)) {
           final newTranscriptId = newId();
           await into(transcripts).insert(
@@ -2309,10 +1952,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Retires [key], for per-project settings whose project is being deleted.
-  ///
-  /// Soft, like every other delete. [writeSetting] already resurrects a
-  /// soft-deleted row rather than colliding with it on the unique index, so a
-  /// key retired here is reusable if the same id ever comes back.
   Future<void> softDeleteSetting(String key) {
     final now = DateTime.now();
     return (update(settings)..where((t) => t.key.equals(key))).write(
@@ -2333,8 +1972,6 @@ class AppDatabase extends _$AppDatabase {
 
   /// The projects [query] finds, newest first, re-run whenever a project, a
   /// transcript or a word changes.
-  ///
-  /// Empty for an empty query -- the caller shows the whole list instead.
   Stream<List<LibraryHit>> watchLibrarySearch(String query) {
     return customSelect(
       'SELECT 1',
@@ -2343,13 +1980,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Every project whose title, or whose transcribed words, contain [query].
-  ///
-  /// **Words, not `Transcripts.fullText`.** That column is written once when a
-  /// transcript is made and never follows a correction, so searching it would
-  /// find what the user fixed and miss what they fixed it to.
-  ///
-  /// Each project is listed once, with the first place its words say the
-  /// query -- by transcript, then by position -- when they do.
   Future<List<LibraryHit>> searchLibrary(String query) async {
     final tokens = searchTokens(query);
     if (tokens.isEmpty) return const [];
@@ -2440,10 +2070,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// A project's transcript, re-emitted whenever it changes.
-  ///
-  /// Watched rather than fetched once because speaker names live on this row:
-  /// a rename has to reach the transcript view, the caption overlay and the
-  /// export button without any of them being told to refresh.
   Stream<Transcript?> watchTranscriptForProject(String projectId) {
     return (select(transcripts)
           ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
@@ -2460,12 +2086,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Corrects the text of one word, and nothing else.
-  ///
-  /// **Timings are deliberately untouched.** A correction fixes what the engine
-  /// heard, not when it was said, and `startMs`/`endMs` are what tap-to-seek,
-  /// caption grouping and the playback highlight are all built on. Moving them
-  /// to "fit" a longer or shorter word would desynchronise every one of those
-  /// from the audio, which is why this writes `word` alone.
   Future<void> updateWordText(String wordId, String text) {
     return (update(words)..where((t) => t.id.equals(wordId))).write(
       WordsCompanion(
@@ -2477,11 +2097,6 @@ class AppDatabase extends _$AppDatabase {
 
   /// Reassigns every word from [fromPosition] to [toPosition] inclusive to
   /// [speaker].
-  ///
-  /// Addressed by position rather than by id because a turn is a contiguous run
-  /// of words, and the caller is correcting the whole run. One transaction, so
-  /// a partial rewrite cannot leave a turn split across two speakers -- which
-  /// is the very thing being corrected.
   Future<void> reassignSpeaker({
     required String transcriptId,
     required int fromPosition,
@@ -2504,11 +2119,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Soft delete, per CLAUDE.md 5 -- never a hard row delete.
-  ///
-  /// The project's *media* is not soft-deleted: `TranscriptRepository` removes
-  /// that directory outright, because a tombstone row costs a few hundred bytes
-  /// while an orphaned video costs hundreds of megabytes that nothing would
-  /// ever reclaim.
   Future<void> softDeleteProject(String id) {
     final now = DateTime.now();
     return transaction(() async {
@@ -2549,11 +2159,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// How many undoable edits one transcript keeps.
-  ///
-  /// Bounded per `docs/engine-architecture.md`, which asks for a window rather
-  /// than unbounded growth. The cost is small either way -- an event is a few
-  /// hundred bytes, so this window is tens of kilobytes -- but a log nobody
-  /// prunes grows for the lifetime of the install.
   static const int editHistoryLimit = 100;
 
   Future<Word?> findWord(String id) =>
@@ -2575,10 +2180,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Writes a different `speakerId` to each listed position, nulls included.
-  ///
-  /// [reassignSpeaker] writes one value across a whole run, which is what a
-  /// correction does. Undoing one has to put back whatever each word held
-  /// before -- several speakers, or none at all -- so it cannot reuse that path.
   Future<void> restoreSpeakerIds({
     required String transcriptId,
     required Map<int, String?> speakerIds,
@@ -2602,19 +2203,6 @@ class AppDatabase extends _$AppDatabase {
 
   /// Replaces the live words at positions [fromPosition]..[toPosition] with
   /// [replacements], keeping `position` contiguous across the whole transcript.
-  ///
-  /// This is the only operation that changes how many words a transcript has,
-  /// and it is deliberately one primitive used in both directions: undoing a
-  /// sentence edit is the same call with the two lists swapped.
-  ///
-  /// Entries carrying an `id` **amend that row**, clearing `deletedAt` if it
-  /// was set. That matters for more than tidiness: reusing the row is what
-  /// keeps an older [EditEvents] entry that addresses a word by id resolvable
-  /// after this edit has been undone. Entries without an id are new rows and
-  /// get a fresh UUID (CLAUDE.md 5).
-  ///
-  /// Live rows in the range that no replacement claims are soft-deleted, never
-  /// removed.
   Future<void> spliceWords({
     required String transcriptId,
     required int fromPosition,
@@ -2646,11 +2234,7 @@ class AppDatabase extends _$AppDatabase {
           if (row.id != null) row.id!,
       };
 
-      // Which of those ids are rows that actually exist. An id alone does not
-      // imply one: the caller mints ids for brand-new words so the undo event
-      // can record them, and a row being restored by an undo is soft-deleted
-      // and therefore outside [existing]. Checked against the whole table,
-      // ignoring `deletedAt`, so a restore updates rather than duplicates.
+      // Which of those ids are rows that actually exist.
       final known = claimed.isEmpty
           ? const <String>{}
           : (await (select(words)..where((t) => t.id.isIn(claimed))).get())
@@ -2668,9 +2252,7 @@ class AppDatabase extends _$AppDatabase {
       }
 
       // Shift the tail before writing the new range, so the two never have to
-      // interleave. `position` carries no unique constraint, so a transient
-      // overlap inside the transaction is harmless -- only the committed state
-      // has to be contiguous.
+      // interleave.
       final delta = replacements.length - (toPosition - fromPosition + 1);
       if (delta != 0) {
         await customUpdate(
@@ -2772,16 +2354,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Appends one event to [transcriptId]'s log.
-  ///
-  /// **Call inside the same transaction as the mutation it records**, so an
-  /// edit and its log entry commit or fail together. An edit with no event is
-  /// silently un-undoable; an event with no edit undoes something that never
-  /// happened.
-  ///
-  /// Two housekeeping steps run with it. Any *undone* events are discarded
-  /// first -- this is linear undo, so editing after undoing abandons the redo
-  /// branch rather than trying to reconcile it. Then the log is pruned back to
-  /// [editHistoryLimit].
   Future<void> appendEditEvent({
     required String transcriptId,
     required String kind,
@@ -2847,10 +2419,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// The next event redo would re-apply: the oldest one already undone.
-  ///
-  /// Oldest rather than newest, so several undos followed by several redos
-  /// retrace the same path in reverse instead of jumping about inside the
-  /// undone run.
   Future<EditEvent?> nextRedoEvent(String transcriptId) {
     return (select(editEvents)
           ..where((t) =>
@@ -2875,11 +2443,6 @@ class AppDatabase extends _$AppDatabase {
   /// Drops an event without applying it -- used when its payload will not
   /// decode, so one corrupt row cannot wedge the undo button permanently.
   /// Retires or restores a clip.
-  ///
-  /// **Soft in both directions**, which is what makes a split reversible: the
-  /// half a split created keeps its id, its position and the transcripts
-  /// copied onto it while it is put away, so bringing it back restores the
-  /// arrangement rather than rebuilding an approximation of it.
   Future<void> setClipRetired({
     required String clipId,
     required bool retired,
@@ -2893,22 +2456,7 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  /// Retires or restores a layer **and the transcripts it produced**.
-  ///
-  /// Mirrors [softDeleteLayer] rather than touching the layer row alone. An
-  /// earlier version of this updated only `transcribe_layers`, so undoing a
-  /// layer took its track off the timeline and left its captions on the video:
-  /// the transcript rows were still live, and every caption read path starts
-  /// from the transcript, not from the track. **An inverse that does less than
-  /// the action it reverses is not an inverse.**
-  ///
-  /// Restoring brings back only the transcripts that went away *with* this
-  /// layer, matched on the moment they were retired, so words discarded by an
-  /// earlier rerun stay discarded instead of returning alongside the ones that
-  /// replaced them. Timestamps are stored to the second, so two unrelated
-  /// cascades over one layer inside the same second would be indistinguishable
-  /// -- reachable only by undoing in the same second a rerun discarded, and the
-  /// cost of being wrong is a stale transcript rather than a lost one.
+  /// Retires or restores a layer and the transcripts it produced.
   Future<void> setLayerRetired({
     required String layerId,
     required bool retired,
@@ -2954,10 +2502,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Retires or restores exactly these transcripts.
-  ///
-  /// Takes ids rather than a layer because the run that wrote them knows which
-  /// rows are its own. Undoing a rerun must not resurrect the words that rerun
-  /// replaced, and a layer-wide sweep could not tell the two sets apart.
   Future<void> setTranscriptsRetired({
     required List<String> transcriptIds,
     required bool retired,
@@ -2974,11 +2518,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Appends one timeline event, and closes the redo branch.
-  ///
-  /// Doing something new after an undo discards what was undone — the same
-  /// rule [appendEditEvent] follows, and the one every editor follows, because
-  /// the alternative is a redo that reapplies a change to a document it no
-  /// longer fits.
   Future<void> appendTimelineEvent({
     required String projectId,
     required String kind,
@@ -3026,10 +2565,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// A project's live *transcript* events, oldest first.
-  ///
-  /// Read by project rather than by transcript because the history the user
-  /// made is one sequence; which transcript a word edit landed on is an
-  /// implementation detail of where it was stored.
   Future<List<EditEvent>> editEventsForProject(String projectId) async {
     final ids = await (select(transcripts)
           ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull()))
@@ -3083,9 +2618,6 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Whether undo and redo currently have anything to do.
-  ///
-  /// Reads only `undoneAt`, and is `distinct` so the buttons rebuild when
-  /// availability actually flips rather than on every write to the log.
   Stream<({bool canUndo, bool canRedo})> watchEditHistory(String transcriptId) {
     final query = selectOnly(editEvents)
       ..addColumns([editEvents.undoneAt])
@@ -3106,13 +2638,7 @@ class AppDatabase extends _$AppDatabase {
     }).distinct();
   }
 
-  /// Whether the **project** has anything to undo or redo.
-  ///
-  /// Both logs at once. A trivial query declared as reading from all three
-  /// tables is what makes this re-emit when either log changes -- drift
-  /// invalidates a stream by the tables it was told about, not by what the SQL
-  /// happens to select, and there is no need to read rows here that the two
-  /// counts below already answer.
+  /// Whether the project has anything to undo or redo.
   Stream<({bool canUndo, bool canRedo})> watchProjectHistory(String projectId) {
     return customSelect(
       'SELECT 1',

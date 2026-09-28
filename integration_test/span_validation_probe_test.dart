@@ -20,24 +20,6 @@ import 'support/diarization_truth.dart';
 
 /// Does challenging short spans against the audio fix the model-dependent
 /// failures, and does it cost anything anywhere else?
-///
-/// **The reasoning this tests.** Diarization spans are computed from audio
-/// alone and are byte-identical across whisper models — this probe shares one
-/// span list between both models to keep that guaranteed. So when two models
-/// disagree about who said a word, the disagreement comes entirely from where
-/// their word boundaries fall relative to a span edge. A *spurious* span edge
-/// therefore produces a model-dependent error that no attribution rule can
-/// remove, because every such rule is downstream of it.
-///
-/// `span_validation.dart` challenges short spans whose surroundings belong to
-/// one other speaker, and re-labels them only when the audio agrees on a clear
-/// margin. Being upstream of whisper entirely, a correction there is identical
-/// for every model by construction.
-///
-/// **Also re-swept: `minMargin`.** An earlier sweep concluded that lowering it
-/// makes things worse. That was measured against the fixtures' stale time
-/// anchors, which have since been re-derived, so the verdict is not
-/// trustworthy and is re-taken here.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 

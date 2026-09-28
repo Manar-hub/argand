@@ -5,17 +5,6 @@ import 'app_spacing.dart';
 import 'app_surface.dart';
 
 /// The app's light and dark themes, built together.
-///
-/// **Sharp-corner neo-brutalism** (reference: the Bruddle kit, 2026-09-25):
-/// square corners everywhere, a thin near-black outline on paper and none on
-/// dark, a hard down-right shadow only on what a screen is about, selection
-/// as a solid block of ink, and one **action colour the user picks** for
-/// every call to action.
-///
-/// **Together, not light-then-dark.** Both are defined here side by side and
-/// every value that differs is visible as a pair.
-///
-/// Direction and constraints → `docs/design-direction.md`.
 abstract final class AppTheme {
   /// Warm off-white paper, cards the same tone: on paper the outline is what
   /// draws a card's edge, as in the reference.
@@ -30,9 +19,6 @@ abstract final class AppTheme {
   static const _darkInk = Color(0xFFF2F0EA);
 
   /// The action colour until the user picks one: the reference's violet.
-  ///
-  /// Every call to action takes the user's colour (`AccentColorSetting`), so
-  /// this is only where it starts.
   static const defaultAccent = Color(0xFF9B6CFF);
 
   /// A soft highlight, used where something is emphasised but not chosen:
@@ -45,14 +31,6 @@ abstract final class AppTheme {
   static const textFamily = 'ArgandText';
 
   /// Text and icons on a filled accent, chosen from the fill rather than fixed.
-  ///
-  /// The action colour is the user's, so no single ink survives it: black
-  /// reads on a yellow, white on a deep blue.
-  ///
-  /// Deliberately **not** `ThemeData.estimateBrightnessForColor`. Its threshold
-  /// sits at a relative luminance of about 0.34, so a mid-tone fill gets called
-  /// "dark" and handed light ink that is *worse* than the black it rejected.
-  /// Measuring both and taking the winner cannot make that mistake.
   static Color inkOn(Color fill) {
     const dark = Color(0xFF141414);
     const light = Color(0xFFF7F5F0);
@@ -113,11 +91,11 @@ abstract final class AppTheme {
       // The playhead highlight and other soft emphasis.
       primaryContainer: highlight.withValues(alpha: 0.35),
       onPrimaryContainer: ink,
-      // Selection, everywhere it appears: a solid block of ink, as the
-      // reference's chosen tab. Never the action colour, so a chosen option
-      // and a button to press are always told apart.
-      secondary: ink,
-      onSecondary: ground,
+      // Selection, everywhere it appears -- a chosen tool, font, segment or
+      // word: a solid block of the action colour, the same as the buttons
+      // (the user's call, 2026-09-27; it was a block of ink).
+      secondary: accent,
+      onSecondary: inkOn(accent),
       error: danger,
       onError: Colors.white,
       surface: ground,
@@ -208,8 +186,8 @@ abstract final class AppTheme {
 
       chipTheme: ChipThemeData(
         backgroundColor: card,
-        selectedColor: ink,
-        checkmarkColor: ground,
+        selectedColor: accent,
+        checkmarkColor: inkOn(accent),
         labelStyle: text.labelLarge,
         side: surface.side,
         shape: const RoundedRectangleBorder(borderRadius: square),
@@ -228,10 +206,11 @@ abstract final class AppTheme {
             RoundedRectangleBorder(borderRadius: square),
           ),
           backgroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.selected) ? ink : card,
+            (states) => states.contains(WidgetState.selected) ? accent : card,
           ),
           foregroundColor: WidgetStateProperty.resolveWith(
-            (states) => states.contains(WidgetState.selected) ? ground : ink,
+            (states) =>
+                states.contains(WidgetState.selected) ? inkOn(accent) : ink,
           ),
         ),
       ),
@@ -307,9 +286,9 @@ abstract final class AppTheme {
         side: BorderSide(color: ink, width: 1.5),
         fillColor: WidgetStateProperty.resolveWith(
           (states) =>
-              states.contains(WidgetState.selected) ? ink : Colors.transparent,
+              states.contains(WidgetState.selected) ? accent : Colors.transparent,
         ),
-        checkColor: WidgetStatePropertyAll(ground),
+        checkColor: WidgetStatePropertyAll(inkOn(accent)),
       ),
 
       // Square thumb on a straight track, the thumb standing on the app's
@@ -346,12 +325,6 @@ abstract final class AppTheme {
   }
 
   /// Heavy display against plain body.
-  ///
-  /// Roboto Flex at its heaviest for headlines and anything meant to hit
-  /// hard; Plus Jakarta Sans, set for reading, for everything else. The
-  /// weight contrast carries the hierarchy, which is what lets the palette
-  /// stay quiet enough for `SpeakerPalette` to remain the loudest thing on
-  /// screen.
   static TextTheme _typography(Color ink) {
     TextStyle display(double size, FontWeight weight, double tracking,
             double height) =>

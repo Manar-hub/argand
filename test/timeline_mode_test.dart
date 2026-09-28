@@ -14,13 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The library's two import entry points, added for Timeline mode.
-///
-/// **`ProjectScreen`/`TimelineBody` are deliberately not exercised here**,
-/// for the same reason `phase6_ui_test.dart` excludes `ProjectScreen`: both
-/// modes' preview builds a `MediaPlayer`, and `video_player` has no host
-/// implementation, which leaves a pending timer that wedges every test after
-/// it. The mode switch and Timeline's bottom toolbar are verified on-device
-/// instead (`docs/progress.md`'s Phase 8.5/9 addendum).
 void main() {
   late AppDatabase database;
 
@@ -62,8 +55,7 @@ void main() {
 
       // Two entry points that differ in *when* transcription happens, which is
       // the distinction the whole multi-clip model rests on: Create project
-      // makes an empty shell to add clips to, Transcribe turns one file into a
-      // project immediately.
+      // makes an empty shell to add clips to.
       expect(find.text('Create project'), findsOneWidget);
       expect(
         find.text('Name it, then add clips on the timeline'),
@@ -92,13 +84,7 @@ void main() {
       expect(find.text('Create'), findsOneWidget);
     });
 
-    // Confirming the dialog is deliberately *not* driven here. It pushes
-    // `ProjectScreen`, which builds a `MediaPlayer`, and `video_player` has no
-    // host implementation -- the controller leaves a pending timer that fails
-    // the test that created it and then wedges every test after it. Same
-    // reason `phase6_ui_test.dart` excludes that screen. What creation
-    // actually does is asserted against the repository below, and the flow end
-    // to end is driven on-device.
+    // Confirming the dialog is deliberately *not* driven here.
 
     uiTest('both panels stay distinct and tappable at double text scale',
         (tester) async {
@@ -118,10 +104,9 @@ void main() {
       );
       await settle(tester);
 
-      // A RenderFlex overflow throws during layout, so an empty
-      // `takeException` is the assertion that chunky type plus this app's
-      // thick borders did not break the panel row (CLAUDE.md's 2x text scale
-      // rule).
+      // A RenderFlex overflow throws during layout, so an empty `takeException`
+      // is the assertion that chunky type plus this app's thick borders did not
+      // break the panel row (CLAUDE.md's 2x text scale rule).
       expect(tester.takeException(), isNull);
       expect(find.textContaining('Create project'), findsOneWidget);
       expect(find.text('Transcribe'), findsOneWidget);
@@ -466,6 +451,23 @@ void main() {
       );
     });
 
+    test('removing a piece of a cut is undoable, and the rest stays', () async {
+      final (repository, projectId, clipId) = await seedOneClip();
+      final right =
+          (await repository.splitClip(clipId: clipId, atClipMs: 12000))!;
+
+      await repository.removeClip(right);
+      final left = await database.clipsForProject(projectId);
+      expect(left.map((c) => c.id), [clipId]);
+      expect(left.single.mediaPath, '/media/$projectId/a.mp4');
+
+      // Undone: the piece is back where it was, over the same file.
+      await repository.undoProject(projectId);
+      final both = await database.clipsForProject(projectId);
+      expect(both.map((c) => c.id), [clipId, right]);
+      expect(both.map((c) => c.mediaPath).toSet(), hasLength(1));
+    });
+
     test('a split makes two rows over one file', () async {
       final (repository, projectId, clipId) = await seedOneClip();
 
@@ -554,11 +556,9 @@ void main() {
 
       await repository.splitClip(clipId: clipId, atClipMs: 15000);
 
-      // **Copied rather than moved.** Word times are relative to the media, so
-      // both halves address the same numbers and each renders the part inside
-      // its own window. Moving them would strip the left clip of its captions;
-      // dropping them would lose the right half's at export, which is the last
-      // place anyone would notice.
+      // Copied rather than moved. Word times are relative to the media, so both
+      // halves address the same numbers and each renders the part inside its
+      // own window.
       final clips = await database.clipsForProject(projectId);
       expect(await repository.transcriptsForClip(clips.first.id), hasLength(1));
       expect(await repository.transcriptsForClip(clips.last.id), hasLength(1));

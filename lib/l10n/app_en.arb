@@ -502,9 +502,6 @@
   "clipSelected": "Clip selected.",
   "@clipSelected": { "description": "Shown under the tracks when one clip is selected" },
 
-  "clipRemoveManyTitle": "Remove {count} clips?",
-  "@clipRemoveManyTitle": { "description": "Heading of the dialog confirming removal of several clips", "placeholders": { "count": { "type": "int" } } },
-
   "timelineToolStyle": "Style",
   "@timelineToolStyle": { "description": "Bottom toolbar button that opens fonts, colours and caption styles" },
 
@@ -624,15 +621,6 @@
 
   "clipAdd": "Add a clip",
   "@clipAdd": { "description": "Accessibility label of the + button that adds media to a project" },
-
-  "clipRemove": "Remove",
-  "@clipRemove": { "description": "Menu entry that removes a clip from the project" },
-
-  "clipRemoveTitle": "Remove this clip?",
-  "@clipRemoveTitle": { "description": "Heading of the dialog confirming a clip's removal" },
-
-  "clipRemoveMessage": "This deletes the clip's media from your device, along with anything transcribed from it. It cannot be undone.",
-  "@clipRemoveMessage": { "description": "Body of the clip-removal confirmation, stating that the media is permanently deleted" },
 
   "clipMoveEarlier": "Move earlier",
   "@clipMoveEarlier": { "description": "Menu entry that moves a clip one place towards the start of the timeline" },
@@ -847,13 +835,11 @@
   "exportGetPro": "Get Pro",
   "@exportGetPro": { "description": "Button that will open the one-time Pro purchase" },
 
-  "exportProSoon": "Purchases aren't connected yet.",
-  "@exportProSoon": { "description": "Shown when Get Pro is tapped before purchases exist" },
 
-  "adPlaceholderLabel": "Ad placeholder",
+  "adPlaceholderLabel": "Test ad",
   "@adPlaceholderLabel": { "description": "Header of the stand-in shown where a rewarded ad will play" },
 
-  "adPlaceholderBody": "A rewarded ad plays here once ads are connected.",
+  "adPlaceholderBody": "Shown when the ad network has nothing to play. Watch to the end to export this video without the watermark, or get Pro to skip ads for good.",
   "@adPlaceholderBody": { "description": "Explains that this is not a real advert" },
 
   "adPlaceholderContinue": "Continue to export",
@@ -896,5 +882,200 @@
   "@videoSettingsClose": { "description": "Tooltip on the gear while the settings panel is open" },
 
   "videoSettingsWatermarkItem": "Watermark",
-  "@videoSettingsWatermarkItem": { "description": "Settings panel item for the watermark's visibility and position" }
+  "@videoSettingsWatermarkItem": { "description": "Settings panel item for the watermark's visibility and position" },
+
+  "settingsModels": "Transcription models",
+  "@settingsModels": { "description": "Settings sheet row opening the transcription model manager" },
+
+  "settingsModelsDetail": "Add, remove and choose on-device models",
+  "@settingsModelsDetail": { "description": "Second line of the Transcription models settings row" },
+
+  "settingsLanguages": "Translation languages",
+  "@settingsLanguages": { "description": "Settings sheet row opening the translation language pack manager" },
+
+  "settingsLanguagesDetail": "Download or remove language packs",
+  "@settingsLanguagesDetail": { "description": "Second line of the Translation languages settings row" },
+
+  "languagesNote": "Each language is a pack of about 30 MB, downloaded once. Text is always translated on this device.",
+  "@languagesNote": { "description": "Explanation at the top of the language pack manager" },
+
+  "packAdd": "Add",
+  "@packAdd": { "description": "Button that downloads and installs a model or language pack" },
+
+  "packRemove": "Remove",
+  "@packRemove": { "description": "Button that deletes a downloaded model or language pack" },
+
+  "packBuiltIn": "Built in",
+  "@packBuiltIn": { "description": "Status of a model or language that ships with the app and cannot be removed" },
+
+  "packInstalled": "Downloaded",
+  "@packInstalled": { "description": "Status of a downloaded language pack" },
+
+  "packNotInstalled": "Not downloaded",
+  "@packNotInstalled": { "description": "Status of a model or language pack that is not on the device" },
+
+  "packWaiting": "Waiting…",
+  "@packWaiting": { "description": "Status while a download is queued" },
+
+  "packInstalling": "Installing…",
+  "@packInstalling": { "description": "Status while a downloaded pack is moved into place" },
+
+  "packFailed": "Couldn't download. Try again.",
+  "@packFailed": { "description": "Status after a download failed" },
+
+  "modelNotLoadable": "Not a Whisper model this app can run",
+  "@modelNotLoadable": { "description": "Status of an installed model file whose header is not a whisper.cpp model" },
+
+  "packRemoveTitle": "Remove {name}?",
+  "@packRemoveTitle": { "description": "Title of the dialog confirming a model or language pack removal", "placeholders": { "name": { "type": "String" } } },
+
+  "packRemoveBody": "It frees the space it takes, and can be added again at any time.",
+  "@packRemoveBody": { "description": "Body of the dialog confirming a model or language pack removal" },
+
+  "packDownloading": "Downloading {percent}%",
+  "@packDownloading": { "description": "Status while a pack downloads", "placeholders": { "percent": { "type": "int" } } },
+
+  "packMegabytes": "{size} MB",
+  "@packMegabytes": { "description": "A pack's size on the device", "placeholders": { "size": { "type": "String" } } },
+
+  "modelReady": "Ready · {details}",
+  "@modelReady": { "description": "Status of an installed model that can run, with what its file says about it, e.g. 'small · q5_1 · 12 layers'", "placeholders": { "details": { "type": "String" } } },
+
+  "modelLayers": "{count} layers",
+  "@modelLayers": { "description": "A model's encoder depth, in its status line", "placeholders": { "count": { "type": "int" } } },
+
+  "packDownloadingUnknown": "Downloading…",
+  "@packDownloadingUnknown": { "description": "Status while a pack downloads and its size is not known" },
+
+  "proBuyLoading": "Getting the price…",
+  "@proBuyLoading": { "description": "Buy button while the price loads from the store" },
+
+  "proUnavailable": "The store can't be reached right now. Check your connection.",
+  "@proUnavailable": { "description": "Shown when the Pro offer could not be loaded" },
+
+  "proRetry": "Try again",
+  "@proRetry": { "description": "Buy button when the offer could not be loaded" },
+
+  "proRestoreNone": "No Pro purchase was found to restore.",
+  "@proRestoreNone": { "description": "Shown when Restore found nothing" },
+
+  "proOffline": "No connection to the store. Try again when you're online.",
+  "@proOffline": { "description": "Shown when a purchase or restore failed for lack of connection" },
+
+  "proFailed": "The purchase didn't go through. Please try again.",
+  "@proFailed": { "description": "Shown when a purchase failed" },
+
+  "modelsNoteShort": "Larger models are more accurate but consume more resources.",
+  "@modelsNoteShort": { "description": "Note at the top of the model manager" },
+
+  "packDownload": "Download",
+  "@packDownload": { "description": "Confirm button of the download prompt" },
+
+  "packDownloadModelBody": "It's saved on this device and can be removed at any time.",
+  "@packDownloadModelBody": { "description": "Download prompt body for a transcription model" },
+
+  "packDownloadLanguageBody": "About 30 MB, downloaded once.",
+  "@packDownloadLanguageBody": { "description": "Download prompt body for a translation language" },
+
+  "packDownloadTitle": "Download {name}?",
+  "@packDownloadTitle": { "description": "Title of the prompt before downloading a model or language pack", "placeholders": { "name": { "type": "String" } } },
+
+  "proNotOnSale": "Pro isn't on sale yet. Please check back soon.",
+  "@proNotOnSale": { "description": "Shown on the Pro page when the store has no Pro product set up" },
+
+  "proHeroBadge": "One-time · No subscription",
+  "@proHeroBadge": { "description": "Badge under the logo on the Pro page" },
+
+  "proHeadline": "Pay once.\nKeep Argand yours.",
+  "@proHeadline": { "description": "Pro page headline, two lines" },
+
+  "proLede": "Transcription and editing stay free. This removes the extras and keeps the app going.",
+  "@proLede": { "description": "Pro page line under the headline" },
+
+  "proSupportTitle": "Support the developer",
+  "@proSupportTitle": { "description": "Pro benefit" },
+
+  "proSupportDetail": "Funds fixes, updates and new features",
+  "@proSupportDetail": { "description": "Pro benefit detail" },
+
+  "proNoAdsTitle": "No ads",
+  "@proNoAdsTitle": { "description": "Pro benefit" },
+
+  "proNoAdsDetail": "Nothing between you and your edit",
+  "@proNoAdsDetail": { "description": "Pro benefit detail" },
+
+  "proNoWatermarkTitle": "No watermark",
+  "@proNoWatermarkTitle": { "description": "Pro benefit" },
+
+  "proNoWatermarkDetail": "Clean exports, every time",
+  "@proNoWatermarkDetail": { "description": "Pro benefit detail" },
+
+  "proFutureTitle": "Any new future Pro features",
+  "@proFutureTitle": { "description": "Pro benefit" },
+
+  "proFutureDetail": "Everything Pro gains later is yours too",
+  "@proFutureDetail": { "description": "Pro benefit detail" },
+
+  "proOnce": "once",
+  "@proOnce": { "description": "After the price on the Pro page" },
+
+  "proForGood": "Yours for good.\nNo renewals.",
+  "@proForGood": { "description": "Beside the price on the Pro page, two lines" },
+
+  "proFinePrint": "One-time purchase, charged to your Google Play account.",
+  "@proFinePrint": { "description": "Small print under the unlock button" },
+
+  "proRestoreShort": "Restore",
+  "@proRestoreShort": { "description": "Top-bar button that restores an earlier Pro purchase" },
+
+  "proThanksBadge": "Supporter",
+  "@proThanksBadge": { "description": "Badge on the thank-you after buying Pro" },
+
+  "proThanksTitle": "Thank you.",
+  "@proThanksTitle": { "description": "Thank-you headline after buying Pro" },
+
+  "proThanksBody": "You're helping keep Argand independent. The extras are gone for good.",
+  "@proThanksBody": { "description": "Thank-you line after buying Pro" },
+
+  "proThanksAds": "Ads removed",
+  "@proThanksAds": { "description": "Thank-you check list item" },
+
+  "proThanksWatermark": "Watermark removed from exports",
+  "@proThanksWatermark": { "description": "Thank-you check list item" },
+
+  "proThanksFuture": "Every future Pro feature, included",
+  "@proThanksFuture": { "description": "Thank-you check list item" },
+
+  "proThanksRestore": "Restore anytime on a new device",
+  "@proThanksRestore": { "description": "Thank-you check list item" },
+
+  "proThanksBack": "Back to projects",
+  "@proThanksBack": { "description": "Thank-you button back to the library" },
+
+  "proUnlock": "Unlock for {price}",
+  "@proUnlock": { "description": "Pro page buy button with the store's price", "placeholders": { "price": { "type": "String" } } },
+
+  "proResetTitle": "Reset Pro for testing?",
+  "@proResetTitle": { "description": "Hidden test-only dialog title (long-press the logo in a Test Store build)" },
+
+  "proResetBody": "Starts over as a new test customer, so Pro is off until it's bought again. Test Store purchases are simulated and cost nothing.",
+  "@proResetBody": { "description": "Hidden test-only dialog body" },
+
+  "proResetAction": "Reset Pro",
+  "@proResetAction": { "description": "Hidden test-only dialog confirm" },
+
+  "proResetDone": "Pro is off. Ready for another take.",
+  "@proResetDone": { "description": "Shown after Pro was reset for testing" },
+
+  "proResetFailed": "Couldn't reset Pro. Check the connection and try again.",
+  "@proResetFailed": { "description": "Shown when resetting Pro for testing failed" },
+
+  "transcriptionMoreModels": "Manage models",
+  "@transcriptionMoreModels": { "description": "Row under the model choice in the transcribe dialog; opens the model management page" },
+
+  "styleScopeSpeaker": "Per speaker",
+  "@styleScopeSpeaker": { "description": "Style panel scope: apply the change to everything said by the speakers of what is selected" },
+
+  "styleScopeAllTranslations": "All translations",
+  "@styleScopeAllTranslations": { "description": "Style panel scope when only translation lines are selected: apply to every translation line" }
 }

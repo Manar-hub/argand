@@ -5,10 +5,6 @@ import 'app_surface.dart';
 import 'app_theme.dart';
 
 /// How much weight one of a dialog's buttons carries.
-///
-/// Three, not a boolean, because "get on with it", "back out" and "destroy
-/// something" are three different promises and the style has to make them look
-/// like three different promises.
 enum AppDialogEmphasis {
   /// The action the window exists to offer. Filled with the theme's accent.
   primary,
@@ -40,22 +36,7 @@ class AppDialogAction {
   final AppDialogEmphasis emphasis;
 }
 
-/// The app's own dialog: flat fill, solid outline, **hard offset shadow**.
-///
-/// `AlertDialog` cannot carry this style. Its `shape` takes an outline but no
-/// shadow that is not a blur, and its actions are text-only and crowded into
-/// the bottom-right — which on a neo-brutalist page reads as a Material dialog
-/// that wandered in from another app. That is exactly what the first version of
-/// the export windows looked like.
-///
-/// **Actions are full-width and stacked**, primary first. A row of small text
-/// buttons pushed to one corner gives the most important control the smallest
-/// target on the screen; a stack gives each one the full width of the card and
-/// puts the one being offered where the thumb already is.
-///
-/// The shadow comes from [AppSurface] rather than from elevation. Its action
-/// buttons stand on the same hard shadow, as every action in the app does;
-/// a secondary choice sits flat.
+/// The app's own dialog: flat fill, solid outline, hard offset shadow.
 class AppDialog extends StatelessWidget {
   const AppDialog({
     super.key,
@@ -79,10 +60,9 @@ class AppDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      // No shape of its own: the theme's dialog shape carries the outline,
-      // and on this transparent shell it drew a second frame round the card
-      // *and* its shadow gutter -- a step at the top-right corner and the
-      // shadow boxed into a thick band.
+      // No shape of its own: the theme's dialog shape carries the outline, and
+      // on this transparent shell it drew a second frame round the card *and*
+      // its shadow gutter.
       shape: const RoundedRectangleBorder(),
       insetPadding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
@@ -127,10 +107,6 @@ class AppDialog extends StatelessWidget {
 }
 
 /// A dialog button, sized and coloured by its [AppDialogAction.emphasis].
-///
-/// Public so a bottom sheet can use the same control: the export options sheet
-/// and the windows it leads to have to look like one flow, and a sheet with a
-/// differently-shaped confirm button is where that falls apart.
 class AppDialogButton extends StatelessWidget {
   const AppDialogButton({super.key, required this.action, this.height});
 

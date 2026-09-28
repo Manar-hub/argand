@@ -35,11 +35,6 @@ File writeWav(Directory dir, String name, int ms) {
 }
 
 /// The same audio, but with a `LIST` chunk sitting between `fmt ` and `data`.
-///
-/// **The single most valuable case here.** Encoders routinely write `LIST` or
-/// `fact` ahead of `data`, which pushes the samples past the canonical
-/// 44-byte offset. An implementation that seeks to a hardcoded 44 passes every
-/// other test in this file and slices metadata as if it were audio.
 File writeWavWithListChunk(Directory dir, String name, int ms) {
   final pcm = ramp(16 * ms);
   const listPayload = 'INFOISFT      argand test fixture';
@@ -50,10 +45,8 @@ File writeWavWithListChunk(Directory dir, String name, int ms) {
         .buffer
         .asUint8List(),
     ...list,
-    // RIFF chunks are word-aligned, so an odd-sized one carries a pad byte
-    // that is not counted in its declared size. The payload here is
-    // deliberately odd so the walk has to skip it -- an implementation that
-    // does not lands one byte into `data` and reads every sample shifted.
+    // RIFF chunks are word-aligned, so an odd-sized one carries a pad byte that
+    // is not counted in its declared size.
     if (list.length.isOdd) 0,
   ];
 

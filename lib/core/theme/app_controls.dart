@@ -59,8 +59,6 @@ class AppSquareThumb extends SliderComponentShape {
 
 /// An on/off control in the sharp-corner style: a square track and a square
 /// thumb that slides across, the action colour when on.
-///
-/// Replaces Material's `Switch`, whose track is always a pill.
 class AppToggle extends StatelessWidget {
   const AppToggle({super.key, required this.value, required this.onChanged});
 

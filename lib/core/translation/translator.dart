@@ -45,12 +45,6 @@ class TranslationException implements Exception {
 }
 
 /// On-device translation, one downloadable pack per language.
-///
-/// **The seam an engine plugs into.** Today it is Google's ML Kit; Bergamot
-/// (Firefox's engine) is meant to replace it without the sheet, the storage or
-/// anything that shows a translation having to change.
-///
-/// Text never leaves the device: only the language packs are downloaded.
 abstract interface class Translator {
   /// Every language on offer, sorted by name.
   List<TranslationLanguage> get languages;

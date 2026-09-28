@@ -9,20 +9,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// The fork reports the language whisper actually detected.
-///
-/// Upstream echoed back only what the caller asked for, so an `auto` request
-/// came back as `auto` and the detection was discarded — leaving
-/// `Transcripts.language` recording the *request* rather than the finding, and
-/// nothing able to label an exported caption file.
-///
-/// Both request modes are checked, and both must report `en` on this clip.
-///
-/// That symmetry is the finding, and it corrected an assumption baked into the
-/// first version of this patch: a pinned language was expected to yield a
-/// negative id and no field. It does not. whisper.cpp assigns `state->lang_id`
-/// from the auto-detect result (`whisper.cpp:6834`) *and* from a pinned
-/// language (`:6971`), so the field means **the language whisper used**, not
-/// the language it guessed. A pinned request gets its own code back.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -64,9 +50,6 @@ void main() {
     log('pinned -> detectedLanguage=${pinned.detectedLanguage}');
 
     // The clip is English speech, so detection must both fire and be right.
-    // Asserting the value rather than merely non-null: a field that is present
-    // but wrong is worse than one that is absent, because an export would
-    // confidently mislabel the file.
     expect(auto.detectedLanguage, 'en',
         reason: 'auto must report what whisper detected, not the literal '
             'request string');

@@ -232,11 +232,5 @@ void main() {
     tearDown(() => database.close());
   });
 
-  // There is deliberately no widget test for LibraryScreen here. The screen
-  // renders off a drift `watch()` stream, and such a stream does not resolve
-  // under testWidgets' fake-async clock: the test hangs until the harness
-  // times it out, with or without `runAsync`, and closing the database inside
-  // the fake zone hangs the same way. Covering it properly needs an
-  // integration_test driving a real binding, which belongs with the on-device
-  // work rather than here.
+  // There is deliberately no widget test for LibraryScreen here.
 }

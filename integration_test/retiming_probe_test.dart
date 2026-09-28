@@ -12,42 +12,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 /// How far a sentence edit moves a word boundary.
-///
-/// **The question.** When a line is retyped, `planSentenceEdit` keeps the
-/// untouched words on their exact timestamps and keeps the edited run's outer
-/// span exact, but divides the *inside* of that run by
-/// [distributeSpan] — proportional to word length, never measured against
-/// audio. A word-by-word caption style (a Tier 2 grouping mode) reads those
-/// boundaries directly, so the estimate would be what it highlights on.
-///
-/// Nothing consumes them at word granularity yet, which makes this the cheap
-/// moment to find out how wrong they are.
-///
-/// **How it is measured.** Whisper's own DTW word timings are taken as the
-/// reference. They are not truth — they are the same estimator the app already
-/// relies on everywhere else, and `MediaPlayer._seekLeadIn` exists at 60ms
-/// because they land mid-word. The number produced is therefore "how far an
-/// edit moves a boundary away from what the app would otherwise have shown",
-/// which is exactly the question for caption sync, and not accuracy against the
-/// actual speech.
-///
-/// Two shapes are measured, both against real boundaries:
-///
-///  - **Pair** — two consecutive words, their combined span re-divided. This is
-///    the reported case's geometry: one span, two words, where does the split
-///    fall. "brainbeats" becoming "praying beads" asks precisely this.
-///  - **Sentence** — every internal boundary of a whole line re-derived, i.e.
-///    the user retyped all of it. The worst case, since a real edit touches one
-///    or two words.
-///
-/// Read-only: it changes nothing and asserts nothing about quality. The
-/// thresholds are printed beside the result so the numbers can be read against
-/// a bar fixed before the run.
-///
-/// ```
-/// adb push alberta.mp4      /data/local/tmp/alberta.mp4
-/// adb push two_speakers.wav /data/local/tmp/two_speakers.wav
-/// ```
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -131,13 +95,6 @@ void main() {
         }
 
         // --- Pair: the reported case's geometry. ---
-        //
-        // Reported twice. `replaceSentence` only ever redistributes inside one
-        // sentence, so a cross-sentence pair is a case the code cannot produce
-        // — and those pairs span a speaker handover or a full stop, where the
-        // silence between utterances dominates and the split lands in the
-        // middle of nothing. The all-pairs figure is kept beside it so the
-        // narrowing is visible rather than a quiet filter on a bad result.
         final pairErrors = <int>[];
         final withinErrors = <int>[];
         final worstPairs = <({int error, String text})>[];

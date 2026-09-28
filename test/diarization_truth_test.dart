@@ -13,10 +13,7 @@ void main() {
       expect(truth.clip, 'alberta.mp4');
       expect(truth.sentences, hasLength(24));
       expect(truth.speakers, {0, 1});
-      // Both fixtures now name their documented-failure list "known". The
-      // parser still accepts the retired "unreachable" spelling, so an old
-      // fixture keeps parsing; the name was dropped because it asserted a
-      // ceiling (see the fixture's own note on entry 6).
+      // Both fixtures now name their documented-failure list "known".
       expect(truth.knownIndices, {6});
     });
 
@@ -28,9 +25,8 @@ void main() {
       expect(truth.clip, 'two_speakers.wav');
       expect(truth.sentences, hasLength(16));
       // Empty on purpose. It held {8, 14} until both were measured correct on
-      // BOTH bundled models; tolerating them now would stop the gate catching
-      // a regression. The fixture's `knownNote` records what they were and what
-      // fixed them, and `knownPrevious` keeps the original entries.
+      // BOTH bundled models; tolerating them now would stop the gate catching a
+      // regression.
       expect(truth.knownIndices, isEmpty);
       // Explicit turns, so scoring no longer depends on sentence times that go
       // stale whenever a decoder setting moves whisper's word timings.
@@ -40,9 +36,7 @@ void main() {
     test('both fixtures are armed with a measured error floor', () {
       // A fixture without a floor makes the gate fail rather than pass, which
       // is the honest state for a clip nobody has measured -- but it also means
-      // an unarmed fixture protects nothing. These are the figures observed on
-      // the worst-performing bundled model, so the weakest one has to clear the
-      // same bar.
+      // an unarmed fixture protects nothing.
       final alberta = parseDiarizationTruth(
         File('test/fixtures/diarization/alberta.truth.json').readAsStringSync(),
       );
@@ -311,10 +305,7 @@ void main() {
     });
 
     test('a half-split sentence costs half, not all of it', () {
-      // The resolution the sentence scorer lacks. `two_speakers` #8 is one
-      // sentence diarization splits between two speakers; scored per sentence
-      // that is a total loss and a rule that fixes half of it registers as no
-      // change at all.
+      // The resolution the sentence scorer lacks.
       final score = scoreWordsAgainstTruth(
         words: wordsEvery(4, 1000),
         assigned: const [0, 0, 1, 0],
@@ -334,10 +325,7 @@ void main() {
     });
 
     test('the same labels score a re-segmented run', () {
-      // The property the whole time-anchored scheme exists for. Nothing about
-      // these labels mentions sentences, so a decoder that emits twice as many
-      // words over the same audio is scored without re-labelling — which is
-      // precisely what `alberta.mp4` needed and could not have.
+      // The property the whole time-anchored scheme exists for.
       final coarse = scoreWordsAgainstTruth(
         words: wordsEvery(4, 1000),
         assigned: const [0, 0, 1, 1],

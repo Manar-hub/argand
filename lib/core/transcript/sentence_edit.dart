@@ -2,8 +2,6 @@ import '../text/transcript_diff.dart';
 
 /// A word as the retimer needs to see it: what it says, when, and which row it
 /// came from.
-///
-/// [id] is null for a word the user has just typed and that has no row yet.
 typedef EditableWord = ({String? id, String text, int startMs, int endMs});
 
 /// The result of retyping a sentence: the words it should now contain, with
@@ -22,39 +20,9 @@ class SentenceEditPlan {
 
 /// The shortest span an inserted word may be squeezed into before the planner
 /// borrows time from a neighbour instead.
-///
-/// Well under any real word — the measured median word duration on the labelled
-/// clips is 190–240ms — because this is a floor for "did this word get any time
-/// at all", not an opinion about how long a word should be held.
 const int _minWordMs = 50;
 
 /// Works out how a retyped sentence maps onto the words it replaces.
-///
-/// **The rule the whole feature rests on: the sentence keeps its own span.**
-/// Whatever the user types, the first word still starts where the sentence
-/// started and the last still ends where it ended. Word timings are what
-/// tap-to-seek, the playback highlight, caption grouping and every exported cue
-/// are built on, so an edit that shifted them would desynchronise all four from
-/// the audio — and the user correcting a misheard word is not telling us
-/// *when* it was said.
-///
-/// Within that span, three things happen:
-///
-///  - A word the user did not touch keeps its **exact** original timings. This
-///    is why the alignment matters: a naive re-spread would nudge every word in
-///    the sentence because one of them changed.
-///  - A run of changed words shares the span of the original words it replaces,
-///    divided in proportion to how long each new word is. One word becoming two
-///    — "brainbeats" heard for "praying beads" — splits that one word's span
-///    between them rather than borrowing from a neighbour.
-///  - Words inserted where nothing was removed take the gap between their
-///    neighbours, which may be nothing at all. They are given whatever is there
-///    rather than pushing a kept word aside.
-///
-/// Returns null when [text] has no words in it. Deleting speech is not what
-/// correcting a transcript means, and an empty sentence would leave a hole in
-/// the timeline that nothing else in the app expects; cutting content is
-/// Phase 9's job, through the media editor.
 SentenceEditPlan? planSentenceEdit({
   required List<EditableWord> original,
   required String text,
@@ -117,19 +85,6 @@ SentenceEditPlan? planSentenceEdit({
     final fallbackEnd = _nextKeptStart(steps, index, original) ?? sentenceEnd;
 
     // When there is no usable gap, borrow from a neighbour instead.
-    //
-    // Words added at the very start of a line have nothing before them, and
-    // words added between two the engine ran together have nothing between
-    // them — in both cases the range above is empty, and every inserted word
-    // would come out with no duration at all. That is not a cosmetic problem:
-    // a zero-width word can never be the one `_activeWordIndex` highlights, and
-    // the caption cue containing it starts in the wrong place.
-    //
-    // The time can only come from an adjacent word, and taking it is defensible
-    // precisely here: the user has just said that word's span covered more
-    // speech than was transcribed. The neighbour is pulled into the run and the
-    // combined span divided, so exactly one kept word gives up its exact
-    // timing, and only when the alternative is a word with none.
     if (originals.isEmpty &&
         fallbackEnd - fallbackStart < replacements.length * _minWordMs) {
       if (index < steps.length && steps[index].matched) {
@@ -195,20 +150,6 @@ int? _nextKeptStart(
 }
 
 /// Divides [startMs]..[endMs] between [words], one span each.
-///
-/// **This is the estimate, and it is the only part of a sentence edit that is
-/// not measured.** Proportional to word length: "praying beads" reads better
-/// with the longer word holding the screen longer, and the same rule keeps a
-/// long word replacing a short one from looking clipped.
-///
-/// Character count is a proxy for how long a word takes to say, and a rough
-/// one — it knows nothing about syllables, stress or pace. Nothing consumes
-/// these boundaries at word granularity yet (word-by-word caption grouping is
-/// a Tier 2 mode), but that mode will, so the error is worth knowing rather
-/// than assuming. `integration_test/retiming_probe_test.dart` measures it
-/// against whisper's own DTW boundaries on the labelled clips.
-///
-/// Public for that probe. Measuring a copy of this rule would measure the copy.
 List<(int, int)> distributeSpan({
   required List<String> words,
   required int startMs,
@@ -256,10 +197,8 @@ List<EditableWord> _retime({
     endMs: end,
   );
 
-  // Existing ids are reused positionally where the run replaced something, so
-  // a substitution amends its row instead of deleting one and inserting
-  // another. That keeps an older undo event that addresses the word by id
-  // resolvable after this edit is undone.
+  // Existing ids are reused positionally where the run replaced something, so a
+  // substitution amends its row instead of deleting one and inserting another.
   return [
     for (final (index, word) in replacements.indexed)
       (

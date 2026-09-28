@@ -19,33 +19,6 @@ import 'package:integration_test/integration_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Video export, driven on a device.
-///
-/// The request-building and filename rules are covered on the host
-/// (`test/video_export_test.dart`). **Nothing about the render itself is
-/// provable there**: Media3 `Transformer` is a native encoder, so the only way
-/// to know an export works is to produce a file and read it back.
-///
-/// Requires the fixture pushed first:
-///
-/// ```
-/// adb push alberta.mp4 /data/local/tmp/alberta.mp4
-/// ```
-///
-/// **The output goes to the device's Downloads collection**, which from API 29
-/// this app cannot reach with `dart:io` — it is shared storage owned by
-/// MediaStore, and an app may only touch what it inserted, through the store.
-/// So the assertions here are on the size the store reports back, which is the
-/// evidence that bytes actually landed. Seeing the file in Downloads is a check
-/// to run from the host:
-///
-/// ```
-/// adb shell ls -la /storage/emulated/0/Download
-/// ```
-///
-/// **Watch memory, not just disk** (`docs/progress.md`, open debt 2). Encoding
-/// is the heaviest thing this project runs, and the emulator's 4GB is the
-/// binding constraint; a run that installs and then prints no test line at all
-/// is the out-of-memory signature, not a hang.
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -132,10 +105,7 @@ void main() {
       reason: 'the render should be as long as its source',
     );
 
-    // **Compared as an unordered pair.** An encoder that cannot take the
-    // requested portrait size may legitimately encode landscape and set a
-    // rotation flag, which displays upright; demanding 1080x1920 here would
-    // fail a correct render. What must never happen is the aspect changing.
+    // Compared as an unordered pair.
     expect(
       <int>[video.width, video.height]..sort(),
       <int>[1080, 1920],
@@ -178,11 +148,7 @@ void main() {
         '${video.durationMs}ms, ${video.width}x${video.height}');
     expect(video.sizeBytes, greaterThan(0));
 
-    // **The assertion that matters for concatenation.** A render that silently
-    // dropped the second item would still produce a valid, playable file of a
-    // plausible size -- file size is a weak signal here, because a re-encode
-    // and a stream copy differ in bitrate by more than a dropped clip does.
-    // Duration is what actually separates one clip from two.
+    // The assertion that matters for concatenation.
     expect(
       (video.durationMs - timeline.totalMs).abs(),
       lessThan(1500),
@@ -243,10 +209,7 @@ void main() {
         text: 'BURNED CAPTION ONE. BURNED CAPTION TWO.',
         detectedLanguage: 'en',
         segments: [
-          // 2s-6s, then a deliberate hole, then 12s-16s. The hole is the
-          // point: a frame taken inside it must be clean, which is what shows
-          // the overlay is actually being hidden between cues rather than
-          // being drawn permanently from the first word onwards.
+          // 2s-6s, then a deliberate hole, then 12s-16s.
           WhisperTranscribeSegment(
             fromTs: Duration(seconds: 2),
             toTs: Duration(seconds: 6),
@@ -345,10 +308,7 @@ void main() {
 
     log('square render ${video.width}x${video.height} at ${video.location}');
 
-    // **Exact, not an unordered pair.** The other tests compare sorted
-    // dimensions because a portrait render may legitimately come back
-    // landscape-plus-rotation; a square one has no such ambiguity, so this is
-    // the assertion that actually proves the reframe happened.
+    // Exact, not an unordered pair.
     expect(video.width, 720);
     expect(video.height, 720);
     expect(video.sizeBytes, greaterThan(0));
@@ -380,10 +340,7 @@ void main() {
 
     const exporter = VideoExporter();
 
-    // **The error is caught at creation, not awaited later.** A future that
-    // fails while nothing is listening becomes an unhandled zone error, and
-    // the test harness reports that as a failure even though the refusal is
-    // exactly what this test wants.
+    // The error is caught at creation, not awaited later.
     Object? refusal;
     final running = exporter.export(
       clips: [

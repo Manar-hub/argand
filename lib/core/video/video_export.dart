@@ -12,17 +12,6 @@ import 'export_options.dart';
 
 /// One caption as the renderer needs it: when to show it, what it says, and
 /// what colour the speaker is.
-///
-/// Times are **relative to the clip**, not to the project. Word timings are
-/// already stored that way -- `saveClipTranscript` applies its offset in one
-/// place -- and Media3 gives every item in a sequence its own presentation
-/// timebase, so the two agree without any conversion here.
-///
-/// [x], [y] and [scale] place it: its layer's caption placement, in the
-/// normalised coordinates `ItemTransform` describes.
-///
-/// [words] carry their own times on the same clock, for the caption modes
-/// that mark the word being said; [look] is its font and mode.
 typedef ExportCaption = ({
   int startMs,
   int endMs,
@@ -45,10 +34,6 @@ typedef ExportText = ({
 });
 
 /// One image's stretch over one clip, timed on that clip's own clock.
-///
-/// [widthPx]/[heightPx] give its shape; the render sizes it so its longer
-/// side is `imageExtentFraction` of the frame's short edge at scale 1, as the
-/// stage does.
 typedef ExportImage = ({
   int startMs,
   int endMs,
@@ -63,19 +48,6 @@ typedef ExportImage = ({
 const double imageExtentFraction = 0.5;
 
 /// One clip to render: which stretch of its media, and what goes on top.
-///
-/// [startMs]/[endMs] are the trim window in **media** time, which is what the
-/// player needs to be told. Caption times are relative to the window, because
-/// that is where the rendered item's own clock starts.
-///
-/// [framing] is how the picture sits in the frame, applied after the fit.
-///
-/// [audio] is the clip's **sound**, independent of its picture: where it
-/// starts and ends in the media, and where on the timeline it plays -- which
-/// may be before or after the picture (J/L cuts). Null when the sound was
-/// removed, or the audio track is hidden. `inline` means it plays exactly
-/// with its picture, so the render keeps it in the picture's own item rather
-/// than laying it on a separate audio lane.
 typedef ExportClip = ({
   String path,
   int startMs,
@@ -88,24 +60,9 @@ typedef ExportClip = ({
 });
 
 /// What to render, and how long the result should be.
-///
-/// [totalMs] is carried so the caller can check the file it got back against
-/// the timeline it asked for. A render that silently drops a clip still
-/// produces a playable MP4, and duration is the cheapest thing that catches it.
 typedef ExportRequest = ({List<ExportClip> clips, int totalMs});
 
 /// The captions to burn over one clip, coloured by speaker.
-///
-/// **Reuses `clipCuesFor` and `SpeakerPalette` rather than grouping again.**
-/// Burned captions have to break and colour exactly as the preview does, and
-/// the SRT/VTT files have to break exactly as the burned ones do. The only way
-/// to guarantee both is for all three to come from the same rule.
-///
-/// [window] is the clip's trim range in media time; see `clipCuesFor` for why
-/// words are filtered before grouping.
-///
-/// [placement] is where the transcribe layer the words came from puts its
-/// captions; a sentence placed on its own overrides it for its cues.
 List<ExportCaption> exportCaptionsFor(
   List<Word> words, {
   ClipWindow? window,
@@ -160,10 +117,6 @@ ItemTransform? _ownPlacement(Word word) => word.captionX == null
 
 /// The parts of [texts] that fall on a clip placed at [startMs] for
 /// [durationMs] of the project, on that clip's own clock.
-///
-/// **Cut at clip boundaries.** Each clip is its own item in the render, with
-/// its own clock, so a title spanning a cut becomes two overlays -- the end of
-/// one clip and the start of the next -- that read as one to the viewer.
 List<ExportText> exportTextsFor(
   List<TextLayer> texts, {
   required int startMs,
@@ -217,24 +170,6 @@ List<ExportImage> exportImagesFor(
 }
 
 /// Builds the export request for a project, in timeline order.
-///
-/// **Order comes from [ProjectTimeline], not from the clip list.** The timeline
-/// is already the single copy of the running sum that the ruler, the track and
-/// the playhead all measure with; deriving order here a second way is exactly
-/// the drift that made the ruler and the track disagree once before.
-///
-/// Returns null when there is nothing renderable. Null rather than an empty
-/// request because the two mean different things to the caller: an empty
-/// request would be handed to the encoder and fail there, while null is
-/// answerable in the UI without starting anything.
-///
-/// A placement whose clip is missing from [clips] also yields null. The
-/// alternative — rendering the clips that *are* present — produces a video
-/// silently shorter than the timeline, which is worse than refusing, because
-/// nothing about the result says a clip was dropped.
-///
-/// [captionsByClip] is keyed by clip id; a clip absent from it simply renders
-/// without captions, which is what an untranscribed clip should do.
 ExportRequest? exportRequestFor({
   required ProjectTimeline timeline,
   required List<MediaClip> clips,
@@ -299,10 +234,6 @@ ExportRequest? exportRequestFor({
 }
 
 /// A rendered video, as the device's Downloads collection recorded it.
-///
-/// [sizeBytes] comes back from the store rather than from what was written:
-/// that is what shows the bytes actually landed, not merely that a row was
-/// created for them.
 typedef ExportedVideo = ({
   String name,
   String location,
@@ -319,17 +250,9 @@ final _illegalInFileName = RegExp(r'[\\/:*?"<>|\x00-\x1f]');
 final _runsOfSpace = RegExp(r'\s+');
 
 /// Longest stem kept from a project title.
-///
-/// Comfortably inside every filesystem limit while leaving room for the
-/// timestamp and extension, and long enough that a title is still recognisable
-/// in a folder listing.
 const int maxExportStemLength = 60;
 
 /// Builds the name a rendered video is saved under.
-///
-/// **The project's own title, not its id.** Downloads is somewhere a person
-/// looks; a UUID there is unreadable. The timestamp keeps successive renders
-/// of one project apart and orders them.
 String exportFileName({required String projectTitle, required DateTime at}) {
   var stem = projectTitle
       .replaceAll(_illegalInFileName, ' ')
@@ -358,29 +281,12 @@ String exportFileName({required String projectTitle, required DateTime at}) {
 }
 
 /// Renders a project's clips into one MP4 through Media3 `Transformer`.
-///
-/// A **MethodChannel** to native Kotlin, the mechanism CLAUDE.md §8 names for
-/// platform work, and the same shape `ThumbnailService` uses. Nothing about the
-/// render happens in Dart: the native side owns the encoder, and this is the
-/// request and the progress coming back.
-///
-/// Progress arrives as calls *from* native rather than on a stream, because
-/// `Transformer` has no progress callback of its own — the Kotlin side polls it
-/// and forwards each reading.
 class VideoExporter {
   const VideoExporter();
 
   static const _channel = MethodChannel('argand/video_export');
 
   /// Renders [clipPaths] end to end and saves the result as [fileName].
-  ///
-  /// **Dart names the file; the platform chooses where it goes.** From API 29
-  /// the Downloads collection is owned by MediaStore and has no filesystem
-  /// path to pass down, so a caller that insisted on one would be describing a
-  /// location that does not exist.
-  ///
-  /// [onProgress] receives whole percentages, which is all `Transformer`
-  /// reports.
   Future<ExportedVideo> export({
     required List<ExportClip> clips,
     required String fileName,
@@ -526,10 +432,6 @@ class VideoExporter {
 
   /// The size [mediaPath] is seen at, rotation applied -- the same size the
   /// render starts from.
-  ///
-  /// Null when it cannot be known: an unreadable file, audio only, or a
-  /// platform with no native side (the host tests). Callers treat that as
-  /// "unknown", never as zero.
   Future<({int width, int height})?> sourceSize(String mediaPath) async {
     try {
       final size = await _channel.invokeMapMethod<String, Object?>(

@@ -16,9 +16,8 @@ part of 'accent_color_controller.dart';
 /// about one task. Stored in the existing `Settings` key/value table as ARGB
 /// -- no migration.
 ///
-/// Selection never takes this colour; it is a block of ink (`AppTheme`), so
-/// whatever the user picks, a chosen option and a button to press stay
-/// distinct.
+/// Selection takes it too -- a chosen tool, font or segment is filled with
+/// it (`AppTheme`'s `secondary`).
 
 @ProviderFor(AccentColorSetting)
 final accentColorSettingProvider = AccentColorSettingProvider._();
@@ -31,9 +30,8 @@ final accentColorSettingProvider = AccentColorSettingProvider._();
 /// about one task. Stored in the existing `Settings` key/value table as ARGB
 /// -- no migration.
 ///
-/// Selection never takes this colour; it is a block of ink (`AppTheme`), so
-/// whatever the user picks, a chosen option and a button to press stay
-/// distinct.
+/// Selection takes it too -- a chosen tool, font or segment is filled with
+/// it (`AppTheme`'s `secondary`).
 final class AccentColorSettingProvider
     extends $AsyncNotifierProvider<AccentColorSetting, Color> {
   /// The action colour: the fill of every call to action -- Create project,
@@ -44,9 +42,8 @@ final class AccentColorSettingProvider
   /// about one task. Stored in the existing `Settings` key/value table as ARGB
   /// -- no migration.
   ///
-  /// Selection never takes this colour; it is a block of ink (`AppTheme`), so
-  /// whatever the user picks, a chosen option and a button to press stay
-  /// distinct.
+  /// Selection takes it too -- a chosen tool, font or segment is filled with
+  /// it (`AppTheme`'s `secondary`).
   AccentColorSettingProvider._()
     : super(
         from: null,
@@ -77,9 +74,8 @@ String _$accentColorSettingHash() =>
 /// about one task. Stored in the existing `Settings` key/value table as ARGB
 /// -- no migration.
 ///
-/// Selection never takes this colour; it is a block of ink (`AppTheme`), so
-/// whatever the user picks, a chosen option and a button to press stay
-/// distinct.
+/// Selection takes it too -- a chosen tool, font or segment is filled with
+/// it (`AppTheme`'s `secondary`).
 
 abstract class _$AccentColorSetting extends $AsyncNotifier<Color> {
   FutureOr<Color> build();

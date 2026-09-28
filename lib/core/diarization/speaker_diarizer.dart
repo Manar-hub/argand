@@ -15,11 +15,6 @@ import 'speaker_span.dart';
 part 'speaker_diarizer.g.dart';
 
 /// Thrown when diarization could not run at all.
-///
-/// Distinct from "ran and found nothing": a file with one speaker legitimately
-/// yields a single span, and a file too long to process yields null. This is
-/// for a genuine failure — a model that would not load, or audio in a format
-/// the pipeline should never have produced.
 class DiarizationException implements Exception {
   const DiarizationException(this.message);
 
@@ -30,23 +25,6 @@ class DiarizationException implements Exception {
 }
 
 /// Assigns speaker labels to stretches of an extracted 16kHz mono WAV.
-///
-/// **Two models, not one** (see docs/engine-architecture.md): a pyannote
-/// segmentation model decides *when* speech changes speaker, and a CAM++
-/// embedding model decides *who* each stretch sounds like. Clustering over
-/// those embeddings produces the final labels.
-///
-/// **Why there is no streaming version, unlike the denoiser.** Diarization's
-/// last stage is global: clustering compares embeddings across the entire file
-/// to decide which stretches are the same person. A speaker label is a cluster
-/// index with no meaning outside its own run, so two independently diarized
-/// halves of a recording cannot be related to each other — chunking would not
-/// cost a little accuracy, it would break the one thing diarization is for.
-/// Processing therefore takes the whole waveform, which is what forces
-/// [maxDuration] below. Should that limit ever need lifting, the fix is
-/// cross-chunk re-identification (sherpa exposes `SpeakerEmbeddingExtractor`
-/// and `SpeakerEmbeddingManager` for it), and [SpeakerSpan] exists so that
-/// change stays inside this directory.
 class SpeakerDiarizer {
   static const String segmentationModelFile = 'pyannote-segmentation-3.0.onnx';
   static const String embeddingModelFile = 'campplus-speaker-embedding.onnx';
@@ -57,65 +35,18 @@ class SpeakerDiarizer {
   static const int requiredSampleRate = 16000;
 
   /// Longest recording this will attempt.
-  ///
-  /// Derived from memory, not from taste. `process()` needs every sample as a
-  /// `Float32List` and the native layer allocates and copies it again, so peak
-  /// is roughly twice the float32 size: ~230MB at 30 minutes of 16kHz mono,
-  /// and ~460MB at an hour — past what a mid-range phone will give one process.
-  /// Beyond this limit [diarize] returns null and the import still produces a
-  /// full transcript, because losing speaker labels is a far smaller harm than
-  /// losing the import.
-  ///
-  /// Not yet validated against a real device; see docs/progress.md open debts.
   static const Duration maxDuration = Duration(minutes: 30);
 
   /// How readily two stretches of speech are called the same person.
-  ///
-  /// Higher merges more, yielding *fewer* speakers; lower splits more. Both
-  /// failure directions are silent -- two people fused into one, or one
-  /// person appearing as two halfway through -- so this is measured rather
-  /// than guessed. See docs/engineering-notes.md for the sweep behind the
-  /// current value.
   static const double defaultClusteringThreshold = 0.75;
 
   /// How many speakers to find, or -1 to work it out.
-  ///
-  /// -1 is the only honest default for arbitrary imported media: the speaker
-  /// count is exactly what we do not know. It is injectable because it is a
-  /// **real and independent lever** — Phase 3.4 measured every other sherpa
-  /// parameter as inert on `alberta.mp4` while `numClusters` moved the result
-  /// on `syria.mp4`, where the threshold does nothing. Without a way to vary
-  /// it, "is this clip collapsing because segmentation missed the turns, or
-  /// because clustering merged them?" cannot be answered.
-  ///
-  /// Do not ship a fixed value. A wrong count is worse than an inferred one.
   static const int defaultNumClusters = -1;
 
   /// Shortest turn the engine will keep, in seconds.
-  ///
-  /// Segments shorter than this are discarded outright
-  /// (`if (seg.Duration() > min_duration_on)` in sherpa's pyannote impl).
   static const double defaultMinDurationOn = 0.2;
 
   /// Largest same-speaker gap that gets bridged, in seconds.
-  ///
-  /// sherpa merges a speaker's own segments whenever the gap between them is
-  /// under this, and that merge runs *per speaker* with no regard for who spoke
-  /// in between — so in principle "A talks, B says yeah, A resumes" can collapse
-  /// into one long A span straddling B.
-  ///
-  /// **That theory was tested and is not what caused replies to be swallowed.**
-  /// It is the obvious explanation and it is wrong: dropping this from 0.5 to
-  /// 0.05 moved the span count from 14 to 15 on the clip that exhibited the bug
-  /// and fixed none of it. Segmentation had found the turns all along and was
-  /// emitting them as *overlapping* spans; the words were lost afterwards, in
-  /// the word-to-span rule in `speaker_assignment.dart`. Lowering these also
-  /// made one case actively worse — "What do you mean?" split across two
-  /// speakers at 0.1/0.1 and stayed whole at these defaults.
-  ///
-  /// Both values are therefore sherpa's own, kept on evidence rather than
-  /// inertia. They stay injectable so repeating that experiment is cheap, not
-  /// because they are expected to change.
   static const double defaultMinDurationOff = 0.5;
 
   Future<String> _modelPath(String fileName) async {
@@ -137,13 +68,6 @@ class SpeakerDiarizer {
   }
 
   /// Labels the speakers in [wavPath].
-  ///
-  /// Returns null — rather than throwing — when the recording is longer than
-  /// [maxDuration]. Callers should treat that as "no speaker information",
-  /// which is exactly what they must already handle for a file where
-  /// diarization is switched off.
-  ///
-  /// [onProgress] receives 0-100 as the pass advances.
   Future<List<SpeakerSpan>?> diarize(
     String wavPath, {
     void Function(int percent)? onProgress,
@@ -181,19 +105,6 @@ class SpeakerDiarizer {
   }
 
   /// Spawns the worker.
-  ///
-  /// **This indirection is load-bearing, not style.** A Dart closure captures
-  /// its whole enclosing scope, not merely the variables it names, so building
-  /// the `Isolate.run` closure inside [diarize] pulled that method's *other*
-  /// locals into the message -- including `onProgress`, which callers bind to a
-  /// method on their own object. `Isolate.run` then failed before executing a
-  /// line of the body with `object is unsendable ... Class: _Future`, and
-  /// because diarization is deliberately non-fatal the import simply saved with
-  /// no speakers. It looked exactly like diarization finding nothing.
-  ///
-  /// Every parameter here is sendable, so the closure below has nothing
-  /// unsendable in scope to capture. Keep it that way: do not add a callback,
-  /// a Future, or a reference to `this` to this signature.
   static Future<List<SpeakerSpan>?> _spawn({
     required String wavPath,
     required String segmentationModelPath,
@@ -276,15 +187,9 @@ List<SpeakerSpan>? _runDiarization({
           numThreads: 1,
           debug: false,
         ),
-        // numClusters -1 means "work out how many speakers there are", which
-        // is the only honest setting for arbitrary imported media -- the count
-        // is exactly what we do not know. The threshold then decides how
-        // readily two stretches are called the same person: higher merges more,
-        // yielding fewer speakers. sherpa's own default of 0.5 over-split a
-        // real two-speaker clip; 0.75 is measured rather than defaulted, and
-        // sits equidistant from both observed failures. See the sweep in
-        // docs/engineering-notes.md, and re-measure on new material before
-        // changing it, because both failure directions are silent.
+        // numClusters -1 means "work out how many speakers there are", which is
+        // the only honest setting for arbitrary imported media -- the count is
+        // exactly what we do not know.
         clustering: sherpa.FastClusteringConfig(
           numClusters: numClusters,
           threshold: clusteringThreshold,
@@ -325,11 +230,6 @@ List<SpeakerSpan>? _runDiarization({
 }
 
 /// Reads the whole `data` chunk as normalised floats.
-///
-/// Allocated once at the known sample count and filled block by block, rather
-/// than reading the file to a byte list and converting. Both forms end up
-/// holding the same `Float32List`; this one avoids also holding the raw bytes
-/// beside it, which at the 30-minute limit is ~58MB that need not exist.
 Float32List _readSamples(RandomAccessFile input, WavHeader header) {
   final totalSamples = header.dataBytes ~/ 2;
   final samples = Float32List(totalSamples);

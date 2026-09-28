@@ -5,20 +5,6 @@ import 'package:flutter/rendering.dart';
 
 /// Switches the theme with a circle that grows out from where you tapped,
 /// instead of a cross-fade.
-///
-/// **How it works, because it is not obvious.** Two themed copies of the app
-/// cannot be on screen at once — there is one widget tree and one `Navigator`.
-/// So the old theme is *photographed* first: the app is captured to an image,
-/// the theme is switched underneath it, and the photograph is then wiped away
-/// by a hole that opens from the tap point. What grows is not the new theme
-/// arriving; it is the old one being cut out of the way.
-///
-/// The whole thing lasts under half a second and blocks input while it runs, so
-/// a second tap cannot start a reveal on top of one already going.
-///
-/// Honours `MediaQuery.disableAnimations`: with it on, the theme changes
-/// immediately and nothing is captured at all. An accessibility setting the app
-/// ignores is worse than no animation.
 class ThemeReveal extends StatefulWidget {
   const ThemeReveal({required this.child, super.key});
 
@@ -53,9 +39,6 @@ class ThemeRevealState extends State<ThemeReveal>
   }
 
   /// Runs [change], revealing the result from [center].
-  ///
-  /// [center] is in global coordinates — usually where the finger went down, so
-  /// the sweep starts under it rather than from some arbitrary corner.
   Future<void> reveal({
     required Offset center,
     required VoidCallback change,
@@ -91,10 +74,7 @@ class ThemeRevealState extends State<ThemeReveal>
     change();
 
     try {
-      // `.orCancel`, not a bare await. Disposing the controller mid-sweep --
-      // navigating away, a hot reload -- cancels the ticker, and the plain
-      // future from `forward()` then never completes at all, leaving every
-      // caller awaiting it hung forever. A test caught exactly that.
+      // `.orCancel`, not a bare await.
       await _controller.forward(from: 0).orCancel;
     } on TickerCanceled {
       // Disposed while sweeping. The theme change already applied, which is

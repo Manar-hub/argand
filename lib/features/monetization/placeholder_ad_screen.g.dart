@@ -8,26 +8,26 @@ part of 'placeholder_ad_screen.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Where rewarded ads come from.
+/// Where rewarded ads come from: Google AdMob, and the built-in test ad
+/// below whenever AdMob has none to show (`FallbackRewardedAds`).
 ///
-/// The placeholder until an ad SDK is chosen. Kept alive because it holds no
-/// state worth rebuilding and is asked for on every export.
+/// Kept alive: it holds the next ad, loaded ahead.
 
 @ProviderFor(rewardedAds)
 final rewardedAdsProvider = RewardedAdsProvider._();
 
-/// Where rewarded ads come from.
+/// Where rewarded ads come from: Google AdMob, and the built-in test ad
+/// below whenever AdMob has none to show (`FallbackRewardedAds`).
 ///
-/// The placeholder until an ad SDK is chosen. Kept alive because it holds no
-/// state worth rebuilding and is asked for on every export.
+/// Kept alive: it holds the next ad, loaded ahead.
 
 final class RewardedAdsProvider
     extends $FunctionalProvider<RewardedAds, RewardedAds, RewardedAds>
     with $Provider<RewardedAds> {
-  /// Where rewarded ads come from.
+  /// Where rewarded ads come from: Google AdMob, and the built-in test ad
+  /// below whenever AdMob has none to show (`FallbackRewardedAds`).
   ///
-  /// The placeholder until an ad SDK is chosen. Kept alive because it holds no
-  /// state worth rebuilding and is asked for on every export.
+  /// Kept alive: it holds the next ad, loaded ahead.
   RewardedAdsProvider._()
     : super(
         from: null,
@@ -61,4 +61,4 @@ final class RewardedAdsProvider
   }
 }
 
-String _$rewardedAdsHash() => r'2689d158e7febb575555817e71f78e3483d9e046';
+String _$rewardedAdsHash() => r'34c325f1bf94f868ae745fcc78b089d778e55730';

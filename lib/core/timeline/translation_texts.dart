@@ -1,12 +1,5 @@
 /// A translation as the picture shows it: each line a text over the video for
 /// as long as its sentence is said, just above the captions it translates.
-///
-/// **Text layers, not a new kind of overlay.** The stage already draws text
-/// layers and the export already burns them in, so a translation line handed
-/// over as one is shown and exported with nothing new in either. The rows are
-/// made up here and never stored as text layers. Each carries its line's id
-/// ([translationLineIdOf]), so picking, moving or restyling one on the picture
-/// acts on the line.
 library;
 
 import 'package:flutter/painting.dart' show TextDirection;
@@ -73,14 +66,6 @@ List<(String, int)> translationChunks(
 }
 
 /// [lines] of a transcript on [clipId], as text layers in project time.
-///
-/// **At caption size, and in caption-sized pieces.** A whole translated
-/// sentence can run to several lines, and grown from its centre it would sit
-/// on top of the captions; cut like captions are, each piece is at most two
-/// lines and is shown for its share of the sentence's time.
-///
-/// Lines whose sentence falls outside what the timeline plays -- trimmed
-/// away -- are left out, as their captions are.
 List<TextLayer> translationTextsFor({
   required ProjectTimeline timeline,
   required String projectId,

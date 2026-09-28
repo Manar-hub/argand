@@ -27,10 +27,6 @@ typedef TimelineContents = ({
 });
 
 /// The project's timeline as blocks on tracks.
-///
-/// **One list for every kind**, which is what lets one set of gestures move,
-/// resize and select any of them: the tracks draw from it, the drag plans on
-/// it (`planMove`), and a long press on a track selects what it lists there.
 @riverpod
 TimelineContents timelineContents(Ref ref, String projectId) {
   final tracks = ref.watch(projectTracksProvider(projectId)).value ?? const [];
@@ -53,6 +49,25 @@ TimelineContents timelineContents(Ref ref, String projectId) {
     texts: texts,
     lines: lines,
     images: images,
+  );
+}
+
+/// How long the project runs, past the clips when words still run on after
+/// them (`ProjectTimeline.runMsWith`): the ruler's length, and how far
+/// playback goes.
+@riverpod
+int projectRunMs(Ref ref, String projectId) {
+  final timeline = ref.watch(projectTimelineProvider(projectId));
+  final contents = ref.watch(timelineContentsProvider(projectId));
+  final last = timeline.placements.lastOrNull;
+  var contentEnd = 0;
+  for (final block in contents.blocks) {
+    if (block.item.kind == TimelineItemKind.clip) continue;
+    if (block.endMs > contentEnd) contentEnd = block.endMs;
+  }
+  return timeline.runMsWith(
+    contentEndMs: contentEnd,
+    lastFileMs: last == null ? null : contents.clips[last.clipId]?.durationMs,
   );
 }
 

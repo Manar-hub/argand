@@ -10,12 +10,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 /// Splitting a turn, which reassignment by turn could never do.
-///
-/// The repository already accepted an arbitrary position range; nothing in the
-/// UI could express one. These pin the behaviour the Speakers scope depends on,
-/// and in particular that **undo restores both original speakers** — which only
-/// works because `SpeakerEdit` records its before-state per position rather
-/// than as one value.
 void main() {
   late AppDatabase database;
   late TranscriptRepository repository;

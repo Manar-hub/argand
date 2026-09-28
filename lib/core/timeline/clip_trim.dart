@@ -4,18 +4,9 @@ import '../database/database.dart';
 typedef ClipWindow = ({int startMs, int endMs});
 
 /// Shortest a clip may be trimmed to.
-///
-/// Below about a third of a second a clip is a flicker rather than a shot, and
-/// several codecs cannot open a GOP that short. Stopping the drag here is
-/// kinder than allowing a clip that cannot be played or rendered.
 const int minimumClipMs = 300;
 
 /// Where a clip begins and ends inside its media.
-///
-/// **Null means untrimmed, and resolves to the whole file.** Both ends are
-/// resolved in this one place so no caller has to remember that a null end
-/// falls back to the duration, which is itself nullable when the container
-/// could not be probed.
 ClipWindow clipWindow(MediaClip clip) {
   final media = clip.durationMs ?? 0;
   final safeMedia = media < 0 ? 0 : media;
@@ -33,10 +24,6 @@ ClipWindow clipWindow(MediaClip clip) {
 }
 
 /// How long a clip occupies on the timeline.
-///
-/// This, not `durationMs`, is what the ruler measures and what the export
-/// renders. `durationMs` is the length of the *file*; once a clip can be
-/// trimmed the two stop being the same number.
 int trimmedDurationMs(MediaClip clip) {
   final window = clipWindow(clip);
   return window.endMs - window.startMs;
@@ -46,14 +33,6 @@ int trimmedDurationMs(MediaClip clip) {
 enum ClipEdge { start, end }
 
 /// Applies a trim drag and returns where the window lands.
-///
-/// **Pure, and clamped every frame rather than on release.** A clip that could
-/// be dragged past its own media and then snapped back would read as broken
-/// while it was happening -- the same reasoning as `applyLayerDrag`, which this
-/// deliberately mirrors so the two gestures behave alike.
-///
-/// Trimming moves one edge only. The other stays put, so a trim shortens the
-/// clip rather than sliding it along its own media.
 ClipWindow applyTrim({
   required MediaClip clip,
   required ClipEdge edge,
@@ -81,14 +60,6 @@ ClipWindow applyTrim({
 }
 
 /// Where a split would fall inside a clip's media, or null if it cannot.
-///
-/// [atClipMs] is measured from the start of what the clip *plays*, not from the
-/// start of its file -- that is what the playhead knows. The returned value is
-/// in media time, which is what the two new rows have to store.
-///
-/// Null when the split would leave either side below [minimumClipMs]. Refusing
-/// is better than producing a sliver that cannot be played, and the caller can
-/// say so rather than silently making something unusable.
 int? splitPointFor(MediaClip clip, int atClipMs) {
   final window = clipWindow(clip);
   final at = window.startMs + atClipMs;
@@ -103,29 +74,11 @@ int? splitPointFor(MediaClip clip, int atClipMs) {
 typedef RolledCut = ({ClipWindow left, ClipWindow right});
 
 /// Whether [left] and [right] are the two sides of one cut.
-///
-/// True when they play the same file and the first ends exactly where the
-/// second begins — which is what a split produces and nothing else does.
 bool sharesACut(MediaClip left, MediaClip right) =>
     left.mediaPath == right.mediaPath &&
     clipWindow(left).endMs == clipWindow(right).startMs;
 
 /// Moves the cut between two clips, instead of resizing one of them.
-///
-/// **This is what stops the project growing longer than its source.** Trimming
-/// a clip on its own is clamped by the media, so dragging the end of a split
-/// half outward re-covers footage the other half already plays: the two
-/// together then run longer than the file they came from, and the overlap
-/// plays twice. Splitting a 14s clip and extending one side turned a 14s
-/// project into a 22s one exactly that way.
-///
-/// Rolling keeps `left.endMs == right.startMs`, so the pair always covers the
-/// same span of media and the project's length does not change. One side gains
-/// what the other gives up, which is what "move the cut" means and what a
-/// person expects after splitting something.
-///
-/// Both sides are held to [minimumClipMs], so the cut cannot be pushed off
-/// either end.
 RolledCut rollCut({
   required MediaClip left,
   required MediaClip right,
@@ -143,4 +96,20 @@ RolledCut rollCut({
     left: (startMs: leftWindow.startMs, endMs: at),
     right: (startMs: at, endMs: rightWindow.endMs),
   );
+}
+
+/// What playback does on reaching the end of [current]'s window.
+({bool stop, int? seekToMs}) playbackAfter(
+  MediaClip current,
+  List<MediaClip> clips,
+) {
+  final at = clips.indexWhere((clip) => clip.id == current.id);
+  final next = at < 0 || at + 1 >= clips.length ? null : clips[at + 1];
+  final end = clipWindow(current).endMs;
+  if (next != null && next.mediaPath == current.mediaPath) {
+    final start = clipWindow(next).startMs;
+    if (start == end) return (stop: false, seekToMs: null);
+    if (start > end) return (stop: false, seekToMs: start);
+  }
+  return (stop: true, seekToMs: null);
 }

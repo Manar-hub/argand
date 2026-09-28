@@ -7,16 +7,8 @@ import 'app_theme.dart';
 part 'accent_color_controller.g.dart';
 
 /// The action colour: the fill of every call to action -- Create project,
-/// Transcribe, Export, a dialog's confirm -- chosen by the user from a
-/// spectrum in the settings sheet.
-///
-/// **Persisted, like the theme mode**: a standing choice about the app, not
-/// about one task. Stored in the existing `Settings` key/value table as ARGB
-/// -- no migration.
-///
-/// Selection never takes this colour; it is a block of ink (`AppTheme`), so
-/// whatever the user picks, a chosen option and a button to press stay
-/// distinct.
+/// Transcribe, Export, a dialog's confirm -- chosen by the user from a spectrum
+/// in the settings sheet.
 @Riverpod(keepAlive: true)
 class AccentColorSetting extends _$AccentColorSetting {
   static const _key = 'app.accentColor';

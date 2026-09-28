@@ -17,9 +17,6 @@ void main() {
 
     test('a degenerate scale leaves the zoom where it was', () {
       // Zero, NaN and infinity all arrive when a pointer is lost mid-gesture.
-      // Every one of them holds the current scale: falling through to zero
-      // would divide by it on the next scrub, and snapping to the maximum
-      // would throw the user to full zoom because a finger slipped.
       expect(scalePixelsPerSecond(24, 0), 24);
       expect(scalePixelsPerSecond(24, double.nan), 24);
       expect(scalePixelsPerSecond(24, double.infinity), 24);

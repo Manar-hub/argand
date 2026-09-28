@@ -1,22 +1,10 @@
 /// Where something sits in the output frame: a clip's picture, a text, a
 /// layer's captions.
-///
-/// Pure data, shared by the stage that draws it, the gestures that change it,
-/// the database that keeps it and the render that burns it in, so all four
-/// read the same four numbers the same way.
 library;
 
 import 'dart:math' as math;
 
 /// Position, size and turn of one item in the frame.
-///
-/// **Normalised device coordinates for position**, the space Media3 places
-/// overlays and transforms frames in: -1..1 across each axis from the frame's
-/// middle, **up positive**. Storing positions in pixels would tie them to one
-/// output size, and changing the resolution would move everything.
-///
-/// [rotation] is in degrees, clockwise as seen -- the direction a finger
-/// turning on screen means, and the one Flutter's `Transform.rotate` uses.
 class ItemTransform {
   const ItemTransform({
     this.x = 0,
@@ -29,9 +17,6 @@ class ItemTransform {
   static const ItemTransform identity = ItemTransform();
 
   /// Where captions have always rendered: centred, near the bottom.
-  ///
-  /// **Must match `CAPTION_ANCHOR_Y` in `VideoExportChannel.kt`** and the
-  /// default of `TranscribeLayers.captionY`.
   static const ItemTransform captionDefault = ItemTransform(y: -0.82);
 
   /// The smallest and largest an item may be scaled to. Small enough to make
@@ -62,16 +47,9 @@ class ItemTransform {
     );
   }
 
-  /// This transform after a gesture that has, since it began, moved by
-  /// ([panX], [panY]) in frame pixels (down positive, as the screen measures
-  /// it), scaled by [pinch] and turned [turnRadians] clockwise, over a frame
-  /// [frameWidth] by [frameHeight] pixels.
-  ///
-  /// **Applied to where the gesture started, never accumulated frame by
-  /// frame.** Adding each update's small delta to the last result drifts:
-  /// rounding and clamping compound, and a pinch that went out and back ends
-  /// somewhere else. Recomputing from the start keeps the item under the
-  /// fingers.
+  /// This transform after a gesture that has, since it began, moved by ([panX],
+  /// [panY]) in frame pixels (down positive, as the screen measures it), scaled
+  /// by [pinch] and turned [turnRadians] clockwise.
   ItemTransform afterGesture({
     required double frameWidth,
     required double frameHeight,
@@ -96,12 +74,8 @@ class ItemTransform {
   static double clampScale(double value) =>
       value.clamp(minScale, maxScale).toDouble();
 
-  /// [degrees] brought into (-180, 180], and onto the nearest quarter turn
-  /// when within [snapDegrees] of one.
-  ///
-  /// The snap is what makes "straight" reachable by hand: a twist lands a
-  /// degree or two off level almost every time, and a picture one degree off
-  /// reads as a mistake rather than a choice.
+  /// [degrees] brought into (-180, 180], and onto the nearest quarter turn when
+  /// within [snapDegrees] of one.
   static double snapRotation(double degrees) {
     var value = degrees % 360;
     if (value > 180) value -= 360;
@@ -115,14 +89,8 @@ class ItemTransform {
   }
 
   /// The affine map this transform applies to a whole frame, in normalised
-  /// device coordinates, as `(a, b, c, d, tx, ty)` with
-  /// `x' = a*x + c*y + tx` and `y' = b*x + d*y + ty`.
-  ///
-  /// **What the render feeds `MatrixTransformation`**, mirrored here so it can
-  /// be tested. NDC stretches a non-square frame into a square, so turning in
-  /// NDC directly would skew the picture; the turn is done in pixels instead
-  /// -- `D⁻¹ · T · R · S · D` with `D = diag(w/2, h/2)` -- and only the result
-  /// is expressed in NDC.
+  /// device coordinates, as `(a, b, c, d, tx, ty)` with `x' = a*x + c*y + tx`
+  /// and `y' = b*x + d*y + ty`.
   (double, double, double, double, double, double) ndcMatrix({
     required double frameWidth,
     required double frameHeight,

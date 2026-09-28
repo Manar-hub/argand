@@ -4,11 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The reveal's mechanics, which are checkable. How it *feels* is not, and
 /// nothing here claims otherwise.
-///
-/// What matters is that it can never leave the app worse off than a plain
-/// switch: the theme change happens whether or not the animation does, the
-/// photograph is always cleaned up, and a second tap cannot start a second
-/// sweep over the first.
 void main() {
   /// Pumps a reveal over a coloured page and hands back its state.
   Future<ThemeRevealState> pumpReveal(WidgetTester tester,

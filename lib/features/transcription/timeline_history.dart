@@ -7,32 +7,15 @@ import '../../core/timeline/timeline_event.dart';
 import '../../core/timeline/timeline_selection.dart';
 
 /// Puts a timeline event's recorded state back into the database.
-///
-/// Given the half of the payload to move to — `before` when undoing, `after`
-/// when redoing — this writes the rows that state describes. Undo and redo are
-/// the same function with the two halves swapped, which is why there is no
-/// separate redo stack anywhere in this design.
 typedef TimelineInverse = Future<void> Function(
   AppDatabase db,
   Map<String, Object?> side,
 );
 
 /// How each kind of change is applied, in either direction.
-///
-/// **This map is the whole cost of making a new action undoable.** Add a code
-/// to [TimelineEventKind], add an entry here, and record the event where the
-/// action happens. No column, no migration, no change to the control — the
-/// payload is JSON, so whatever shape the new action needs already fits.
-///
-/// Every entry writes *state*, never a delta. A delta would have to be applied
-/// to whatever the row happens to hold now; state is true regardless of what
-/// else has happened since, which is what lets these run in any order the
-/// history asks for.
 final Map<TimelineEventKind, TimelineInverse> timelineInverses = {
   // A split is two rows over one file. Undoing restores the first clip's
-  // out-point and retires the second; redoing does the reverse. The second
-  // clip is soft-deleted rather than dropped, so its id, its position and the
-  // transcripts copied onto it all survive the round trip.
+  // out-point and retires the second; redoing does the reverse.
   TimelineEventKind.clipSplit: (db, side) async {
     final leftId = side['leftClipId'] as String?;
     final rightId = side['rightClipId'] as String?;
@@ -62,9 +45,6 @@ final Map<TimelineEventKind, TimelineInverse> timelineInverses = {
   },
 
   // A transcription run is the transcripts it wrote, and nothing else.
-  // Recorded separately from the layer that asked for it because they are two
-  // actions: drawing a layer and running the engine over it happen at
-  // different moments, and collapsing them means one undo takes back both.
   TimelineEventKind.transcribeRun: (db, side) async {
     final ids = (side['transcriptIds'] as List?)?.cast<String>();
     if (ids == null) return;
@@ -154,6 +134,12 @@ final Map<TimelineEventKind, TimelineInverse> timelineInverses = {
 
   TimelineEventKind.itemsPlace: _applyPlacement,
 
+  // A clip taken off the timeline is retired, not deleted; its media stays.
+  TimelineEventKind.clipRemove: (db, side) async {
+    final id = side['clipId'] as String?;
+    if (id == null) return;
+    await db.setClipRetired(clipId: id, retired: side['retired'] == true);
+  },
   TimelineEventKind.imageAdd: _setImageRetired,
   TimelineEventKind.imageRemove: _setImageRetired,
 
@@ -324,15 +310,8 @@ Future<void> _setTextRetired(AppDatabase db, Map<String, Object?> side) async {
   await db.setTextLayerRetired(id: id, retired: side['retired'] == true);
 }
 
-/// Writes [transform] onto the row it belongs to: a clip's framing, a
-/// layer's caption placement, or a text's placement.
-///
-/// **One writer for every kind**, used by the gesture that commits a change
-/// and by undo replaying it, so the two can never write different columns.
-///
-/// A null [transform] means "no placement of its own", which only a sentence
-/// can have -- it then follows its layer again. Every other kind always has
-/// one, so null leaves it untouched.
+/// Writes [transform] onto the row it belongs to: a clip's framing, a layer's
+/// caption placement, or a text's placement.
 Future<void> writePlacement(
   AppDatabase db, {
   required TimelineItemKind? kind,
@@ -413,8 +392,6 @@ Future<void> writePlacement(
 
 /// Writes [look] onto the row it belongs to. Null clears it: a layer back to
 /// the default look, a sentence back to its layer's, a text back to plain.
-///
-/// One writer for the change and for undo replaying it, as [writePlacement].
 Future<void> writeLook(
   AppDatabase db, {
   required TimelineItemKind? kind,
@@ -480,9 +457,6 @@ TimelineEventPayload lookBatchPayload(
 }
 
 /// One item's placement before and after a gesture.
-///
-/// Null on either side means "no placement of its own", which only a sentence
-/// can be: it follows its layer.
 typedef PlacementChange = ({
   TimelineItemKind kind,
   String id,
@@ -594,10 +568,6 @@ extension ImagePlacement on ImageLayer {
 }
 
 /// The payload for a split, in both directions.
-///
-/// Written here rather than at the call site so the shape and the inverse that
-/// reads it stay in one place — they are the two halves of one contract, and
-/// splitting them across files is how a payload key quietly stops matching.
 TimelineEventPayload splitPayload({
   required String leftClipId,
   required String rightClipId,
@@ -632,10 +602,6 @@ TimelineEventPayload layerAddPayload({required String layerId}) {
 }
 
 /// The payload for one transcription run.
-///
-/// Carries the ids the run actually wrote rather than the layer it ran over,
-/// so undoing a rerun retires the new words without resurrecting the ones that
-/// rerun replaced.
 TimelineEventPayload transcribeRunPayload({
   required List<String> transcriptIds,
 }) {

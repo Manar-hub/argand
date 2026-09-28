@@ -49,27 +49,11 @@ class SubtitleExportFailed extends SubtitleExportStatus {
 }
 
 /// Nothing on the timeline has been transcribed, so there is nothing to write.
-///
-/// Reachable: an engine run that returned nothing still creates a transcript
-/// row, and a project can have clips with no transcript at all. Caught before
-/// the save dialog opens, because asking someone to choose a destination for an
-/// empty file wastes two taps and then puts a header-only `.vtt` on their
-/// device.
 class SubtitleExportEmpty extends SubtitleExportStatus {
   const SubtitleExportEmpty();
 }
 
 /// Writes a transcript out as a subtitle file.
-///
-/// **Nothing here is gated.** A subtitle file is the user's own transcript in a
-/// different wrapper, and CLAUDE.md §2 puts every such container on the free
-/// side of the line — the paid tier begins at professional interchange formats,
-/// which these are not.
-///
-/// Cues are regrouped from the words at export time rather than read from
-/// anywhere cached, exactly as the on-screen captions are. The file therefore
-/// always reflects the latest correction, including one made and then undone a
-/// moment earlier.
 @riverpod
 class SubtitleExporter extends _$SubtitleExporter {
   @override
@@ -79,16 +63,6 @@ class SubtitleExporter extends _$SubtitleExporter {
 
   /// Writes the project's captions out as [format], through the system save
   /// dialog.
-  ///
-  /// **The whole project, on the project's clock.** The first version wrote the
-  /// selected clip's transcript in that clip's own time, which lined up with
-  /// the exported video only until something was split, trimmed or added. The
-  /// cues now come from `projectSubtitleCues`, the same cues the video burns in,
-  /// placed where the video places them.
-  ///
-  /// [defaultSpeakerLabel] is the fallback name for a speaker nobody renamed --
-  /// "Speaker 1" -- and comes from the widget layer because it is interface
-  /// text (CLAUDE.md §4). Pass null to write a file with no attribution.
   Future<void> export({
     required String projectId,
     required SubtitleFormat format,
@@ -207,20 +181,13 @@ class SubtitleExporter extends _$SubtitleExporter {
 }
 
 /// A filename a file manager will accept, on any platform.
-///
-/// The language code is included because the convention for subtitle files is
-/// `name.en.srt`, and players and media servers read it to label a track. That
-/// code is only meaningful now that the engine reports the language it actually
-/// used rather than echoing back the request.
 String subtitleFileName({
   required String title,
   required String language,
   required SubtitleFormat format,
 }) {
-  // Windows forbids the first set outright; the control characters and
-  // trailing dots and spaces are the rest of what makes a name unopenable
-  // there. Stripped everywhere rather than per platform, because an exported
-  // file is meant to travel.
+  // Windows forbids the first set outright; the control characters and trailing
+  // dots and spaces are the rest of what makes a name unopenable there.
   final cleaned = title
       .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), ' ')
       .replaceAll(RegExp(r'\s+'), ' ')

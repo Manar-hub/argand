@@ -10,26 +10,29 @@ part of 'whisper_model_controller.dart';
 // ignore_for_file: type=lint, type=warning
 /// The transcription model the app will use, persisted across launches.
 ///
-/// Always resolved through [WhisperModelCatalog.resolve], so a stored id that
-/// no longer matches a shipped model degrades to the default instead of
-/// leaving the app pointing at a file that is not there.
+/// Always resolved among the models on the device
+/// ([availableWhisperModelsProvider]), so a stored id whose model was removed
+/// -- or never shipped -- degrades to the default instead of leaving the app
+/// pointing at a file that is not there.
 
 @ProviderFor(SelectedWhisperModel)
 final selectedWhisperModelProvider = SelectedWhisperModelProvider._();
 
 /// The transcription model the app will use, persisted across launches.
 ///
-/// Always resolved through [WhisperModelCatalog.resolve], so a stored id that
-/// no longer matches a shipped model degrades to the default instead of
-/// leaving the app pointing at a file that is not there.
+/// Always resolved among the models on the device
+/// ([availableWhisperModelsProvider]), so a stored id whose model was removed
+/// -- or never shipped -- degrades to the default instead of leaving the app
+/// pointing at a file that is not there.
 final class SelectedWhisperModelProvider
     extends
         $AsyncNotifierProvider<SelectedWhisperModel, WhisperModelDescriptor?> {
   /// The transcription model the app will use, persisted across launches.
   ///
-  /// Always resolved through [WhisperModelCatalog.resolve], so a stored id that
-  /// no longer matches a shipped model degrades to the default instead of
-  /// leaving the app pointing at a file that is not there.
+  /// Always resolved among the models on the device
+  /// ([availableWhisperModelsProvider]), so a stored id whose model was removed
+  /// -- or never shipped -- degrades to the default instead of leaving the app
+  /// pointing at a file that is not there.
   SelectedWhisperModelProvider._()
     : super(
         from: null,
@@ -50,13 +53,14 @@ final class SelectedWhisperModelProvider
 }
 
 String _$selectedWhisperModelHash() =>
-    r'6627aca3bd1834a542e63affe66fe42708f34e2e';
+    r'08333236fd6a8b73751467c420d486b09db968d8';
 
 /// The transcription model the app will use, persisted across launches.
 ///
-/// Always resolved through [WhisperModelCatalog.resolve], so a stored id that
-/// no longer matches a shipped model degrades to the default instead of
-/// leaving the app pointing at a file that is not there.
+/// Always resolved among the models on the device
+/// ([availableWhisperModelsProvider]), so a stored id whose model was removed
+/// -- or never shipped -- degrades to the default instead of leaving the app
+/// pointing at a file that is not there.
 
 abstract class _$SelectedWhisperModel
     extends $AsyncNotifier<WhisperModelDescriptor?> {

@@ -10,9 +10,6 @@
   "libraryEmptyBody": "Import a video or audio file to transcribe it on your device.",
   "@libraryEmptyBody": { "description": "Supporting text on the empty library screen" },
 
-  "importAction": "Import media",
-  "@importAction": { "description": "Label of the button that opens the file picker" },
-
   "importCancelled": "No file selected.",
   "@importCancelled": { "description": "Shown when the user dismisses the file picker" },
 
@@ -82,8 +79,6 @@
   "modelNameSmallQ51": "Small (quantized)",
   "@modelNameSmallQ51": { "description": "Display name of the bundled small-q5_1 Whisper model" },
 
-
-
   "stageIdentifyingSpeakers": "Identifying speakers",
   "@stageIdentifyingSpeakers": { "description": "Pipeline stage: running speaker diarization over the extracted audio" },
 
@@ -105,10 +100,8 @@
   "languageAuto": "Detect automatically",
   "@languageAuto": { "description": "Language option letting the engine identify the spoken language itself" },
 
-
   "languageEnglish": "English",
   "@languageEnglish": { "description": "Language option pinning transcription to English" },
-
 
   "silenceSkippingTitle": "Skip silence",
   "@silenceSkippingTitle": { "description": "Header of the settings section toggling voice activity detection" },
@@ -183,15 +176,6 @@
   "@deleteProjectMessage": {
     "description": "Body of the delete-project confirmation, stating plainly that deletion is permanent and how much space it recovers",
     "placeholders": { "size": { "type": "String", "example": "248 MB" } }
-  },
-
-  "projectSizeOnDisk": "{duration} · {size}",
-  "@projectSizeOnDisk": {
-    "description": "Library row subtitle pairing a project's running time with the space it occupies",
-    "placeholders": {
-      "duration": { "type": "String", "example": "12:04" },
-      "size": { "type": "String", "example": "248 MB" }
-    }
   },
 
   "sizeBytes": "{count} B",
@@ -272,9 +256,6 @@
   "translateToOption": "Translate to",
   "@translateToOption": { "description": "Row in the Transcribe sheet choosing a language to also translate the transcription into" },
 
-  "translationTrack": "Translation",
-  "@translationTrack": { "description": "Label of the timeline track holding the translated lines" },
-
   "showTranslation": "Show translation",
   "translationAdd": "Add translation",
   "@translationAdd": { "description": "Script edit mode: placeholder under a caption row with no translation; tapping it types one" },
@@ -291,12 +272,6 @@
 
   "importSubhead": "Video or audio — transcribed on your device",
   "@importSubhead": { "description": "Supporting line under the transcribe entry panel, saying what can be imported and that nothing is uploaded" },
-
-  "importEditHeadline": "Import & edit",
-  "@importEditHeadline": { "description": "Label on the library's import-and-edit entry panel; opens the resulting project in Timeline mode" },
-
-  "importEditSubhead": "Transcribed automatically, then opens on the timeline",
-  "@importEditSubhead": { "description": "Supporting line under the import-and-edit entry panel" },
 
   "projectCreated": "{date}",
   "@projectCreated": {
@@ -349,29 +324,11 @@
   "exportSheetTitle": "Export",
   "@exportSheetTitle": { "description": "Header of the sheet listing what can be exported" },
 
-  "exportSrt": "SubRip (.srt)",
-  "@exportSrt": { "description": "Menu entry exporting captions as a SubRip subtitle file" },
-
   "exportSrtDetail": "Works almost everywhere — players, editors, video sites",
   "@exportSrtDetail": { "description": "Explains where a SubRip file can be used" },
 
-  "exportVtt": "WebVTT (.vtt)",
-  "@exportVtt": { "description": "Menu entry exporting captions as a WebVTT subtitle file" },
-
   "exportVttDetail": "For the web, and keeps speaker names as voice tags",
   "@exportVttDetail": { "description": "Explains where a WebVTT file can be used and what it preserves" },
-
-  "exportVideoDetail": "Renders the timeline and saves it to Downloads",
-  "@exportVideoDetail": { "description": "Explains what the video export produces" },
-
-  "exportVideoRunning": "Rendering video… {percent}%",
-  "@exportVideoRunning": {
-    "description": "Progress message shown while the video is being rendered",
-    "placeholders": { "percent": { "type": "int" } }
-  },
-
-  "exportVideoStarting": "Rendering video…",
-  "@exportVideoStarting": { "description": "Progress message shown before the renderer reports a percentage" },
 
   "exportVideoSaved": "Saved to Downloads: {fileName}",
   "@exportVideoSaved": {
@@ -393,9 +350,6 @@
 
   "exportIncludeSpeakers": "Include speaker names",
   "@exportIncludeSpeakers": { "description": "Toggle controlling whether exported captions are attributed to speakers" },
-
-  "exportRunning": "Preparing captions…",
-  "@exportRunning": { "description": "Shown while the caption file is being written" },
 
   "exportSaved": "Saved {fileName}",
   "@exportSaved": {
@@ -420,12 +374,6 @@
 
   "timelineFullscreen": "Fullscreen",
   "@timelineFullscreen": { "description": "Tooltip on the button that opens the video preview full screen" },
-
-  "timelineMuteClip": "Mute clip",
-  "@timelineMuteClip": { "description": "Label under the track icon that mutes the video's own audio" },
-
-  "timelineCover": "Cover",
-  "@timelineCover": { "description": "Label under the track icon that sets the project's cover frame" },
 
   "trackAdd": "Add track",
   "@trackAdd": { "description": "Button below the timeline that adds a new track to the stack" },
@@ -466,9 +414,6 @@
   "trackKindUnavailable": "Needs export compositing, which isn't built yet.",
   "@trackKindUnavailable": { "description": "Explanation under the track kinds that cannot be added yet, stating what is missing rather than only that they are disabled" },
 
-  "timelineCaptionsLabel": "Captions",
-  "@timelineCaptionsLabel": { "description": "Heading above the caption list shown when the Captions toolbar button is toggled on" },
-
   "timelineToolZoom": "Zoom",
   "@timelineToolZoom": { "description": "Bottom toolbar button that scales the selected clip's picture" },
 
@@ -477,9 +422,6 @@
 
   "selectionCount": "{count} selected",
   "@selectionCount": { "description": "Shown under the tracks while several timeline items are selected", "placeholders": { "count": { "type": "int" } } },
-
-  "selectionDelete": "Delete",
-  "@selectionDelete": { "description": "Deletes every selected timeline item" },
 
   "selectionDone": "Done",
   "@selectionDone": { "description": "Ends multi-select and clears the selection" },
@@ -589,26 +531,8 @@
   "splitDone": "Clip split.",
   "@splitDone": { "description": "Confirmation that the clip was cut in two" },
 
-  "timelineToolEdit": "Edit",
-  "@timelineToolEdit": { "description": "Bottom toolbar button: cut/trim/split (not yet built)" },
-
-  "timelineToolAudio": "Audio",
-  "@timelineToolAudio": { "description": "Bottom toolbar button: audio tools (not yet built)" },
-
   "timelineToolText": "Text",
   "@timelineToolText": { "description": "Bottom toolbar button: text overlays (not yet built)" },
-
-  "timelineToolEffects": "Effects",
-  "@timelineToolEffects": { "description": "Bottom toolbar button: visual effects (not yet built)" },
-
-  "timelineToolOverlay": "Overlay",
-  "@timelineToolOverlay": { "description": "Bottom toolbar button: image/video overlays (not yet built)" },
-
-  "timelineToolCaptions": "Captions",
-  "@timelineToolCaptions": { "description": "Bottom toolbar button: toggles the caption list under the track area" },
-
-  "timelineToolFilter": "Filter",
-  "@timelineToolFilter": { "description": "Bottom toolbar button: colour filters (not yet built)" },
 
   "timelineComingSoon": "{feature} is coming soon.",
   "@timelineComingSoon": {
@@ -622,23 +546,11 @@
   "clipAdd": "Add a clip",
   "@clipAdd": { "description": "Accessibility label of the + button that adds media to a project" },
 
-  "clipMoveEarlier": "Move earlier",
-  "@clipMoveEarlier": { "description": "Menu entry that moves a clip one place towards the start of the timeline" },
-
-  "clipMoveLater": "Move later",
-  "@clipMoveLater": { "description": "Menu entry that moves a clip one place towards the end of the timeline" },
-
   "clipTranscribe": "Transcribe",
   "@clipTranscribe": { "description": "Button that starts transcribing the selected clip" },
 
-  "clipNotTranscribed": "Not transcribed yet.",
-  "@clipNotTranscribed": { "description": "Shown beside the Transcribe button when the selected clip has no transcript" },
-
   "clipNotTranscribedScript": "This clip hasn't been transcribed yet. Switch to Timeline and tap Transcribe to start.",
   "@clipNotTranscribedScript": { "description": "Shown in Script mode when the selected clip has no transcript, pointing at where the action lives" },
-
-  "clipTranscribed": "Transcribed.",
-  "@clipTranscribed": { "description": "Shown beside the selected clip once it has a transcript" },
 
   "clipTranscribeFailed": "Couldn't transcribe this clip.",
   "@clipTranscribeFailed": { "description": "Shown when transcribing a clip failed; the clip itself is unaffected and the action can be retried" },
@@ -661,20 +573,8 @@
   "layerAdd": "Add layer",
   "@layerAdd": { "description": "Button that draws a new transcribe layer on the timeline" },
 
-  "layerRerunTitle": "Transcribe this layer again?",
-  "@layerRerunTitle": { "description": "Title of the dialog confirming a layer is transcribed a second time" },
-
   "layerRerunBody": "The words this layer produced will be replaced. Any corrections you typed and any speaker names you set on them are lost.",
   "@layerRerunBody": { "description": "Body of the re-transcribe confirmation, naming specifically what the run discards" },
-
-  "layerRerunConfirm": "Transcribe again",
-  "@layerRerunConfirm": { "description": "Confirming button of the re-transcribe dialog" },
-
-  "layerRemove": "Remove layer",
-  "@layerRemove": { "description": "Button that removes the selected transcribe layer and anything it transcribed" },
-
-  "layerHint": "Add a layer to mark what to transcribe.",
-  "@layerHint": { "description": "Shown beside the transcribe track when no layer is selected" },
 
   "layerSelected": "Layer selected.",
   "@layerSelected": { "description": "Shown beside the transcribe track when a layer is selected" },
@@ -834,7 +734,6 @@
 
   "exportGetPro": "Get Pro",
   "@exportGetPro": { "description": "Button that will open the one-time Pro purchase" },
-
 
   "adPlaceholderLabel": "Test ad",
   "@adPlaceholderLabel": { "description": "Header of the stand-in shown where a rewarded ad will play" },

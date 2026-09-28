@@ -56,19 +56,11 @@ final class ThumbnailServiceProvider
 String _$thumbnailServiceHash() => r'95e78a52021d29d006a584d3fe1ccadd03da9313';
 
 /// The frame images for one clip, keyed so two clips never share a strip.
-///
-/// `keepAlive` is deliberately *not* set: a filmstrip scrolled off screen has
-/// no reason to pin its paths in memory, and regenerating is a directory
-/// listing once the JPEGs exist.
 
 @ProviderFor(clipFrames)
 final clipFramesProvider = ClipFramesFamily._();
 
 /// The frame images for one clip, keyed so two clips never share a strip.
-///
-/// `keepAlive` is deliberately *not* set: a filmstrip scrolled off screen has
-/// no reason to pin its paths in memory, and regenerating is a directory
-/// listing once the JPEGs exist.
 
 final class ClipFramesProvider
     extends
@@ -79,10 +71,6 @@ final class ClipFramesProvider
         >
     with $FutureModifier<List<String>>, $FutureProvider<List<String>> {
   /// The frame images for one clip, keyed so two clips never share a strip.
-  ///
-  /// `keepAlive` is deliberately *not* set: a filmstrip scrolled off screen has
-  /// no reason to pin its paths in memory, and regenerating is a directory
-  /// listing once the JPEGs exist.
   ClipFramesProvider._({
     required ClipFramesFamily super.from,
     required ({String mediaPath, String cacheDir, int count}) super.argument,
@@ -136,10 +124,6 @@ final class ClipFramesProvider
 String _$clipFramesHash() => r'879947053581ea344174cec6394df5fe186bcc32';
 
 /// The frame images for one clip, keyed so two clips never share a strip.
-///
-/// `keepAlive` is deliberately *not* set: a filmstrip scrolled off screen has
-/// no reason to pin its paths in memory, and regenerating is a directory
-/// listing once the JPEGs exist.
 
 final class ClipFramesFamily extends $Family
     with
@@ -157,10 +141,6 @@ final class ClipFramesFamily extends $Family
       );
 
   /// The frame images for one clip, keyed so two clips never share a strip.
-  ///
-  /// `keepAlive` is deliberately *not* set: a filmstrip scrolled off screen has
-  /// no reason to pin its paths in memory, and regenerating is a directory
-  /// listing once the JPEGs exist.
 
   ClipFramesProvider call({
     required String mediaPath,

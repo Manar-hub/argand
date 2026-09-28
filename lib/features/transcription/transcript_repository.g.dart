@@ -58,31 +58,16 @@ String _$transcriptRepositoryHash() =>
     r'53371fb431bdeeb8b8955e905662829a4b9e5d79';
 
 /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
-///
-/// Keyed by transcript id rather than project so the caption overlay and the
-/// transcript view read the same instance. Synchronous, with an empty map while
-/// the row loads — the fallback `Speaker N` label is correct in that moment
-/// anyway, so there is nothing to wait for and no spinner to show.
 
 @ProviderFor(speakerNames)
 final speakerNamesProvider = SpeakerNamesFamily._();
 
 /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
-///
-/// Keyed by transcript id rather than project so the caption overlay and the
-/// transcript view read the same instance. Synchronous, with an empty map while
-/// the row loads — the fallback `Speaker N` label is correct in that moment
-/// anyway, so there is nothing to wait for and no spinner to show.
 
 final class SpeakerNamesProvider
     extends $FunctionalProvider<SpeakerNames, SpeakerNames, SpeakerNames>
     with $Provider<SpeakerNames> {
   /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
-  ///
-  /// Keyed by transcript id rather than project so the caption overlay and the
-  /// transcript view read the same instance. Synchronous, with an empty map while
-  /// the row loads — the fallback `Speaker N` label is correct in that moment
-  /// anyway, so there is nothing to wait for and no spinner to show.
   SpeakerNamesProvider._({
     required SpeakerNamesFamily super.from,
     required String super.argument,
@@ -137,11 +122,6 @@ final class SpeakerNamesProvider
 String _$speakerNamesHash() => r'ca47b053385677699cd0c8be96c37ba3ccfcac9e';
 
 /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
-///
-/// Keyed by transcript id rather than project so the caption overlay and the
-/// transcript view read the same instance. Synchronous, with an empty map while
-/// the row loads — the fallback `Speaker N` label is correct in that moment
-/// anyway, so there is nothing to wait for and no spinner to show.
 
 final class SpeakerNamesFamily extends $Family
     with $FunctionalFamilyOverride<SpeakerNames, String> {
@@ -155,11 +135,6 @@ final class SpeakerNamesFamily extends $Family
       );
 
   /// Custom speaker labels for [transcriptId], empty when nobody has renamed one.
-  ///
-  /// Keyed by transcript id rather than project so the caption overlay and the
-  /// transcript view read the same instance. Synchronous, with an empty map while
-  /// the row loads — the fallback `Speaker N` label is correct in that moment
-  /// anyway, so there is nothing to wait for and no spinner to show.
 
   SpeakerNamesProvider call(String transcriptId) =>
       SpeakerNamesProvider._(argument: transcriptId, from: this);
@@ -243,24 +218,14 @@ final class TranscriptByIdFamily extends $Family
   String toString() => r'transcriptByIdProvider';
 }
 
-/// Whether the undo and redo controls are live for [transcriptId].
-/// Whether the project has anything to undo or redo.
-///
-/// **One history behind one pair of buttons.** Both modes read this, because
-/// splitting a clip and correcting a word are the same kind of fact to someone
-/// pressing undo -- which table they were stored in is not something the
-/// control should have an opinion about.
+/// Whether the undo and redo controls are live for [transcriptId]. Whether the
+/// project has anything to undo or redo.
 
 @ProviderFor(projectHistoryState)
 final projectHistoryStateProvider = ProjectHistoryStateFamily._();
 
-/// Whether the undo and redo controls are live for [transcriptId].
-/// Whether the project has anything to undo or redo.
-///
-/// **One history behind one pair of buttons.** Both modes read this, because
-/// splitting a clip and correcting a word are the same kind of fact to someone
-/// pressing undo -- which table they were stored in is not something the
-/// control should have an opinion about.
+/// Whether the undo and redo controls are live for [transcriptId]. Whether the
+/// project has anything to undo or redo.
 
 final class ProjectHistoryStateProvider
     extends
@@ -272,13 +237,8 @@ final class ProjectHistoryStateProvider
     with
         $FutureModifier<({bool canRedo, bool canUndo})>,
         $StreamProvider<({bool canRedo, bool canUndo})> {
-  /// Whether the undo and redo controls are live for [transcriptId].
-  /// Whether the project has anything to undo or redo.
-  ///
-  /// **One history behind one pair of buttons.** Both modes read this, because
-  /// splitting a clip and correcting a word are the same kind of fact to someone
-  /// pressing undo -- which table they were stored in is not something the
-  /// control should have an opinion about.
+  /// Whether the undo and redo controls are live for [transcriptId]. Whether the
+  /// project has anything to undo or redo.
   ProjectHistoryStateProvider._({
     required ProjectHistoryStateFamily super.from,
     required String super.argument,
@@ -326,13 +286,8 @@ final class ProjectHistoryStateProvider
 String _$projectHistoryStateHash() =>
     r'd5df89e23230fb73df06749838bf1c446caeed13';
 
-/// Whether the undo and redo controls are live for [transcriptId].
-/// Whether the project has anything to undo or redo.
-///
-/// **One history behind one pair of buttons.** Both modes read this, because
-/// splitting a clip and correcting a word are the same kind of fact to someone
-/// pressing undo -- which table they were stored in is not something the
-/// control should have an opinion about.
+/// Whether the undo and redo controls are live for [transcriptId]. Whether the
+/// project has anything to undo or redo.
 
 final class ProjectHistoryStateFamily extends $Family
     with
@@ -349,13 +304,8 @@ final class ProjectHistoryStateFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Whether the undo and redo controls are live for [transcriptId].
-  /// Whether the project has anything to undo or redo.
-  ///
-  /// **One history behind one pair of buttons.** Both modes read this, because
-  /// splitting a clip and correcting a word are the same kind of fact to someone
-  /// pressing undo -- which table they were stored in is not something the
-  /// control should have an opinion about.
+  /// Whether the undo and redo controls are live for [transcriptId]. Whether the
+  /// project has anything to undo or redo.
 
   ProjectHistoryStateProvider call(String projectId) =>
       ProjectHistoryStateProvider._(argument: projectId, from: this);
@@ -447,30 +397,18 @@ final class EditHistoryFamily extends $Family
 
 /// Total bytes [projectId] occupies on disk: its imported media plus the
 /// extracted WAV.
-///
-/// Surfaced in the library so consumed space is visible and attributable to a
-/// project, rather than showing up only as an unexplained rise in the app's
-/// size in Android settings.
 
 @ProviderFor(projectMediaBytes)
 final projectMediaBytesProvider = ProjectMediaBytesFamily._();
 
 /// Total bytes [projectId] occupies on disk: its imported media plus the
 /// extracted WAV.
-///
-/// Surfaced in the library so consumed space is visible and attributable to a
-/// project, rather than showing up only as an unexplained rise in the app's
-/// size in Android settings.
 
 final class ProjectMediaBytesProvider
     extends $FunctionalProvider<AsyncValue<int>, int, FutureOr<int>>
     with $FutureModifier<int>, $FutureProvider<int> {
   /// Total bytes [projectId] occupies on disk: its imported media plus the
   /// extracted WAV.
-  ///
-  /// Surfaced in the library so consumed space is visible and attributable to a
-  /// project, rather than showing up only as an unexplained rise in the app's
-  /// size in Android settings.
   ProjectMediaBytesProvider._({
     required ProjectMediaBytesFamily super.from,
     required String super.argument,
@@ -518,10 +456,6 @@ String _$projectMediaBytesHash() => r'9839ea1b0ba9945bae99b57547b97e51e9ddc7a3';
 
 /// Total bytes [projectId] occupies on disk: its imported media plus the
 /// extracted WAV.
-///
-/// Surfaced in the library so consumed space is visible and attributable to a
-/// project, rather than showing up only as an unexplained rise in the app's
-/// size in Android settings.
 
 final class ProjectMediaBytesFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<int>, String> {
@@ -536,10 +470,6 @@ final class ProjectMediaBytesFamily extends $Family
 
   /// Total bytes [projectId] occupies on disk: its imported media plus the
   /// extracted WAV.
-  ///
-  /// Surfaced in the library so consumed space is visible and attributable to a
-  /// project, rather than showing up only as an unexplained rise in the app's
-  /// size in Android settings.
 
   ProjectMediaBytesProvider call(String projectId) =>
       ProjectMediaBytesProvider._(argument: projectId, from: this);
@@ -820,22 +750,14 @@ final class TranscriptWordsFamily extends $Family
   String toString() => r'transcriptWordsProvider';
 }
 
-/// Every transcript covering one clip, earliest range first. Empty when
-/// nothing on the clip has been transcribed yet.
-///
-/// Speaker names live on these rows, so a rename has to reach the transcript
-/// view, the caption overlay and the export button with nothing being told to
-/// refresh.
+/// Every transcript covering one clip, earliest range first. Empty when nothing
+/// on the clip has been transcribed yet.
 
 @ProviderFor(clipTranscripts)
 final clipTranscriptsProvider = ClipTranscriptsFamily._();
 
-/// Every transcript covering one clip, earliest range first. Empty when
-/// nothing on the clip has been transcribed yet.
-///
-/// Speaker names live on these rows, so a rename has to reach the transcript
-/// view, the caption overlay and the export button with nothing being told to
-/// refresh.
+/// Every transcript covering one clip, earliest range first. Empty when nothing
+/// on the clip has been transcribed yet.
 
 final class ClipTranscriptsProvider
     extends
@@ -845,12 +767,8 @@ final class ClipTranscriptsProvider
           Stream<List<Transcript>>
         >
     with $FutureModifier<List<Transcript>>, $StreamProvider<List<Transcript>> {
-  /// Every transcript covering one clip, earliest range first. Empty when
-  /// nothing on the clip has been transcribed yet.
-  ///
-  /// Speaker names live on these rows, so a rename has to reach the transcript
-  /// view, the caption overlay and the export button with nothing being told to
-  /// refresh.
+  /// Every transcript covering one clip, earliest range first. Empty when nothing
+  /// on the clip has been transcribed yet.
   ClipTranscriptsProvider._({
     required ClipTranscriptsFamily super.from,
     required String super.argument,
@@ -897,12 +815,8 @@ final class ClipTranscriptsProvider
 
 String _$clipTranscriptsHash() => r'13bbc2d0a7abeb98e132100afbe33016ad34efa0';
 
-/// Every transcript covering one clip, earliest range first. Empty when
-/// nothing on the clip has been transcribed yet.
-///
-/// Speaker names live on these rows, so a rename has to reach the transcript
-/// view, the caption overlay and the export button with nothing being told to
-/// refresh.
+/// Every transcript covering one clip, earliest range first. Empty when nothing
+/// on the clip has been transcribed yet.
 
 final class ClipTranscriptsFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Transcript>>, String> {
@@ -915,12 +829,8 @@ final class ClipTranscriptsFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Every transcript covering one clip, earliest range first. Empty when
-  /// nothing on the clip has been transcribed yet.
-  ///
-  /// Speaker names live on these rows, so a rename has to reach the transcript
-  /// view, the caption overlay and the export button with nothing being told to
-  /// refresh.
+  /// Every transcript covering one clip, earliest range first. Empty when nothing
+  /// on the clip has been transcribed yet.
 
   ClipTranscriptsProvider call(String clipId) =>
       ClipTranscriptsProvider._(argument: clipId, from: this);
@@ -1711,32 +1621,17 @@ final class ProjectClipsFamily extends $Family
 }
 
 /// Where each of a project's clips falls on one shared time axis.
-///
-/// The single copy of the running sum. The ruler, the track, the playhead and
-/// anything turning a drawn range back into per-clip work all measure with
-/// this — an earlier pass had the ruler and the track folding their own totals
-/// and they drifted apart, which is the bug this exists to make impossible.
 
 @ProviderFor(projectTimeline)
 final projectTimelineProvider = ProjectTimelineFamily._();
 
 /// Where each of a project's clips falls on one shared time axis.
-///
-/// The single copy of the running sum. The ruler, the track, the playhead and
-/// anything turning a drawn range back into per-clip work all measure with
-/// this — an earlier pass had the ruler and the track folding their own totals
-/// and they drifted apart, which is the bug this exists to make impossible.
 
 final class ProjectTimelineProvider
     extends
         $FunctionalProvider<ProjectTimeline, ProjectTimeline, ProjectTimeline>
     with $Provider<ProjectTimeline> {
   /// Where each of a project's clips falls on one shared time axis.
-  ///
-  /// The single copy of the running sum. The ruler, the track, the playhead and
-  /// anything turning a drawn range back into per-clip work all measure with
-  /// this — an earlier pass had the ruler and the track folding their own totals
-  /// and they drifted apart, which is the bug this exists to make impossible.
   ProjectTimelineProvider._({
     required ProjectTimelineFamily super.from,
     required String super.argument,
@@ -1791,11 +1686,6 @@ final class ProjectTimelineProvider
 String _$projectTimelineHash() => r'3e8346dd248f27d44a2a8f6b18c7ceea074b9371';
 
 /// Where each of a project's clips falls on one shared time axis.
-///
-/// The single copy of the running sum. The ruler, the track, the playhead and
-/// anything turning a drawn range back into per-clip work all measure with
-/// this — an earlier pass had the ruler and the track folding their own totals
-/// and they drifted apart, which is the bug this exists to make impossible.
 
 final class ProjectTimelineFamily extends $Family
     with $FunctionalFamilyOverride<ProjectTimeline, String> {
@@ -1809,11 +1699,6 @@ final class ProjectTimelineFamily extends $Family
       );
 
   /// Where each of a project's clips falls on one shared time axis.
-  ///
-  /// The single copy of the running sum. The ruler, the track, the playhead and
-  /// anything turning a drawn range back into per-clip work all measure with
-  /// this — an earlier pass had the ruler and the track folding their own totals
-  /// and they drifted apart, which is the bug this exists to make impossible.
 
   ProjectTimelineProvider call(String projectId) =>
       ProjectTimelineProvider._(argument: projectId, from: this);
@@ -1823,29 +1708,11 @@ final class ProjectTimelineFamily extends $Family
 }
 
 /// The amplitude readings behind a clip's audio lane, computed on first need.
-///
-/// **Not computed at import.** Deriving these costs a full native decode of
-/// the media, and "+" is specified to copy a file in and do nothing else — so
-/// the lane fills in once the timeline asks for it, and a clip added a moment
-/// ago legitimately draws flat until it does.
-///
-/// Returns an empty list while computing and for media that has no decodable
-/// audio; both cases draw as a flat lane. The result is stored on the clip, so
-/// this decodes once per clip ever rather than once per visit.
 
 @ProviderFor(clipWaveform)
 final clipWaveformProvider = ClipWaveformFamily._();
 
 /// The amplitude readings behind a clip's audio lane, computed on first need.
-///
-/// **Not computed at import.** Deriving these costs a full native decode of
-/// the media, and "+" is specified to copy a file in and do nothing else — so
-/// the lane fills in once the timeline asks for it, and a clip added a moment
-/// ago legitimately draws flat until it does.
-///
-/// Returns an empty list while computing and for media that has no decodable
-/// audio; both cases draw as a flat lane. The result is stored on the clip, so
-/// this decodes once per clip ever rather than once per visit.
 
 final class ClipWaveformProvider
     extends
@@ -1856,15 +1723,6 @@ final class ClipWaveformProvider
         >
     with $FutureModifier<Uint8List>, $FutureProvider<Uint8List> {
   /// The amplitude readings behind a clip's audio lane, computed on first need.
-  ///
-  /// **Not computed at import.** Deriving these costs a full native decode of
-  /// the media, and "+" is specified to copy a file in and do nothing else — so
-  /// the lane fills in once the timeline asks for it, and a clip added a moment
-  /// ago legitimately draws flat until it does.
-  ///
-  /// Returns an empty list while computing and for media that has no decodable
-  /// audio; both cases draw as a flat lane. The result is stored on the clip, so
-  /// this decodes once per clip ever rather than once per visit.
   ClipWaveformProvider._({
     required ClipWaveformFamily super.from,
     required String super.argument,
@@ -1911,15 +1769,6 @@ final class ClipWaveformProvider
 String _$clipWaveformHash() => r'4d3e713f370b5755a81eb3617bfa18d3b31ecbc4';
 
 /// The amplitude readings behind a clip's audio lane, computed on first need.
-///
-/// **Not computed at import.** Deriving these costs a full native decode of
-/// the media, and "+" is specified to copy a file in and do nothing else — so
-/// the lane fills in once the timeline asks for it, and a clip added a moment
-/// ago legitimately draws flat until it does.
-///
-/// Returns an empty list while computing and for media that has no decodable
-/// audio; both cases draw as a flat lane. The result is stored on the clip, so
-/// this decodes once per clip ever rather than once per visit.
 
 final class ClipWaveformFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Uint8List>, String> {
@@ -1933,15 +1782,6 @@ final class ClipWaveformFamily extends $Family
       );
 
   /// The amplitude readings behind a clip's audio lane, computed on first need.
-  ///
-  /// **Not computed at import.** Deriving these costs a full native decode of
-  /// the media, and "+" is specified to copy a file in and do nothing else — so
-  /// the lane fills in once the timeline asks for it, and a clip added a moment
-  /// ago legitimately draws flat until it does.
-  ///
-  /// Returns an empty list while computing and for media that has no decodable
-  /// audio; both cases draw as a flat lane. The result is stored on the clip, so
-  /// this decodes once per clip ever rather than once per visit.
 
   ClipWaveformProvider call(String clipId) =>
       ClipWaveformProvider._(argument: clipId, from: this);
@@ -1951,19 +1791,11 @@ final class ClipWaveformFamily extends $Family
 }
 
 /// Every transcribed sentence in a project, in timeline order.
-///
-/// A thin assembly over [sentencesForClip]: this walks the project's clips and
-/// their transcripts, and that does the placing. The arithmetic lives there so
-/// it can be tested without a database.
 
 @ProviderFor(projectSentences)
 final projectSentencesProvider = ProjectSentencesFamily._();
 
 /// Every transcribed sentence in a project, in timeline order.
-///
-/// A thin assembly over [sentencesForClip]: this walks the project's clips and
-/// their transcripts, and that does the placing. The arithmetic lives there so
-/// it can be tested without a database.
 
 final class ProjectSentencesProvider
     extends
@@ -1974,10 +1806,6 @@ final class ProjectSentencesProvider
         >
     with $Provider<List<TimelineSentence>> {
   /// Every transcribed sentence in a project, in timeline order.
-  ///
-  /// A thin assembly over [sentencesForClip]: this walks the project's clips and
-  /// their transcripts, and that does the placing. The arithmetic lives there so
-  /// it can be tested without a database.
   ProjectSentencesProvider._({
     required ProjectSentencesFamily super.from,
     required String super.argument,
@@ -2033,10 +1861,6 @@ final class ProjectSentencesProvider
 String _$projectSentencesHash() => r'ddebf4564be8579f95fc115af3c20b286049b181';
 
 /// Every transcribed sentence in a project, in timeline order.
-///
-/// A thin assembly over [sentencesForClip]: this walks the project's clips and
-/// their transcripts, and that does the placing. The arithmetic lives there so
-/// it can be tested without a database.
 
 final class ProjectSentencesFamily extends $Family
     with $FunctionalFamilyOverride<List<TimelineSentence>, String> {
@@ -2050,10 +1874,6 @@ final class ProjectSentencesFamily extends $Family
       );
 
   /// Every transcribed sentence in a project, in timeline order.
-  ///
-  /// A thin assembly over [sentencesForClip]: this walks the project's clips and
-  /// their transcripts, and that does the placing. The arithmetic lives there so
-  /// it can be tested without a database.
 
   ProjectSentencesProvider call(String projectId) =>
       ProjectSentencesProvider._(argument: projectId, from: this);
@@ -2063,28 +1883,16 @@ final class ProjectSentencesFamily extends $Family
 }
 
 /// A project's running time, for the library row.
-///
-/// Clips whose duration could not be probed contribute nothing rather than
-/// making the whole total unknown — a slightly short number reads better in the
-/// library than a blank one.
 
 @ProviderFor(projectDuration)
 final projectDurationProvider = ProjectDurationFamily._();
 
 /// A project's running time, for the library row.
-///
-/// Clips whose duration could not be probed contribute nothing rather than
-/// making the whole total unknown — a slightly short number reads better in the
-/// library than a blank one.
 
 final class ProjectDurationProvider
     extends $FunctionalProvider<Duration, Duration, Duration>
     with $Provider<Duration> {
   /// A project's running time, for the library row.
-  ///
-  /// Clips whose duration could not be probed contribute nothing rather than
-  /// making the whole total unknown — a slightly short number reads better in the
-  /// library than a blank one.
   ProjectDurationProvider._({
     required ProjectDurationFamily super.from,
     required String super.argument,
@@ -2139,10 +1947,6 @@ final class ProjectDurationProvider
 String _$projectDurationHash() => r'5bb4128b1561a87e7024ee107d3f390e000e1315';
 
 /// A project's running time, for the library row.
-///
-/// Clips whose duration could not be probed contribute nothing rather than
-/// making the whole total unknown — a slightly short number reads better in the
-/// library than a blank one.
 
 final class ProjectDurationFamily extends $Family
     with $FunctionalFamilyOverride<Duration, String> {
@@ -2156,10 +1960,6 @@ final class ProjectDurationFamily extends $Family
       );
 
   /// A project's running time, for the library row.
-  ///
-  /// Clips whose duration could not be probed contribute nothing rather than
-  /// making the whole total unknown — a slightly short number reads better in the
-  /// library than a blank one.
 
   ProjectDurationProvider call(String projectId) =>
       ProjectDurationProvider._(argument: projectId, from: this);

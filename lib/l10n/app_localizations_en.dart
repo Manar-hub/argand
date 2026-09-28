@@ -20,9 +20,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Import a video or audio file to transcribe it on your device.';
 
   @override
-  String get importAction => 'Import media';
-
-  @override
   String get importCancelled => 'No file selected.';
 
   @override
@@ -197,11 +194,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String projectSizeOnDisk(String duration, String size) {
-    return '$duration · $size';
-  }
-
-  @override
   String sizeBytes(int count) {
     return '$count B';
   }
@@ -278,9 +270,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get translateToOption => 'Translate to';
 
   @override
-  String get translationTrack => 'Translation';
-
-  @override
   String get showTranslation => 'Show translation';
 
   @override
@@ -297,13 +286,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get importSubhead => 'Video or audio — transcribed on your device';
-
-  @override
-  String get importEditHeadline => 'Import & edit';
-
-  @override
-  String get importEditSubhead =>
-      'Transcribed automatically, then opens on the timeline';
 
   @override
   String projectCreated(DateTime date) {
@@ -358,30 +340,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportSheetTitle => 'Export';
 
   @override
-  String get exportSrt => 'SubRip (.srt)';
-
-  @override
   String get exportSrtDetail =>
       'Works almost everywhere — players, editors, video sites';
 
   @override
-  String get exportVtt => 'WebVTT (.vtt)';
-
-  @override
   String get exportVttDetail =>
       'For the web, and keeps speaker names as voice tags';
-
-  @override
-  String get exportVideoDetail =>
-      'Renders the timeline and saves it to Downloads';
-
-  @override
-  String exportVideoRunning(int percent) {
-    return 'Rendering video… $percent%';
-  }
-
-  @override
-  String get exportVideoStarting => 'Rendering video…';
 
   @override
   String exportVideoSaved(String fileName) {
@@ -405,9 +369,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportIncludeSpeakers => 'Include speaker names';
 
   @override
-  String get exportRunning => 'Preparing captions…';
-
-  @override
   String exportSaved(String fileName) {
     return 'Saved $fileName';
   }
@@ -429,12 +390,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get timelineFullscreen => 'Fullscreen';
-
-  @override
-  String get timelineMuteClip => 'Mute clip';
-
-  @override
-  String get timelineCover => 'Cover';
 
   @override
   String get trackAdd => 'Add track';
@@ -484,9 +439,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Needs export compositing, which isn\'t built yet.';
 
   @override
-  String get timelineCaptionsLabel => 'Captions';
-
-  @override
   String get timelineToolZoom => 'Zoom';
 
   @override
@@ -496,9 +448,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String selectionCount(int count) {
     return '$count selected';
   }
-
-  @override
-  String get selectionDelete => 'Delete';
 
   @override
   String get selectionDone => 'Done';
@@ -613,25 +562,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get splitDone => 'Clip split.';
 
   @override
-  String get timelineToolEdit => 'Edit';
-
-  @override
-  String get timelineToolAudio => 'Audio';
-
-  @override
   String get timelineToolText => 'Text';
-
-  @override
-  String get timelineToolEffects => 'Effects';
-
-  @override
-  String get timelineToolOverlay => 'Overlay';
-
-  @override
-  String get timelineToolCaptions => 'Captions';
-
-  @override
-  String get timelineToolFilter => 'Filter';
 
   @override
   String timelineComingSoon(String feature) {
@@ -645,23 +576,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clipAdd => 'Add a clip';
 
   @override
-  String get clipMoveEarlier => 'Move earlier';
-
-  @override
-  String get clipMoveLater => 'Move later';
-
-  @override
   String get clipTranscribe => 'Transcribe';
-
-  @override
-  String get clipNotTranscribed => 'Not transcribed yet.';
 
   @override
   String get clipNotTranscribedScript =>
       'This clip hasn\'t been transcribed yet. Switch to Timeline and tap Transcribe to start.';
-
-  @override
-  String get clipTranscribed => 'Transcribed.';
 
   @override
   String get clipTranscribeFailed => 'Couldn\'t transcribe this clip.';
@@ -685,20 +604,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get layerAdd => 'Add layer';
 
   @override
-  String get layerRerunTitle => 'Transcribe this layer again?';
-
-  @override
   String get layerRerunBody =>
       'The words this layer produced will be replaced. Any corrections you typed and any speaker names you set on them are lost.';
-
-  @override
-  String get layerRerunConfirm => 'Transcribe again';
-
-  @override
-  String get layerRemove => 'Remove layer';
-
-  @override
-  String get layerHint => 'Add a layer to mark what to transcribe.';
 
   @override
   String get layerSelected => 'Layer selected.';

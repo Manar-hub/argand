@@ -8,26 +8,20 @@ part of 'placeholder_ad_screen.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Where rewarded ads come from: Google AdMob, and the built-in test ad
-/// below whenever AdMob has none to show (`FallbackRewardedAds`).
-///
-/// Kept alive: it holds the next ad, loaded ahead.
+/// Where rewarded ads come from: Google AdMob, and the built-in test ad below
+/// whenever AdMob has none to show (`FallbackRewardedAds`).
 
 @ProviderFor(rewardedAds)
 final rewardedAdsProvider = RewardedAdsProvider._();
 
-/// Where rewarded ads come from: Google AdMob, and the built-in test ad
-/// below whenever AdMob has none to show (`FallbackRewardedAds`).
-///
-/// Kept alive: it holds the next ad, loaded ahead.
+/// Where rewarded ads come from: Google AdMob, and the built-in test ad below
+/// whenever AdMob has none to show (`FallbackRewardedAds`).
 
 final class RewardedAdsProvider
     extends $FunctionalProvider<RewardedAds, RewardedAds, RewardedAds>
     with $Provider<RewardedAds> {
-  /// Where rewarded ads come from: Google AdMob, and the built-in test ad
-  /// below whenever AdMob has none to show (`FallbackRewardedAds`).
-  ///
-  /// Kept alive: it holds the next ad, loaded ahead.
+  /// Where rewarded ads come from: Google AdMob, and the built-in test ad below
+  /// whenever AdMob has none to show (`FallbackRewardedAds`).
   RewardedAdsProvider._()
     : super(
         from: null,

@@ -78,3 +78,4 @@ packages/**/build/
 .agents/
 .claude/
 assets/models/*.gguf
+

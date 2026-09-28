@@ -9,60 +9,12 @@ part of 'layer_transcription_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Transcribes exactly the stretch of timeline a layer covers.
-///
-/// **A layer is a request; this is what answers it.** The layer says which
-/// audio matters, and a run here produces one transcript per clip the layer
-/// overlaps — never one per layer, because word timings are relative to a
-/// clip's own media and a single transcript spanning two clips would have no
-/// coherent timebase.
-///
-/// Clips are run **one after another, never in parallel**. Two whisper
-/// contexts is not a throughput win on a phone, and the emulator already dies
-/// at three sequential runs; a layer covering four clips would be four at
-/// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded. A failed run costs the attempt and nothing else:
-/// the clips still play and the layer still stands, so the action can simply
-/// be taken again -- the same reasoning import uses for not rolling back a
-/// clip that is already committed.
-///
-/// Two engine properties leak through here and are worth knowing:
-///
-/// - **Language auto-detection reads only the opening ~30s** of whatever it is
-///   given, so two layers over one clip can independently detect different
-///   languages. Pinning the language in settings avoids it.
-/// - **Speaker numbers come from each diarization run** and are cluster
-///   indices with meaning only inside it. They already did not correspond
-///   across clips; with layers they no longer correspond *within* one either.
 
 @ProviderFor(LayerTranscriptionController)
 final layerTranscriptionControllerProvider =
     LayerTranscriptionControllerFamily._();
 
 /// Transcribes exactly the stretch of timeline a layer covers.
-///
-/// **A layer is a request; this is what answers it.** The layer says which
-/// audio matters, and a run here produces one transcript per clip the layer
-/// overlaps — never one per layer, because word timings are relative to a
-/// clip's own media and a single transcript spanning two clips would have no
-/// coherent timebase.
-///
-/// Clips are run **one after another, never in parallel**. Two whisper
-/// contexts is not a throughput win on a phone, and the emulator already dies
-/// at three sequential runs; a layer covering four clips would be four at
-/// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded. A failed run costs the attempt and nothing else:
-/// the clips still play and the layer still stands, so the action can simply
-/// be taken again -- the same reasoning import uses for not rolling back a
-/// clip that is already committed.
-///
-/// Two engine properties leak through here and are worth knowing:
-///
-/// - **Language auto-detection reads only the opening ~30s** of whatever it is
-///   given, so two layers over one clip can independently detect different
-///   languages. Pinning the language in settings avoids it.
-/// - **Speaker numbers come from each diarization run** and are cluster
-///   indices with meaning only inside it. They already did not correspond
-///   across clips; with layers they no longer correspond *within* one either.
 final class LayerTranscriptionControllerProvider
     extends
         $NotifierProvider<
@@ -70,30 +22,6 @@ final class LayerTranscriptionControllerProvider
           LayerTranscriptionStatus
         > {
   /// Transcribes exactly the stretch of timeline a layer covers.
-  ///
-  /// **A layer is a request; this is what answers it.** The layer says which
-  /// audio matters, and a run here produces one transcript per clip the layer
-  /// overlaps — never one per layer, because word timings are relative to a
-  /// clip's own media and a single transcript spanning two clips would have no
-  /// coherent timebase.
-  ///
-  /// Clips are run **one after another, never in parallel**. Two whisper
-  /// contexts is not a throughput win on a phone, and the emulator already dies
-  /// at three sequential runs; a layer covering four clips would be four at
-  /// once. Each transcript is committed as it lands, so a failure part-way keeps
-  /// what already succeeded. A failed run costs the attempt and nothing else:
-  /// the clips still play and the layer still stands, so the action can simply
-  /// be taken again -- the same reasoning import uses for not rolling back a
-  /// clip that is already committed.
-  ///
-  /// Two engine properties leak through here and are worth knowing:
-  ///
-  /// - **Language auto-detection reads only the opening ~30s** of whatever it is
-  ///   given, so two layers over one clip can independently detect different
-  ///   languages. Pinning the language in settings avoids it.
-  /// - **Speaker numbers come from each diarization run** and are cluster
-  ///   indices with meaning only inside it. They already did not correspond
-  ///   across clips; with layers they no longer correspond *within* one either.
   LayerTranscriptionControllerProvider._({
     required LayerTranscriptionControllerFamily super.from,
     required String super.argument,
@@ -143,30 +71,6 @@ String _$layerTranscriptionControllerHash() =>
     r'51320aaefb0d432d31015ecd85b1c7cc40010d7a';
 
 /// Transcribes exactly the stretch of timeline a layer covers.
-///
-/// **A layer is a request; this is what answers it.** The layer says which
-/// audio matters, and a run here produces one transcript per clip the layer
-/// overlaps — never one per layer, because word timings are relative to a
-/// clip's own media and a single transcript spanning two clips would have no
-/// coherent timebase.
-///
-/// Clips are run **one after another, never in parallel**. Two whisper
-/// contexts is not a throughput win on a phone, and the emulator already dies
-/// at three sequential runs; a layer covering four clips would be four at
-/// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded. A failed run costs the attempt and nothing else:
-/// the clips still play and the layer still stands, so the action can simply
-/// be taken again -- the same reasoning import uses for not rolling back a
-/// clip that is already committed.
-///
-/// Two engine properties leak through here and are worth knowing:
-///
-/// - **Language auto-detection reads only the opening ~30s** of whatever it is
-///   given, so two layers over one clip can independently detect different
-///   languages. Pinning the language in settings avoids it.
-/// - **Speaker numbers come from each diarization run** and are cluster
-///   indices with meaning only inside it. They already did not correspond
-///   across clips; with layers they no longer correspond *within* one either.
 
 final class LayerTranscriptionControllerFamily extends $Family
     with
@@ -187,30 +91,6 @@ final class LayerTranscriptionControllerFamily extends $Family
       );
 
   /// Transcribes exactly the stretch of timeline a layer covers.
-  ///
-  /// **A layer is a request; this is what answers it.** The layer says which
-  /// audio matters, and a run here produces one transcript per clip the layer
-  /// overlaps — never one per layer, because word timings are relative to a
-  /// clip's own media and a single transcript spanning two clips would have no
-  /// coherent timebase.
-  ///
-  /// Clips are run **one after another, never in parallel**. Two whisper
-  /// contexts is not a throughput win on a phone, and the emulator already dies
-  /// at three sequential runs; a layer covering four clips would be four at
-  /// once. Each transcript is committed as it lands, so a failure part-way keeps
-  /// what already succeeded. A failed run costs the attempt and nothing else:
-  /// the clips still play and the layer still stands, so the action can simply
-  /// be taken again -- the same reasoning import uses for not rolling back a
-  /// clip that is already committed.
-  ///
-  /// Two engine properties leak through here and are worth knowing:
-  ///
-  /// - **Language auto-detection reads only the opening ~30s** of whatever it is
-  ///   given, so two layers over one clip can independently detect different
-  ///   languages. Pinning the language in settings avoids it.
-  /// - **Speaker numbers come from each diarization run** and are cluster
-  ///   indices with meaning only inside it. They already did not correspond
-  ///   across clips; with layers they no longer correspond *within* one either.
 
   LayerTranscriptionControllerProvider call(String layerId) =>
       LayerTranscriptionControllerProvider._(argument: layerId, from: this);
@@ -220,30 +100,6 @@ final class LayerTranscriptionControllerFamily extends $Family
 }
 
 /// Transcribes exactly the stretch of timeline a layer covers.
-///
-/// **A layer is a request; this is what answers it.** The layer says which
-/// audio matters, and a run here produces one transcript per clip the layer
-/// overlaps — never one per layer, because word timings are relative to a
-/// clip's own media and a single transcript spanning two clips would have no
-/// coherent timebase.
-///
-/// Clips are run **one after another, never in parallel**. Two whisper
-/// contexts is not a throughput win on a phone, and the emulator already dies
-/// at three sequential runs; a layer covering four clips would be four at
-/// once. Each transcript is committed as it lands, so a failure part-way keeps
-/// what already succeeded. A failed run costs the attempt and nothing else:
-/// the clips still play and the layer still stands, so the action can simply
-/// be taken again -- the same reasoning import uses for not rolling back a
-/// clip that is already committed.
-///
-/// Two engine properties leak through here and are worth knowing:
-///
-/// - **Language auto-detection reads only the opening ~30s** of whatever it is
-///   given, so two layers over one clip can independently detect different
-///   languages. Pinning the language in settings avoids it.
-/// - **Speaker numbers come from each diarization run** and are cluster
-///   indices with meaning only inside it. They already did not correspond
-///   across clips; with layers they no longer correspond *within* one either.
 
 abstract class _$LayerTranscriptionController
     extends $Notifier<LayerTranscriptionStatus> {

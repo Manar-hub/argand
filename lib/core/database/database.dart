@@ -656,14 +656,6 @@ class AppDatabase extends _$AppDatabase {
     return row?.value;
   }
 
-  Stream<String?> watchSetting(String key) {
-    return (select(settings)
-          ..where((t) => t.key.equals(key) & t.deletedAt.isNull())
-          ..limit(1))
-        .watchSingleOrNull()
-        .map((row) => row?.value);
-  }
-
   /// Inserts or updates [key].
   Future<void> writeSetting(String key, String value) async {
     final now = DateTime.now();
@@ -2066,15 +2058,6 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<Transcript?> watchTranscript(String id) {
     return (select(transcripts)..where((t) => t.id.equals(id)))
-        .watchSingleOrNull();
-  }
-
-  /// A project's transcript, re-emitted whenever it changes.
-  Stream<Transcript?> watchTranscriptForProject(String projectId) {
-    return (select(transcripts)
-          ..where((t) => t.projectId.equals(projectId) & t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-          ..limit(1))
         .watchSingleOrNull();
   }
 

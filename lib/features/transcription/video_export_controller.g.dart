@@ -9,65 +9,14 @@ part of 'video_export_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Renders the project's clips into a single MP4 in the device's Downloads.
-///
-/// **Captions are burned into the picture here and nowhere else.** They stay
-/// structured text and timing through every other part of the app, so they
-/// remain editable, re-groupable and exportable as SRT; rasterising them is the
-/// last thing that happens, to the copy that leaves the device.
-///
-/// **The watermark is composited here too, and nowhere else.** It lands in the
-/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
-/// written once, at the end, to the copy that leaves the device.
-///
-/// **The file goes to the device's Downloads folder**, not app storage. An
-/// export the user cannot open, share or find in a file manager is not an
-/// export; where it lands is part of the feature, not an implementation detail.
-///
-/// One export at a time, enforced here *and* natively. A second encode competes
-/// for the same hardware codec, which is the same reasoning that makes the
-/// per-clip transcription runs sequential rather than parallel.
 
 @ProviderFor(VideoExportController)
 final videoExportControllerProvider = VideoExportControllerFamily._();
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
-///
-/// **Captions are burned into the picture here and nowhere else.** They stay
-/// structured text and timing through every other part of the app, so they
-/// remain editable, re-groupable and exportable as SRT; rasterising them is the
-/// last thing that happens, to the copy that leaves the device.
-///
-/// **The watermark is composited here too, and nowhere else.** It lands in the
-/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
-/// written once, at the end, to the copy that leaves the device.
-///
-/// **The file goes to the device's Downloads folder**, not app storage. An
-/// export the user cannot open, share or find in a file manager is not an
-/// export; where it lands is part of the feature, not an implementation detail.
-///
-/// One export at a time, enforced here *and* natively. A second encode competes
-/// for the same hardware codec, which is the same reasoning that makes the
-/// per-clip transcription runs sequential rather than parallel.
 final class VideoExportControllerProvider
     extends $NotifierProvider<VideoExportController, VideoExportStatus> {
   /// Renders the project's clips into a single MP4 in the device's Downloads.
-  ///
-  /// **Captions are burned into the picture here and nowhere else.** They stay
-  /// structured text and timing through every other part of the app, so they
-  /// remain editable, re-groupable and exportable as SRT; rasterising them is the
-  /// last thing that happens, to the copy that leaves the device.
-  ///
-  /// **The watermark is composited here too, and nowhere else.** It lands in the
-  /// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
-  /// written once, at the end, to the copy that leaves the device.
-  ///
-  /// **The file goes to the device's Downloads folder**, not app storage. An
-  /// export the user cannot open, share or find in a file manager is not an
-  /// export; where it lands is part of the feature, not an implementation detail.
-  ///
-  /// One export at a time, enforced here *and* natively. A second encode competes
-  /// for the same hardware codec, which is the same reasoning that makes the
-  /// per-clip transcription runs sequential rather than parallel.
   VideoExportControllerProvider._({
     required VideoExportControllerFamily super.from,
     required String super.argument,
@@ -116,23 +65,6 @@ String _$videoExportControllerHash() =>
     r'0ba7946b64b8fdee631ea8b318da569cc39c326a';
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
-///
-/// **Captions are burned into the picture here and nowhere else.** They stay
-/// structured text and timing through every other part of the app, so they
-/// remain editable, re-groupable and exportable as SRT; rasterising them is the
-/// last thing that happens, to the copy that leaves the device.
-///
-/// **The watermark is composited here too, and nowhere else.** It lands in the
-/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
-/// written once, at the end, to the copy that leaves the device.
-///
-/// **The file goes to the device's Downloads folder**, not app storage. An
-/// export the user cannot open, share or find in a file manager is not an
-/// export; where it lands is part of the feature, not an implementation detail.
-///
-/// One export at a time, enforced here *and* natively. A second encode competes
-/// for the same hardware codec, which is the same reasoning that makes the
-/// per-clip transcription runs sequential rather than parallel.
 
 final class VideoExportControllerFamily extends $Family
     with
@@ -153,23 +85,6 @@ final class VideoExportControllerFamily extends $Family
       );
 
   /// Renders the project's clips into a single MP4 in the device's Downloads.
-  ///
-  /// **Captions are burned into the picture here and nowhere else.** They stay
-  /// structured text and timing through every other part of the app, so they
-  /// remain editable, re-groupable and exportable as SRT; rasterising them is the
-  /// last thing that happens, to the copy that leaves the device.
-  ///
-  /// **The watermark is composited here too, and nowhere else.** It lands in the
-  /// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
-  /// written once, at the end, to the copy that leaves the device.
-  ///
-  /// **The file goes to the device's Downloads folder**, not app storage. An
-  /// export the user cannot open, share or find in a file manager is not an
-  /// export; where it lands is part of the feature, not an implementation detail.
-  ///
-  /// One export at a time, enforced here *and* natively. A second encode competes
-  /// for the same hardware codec, which is the same reasoning that makes the
-  /// per-clip transcription runs sequential rather than parallel.
 
   VideoExportControllerProvider call(String projectId) =>
       VideoExportControllerProvider._(argument: projectId, from: this);
@@ -179,23 +94,6 @@ final class VideoExportControllerFamily extends $Family
 }
 
 /// Renders the project's clips into a single MP4 in the device's Downloads.
-///
-/// **Captions are burned into the picture here and nowhere else.** They stay
-/// structured text and timing through every other part of the app, so they
-/// remain editable, re-groupable and exportable as SRT; rasterising them is the
-/// last thing that happens, to the copy that leaves the device.
-///
-/// **The watermark is composited here too, and nowhere else.** It lands in the
-/// same pass as the captions, which is what CLAUDE.md 9 asks for: pixels are
-/// written once, at the end, to the copy that leaves the device.
-///
-/// **The file goes to the device's Downloads folder**, not app storage. An
-/// export the user cannot open, share or find in a file manager is not an
-/// export; where it lands is part of the feature, not an implementation detail.
-///
-/// One export at a time, enforced here *and* natively. A second encode competes
-/// for the same hardware codec, which is the same reasoning that makes the
-/// per-clip transcription runs sequential rather than parallel.
 
 abstract class _$VideoExportController extends $Notifier<VideoExportStatus> {
   late final _$args = ref.$arg as String;

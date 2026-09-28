@@ -9,26 +9,17 @@ part of 'style_panel.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// How a sentence looks: its own look, else its layer's, else the default.
-///
-/// Watches the sentence's words and the project's layers, so the panel shows
-/// the change it just made.
 
 @ProviderFor(sentenceLook)
 final sentenceLookProvider = SentenceLookFamily._();
 
 /// How a sentence looks: its own look, else its layer's, else the default.
-///
-/// Watches the sentence's words and the project's layers, so the panel shows
-/// the change it just made.
 
 final class SentenceLookProvider
     extends
         $FunctionalProvider<AsyncValue<ItemLook>, ItemLook, FutureOr<ItemLook>>
     with $FutureModifier<ItemLook>, $FutureProvider<ItemLook> {
   /// How a sentence looks: its own look, else its layer's, else the default.
-  ///
-  /// Watches the sentence's words and the project's layers, so the panel shows
-  /// the change it just made.
   SentenceLookProvider._({
     required SentenceLookFamily super.from,
     required (String, String) super.argument,
@@ -75,9 +66,6 @@ final class SentenceLookProvider
 String _$sentenceLookHash() => r'b12483dfe63cdca8781439e91e1c78e7f0485351';
 
 /// How a sentence looks: its own look, else its layer's, else the default.
-///
-/// Watches the sentence's words and the project's layers, so the panel shows
-/// the change it just made.
 
 final class SentenceLookFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<ItemLook>, (String, String)> {
@@ -91,9 +79,6 @@ final class SentenceLookFamily extends $Family
       );
 
   /// How a sentence looks: its own look, else its layer's, else the default.
-  ///
-  /// Watches the sentence's words and the project's layers, so the panel shows
-  /// the change it just made.
 
   SentenceLookProvider call(String projectId, String sentenceId) =>
       SentenceLookProvider._(argument: (projectId, sentenceId), from: this);

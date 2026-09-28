@@ -9,23 +9,11 @@ part of 'caption_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Captions for a transcript, grouped from its words.
-///
-/// Derived rather than stored, and derived *here* rather than in a widget, so
-/// the rule that widgets hold no logic (CLAUDE.md 4) still holds for the
-/// caption overlay. Watching the same word stream the transcript view uses
-/// means an edit to a word reflows the captions with no invalidation step —
-/// there is no cached copy that could go stale.
 
 @ProviderFor(captionCues)
 final captionCuesProvider = CaptionCuesFamily._();
 
 /// Captions for a transcript, grouped from its words.
-///
-/// Derived rather than stored, and derived *here* rather than in a widget, so
-/// the rule that widgets hold no logic (CLAUDE.md 4) still holds for the
-/// caption overlay. Watching the same word stream the transcript view uses
-/// means an edit to a word reflows the captions with no invalidation step —
-/// there is no cached copy that could go stale.
 
 final class CaptionCuesProvider
     extends
@@ -36,12 +24,6 @@ final class CaptionCuesProvider
         >
     with $FutureModifier<List<CaptionCue>>, $StreamProvider<List<CaptionCue>> {
   /// Captions for a transcript, grouped from its words.
-  ///
-  /// Derived rather than stored, and derived *here* rather than in a widget, so
-  /// the rule that widgets hold no logic (CLAUDE.md 4) still holds for the
-  /// caption overlay. Watching the same word stream the transcript view uses
-  /// means an edit to a word reflows the captions with no invalidation step —
-  /// there is no cached copy that could go stale.
   CaptionCuesProvider._({
     required CaptionCuesFamily super.from,
     required String super.argument,
@@ -89,12 +71,6 @@ final class CaptionCuesProvider
 String _$captionCuesHash() => r'ae9350531b2a825c822f12bbe17bebed89862c21';
 
 /// Captions for a transcript, grouped from its words.
-///
-/// Derived rather than stored, and derived *here* rather than in a widget, so
-/// the rule that widgets hold no logic (CLAUDE.md 4) still holds for the
-/// caption overlay. Watching the same word stream the transcript view uses
-/// means an edit to a word reflows the captions with no invalidation step —
-/// there is no cached copy that could go stale.
 
 final class CaptionCuesFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<CaptionCue>>, String> {
@@ -108,12 +84,6 @@ final class CaptionCuesFamily extends $Family
       );
 
   /// Captions for a transcript, grouped from its words.
-  ///
-  /// Derived rather than stored, and derived *here* rather than in a widget, so
-  /// the rule that widgets hold no logic (CLAUDE.md 4) still holds for the
-  /// caption overlay. Watching the same word stream the transcript view uses
-  /// means an edit to a word reflows the captions with no invalidation step —
-  /// there is no cached copy that could go stale.
 
   CaptionCuesProvider call(String transcriptId) =>
       CaptionCuesProvider._(argument: transcriptId, from: this);

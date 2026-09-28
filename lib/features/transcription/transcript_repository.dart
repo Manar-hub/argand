@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -1173,28 +1172,6 @@ class TranscriptRepository {
       clipId: clipId,
       fileName: fileName,
       bytes: bytes,
-    );
-    return _registerClip(
-      clipId: clipId,
-      projectId: projectId,
-      mediaPath: media.path,
-      fileName: fileName,
-    );
-  }
-
-  /// Adopts a file already on disk as a new clip. See
-  /// [MediaConverter.adoptIntoAppStorage] for why this moves rather than copies.
-  Future<MediaClip> adoptClip({
-    required String projectId,
-    required String fileName,
-    required File source,
-  }) async {
-    final clipId = newId();
-    final media = await _media.adoptIntoAppStorage(
-      projectId: projectId,
-      clipId: clipId,
-      fileName: fileName,
-      source: source,
     );
     return _registerClip(
       clipId: clipId,

@@ -110,20 +110,12 @@ abstract class _$ProjectVideoSettings extends $AsyncNotifier<VideoSettings> {
 
 /// The pixel size of the project's footage: its first clip, which is what the
 /// render sizes every export from.
-///
-/// Null until there is a clip, and whenever the size cannot be read. Used to
-/// offer only the export sizes the footage can fill; unknown is treated as
-/// "assume 1080p" there, never as zero.
 
 @ProviderFor(projectSourceSize)
 final projectSourceSizeProvider = ProjectSourceSizeFamily._();
 
 /// The pixel size of the project's footage: its first clip, which is what the
 /// render sizes every export from.
-///
-/// Null until there is a clip, and whenever the size cannot be read. Used to
-/// offer only the export sizes the footage can fill; unknown is treated as
-/// "assume 1080p" there, never as zero.
 
 final class ProjectSourceSizeProvider
     extends
@@ -137,10 +129,6 @@ final class ProjectSourceSizeProvider
         $FutureProvider<({int height, int width})?> {
   /// The pixel size of the project's footage: its first clip, which is what the
   /// render sizes every export from.
-  ///
-  /// Null until there is a clip, and whenever the size cannot be read. Used to
-  /// offer only the export sizes the footage can fill; unknown is treated as
-  /// "assume 1080p" there, never as zero.
   ProjectSourceSizeProvider._({
     required ProjectSourceSizeFamily super.from,
     required String super.argument,
@@ -189,10 +177,6 @@ String _$projectSourceSizeHash() => r'763608ab87d4b700d8a1bc577bfa56c623b37ede';
 
 /// The pixel size of the project's footage: its first clip, which is what the
 /// render sizes every export from.
-///
-/// Null until there is a clip, and whenever the size cannot be read. Used to
-/// offer only the export sizes the footage can fill; unknown is treated as
-/// "assume 1080p" there, never as zero.
 
 final class ProjectSourceSizeFamily extends $Family
     with
@@ -211,10 +195,6 @@ final class ProjectSourceSizeFamily extends $Family
 
   /// The pixel size of the project's footage: its first clip, which is what the
   /// render sizes every export from.
-  ///
-  /// Null until there is a clip, and whenever the size cannot be read. Used to
-  /// offer only the export sizes the footage can fill; unknown is treated as
-  /// "assume 1080p" there, never as zero.
 
   ProjectSourceSizeProvider call(String projectId) =>
       ProjectSourceSizeProvider._(argument: projectId, from: this);

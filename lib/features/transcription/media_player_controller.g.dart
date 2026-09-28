@@ -8,60 +8,15 @@ part of 'media_player_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Owns the platform decoder for one **media file**.
-///
-/// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-/// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-/// rebuild at a boundary where nothing about the media had changed — a visible
-/// reload every time playback crossed a cut the user had just made. Sharing by
-/// path makes that transition seamless, because it is literally the same file
-/// playing on.
-///
-/// Two clips over one file therefore share a decoder *and* a resume position.
-/// That is the trade: one position per file rather than per clip, in exchange
-/// for cuts that do not stutter. Two initialised decoders on a phone is a real
-/// cost, so sharing is the cheaper side anyway.
-///
-/// This is deliberately not the provider screens talk to — see [MediaPlayer],
-/// which stays keyed by clip so no caller had to learn about paths.
+/// Owns the platform decoder for one media file.
 
 @ProviderFor(MediaController)
 final mediaControllerProvider = MediaControllerFamily._();
 
-/// Owns the platform decoder for one **media file**.
-///
-/// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-/// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-/// rebuild at a boundary where nothing about the media had changed — a visible
-/// reload every time playback crossed a cut the user had just made. Sharing by
-/// path makes that transition seamless, because it is literally the same file
-/// playing on.
-///
-/// Two clips over one file therefore share a decoder *and* a resume position.
-/// That is the trade: one position per file rather than per clip, in exchange
-/// for cuts that do not stutter. Two initialised decoders on a phone is a real
-/// cost, so sharing is the cheaper side anyway.
-///
-/// This is deliberately not the provider screens talk to — see [MediaPlayer],
-/// which stays keyed by clip so no caller had to learn about paths.
+/// Owns the platform decoder for one media file.
 final class MediaControllerProvider
     extends $AsyncNotifierProvider<MediaController, VideoPlayerController> {
-  /// Owns the platform decoder for one **media file**.
-  ///
-  /// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-  /// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-  /// rebuild at a boundary where nothing about the media had changed — a visible
-  /// reload every time playback crossed a cut the user had just made. Sharing by
-  /// path makes that transition seamless, because it is literally the same file
-  /// playing on.
-  ///
-  /// Two clips over one file therefore share a decoder *and* a resume position.
-  /// That is the trade: one position per file rather than per clip, in exchange
-  /// for cuts that do not stutter. Two initialised decoders on a phone is a real
-  /// cost, so sharing is the cheaper side anyway.
-  ///
-  /// This is deliberately not the provider screens talk to — see [MediaPlayer],
-  /// which stays keyed by clip so no caller had to learn about paths.
+  /// Owns the platform decoder for one media file.
   MediaControllerProvider._({
     required MediaControllerFamily super.from,
     required String super.argument,
@@ -100,22 +55,7 @@ final class MediaControllerProvider
 
 String _$mediaControllerHash() => r'28d156d7ca8c0684242c2312c7857c5cff14cba0';
 
-/// Owns the platform decoder for one **media file**.
-///
-/// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-/// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-/// rebuild at a boundary where nothing about the media had changed — a visible
-/// reload every time playback crossed a cut the user had just made. Sharing by
-/// path makes that transition seamless, because it is literally the same file
-/// playing on.
-///
-/// Two clips over one file therefore share a decoder *and* a resume position.
-/// That is the trade: one position per file rather than per clip, in exchange
-/// for cuts that do not stutter. Two initialised decoders on a phone is a real
-/// cost, so sharing is the cheaper side anyway.
-///
-/// This is deliberately not the provider screens talk to — see [MediaPlayer],
-/// which stays keyed by clip so no caller had to learn about paths.
+/// Owns the platform decoder for one media file.
 
 final class MediaControllerFamily extends $Family
     with
@@ -135,22 +75,7 @@ final class MediaControllerFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Owns the platform decoder for one **media file**.
-  ///
-  /// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-  /// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-  /// rebuild at a boundary where nothing about the media had changed — a visible
-  /// reload every time playback crossed a cut the user had just made. Sharing by
-  /// path makes that transition seamless, because it is literally the same file
-  /// playing on.
-  ///
-  /// Two clips over one file therefore share a decoder *and* a resume position.
-  /// That is the trade: one position per file rather than per clip, in exchange
-  /// for cuts that do not stutter. Two initialised decoders on a phone is a real
-  /// cost, so sharing is the cheaper side anyway.
-  ///
-  /// This is deliberately not the provider screens talk to — see [MediaPlayer],
-  /// which stays keyed by clip so no caller had to learn about paths.
+  /// Owns the platform decoder for one media file.
 
   MediaControllerProvider call(String mediaPath) =>
       MediaControllerProvider._(argument: mediaPath, from: this);
@@ -159,22 +84,7 @@ final class MediaControllerFamily extends $Family
   String toString() => r'mediaControllerProvider';
 }
 
-/// Owns the platform decoder for one **media file**.
-///
-/// **Keyed by path, not by clip, since clips can be split.** Both halves of a
-/// cut address the same file, so a per-clip decoder guaranteed a teardown and a
-/// rebuild at a boundary where nothing about the media had changed — a visible
-/// reload every time playback crossed a cut the user had just made. Sharing by
-/// path makes that transition seamless, because it is literally the same file
-/// playing on.
-///
-/// Two clips over one file therefore share a decoder *and* a resume position.
-/// That is the trade: one position per file rather than per clip, in exchange
-/// for cuts that do not stutter. Two initialised decoders on a phone is a real
-/// cost, so sharing is the cheaper side anyway.
-///
-/// This is deliberately not the provider screens talk to — see [MediaPlayer],
-/// which stays keyed by clip so no caller had to learn about paths.
+/// Owns the platform decoder for one media file.
 
 abstract class _$MediaController extends $AsyncNotifier<VideoPlayerController> {
   late final _$args = ref.$arg as String;
@@ -203,41 +113,14 @@ abstract class _$MediaController extends $AsyncNotifier<VideoPlayerController> {
 }
 
 /// The player for one clip.
-///
-/// **Still keyed by clip**, so every screen keeps asking the question it
-/// actually has — "play this clip" — while [MediaController] underneath decides
-/// that two clips over one file share a decoder. Splitting a clip therefore
-/// costs no reload: both halves resolve to the same controller.
-///
-/// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-/// word timings in the database. A trimmed clip's in-point is already folded
-/// into those numbers, so nothing at this layer needs to know about trimming.
 
 @ProviderFor(MediaPlayer)
 final mediaPlayerProvider = MediaPlayerFamily._();
 
 /// The player for one clip.
-///
-/// **Still keyed by clip**, so every screen keeps asking the question it
-/// actually has — "play this clip" — while [MediaController] underneath decides
-/// that two clips over one file share a decoder. Splitting a clip therefore
-/// costs no reload: both halves resolve to the same controller.
-///
-/// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-/// word timings in the database. A trimmed clip's in-point is already folded
-/// into those numbers, so nothing at this layer needs to know about trimming.
 final class MediaPlayerProvider
     extends $AsyncNotifierProvider<MediaPlayer, VideoPlayerController> {
   /// The player for one clip.
-  ///
-  /// **Still keyed by clip**, so every screen keeps asking the question it
-  /// actually has — "play this clip" — while [MediaController] underneath decides
-  /// that two clips over one file share a decoder. Splitting a clip therefore
-  /// costs no reload: both halves resolve to the same controller.
-  ///
-  /// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-  /// word timings in the database. A trimmed clip's in-point is already folded
-  /// into those numbers, so nothing at this layer needs to know about trimming.
   MediaPlayerProvider._({
     required MediaPlayerFamily super.from,
     required String super.argument,
@@ -274,18 +157,9 @@ final class MediaPlayerProvider
   }
 }
 
-String _$mediaPlayerHash() => r'9b6b79685f49148371b8ac0012b45f0176f91a2e';
+String _$mediaPlayerHash() => r'5ba5b63319dabd36824ec58219c827d6a759713c';
 
 /// The player for one clip.
-///
-/// **Still keyed by clip**, so every screen keeps asking the question it
-/// actually has — "play this clip" — while [MediaController] underneath decides
-/// that two clips over one file share a decoder. Splitting a clip therefore
-/// costs no reload: both halves resolve to the same controller.
-///
-/// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-/// word timings in the database. A trimmed clip's in-point is already folded
-/// into those numbers, so nothing at this layer needs to know about trimming.
 
 final class MediaPlayerFamily extends $Family
     with
@@ -306,15 +180,6 @@ final class MediaPlayerFamily extends $Family
       );
 
   /// The player for one clip.
-  ///
-  /// **Still keyed by clip**, so every screen keeps asking the question it
-  /// actually has — "play this clip" — while [MediaController] underneath decides
-  /// that two clips over one file share a decoder. Splitting a clip therefore
-  /// costs no reload: both halves resolve to the same controller.
-  ///
-  /// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-  /// word timings in the database. A trimmed clip's in-point is already folded
-  /// into those numbers, so nothing at this layer needs to know about trimming.
 
   MediaPlayerProvider call(String clipId) =>
       MediaPlayerProvider._(argument: clipId, from: this);
@@ -324,15 +189,6 @@ final class MediaPlayerFamily extends $Family
 }
 
 /// The player for one clip.
-///
-/// **Still keyed by clip**, so every screen keeps asking the question it
-/// actually has — "play this clip" — while [MediaController] underneath decides
-/// that two clips over one file share a decoder. Splitting a clip therefore
-/// costs no reload: both halves resolve to the same controller.
-///
-/// Seeking here is in **media time**, matching `ProjectTimeline.clipAt` and the
-/// word timings in the database. A trimmed clip's in-point is already folded
-/// into those numbers, so nothing at this layer needs to know about trimming.
 
 abstract class _$MediaPlayer extends $AsyncNotifier<VideoPlayerController> {
   late final _$args = ref.$arg as String;

@@ -9,38 +9,14 @@ part of 'clip_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Which clip the timeline and Script mode are currently showing.
-///
-/// **One selection per project**, held in memory rather than persisted: it is a
-/// cursor, not a preference, and restoring yesterday's selection would be
-/// arbitrary once clips have been added or removed since.
-///
-/// Null means nothing is selected — an empty project, or the moment after the
-/// selected clip was removed. The timeline resolves null to the first clip when
-/// one exists, which is why this stays deliberately dumb.
 
 @ProviderFor(SelectedClip)
 final selectedClipProvider = SelectedClipFamily._();
 
 /// Which clip the timeline and Script mode are currently showing.
-///
-/// **One selection per project**, held in memory rather than persisted: it is a
-/// cursor, not a preference, and restoring yesterday's selection would be
-/// arbitrary once clips have been added or removed since.
-///
-/// Null means nothing is selected — an empty project, or the moment after the
-/// selected clip was removed. The timeline resolves null to the first clip when
-/// one exists, which is why this stays deliberately dumb.
 final class SelectedClipProvider
     extends $NotifierProvider<SelectedClip, String?> {
   /// Which clip the timeline and Script mode are currently showing.
-  ///
-  /// **One selection per project**, held in memory rather than persisted: it is a
-  /// cursor, not a preference, and restoring yesterday's selection would be
-  /// arbitrary once clips have been added or removed since.
-  ///
-  /// Null means nothing is selected — an empty project, or the moment after the
-  /// selected clip was removed. The timeline resolves null to the first clip when
-  /// one exists, which is why this stays deliberately dumb.
   SelectedClipProvider._({
     required SelectedClipFamily super.from,
     required String super.argument,
@@ -88,14 +64,6 @@ final class SelectedClipProvider
 String _$selectedClipHash() => r'95299c294ac52dcb478bbcb4fd9f371a31659c1e';
 
 /// Which clip the timeline and Script mode are currently showing.
-///
-/// **One selection per project**, held in memory rather than persisted: it is a
-/// cursor, not a preference, and restoring yesterday's selection would be
-/// arbitrary once clips have been added or removed since.
-///
-/// Null means nothing is selected — an empty project, or the moment after the
-/// selected clip was removed. The timeline resolves null to the first clip when
-/// one exists, which is why this stays deliberately dumb.
 
 final class SelectedClipFamily extends $Family
     with $ClassFamilyOverride<SelectedClip, String?, String?, String?, String> {
@@ -109,14 +77,6 @@ final class SelectedClipFamily extends $Family
       );
 
   /// Which clip the timeline and Script mode are currently showing.
-  ///
-  /// **One selection per project**, held in memory rather than persisted: it is a
-  /// cursor, not a preference, and restoring yesterday's selection would be
-  /// arbitrary once clips have been added or removed since.
-  ///
-  /// Null means nothing is selected — an empty project, or the moment after the
-  /// selected clip was removed. The timeline resolves null to the first clip when
-  /// one exists, which is why this stays deliberately dumb.
 
   SelectedClipProvider call(String projectId) =>
       SelectedClipProvider._(argument: projectId, from: this);
@@ -126,14 +86,6 @@ final class SelectedClipFamily extends $Family
 }
 
 /// Which clip the timeline and Script mode are currently showing.
-///
-/// **One selection per project**, held in memory rather than persisted: it is a
-/// cursor, not a preference, and restoring yesterday's selection would be
-/// arbitrary once clips have been added or removed since.
-///
-/// Null means nothing is selected — an empty project, or the moment after the
-/// selected clip was removed. The timeline resolves null to the first clip when
-/// one exists, which is why this stays deliberately dumb.
 
 abstract class _$SelectedClip extends $Notifier<String?> {
   late final _$args = ref.$arg as String;
@@ -157,41 +109,14 @@ abstract class _$SelectedClip extends $Notifier<String?> {
 }
 
 /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
-///
-/// **Hidden means left out**, in the preview and in the export alike: a
-/// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts, translation or images are not drawn or burned in --
-/// whatever sits on a hidden track. What the preview shows is what the
-/// export makes.
-///
-/// A session's view of the project, not a property of its data, so it is
-/// held here rather than stored.
 
 @ProviderFor(HiddenTracks)
 final hiddenTracksProvider = HiddenTracksFamily._();
 
 /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
-///
-/// **Hidden means left out**, in the preview and in the export alike: a
-/// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts, translation or images are not drawn or burned in --
-/// whatever sits on a hidden track. What the preview shows is what the
-/// export makes.
-///
-/// A session's view of the project, not a property of its data, so it is
-/// held here rather than stored.
 final class HiddenTracksProvider
     extends $NotifierProvider<HiddenTracks, Set<String>> {
   /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
-  ///
-  /// **Hidden means left out**, in the preview and in the export alike: a
-  /// hidden video track plays black, hidden audio is silent, and hidden
-  /// captions, texts, translation or images are not drawn or burned in --
-  /// whatever sits on a hidden track. What the preview shows is what the
-  /// export makes.
-  ///
-  /// A session's view of the project, not a property of its data, so it is
-  /// held here rather than stored.
   HiddenTracksProvider._({
     required HiddenTracksFamily super.from,
     required String super.argument,
@@ -239,15 +164,6 @@ final class HiddenTracksProvider
 String _$hiddenTracksHash() => r'2ab9f64bb40ac5ac5dbbf2ea334c18cc9c03fcaa';
 
 /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
-///
-/// **Hidden means left out**, in the preview and in the export alike: a
-/// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts, translation or images are not drawn or burned in --
-/// whatever sits on a hidden track. What the preview shows is what the
-/// export makes.
-///
-/// A session's view of the project, not a property of its data, so it is
-/// held here rather than stored.
 
 final class HiddenTracksFamily extends $Family
     with
@@ -268,15 +184,6 @@ final class HiddenTracksFamily extends $Family
       );
 
   /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
-  ///
-  /// **Hidden means left out**, in the preview and in the export alike: a
-  /// hidden video track plays black, hidden audio is silent, and hidden
-  /// captions, texts, translation or images are not drawn or burned in --
-  /// whatever sits on a hidden track. What the preview shows is what the
-  /// export makes.
-  ///
-  /// A session's view of the project, not a property of its data, so it is
-  /// held here rather than stored.
 
   HiddenTracksProvider call(String projectId) =>
       HiddenTracksProvider._(argument: projectId, from: this);
@@ -286,15 +193,6 @@ final class HiddenTracksFamily extends $Family
 }
 
 /// Which tracks the eye in the gutter has hidden, by `Tracks` row id.
-///
-/// **Hidden means left out**, in the preview and in the export alike: a
-/// hidden video track plays black, hidden audio is silent, and hidden
-/// captions, texts, translation or images are not drawn or burned in --
-/// whatever sits on a hidden track. What the preview shows is what the
-/// export makes.
-///
-/// A session's view of the project, not a property of its data, so it is
-/// held here rather than stored.
 
 abstract class _$HiddenTracks extends $Notifier<Set<String>> {
   late final _$args = ref.$arg as String;
@@ -395,29 +293,14 @@ final class HiddenPlaybackFamily extends $Family
 }
 
 /// Where the playhead sits, in project time.
-///
-/// **Lifted out of the track widget** because three things need it and only
-/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
-/// and the preview shows whatever it is over. Passing it down by constructor
-/// reached the first two and never the third.
 
 @ProviderFor(TimelinePlayhead)
 final timelinePlayheadProvider = TimelinePlayheadFamily._();
 
 /// Where the playhead sits, in project time.
-///
-/// **Lifted out of the track widget** because three things need it and only
-/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
-/// and the preview shows whatever it is over. Passing it down by constructor
-/// reached the first two and never the third.
 final class TimelinePlayheadProvider
     extends $NotifierProvider<TimelinePlayhead, int> {
   /// Where the playhead sits, in project time.
-  ///
-  /// **Lifted out of the track widget** because three things need it and only
-  /// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
-  /// and the preview shows whatever it is over. Passing it down by constructor
-  /// reached the first two and never the third.
   TimelinePlayheadProvider._({
     required TimelinePlayheadFamily super.from,
     required String super.argument,
@@ -465,11 +348,6 @@ final class TimelinePlayheadProvider
 String _$timelinePlayheadHash() => r'e0cc26a8091fcccd6002cbc7086d27a80279d388';
 
 /// Where the playhead sits, in project time.
-///
-/// **Lifted out of the track widget** because three things need it and only
-/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
-/// and the preview shows whatever it is over. Passing it down by constructor
-/// reached the first two and never the third.
 
 final class TimelinePlayheadFamily extends $Family
     with $ClassFamilyOverride<TimelinePlayhead, int, int, int, String> {
@@ -483,11 +361,6 @@ final class TimelinePlayheadFamily extends $Family
       );
 
   /// Where the playhead sits, in project time.
-  ///
-  /// **Lifted out of the track widget** because three things need it and only
-  /// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
-  /// and the preview shows whatever it is over. Passing it down by constructor
-  /// reached the first two and never the third.
 
   TimelinePlayheadProvider call(String projectId) =>
       TimelinePlayheadProvider._(argument: projectId, from: this);
@@ -497,11 +370,6 @@ final class TimelinePlayheadFamily extends $Family
 }
 
 /// Where the playhead sits, in project time.
-///
-/// **Lifted out of the track widget** because three things need it and only
-/// one of them draws it: the ruler puts it on screen, the toolbar cuts there,
-/// and the preview shows whatever it is over. Passing it down by constructor
-/// reached the first two and never the third.
 
 abstract class _$TimelinePlayhead extends $Notifier<int> {
   late final _$args = ref.$arg as String;
@@ -525,41 +393,14 @@ abstract class _$TimelinePlayhead extends $Notifier<int> {
 }
 
 /// Everything the editing tools will act on.
-///
-/// **One selection across every track**, replacing the separate "selected
-/// clip" and "selected layer" the timeline used to keep. Those two could
-/// disagree, and only one of them was ever reachable from the toolbar, which
-/// is why Split could cut the video and nothing else.
-///
-/// Holds ids only; what they refer to is resolved against the rows that
-/// currently exist, so a removed clip or a replaced row simply stops being
-/// selected rather than leaving the tools pointing at nothing.
 
 @ProviderFor(TimelineSelection)
 final timelineSelectionProvider = TimelineSelectionFamily._();
 
 /// Everything the editing tools will act on.
-///
-/// **One selection across every track**, replacing the separate "selected
-/// clip" and "selected layer" the timeline used to keep. Those two could
-/// disagree, and only one of them was ever reachable from the toolbar, which
-/// is why Split could cut the video and nothing else.
-///
-/// Holds ids only; what they refer to is resolved against the rows that
-/// currently exist, so a removed clip or a replaced row simply stops being
-/// selected rather than leaving the tools pointing at nothing.
 final class TimelineSelectionProvider
     extends $NotifierProvider<TimelineSelection, Set<TimelineItem>> {
   /// Everything the editing tools will act on.
-  ///
-  /// **One selection across every track**, replacing the separate "selected
-  /// clip" and "selected layer" the timeline used to keep. Those two could
-  /// disagree, and only one of them was ever reachable from the toolbar, which
-  /// is why Split could cut the video and nothing else.
-  ///
-  /// Holds ids only; what they refer to is resolved against the rows that
-  /// currently exist, so a removed clip or a replaced row simply stops being
-  /// selected rather than leaving the tools pointing at nothing.
   TimelineSelectionProvider._({
     required TimelineSelectionFamily super.from,
     required String super.argument,
@@ -607,15 +448,6 @@ final class TimelineSelectionProvider
 String _$timelineSelectionHash() => r'e047ec1b14cdeeaadc880dd78e78d372d9d1d993';
 
 /// Everything the editing tools will act on.
-///
-/// **One selection across every track**, replacing the separate "selected
-/// clip" and "selected layer" the timeline used to keep. Those two could
-/// disagree, and only one of them was ever reachable from the toolbar, which
-/// is why Split could cut the video and nothing else.
-///
-/// Holds ids only; what they refer to is resolved against the rows that
-/// currently exist, so a removed clip or a replaced row simply stops being
-/// selected rather than leaving the tools pointing at nothing.
 
 final class TimelineSelectionFamily extends $Family
     with
@@ -636,15 +468,6 @@ final class TimelineSelectionFamily extends $Family
       );
 
   /// Everything the editing tools will act on.
-  ///
-  /// **One selection across every track**, replacing the separate "selected
-  /// clip" and "selected layer" the timeline used to keep. Those two could
-  /// disagree, and only one of them was ever reachable from the toolbar, which
-  /// is why Split could cut the video and nothing else.
-  ///
-  /// Holds ids only; what they refer to is resolved against the rows that
-  /// currently exist, so a removed clip or a replaced row simply stops being
-  /// selected rather than leaving the tools pointing at nothing.
 
   TimelineSelectionProvider call(String projectId) =>
       TimelineSelectionProvider._(argument: projectId, from: this);
@@ -654,15 +477,6 @@ final class TimelineSelectionFamily extends $Family
 }
 
 /// Everything the editing tools will act on.
-///
-/// **One selection across every track**, replacing the separate "selected
-/// clip" and "selected layer" the timeline used to keep. Those two could
-/// disagree, and only one of them was ever reachable from the toolbar, which
-/// is why Split could cut the video and nothing else.
-///
-/// Holds ids only; what they refer to is resolved against the rows that
-/// currently exist, so a removed clip or a replaced row simply stops being
-/// selected rather than leaving the tools pointing at nothing.
 
 abstract class _$TimelineSelection extends $Notifier<Set<TimelineItem>> {
   late final _$args = ref.$arg as String;
@@ -686,26 +500,14 @@ abstract class _$TimelineSelection extends $Notifier<Set<TimelineItem>> {
 }
 
 /// Whether taps on the timeline add to the selection rather than replace it.
-///
-/// Entered by a long press and left when the selection empties or the user
-/// says Done. Its own provider rather than a field on [TimelineSelection],
-/// whose value is the set that dozens of call sites already read.
 
 @ProviderFor(TimelineMultiSelect)
 final timelineMultiSelectProvider = TimelineMultiSelectFamily._();
 
 /// Whether taps on the timeline add to the selection rather than replace it.
-///
-/// Entered by a long press and left when the selection empties or the user
-/// says Done. Its own provider rather than a field on [TimelineSelection],
-/// whose value is the set that dozens of call sites already read.
 final class TimelineMultiSelectProvider
     extends $NotifierProvider<TimelineMultiSelect, bool> {
   /// Whether taps on the timeline add to the selection rather than replace it.
-  ///
-  /// Entered by a long press and left when the selection empties or the user
-  /// says Done. Its own provider rather than a field on [TimelineSelection],
-  /// whose value is the set that dozens of call sites already read.
   TimelineMultiSelectProvider._({
     required TimelineMultiSelectFamily super.from,
     required String super.argument,
@@ -754,10 +556,6 @@ String _$timelineMultiSelectHash() =>
     r'313dd76af9271a5a2d76527fb601b0066d595f2e';
 
 /// Whether taps on the timeline add to the selection rather than replace it.
-///
-/// Entered by a long press and left when the selection empties or the user
-/// says Done. Its own provider rather than a field on [TimelineSelection],
-/// whose value is the set that dozens of call sites already read.
 
 final class TimelineMultiSelectFamily extends $Family
     with $ClassFamilyOverride<TimelineMultiSelect, bool, bool, bool, String> {
@@ -771,10 +569,6 @@ final class TimelineMultiSelectFamily extends $Family
       );
 
   /// Whether taps on the timeline add to the selection rather than replace it.
-  ///
-  /// Entered by a long press and left when the selection empties or the user
-  /// says Done. Its own provider rather than a field on [TimelineSelection],
-  /// whose value is the set that dozens of call sites already read.
 
   TimelineMultiSelectProvider call(String projectId) =>
       TimelineMultiSelectProvider._(argument: projectId, from: this);
@@ -784,10 +578,6 @@ final class TimelineMultiSelectFamily extends $Family
 }
 
 /// Whether taps on the timeline add to the selection rather than replace it.
-///
-/// Entered by a long press and left when the selection empties or the user
-/// says Done. Its own provider rather than a field on [TimelineSelection],
-/// whose value is the set that dozens of call sites already read.
 
 abstract class _$TimelineMultiSelect extends $Notifier<bool> {
   late final _$args = ref.$arg as String;
@@ -811,49 +601,16 @@ abstract class _$TimelineMultiSelect extends $Notifier<bool> {
 }
 
 /// Which clip both modes are actually showing.
-///
-/// [SelectedClip] holds what the user last tapped; this resolves it against
-/// the clips that currently exist. Shared so Timeline and Script cannot
-/// disagree about which clip is in front of the user — they are two views of
-/// one selection, and a project whose filmstrip highlights one clip while the
-/// transcript shows another would be incoherent.
-///
-/// Falls back to the first clip rather than to nothing, which is what keeps the
-/// screen sensible after a removal: the selected clip can disappear from under
-/// the user, and an empty view beside a full timeline would read as a bug.
-/// Null only when the project genuinely has no clips.
 
 @ProviderFor(resolvedSelectedClip)
 final resolvedSelectedClipProvider = ResolvedSelectedClipFamily._();
 
 /// Which clip both modes are actually showing.
-///
-/// [SelectedClip] holds what the user last tapped; this resolves it against
-/// the clips that currently exist. Shared so Timeline and Script cannot
-/// disagree about which clip is in front of the user — they are two views of
-/// one selection, and a project whose filmstrip highlights one clip while the
-/// transcript shows another would be incoherent.
-///
-/// Falls back to the first clip rather than to nothing, which is what keeps the
-/// screen sensible after a removal: the selected clip can disappear from under
-/// the user, and an empty view beside a full timeline would read as a bug.
-/// Null only when the project genuinely has no clips.
 
 final class ResolvedSelectedClipProvider
     extends $FunctionalProvider<String?, String?, String?>
     with $Provider<String?> {
   /// Which clip both modes are actually showing.
-  ///
-  /// [SelectedClip] holds what the user last tapped; this resolves it against
-  /// the clips that currently exist. Shared so Timeline and Script cannot
-  /// disagree about which clip is in front of the user — they are two views of
-  /// one selection, and a project whose filmstrip highlights one clip while the
-  /// transcript shows another would be incoherent.
-  ///
-  /// Falls back to the first clip rather than to nothing, which is what keeps the
-  /// screen sensible after a removal: the selected clip can disappear from under
-  /// the user, and an empty view beside a full timeline would read as a bug.
-  /// Null only when the project genuinely has no clips.
   ResolvedSelectedClipProvider._({
     required ResolvedSelectedClipFamily super.from,
     required String super.argument,
@@ -909,17 +666,6 @@ String _$resolvedSelectedClipHash() =>
     r'e50df931bd84987458f7e3f01c91df7487122822';
 
 /// Which clip both modes are actually showing.
-///
-/// [SelectedClip] holds what the user last tapped; this resolves it against
-/// the clips that currently exist. Shared so Timeline and Script cannot
-/// disagree about which clip is in front of the user — they are two views of
-/// one selection, and a project whose filmstrip highlights one clip while the
-/// transcript shows another would be incoherent.
-///
-/// Falls back to the first clip rather than to nothing, which is what keeps the
-/// screen sensible after a removal: the selected clip can disappear from under
-/// the user, and an empty view beside a full timeline would read as a bug.
-/// Null only when the project genuinely has no clips.
 
 final class ResolvedSelectedClipFamily extends $Family
     with $FunctionalFamilyOverride<String?, String> {
@@ -933,17 +679,6 @@ final class ResolvedSelectedClipFamily extends $Family
       );
 
   /// Which clip both modes are actually showing.
-  ///
-  /// [SelectedClip] holds what the user last tapped; this resolves it against
-  /// the clips that currently exist. Shared so Timeline and Script cannot
-  /// disagree about which clip is in front of the user — they are two views of
-  /// one selection, and a project whose filmstrip highlights one clip while the
-  /// transcript shows another would be incoherent.
-  ///
-  /// Falls back to the first clip rather than to nothing, which is what keeps the
-  /// screen sensible after a removal: the selected clip can disappear from under
-  /// the user, and an empty view beside a full timeline would read as a bug.
-  /// Null only when the project genuinely has no clips.
 
   ResolvedSelectedClipProvider call(String projectId) =>
       ResolvedSelectedClipProvider._(argument: projectId, from: this);
@@ -953,35 +688,14 @@ final class ResolvedSelectedClipFamily extends $Family
 }
 
 /// Adds media to a project without transcribing it.
-///
-/// **This is the half of import that does not run the engine.** Picking a file
-/// used to mean committing to minutes of whisper and diarization; a project
-/// that holds several clips cannot work that way, because most of them are not
-/// worth that cost until the user says so. So this copies the bytes in, probes
-/// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act: drawing a transcribe layer and running it.
 
 @ProviderFor(AddClipController)
 final addClipControllerProvider = AddClipControllerFamily._();
 
 /// Adds media to a project without transcribing it.
-///
-/// **This is the half of import that does not run the engine.** Picking a file
-/// used to mean committing to minutes of whisper and diarization; a project
-/// that holds several clips cannot work that way, because most of them are not
-/// worth that cost until the user says so. So this copies the bytes in, probes
-/// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act: drawing a transcribe layer and running it.
 final class AddClipControllerProvider
     extends $NotifierProvider<AddClipController, AddClipStatus> {
   /// Adds media to a project without transcribing it.
-  ///
-  /// **This is the half of import that does not run the engine.** Picking a file
-  /// used to mean committing to minutes of whisper and diarization; a project
-  /// that holds several clips cannot work that way, because most of them are not
-  /// worth that cost until the user says so. So this copies the bytes in, probes
-  /// the duration and writes a row — seconds, not minutes — and transcription is
-  /// a separate, explicit act: drawing a transcribe layer and running it.
   AddClipControllerProvider._({
     required AddClipControllerFamily super.from,
     required String super.argument,
@@ -1029,13 +743,6 @@ final class AddClipControllerProvider
 String _$addClipControllerHash() => r'c1cc51ffa83d162a63eb56ab68eb3a48c6b49bcf';
 
 /// Adds media to a project without transcribing it.
-///
-/// **This is the half of import that does not run the engine.** Picking a file
-/// used to mean committing to minutes of whisper and diarization; a project
-/// that holds several clips cannot work that way, because most of them are not
-/// worth that cost until the user says so. So this copies the bytes in, probes
-/// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act: drawing a transcribe layer and running it.
 
 final class AddClipControllerFamily extends $Family
     with
@@ -1056,13 +763,6 @@ final class AddClipControllerFamily extends $Family
       );
 
   /// Adds media to a project without transcribing it.
-  ///
-  /// **This is the half of import that does not run the engine.** Picking a file
-  /// used to mean committing to minutes of whisper and diarization; a project
-  /// that holds several clips cannot work that way, because most of them are not
-  /// worth that cost until the user says so. So this copies the bytes in, probes
-  /// the duration and writes a row — seconds, not minutes — and transcription is
-  /// a separate, explicit act: drawing a transcribe layer and running it.
 
   AddClipControllerProvider call(String projectId) =>
       AddClipControllerProvider._(argument: projectId, from: this);
@@ -1072,13 +772,6 @@ final class AddClipControllerFamily extends $Family
 }
 
 /// Adds media to a project without transcribing it.
-///
-/// **This is the half of import that does not run the engine.** Picking a file
-/// used to mean committing to minutes of whisper and diarization; a project
-/// that holds several clips cannot work that way, because most of them are not
-/// worth that cost until the user says so. So this copies the bytes in, probes
-/// the duration and writes a row — seconds, not minutes — and transcription is
-/// a separate, explicit act: drawing a transcribe layer and running it.
 
 abstract class _$AddClipController extends $Notifier<AddClipStatus> {
   late final _$args = ref.$arg as String;
@@ -1102,28 +795,16 @@ abstract class _$AddClipController extends $Notifier<AddClipStatus> {
 }
 
 /// Removing and reordering clips.
-///
-/// Separate from [AddClipController] because these need no status of their own:
-/// both are immediate, both are driven straight off the clip stream, and
-/// neither has a stage worth rendering.
 
 @ProviderFor(clipEditor)
 final clipEditorProvider = ClipEditorProvider._();
 
 /// Removing and reordering clips.
-///
-/// Separate from [AddClipController] because these need no status of their own:
-/// both are immediate, both are driven straight off the clip stream, and
-/// neither has a stage worth rendering.
 
 final class ClipEditorProvider
     extends $FunctionalProvider<ClipEditor, ClipEditor, ClipEditor>
     with $Provider<ClipEditor> {
   /// Removing and reordering clips.
-  ///
-  /// Separate from [AddClipController] because these need no status of their own:
-  /// both are immediate, both are driven straight off the clip stream, and
-  /// neither has a stage worth rendering.
   ClipEditorProvider._()
     : super(
         from: null,

@@ -204,16 +204,7 @@ class Project extends DataClass implements Insertable<Project> {
   final DateTime? deletedAt;
   final String title;
 
-  /// **Vestigial since schema 5. Do not read it.**
-  ///
-  /// A project used to *be* one media file, and this column held its path.
-  /// Media now lives on [MediaClips], one row per clip, because a project can
-  /// hold several. The column survives only because migrations here are
-  /// strictly additive (see [AppDatabase.migration]) and dropping it would mean
-  /// recreating the table over real user data.
-  ///
-  /// Schema 5's migration copied every existing value into a clip row. New
-  /// projects write `''`, which is why nothing may treat it as a path again.
+  /// Vestigial since schema 5. Do not read it.
   final String mediaPath;
 
   /// **Vestigial since schema 5**, for the same reason as [mediaPath]. A
@@ -976,13 +967,9 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   /// rewrites a run of rows and would trip one mid-flight.
   final int position;
 
-  /// Path to this app's own copy of the media, never the picker's original
-  /// URI. Android content:// permissions are revocable, so a clip that
-  /// referenced one would break the next time the app launched.
-  ///
-  /// Two clips may hold the same path: duplicating a project shares its media
-  /// rather than copying hundreds of megabytes, so this is refcounted by query
-  /// (`projectsSharingMedia`) rather than owned outright.
+  /// Path to this app's own copy of the media, never the picker's original URI.
+  /// Android content:// permissions are revocable, so a clip that referenced
+  /// one would break the next time the app launched.
   final String mediaPath;
 
   /// Null when `probeDuration` could not read the container -- the same
@@ -990,18 +977,6 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   final int? durationMs;
 
   /// Where this clip begins and ends inside its media file.
-  ///
-  /// **Trimming is stored, never rendered.** The media is shared -- two clips
-  /// may hold the same path, and duplicating a project shares it rather than
-  /// copying hundreds of megabytes -- so cutting bytes out of the file would
-  /// damage every other reference to it. An in/out point costs nothing, stays
-  /// reversible, and is what lets a split be two rows over one file.
-  ///
-  /// **Null means untrimmed, which is not the same as zero.** A clip whose
-  /// container could not be probed has no known end, so a null [trimEndMs]
-  /// resolves to [durationMs] -- itself nullable -- rather than to a number.
-  /// Writing 0 and the duration at creation time would have forced a backfill
-  /// and made "never trimmed" indistinguishable from "trimmed to the whole".
   final int? trimStartMs;
   final int? trimEndMs;
 
@@ -1012,26 +987,10 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
 
   /// Amplitude readings for the audio lane: one byte per bucket, at
   /// `waveformPeaksPerSecond`. See `lib/core/audio/waveform.dart`.
-  ///
-  /// **Null means "not computed yet", never "silent".** Computing it needs a
-  /// full native decode of the media, which is far too slow to run while the
-  /// user waits for "+" to return, so the lane fills in afterwards and a clip
-  /// added a moment ago legitimately has none.
-  ///
-  /// Stored rather than derived on demand, even though the 16kHz WAV it comes
-  /// from is deliberately discarded (CLAUDE.md §5). The two are not comparable:
-  /// that WAV is ~1.9MB per audio-minute and re-extracting it is seconds of
-  /// CPU, whereas this is ~1.2KB per audio-minute and would otherwise be
-  /// recomputed every time the timeline opened.
   final Uint8List? waveform;
 
-  /// How the picture sits in the output frame: moved, turned and scaled on
-  /// top of the fit the render already does. See `ItemTransform`.
-  ///
-  /// **Defaults, not nulls.** Unlike the trim points, "untouched" and "at the
-  /// identity" are the same thing here -- a clip nobody has framed is exactly
-  /// one at scale 1, turned 0 degrees, centred -- so the columns carry that
-  /// value and every existing clip gets it without a backfill.
+  /// How the picture sits in the output frame: moved, turned and scaled on top
+  /// of the fit the render already does. See `ItemTransform`.
   final double scale;
 
   /// Degrees, clockwise as seen.
@@ -1042,15 +1001,8 @@ class MediaClip extends DataClass implements Insertable<MediaClip> {
   final double offsetX;
   final double offsetY;
 
-  /// Where this clip's **sound** begins and ends, relative to its picture:
-  /// added to the picture window's start and end (`audio_window.dart`).
-  ///
-  /// **Offsets, not times**, so a split or a picture trim carries the sound
-  /// with it and keeps the cut's shape. A negative start sounds before the
-  /// picture appears (a J-cut); a positive end carries on under the next clip
-  /// (an L-cut); the other signs trim the sound inside its picture. Zero --
-  /// every clip until someone drags its audio -- is sound exactly with its
-  /// picture, as it has always been.
+  /// Where this clip's sound begins and ends, relative to its picture: added to
+  /// the picture window's start and end (`audio_window.dart`).
   final int audioStartOffsetMs;
   final int audioEndOffsetMs;
 
@@ -1958,12 +1910,6 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
   final int endMs;
 
   /// Which stacked track the layer sits on. Always 0 today.
-  ///
-  /// One column of insurance: a second track of layers is otherwise a
-  /// migration rather than a UI change, and it costs nothing to carry now.
-  /// Layers on the same track may not overlap, which is what makes "what
-  /// happens when two layers claim the same audio" a question nobody has to
-  /// answer.
   final int trackIndex;
 
   /// The [Tracks] row this layer sits on. Null only on a row written before
@@ -1971,22 +1917,12 @@ class TranscribeLayer extends DataClass implements Insertable<TranscribeLayer> {
   final String? trackId;
 
   /// Where this layer's captions sit in the frame, and how large.
-  ///
-  /// **Per layer, not per project**, so two layers -- two speakers, two
-  /// languages -- can be placed apart. Moving several at once is a matter of
-  /// selecting them together, not of a shared setting.
-  ///
-  /// The default is where captions have always rendered: centred, near the
-  /// bottom (`CAPTION_ANCHOR_Y` in `VideoExportChannel.kt`).
   final double captionX;
   final double captionY;
   final double captionScale;
 
   /// How this layer's captions look, as `ItemLook` JSON. Null is the default
   /// look captions have always had.
-  ///
-  /// **JSON in one column** rather than a column per option, so the next
-  /// style option costs no migration.
   final String? captionLook;
   const TranscribeLayer({
     required this.id,
@@ -2721,16 +2657,6 @@ class Transcript extends DataClass implements Insertable<Transcript> {
   final String projectId;
 
   /// The clip these words were transcribed from.
-  ///
-  /// Nullable only because schema 5 added it to a table that already had rows
-  /// and an additive `addColumn` cannot introduce NOT NULL; the migration
-  /// back-filled every existing transcript, and everything written since sets
-  /// it. Treat a null here as a row from a database that has not been migrated.
-  ///
-  /// Word timings are relative to the clip's own media. A project-wide axis
-  /// does exist now (`ProjectTimeline`), but it describes the *arrangement* of
-  /// clips rather than a single continuous recording, so it is derived from
-  /// clip durations and never stored on a word.
   final String? clipId;
 
   /// The layer whose run produced this transcript, or null for one written
@@ -2738,36 +2664,11 @@ class Transcript extends DataClass implements Insertable<Transcript> {
   final String? layerId;
 
   /// The clip-relative range these words actually cover.
-  ///
-  /// **Stored rather than derived from the layer.** A layer's position is a
-  /// fact about arrangement and moves whenever clips are reordered; this is a
-  /// fact about audio — the range that was fed to the engine at the moment it
-  /// ran — and must not move with it. Deriving it would silently relabel words
-  /// the user has already corrected.
-  ///
-  /// Null means "the whole clip", which is exactly what a pre-schema-6
-  /// transcript is, so legacy rows need no special case: read them as
-  /// `clipStartMs ?? 0` and `clipEndMs ?? clip.durationMs`.
   final int? clipStartMs;
   final int? clipEndMs;
   final String language;
 
   /// Custom speaker labels as JSON, or null when nobody has renamed anyone.
-  ///
-  /// A column rather than a `Speakers` table, and the reasoning is recorded so
-  /// it is not re-litigated: a name only has to outlive the transcript it
-  /// belongs to once speaker identity spans *projects* -- cross-project voice
-  /// profiles, which is Tier 3. Until then a table buys a join and a migration
-  /// for nothing.
-  ///
-  /// Shape is `{"0": {"name": "Ana"}}`, an object per speaker rather than a
-  /// bare string, so a future editable colour is a new key instead of a data
-  /// migration. Parsed by `speaker_names.dart`, tolerantly -- a row written by
-  /// a newer build must not break an older one.
-  ///
-  /// Null is the normal state. The derived `Speaker N` label and
-  /// `SpeakerPalette` colour remain the default, so a transcript nobody has
-  /// touched stores nothing and renders exactly as it always did.
   final String? speakerNames;
 
   /// Whole-transcript text as the engine returned it. Convenient for search
@@ -3570,14 +3471,9 @@ class Word extends DataClass implements Insertable<Word> {
   /// Populated by diarization in a later phase.
   final String? speakerId;
 
-  /// Where this word's sentence sits as a caption, when it has been placed
-  /// on its own. **Null means "wherever its layer puts captions"**, which is
-  /// every word until the user moves its sentence.
-  ///
-  /// Kept on the word rather than on a sentence row because sentences are
-  /// derived, never stored: every word of a placed sentence carries the same
-  /// values, so a caption finds its placement from its own first word however
-  /// the sentence is later cut into cues.
+  /// Where this word's sentence sits as a caption, when it has been placed on
+  /// its own. Null means "wherever its layer puts captions", which is every
+  /// word until the user moves its sentence.
   final double? captionX;
   final double? captionY;
   final double? captionScale;

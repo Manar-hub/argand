@@ -112,12 +112,6 @@ abstract class AppLocalizations {
   /// **'Import a video or audio file to transcribe it on your device.'**
   String get libraryEmptyBody;
 
-  /// Label of the button that opens the file picker
-  ///
-  /// In en, this message translates to:
-  /// **'Import media'**
-  String get importAction;
-
   /// Shown when the user dismisses the file picker
   ///
   /// In en, this message translates to:
@@ -418,12 +412,6 @@ abstract class AppLocalizations {
   /// **'This removes the video and its transcript from your device and frees {size}. It cannot be undone.'**
   String deleteProjectMessage(String size);
 
-  /// Library row subtitle pairing a project's running time with the space it occupies
-  ///
-  /// In en, this message translates to:
-  /// **'{duration} · {size}'**
-  String projectSizeOnDisk(String duration, String size);
-
   /// A file size below one kilobyte
   ///
   /// In en, this message translates to:
@@ -556,12 +544,6 @@ abstract class AppLocalizations {
   /// **'Translate to'**
   String get translateToOption;
 
-  /// Label of the timeline track holding the translated lines
-  ///
-  /// In en, this message translates to:
-  /// **'Translation'**
-  String get translationTrack;
-
   /// Script mode option that shows each sentence's translation under it
   ///
   /// In en, this message translates to:
@@ -597,18 +579,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Video or audio — transcribed on your device'**
   String get importSubhead;
-
-  /// Label on the library's import-and-edit entry panel; opens the resulting project in Timeline mode
-  ///
-  /// In en, this message translates to:
-  /// **'Import & edit'**
-  String get importEditHeadline;
-
-  /// Supporting line under the import-and-edit entry panel
-  ///
-  /// In en, this message translates to:
-  /// **'Transcribed automatically, then opens on the timeline'**
-  String get importEditSubhead;
 
   /// When a project was imported, shown in its library row
   ///
@@ -694,47 +664,17 @@ abstract class AppLocalizations {
   /// **'Export'**
   String get exportSheetTitle;
 
-  /// Menu entry exporting captions as a SubRip subtitle file
-  ///
-  /// In en, this message translates to:
-  /// **'SubRip (.srt)'**
-  String get exportSrt;
-
   /// Explains where a SubRip file can be used
   ///
   /// In en, this message translates to:
   /// **'Works almost everywhere — players, editors, video sites'**
   String get exportSrtDetail;
 
-  /// Menu entry exporting captions as a WebVTT subtitle file
-  ///
-  /// In en, this message translates to:
-  /// **'WebVTT (.vtt)'**
-  String get exportVtt;
-
   /// Explains where a WebVTT file can be used and what it preserves
   ///
   /// In en, this message translates to:
   /// **'For the web, and keeps speaker names as voice tags'**
   String get exportVttDetail;
-
-  /// Explains what the video export produces
-  ///
-  /// In en, this message translates to:
-  /// **'Renders the timeline and saves it to Downloads'**
-  String get exportVideoDetail;
-
-  /// Progress message shown while the video is being rendered
-  ///
-  /// In en, this message translates to:
-  /// **'Rendering video… {percent}%'**
-  String exportVideoRunning(int percent);
-
-  /// Progress message shown before the renderer reports a percentage
-  ///
-  /// In en, this message translates to:
-  /// **'Rendering video…'**
-  String get exportVideoStarting;
 
   /// Confirmation shown when the rendered video has been written
   ///
@@ -771,12 +711,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Include speaker names'**
   String get exportIncludeSpeakers;
-
-  /// Shown while the caption file is being written
-  ///
-  /// In en, this message translates to:
-  /// **'Preparing captions…'**
-  String get exportRunning;
 
   /// Confirmation after a caption file is written to the location the user chose
   ///
@@ -819,18 +753,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fullscreen'**
   String get timelineFullscreen;
-
-  /// Label under the track icon that mutes the video's own audio
-  ///
-  /// In en, this message translates to:
-  /// **'Mute clip'**
-  String get timelineMuteClip;
-
-  /// Label under the track icon that sets the project's cover frame
-  ///
-  /// In en, this message translates to:
-  /// **'Cover'**
-  String get timelineCover;
 
   /// Button below the timeline that adds a new track to the stack
   ///
@@ -916,12 +838,6 @@ abstract class AppLocalizations {
   /// **'Needs export compositing, which isn\'t built yet.'**
   String get trackKindUnavailable;
 
-  /// Heading above the caption list shown when the Captions toolbar button is toggled on
-  ///
-  /// In en, this message translates to:
-  /// **'Captions'**
-  String get timelineCaptionsLabel;
-
   /// Bottom toolbar button that scales the selected clip's picture
   ///
   /// In en, this message translates to:
@@ -939,12 +855,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} selected'**
   String selectionCount(int count);
-
-  /// Deletes every selected timeline item
-  ///
-  /// In en, this message translates to:
-  /// **'Delete'**
-  String get selectionDelete;
 
   /// Ends multi-select and clears the selection
   ///
@@ -1162,47 +1072,11 @@ abstract class AppLocalizations {
   /// **'Clip split.'**
   String get splitDone;
 
-  /// Bottom toolbar button: cut/trim/split (not yet built)
-  ///
-  /// In en, this message translates to:
-  /// **'Edit'**
-  String get timelineToolEdit;
-
-  /// Bottom toolbar button: audio tools (not yet built)
-  ///
-  /// In en, this message translates to:
-  /// **'Audio'**
-  String get timelineToolAudio;
-
   /// Bottom toolbar button: text overlays (not yet built)
   ///
   /// In en, this message translates to:
   /// **'Text'**
   String get timelineToolText;
-
-  /// Bottom toolbar button: visual effects (not yet built)
-  ///
-  /// In en, this message translates to:
-  /// **'Effects'**
-  String get timelineToolEffects;
-
-  /// Bottom toolbar button: image/video overlays (not yet built)
-  ///
-  /// In en, this message translates to:
-  /// **'Overlay'**
-  String get timelineToolOverlay;
-
-  /// Bottom toolbar button: toggles the caption list under the track area
-  ///
-  /// In en, this message translates to:
-  /// **'Captions'**
-  String get timelineToolCaptions;
-
-  /// Bottom toolbar button: colour filters (not yet built)
-  ///
-  /// In en, this message translates to:
-  /// **'Filter'**
-  String get timelineToolFilter;
 
   /// Acknowledgement shown when a Timeline mode tool without a real implementation yet is tapped
   ///
@@ -1222,41 +1096,17 @@ abstract class AppLocalizations {
   /// **'Add a clip'**
   String get clipAdd;
 
-  /// Menu entry that moves a clip one place towards the start of the timeline
-  ///
-  /// In en, this message translates to:
-  /// **'Move earlier'**
-  String get clipMoveEarlier;
-
-  /// Menu entry that moves a clip one place towards the end of the timeline
-  ///
-  /// In en, this message translates to:
-  /// **'Move later'**
-  String get clipMoveLater;
-
   /// Button that starts transcribing the selected clip
   ///
   /// In en, this message translates to:
   /// **'Transcribe'**
   String get clipTranscribe;
 
-  /// Shown beside the Transcribe button when the selected clip has no transcript
-  ///
-  /// In en, this message translates to:
-  /// **'Not transcribed yet.'**
-  String get clipNotTranscribed;
-
   /// Shown in Script mode when the selected clip has no transcript, pointing at where the action lives
   ///
   /// In en, this message translates to:
   /// **'This clip hasn\'t been transcribed yet. Switch to Timeline and tap Transcribe to start.'**
   String get clipNotTranscribedScript;
-
-  /// Shown beside the selected clip once it has a transcript
-  ///
-  /// In en, this message translates to:
-  /// **'Transcribed.'**
-  String get clipTranscribed;
 
   /// Shown when transcribing a clip failed; the clip itself is unaffected and the action can be retried
   ///
@@ -1300,35 +1150,11 @@ abstract class AppLocalizations {
   /// **'Add layer'**
   String get layerAdd;
 
-  /// Title of the dialog confirming a layer is transcribed a second time
-  ///
-  /// In en, this message translates to:
-  /// **'Transcribe this layer again?'**
-  String get layerRerunTitle;
-
   /// Body of the re-transcribe confirmation, naming specifically what the run discards
   ///
   /// In en, this message translates to:
   /// **'The words this layer produced will be replaced. Any corrections you typed and any speaker names you set on them are lost.'**
   String get layerRerunBody;
-
-  /// Confirming button of the re-transcribe dialog
-  ///
-  /// In en, this message translates to:
-  /// **'Transcribe again'**
-  String get layerRerunConfirm;
-
-  /// Button that removes the selected transcribe layer and anything it transcribed
-  ///
-  /// In en, this message translates to:
-  /// **'Remove layer'**
-  String get layerRemove;
-
-  /// Shown beside the transcribe track when no layer is selected
-  ///
-  /// In en, this message translates to:
-  /// **'Add a layer to mark what to transcribe.'**
-  String get layerHint;
 
   /// Shown beside the transcribe track when a layer is selected
   ///

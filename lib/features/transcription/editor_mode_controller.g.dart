@@ -9,41 +9,14 @@ part of 'editor_mode_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Which mode [projectId]'s editing screen is currently showing.
-///
-/// Starts at [EditorMode.script] -- the least surprising default, and the
-/// only mode every project opened in before Timeline mode existed.
-/// `ProjectScreen` overrides this once, in `initState`, either from the entry
-/// point that was tapped (import-and-edit vs. transcribe) or, for a project
-/// reopened from the library list, from whichever mode was last recorded for
-/// it via [select].
-/// Whether Script mode shows each sentence's translation under it. Off until
-/// asked for; kept for the session, across projects.
 
 @ProviderFor(ShowTranslation)
 final showTranslationProvider = ShowTranslationProvider._();
 
 /// Which mode [projectId]'s editing screen is currently showing.
-///
-/// Starts at [EditorMode.script] -- the least surprising default, and the
-/// only mode every project opened in before Timeline mode existed.
-/// `ProjectScreen` overrides this once, in `initState`, either from the entry
-/// point that was tapped (import-and-edit vs. transcribe) or, for a project
-/// reopened from the library list, from whichever mode was last recorded for
-/// it via [select].
-/// Whether Script mode shows each sentence's translation under it. Off until
-/// asked for; kept for the session, across projects.
 final class ShowTranslationProvider
     extends $NotifierProvider<ShowTranslation, bool> {
   /// Which mode [projectId]'s editing screen is currently showing.
-  ///
-  /// Starts at [EditorMode.script] -- the least surprising default, and the
-  /// only mode every project opened in before Timeline mode existed.
-  /// `ProjectScreen` overrides this once, in `initState`, either from the entry
-  /// point that was tapped (import-and-edit vs. transcribe) or, for a project
-  /// reopened from the library list, from whichever mode was last recorded for
-  /// it via [select].
-  /// Whether Script mode shows each sentence's translation under it. Off until
-  /// asked for; kept for the session, across projects.
   ShowTranslationProvider._()
     : super(
         from: null,
@@ -74,15 +47,6 @@ final class ShowTranslationProvider
 String _$showTranslationHash() => r'6a52d08137aa69f562184f784984aa05b8c4dc7d';
 
 /// Which mode [projectId]'s editing screen is currently showing.
-///
-/// Starts at [EditorMode.script] -- the least surprising default, and the
-/// only mode every project opened in before Timeline mode existed.
-/// `ProjectScreen` overrides this once, in `initState`, either from the entry
-/// point that was tapped (import-and-edit vs. transcribe) or, for a project
-/// reopened from the library list, from whichever mode was last recorded for
-/// it via [select].
-/// Whether Script mode shows each sentence's translation under it. Off until
-/// asked for; kept for the session, across projects.
 
 abstract class _$ShowTranslation extends $Notifier<bool> {
   bool build();

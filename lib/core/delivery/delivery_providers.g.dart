@@ -9,19 +9,11 @@ part of 'delivery_providers.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// How packs reach the device: the fake until the app is on the store.
-///
-/// Models land in the application support directory, where
-/// `WhisperService.modelPath` has always looked, so a model delivered here is
-/// the file the engine loads.
 
 @ProviderFor(assetPackDelivery)
 final assetPackDeliveryProvider = AssetPackDeliveryProvider._();
 
 /// How packs reach the device: the fake until the app is on the store.
-///
-/// Models land in the application support directory, where
-/// `WhisperService.modelPath` has always looked, so a model delivered here is
-/// the file the engine loads.
 
 final class AssetPackDeliveryProvider
     extends
@@ -32,10 +24,6 @@ final class AssetPackDeliveryProvider
         >
     with $Provider<AssetPackDelivery> {
   /// How packs reach the device: the fake until the app is on the store.
-  ///
-  /// Models land in the application support directory, where
-  /// `WhisperService.modelPath` has always looked, so a model delivered here is
-  /// the file the engine loads.
   AssetPackDeliveryProvider._()
     : super(
         from: null,

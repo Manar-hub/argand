@@ -31,7 +31,7 @@ class WaveformService {
 
   Future<Uint8List> _extract(String mediaPath) async {
     // Written to the cache directory rather than beside the media:
-    // `discardClipMedia` enumerates a fixed list of files and would strand this
+    // Clip cleanup enumerates a fixed list of files and would strand this
     // one.
     final dir = await getTemporaryDirectory();
     final scratch = File(p.join(

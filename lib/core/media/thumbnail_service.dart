@@ -13,13 +13,6 @@ class ThumbnailService {
 
   static const _channel = MethodChannel('argand/thumbnails');
 
-  /// How many frames a clip of a given length is worth showing.
-  static int frameCountFor(Duration duration) {
-    final seconds = duration.inSeconds;
-    if (seconds <= 0) return _minFrames;
-    return (seconds ~/ 2).clamp(_minFrames, _maxFrames);
-  }
-
   /// How many frames to extract for a filmstrip that has room for [slots].
   static int frameCountForSlots(int slots, Duration duration) {
     final ceiling = duration.inSeconds <= 0
@@ -35,7 +28,6 @@ class ThumbnailService {
   static const _frameBuckets = [10, 20, 40, 80, 120];
 
   static const _minFrames = 3;
-  static const _maxFrames = 40;
 
   /// Ceiling once a filmstrip is zoomed in far enough to want detail.
   static const _maxDetailFrames = 120;

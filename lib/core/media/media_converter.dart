@@ -184,49 +184,12 @@ class MediaConverter {
     if (await dir.exists()) await dir.delete(recursive: true);
   }
 
-  /// Removes the directory a media file lives in.
-  Future<void> discardMediaAt(String mediaPath) async {
-    final dir = Directory(p.dirname(mediaPath));
-    if (await dir.exists()) await dir.delete(recursive: true);
-  }
-
-  /// Removes one clip's media without touching its siblings.
-  Future<void> discardClipMedia({
-    required String clipId,
-    required String mediaPath,
-  }) async {
-    final parent = Directory(p.dirname(mediaPath));
-
-    if (p.basename(parent.path) == clipId) {
-      if (await parent.exists()) await parent.delete(recursive: true);
-      return;
-    }
-
-    for (final entity in <FileSystemEntity>[
-      File(mediaPath),
-      File(p.setExtension(mediaPath, '.16k.wav')),
-      Directory(thumbnailDirFor(clipId: clipId, mediaPath: mediaPath)),
-    ]) {
-      // Best-effort per entry: the row is already gone by the time this runs,
-      // so a stranded byte is a leak to report, never a failure to raise.
-      try {
-        if (await entity.exists()) await entity.delete(recursive: true);
-      } on FileSystemException {
-        continue;
-      }
-    }
-  }
-
   /// Where one clip's source, extracted WAV and thumbnails live.
   Future<Directory> _clipDir(String projectId, String clipId) async {
     final dir = Directory(p.join(await _mediaDirPath(), projectId, clipId));
     await dir.create(recursive: true);
     return dir;
   }
-
-  /// The directory holding every clip of [projectId].
-  Future<String> projectMediaDir(String projectId) async =>
-      p.join(await _mediaDirPath(), projectId);
 
   /// Where one clip's filmstrip frames are cached.
   String thumbnailDirFor({required String clipId, required String mediaPath}) {

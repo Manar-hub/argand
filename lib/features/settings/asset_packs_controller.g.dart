@@ -8,22 +8,14 @@ part of 'asset_packs_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Every model this build ships, installed or not, each with what its file
-/// says about itself.
-///
-/// **Adding a model is dropping its file in.** Any `ggml-<id>.bin` or
-/// `whisper-<id>.gguf` put in `assets/models/` is listed after the next build, as an on-demand pack;
-/// adding it here delivers it, and its header decides whether it is ready.
+/// Every model this build ships, installed or not, each with what its file says
+/// about itself.
 
 @ProviderFor(modelPacks)
 final modelPacksProvider = ModelPacksProvider._();
 
-/// Every model this build ships, installed or not, each with what its file
-/// says about itself.
-///
-/// **Adding a model is dropping its file in.** Any `ggml-<id>.bin` or
-/// `whisper-<id>.gguf` put in `assets/models/` is listed after the next build, as an on-demand pack;
-/// adding it here delivers it, and its header decides whether it is ready.
+/// Every model this build ships, installed or not, each with what its file says
+/// about itself.
 
 final class ModelPacksProvider
     extends
@@ -35,12 +27,8 @@ final class ModelPacksProvider
     with
         $FutureModifier<List<ModelPackEntry>>,
         $FutureProvider<List<ModelPackEntry>> {
-  /// Every model this build ships, installed or not, each with what its file
-  /// says about itself.
-  ///
-  /// **Adding a model is dropping its file in.** Any `ggml-<id>.bin` or
-  /// `whisper-<id>.gguf` put in `assets/models/` is listed after the next build, as an on-demand pack;
-  /// adding it here delivers it, and its header decides whether it is ready.
+  /// Every model this build ships, installed or not, each with what its file says
+  /// about itself.
   ModelPacksProvider._()
     : super(
         from: null,

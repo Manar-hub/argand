@@ -9,29 +9,14 @@ part of 'stage_editor.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Placements being changed right now, before they are saved.
-///
-/// **Held apart from the database while a finger is down.** A drag produces
-/// sixty positions a second; writing each would put sixty rows in the undo
-/// log and sixty queries behind every frame. The stage draws from here while
-/// the gesture runs, and one write -- one undo step -- lands when it ends.
 
 @ProviderFor(StageLive)
 final stageLiveProvider = StageLiveFamily._();
 
 /// Placements being changed right now, before they are saved.
-///
-/// **Held apart from the database while a finger is down.** A drag produces
-/// sixty positions a second; writing each would put sixty rows in the undo
-/// log and sixty queries behind every frame. The stage draws from here while
-/// the gesture runs, and one write -- one undo step -- lands when it ends.
 final class StageLiveProvider
     extends $NotifierProvider<StageLive, Map<TimelineItem, ItemTransform>> {
   /// Placements being changed right now, before they are saved.
-  ///
-  /// **Held apart from the database while a finger is down.** A drag produces
-  /// sixty positions a second; writing each would put sixty rows in the undo
-  /// log and sixty queries behind every frame. The stage draws from here while
-  /// the gesture runs, and one write -- one undo step -- lands when it ends.
   StageLiveProvider._({
     required StageLiveFamily super.from,
     required String super.argument,
@@ -81,11 +66,6 @@ final class StageLiveProvider
 String _$stageLiveHash() => r'7cd0020cd6ee38391671799b4e649d6acd5b3635';
 
 /// Placements being changed right now, before they are saved.
-///
-/// **Held apart from the database while a finger is down.** A drag produces
-/// sixty positions a second; writing each would put sixty rows in the undo
-/// log and sixty queries behind every frame. The stage draws from here while
-/// the gesture runs, and one write -- one undo step -- lands when it ends.
 
 final class StageLiveFamily extends $Family
     with
@@ -106,11 +86,6 @@ final class StageLiveFamily extends $Family
       );
 
   /// Placements being changed right now, before they are saved.
-  ///
-  /// **Held apart from the database while a finger is down.** A drag produces
-  /// sixty positions a second; writing each would put sixty rows in the undo
-  /// log and sixty queries behind every frame. The stage draws from here while
-  /// the gesture runs, and one write -- one undo step -- lands when it ends.
 
   StageLiveProvider call(String projectId) =>
       StageLiveProvider._(argument: projectId, from: this);
@@ -120,11 +95,6 @@ final class StageLiveFamily extends $Family
 }
 
 /// Placements being changed right now, before they are saved.
-///
-/// **Held apart from the database while a finger is down.** A drag produces
-/// sixty positions a second; writing each would put sixty rows in the undo
-/// log and sixty queries behind every frame. The stage draws from here while
-/// the gesture runs, and one write -- one undo step -- lands when it ends.
 
 abstract class _$StageLive extends $Notifier<Map<TimelineItem, ItemTransform>> {
   late final _$args = ref.$arg as String;
@@ -156,41 +126,14 @@ abstract class _$StageLive extends $Notifier<Map<TimelineItem, ItemTransform>> {
 }
 
 /// Which item on the stage is having its words typed, if any.
-///
-/// **A provider rather than editor state** because the tools start it from
-/// outside the stage: the Text tool adds a text and opens it for typing
-/// straight away, and the strip's Edit text does the same for a selected one.
-///
-/// **Kept alive**, because the ask can come before anything listens: right
-/// after a project opens the player is still loading and there is no stage
-/// yet. Auto-disposed, the request was dropped at the end of that frame and
-/// the new text appeared without its keyboard.
 
 @ProviderFor(StageEditing)
 final stageEditingProvider = StageEditingFamily._();
 
 /// Which item on the stage is having its words typed, if any.
-///
-/// **A provider rather than editor state** because the tools start it from
-/// outside the stage: the Text tool adds a text and opens it for typing
-/// straight away, and the strip's Edit text does the same for a selected one.
-///
-/// **Kept alive**, because the ask can come before anything listens: right
-/// after a project opens the player is still loading and there is no stage
-/// yet. Auto-disposed, the request was dropped at the end of that frame and
-/// the new text appeared without its keyboard.
 final class StageEditingProvider
     extends $NotifierProvider<StageEditing, TimelineItem?> {
   /// Which item on the stage is having its words typed, if any.
-  ///
-  /// **A provider rather than editor state** because the tools start it from
-  /// outside the stage: the Text tool adds a text and opens it for typing
-  /// straight away, and the strip's Edit text does the same for a selected one.
-  ///
-  /// **Kept alive**, because the ask can come before anything listens: right
-  /// after a project opens the player is still loading and there is no stage
-  /// yet. Auto-disposed, the request was dropped at the end of that frame and
-  /// the new text appeared without its keyboard.
   StageEditingProvider._({
     required StageEditingFamily super.from,
     required String super.argument,
@@ -238,15 +181,6 @@ final class StageEditingProvider
 String _$stageEditingHash() => r'96bf77f70a2e0fea6725f6ba5b50d63c8567dca8';
 
 /// Which item on the stage is having its words typed, if any.
-///
-/// **A provider rather than editor state** because the tools start it from
-/// outside the stage: the Text tool adds a text and opens it for typing
-/// straight away, and the strip's Edit text does the same for a selected one.
-///
-/// **Kept alive**, because the ask can come before anything listens: right
-/// after a project opens the player is still loading and there is no stage
-/// yet. Auto-disposed, the request was dropped at the end of that frame and
-/// the new text appeared without its keyboard.
 
 final class StageEditingFamily extends $Family
     with
@@ -267,15 +201,6 @@ final class StageEditingFamily extends $Family
       );
 
   /// Which item on the stage is having its words typed, if any.
-  ///
-  /// **A provider rather than editor state** because the tools start it from
-  /// outside the stage: the Text tool adds a text and opens it for typing
-  /// straight away, and the strip's Edit text does the same for a selected one.
-  ///
-  /// **Kept alive**, because the ask can come before anything listens: right
-  /// after a project opens the player is still loading and there is no stage
-  /// yet. Auto-disposed, the request was dropped at the end of that frame and
-  /// the new text appeared without its keyboard.
 
   StageEditingProvider call(String projectId) =>
       StageEditingProvider._(argument: projectId, from: this);
@@ -285,15 +210,6 @@ final class StageEditingFamily extends $Family
 }
 
 /// Which item on the stage is having its words typed, if any.
-///
-/// **A provider rather than editor state** because the tools start it from
-/// outside the stage: the Text tool adds a text and opens it for typing
-/// straight away, and the strip's Edit text does the same for a selected one.
-///
-/// **Kept alive**, because the ask can come before anything listens: right
-/// after a project opens the player is still loading and there is no stage
-/// yet. Auto-disposed, the request was dropped at the end of that frame and
-/// the new text appeared without its keyboard.
 
 abstract class _$StageEditing extends $Notifier<TimelineItem?> {
   late final _$args = ref.$arg as String;

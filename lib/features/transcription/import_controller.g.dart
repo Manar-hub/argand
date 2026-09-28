@@ -9,26 +9,14 @@ part of 'import_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Drives one media file from the picker all the way to persisted words.
-///
-/// Every step that touches the filesystem or the engine lives here rather
-/// than in a widget, so the import screen can be redesigned without moving
-/// any of this logic (CLAUDE.md 4).
 
 @ProviderFor(ImportController)
 final importControllerProvider = ImportControllerProvider._();
 
 /// Drives one media file from the picker all the way to persisted words.
-///
-/// Every step that touches the filesystem or the engine lives here rather
-/// than in a widget, so the import screen can be redesigned without moving
-/// any of this logic (CLAUDE.md 4).
 final class ImportControllerProvider
     extends $NotifierProvider<ImportController, ImportStatus> {
   /// Drives one media file from the picker all the way to persisted words.
-  ///
-  /// Every step that touches the filesystem or the engine lives here rather
-  /// than in a widget, so the import screen can be redesigned without moving
-  /// any of this logic (CLAUDE.md 4).
   ImportControllerProvider._()
     : super(
         from: null,
@@ -59,10 +47,6 @@ final class ImportControllerProvider
 String _$importControllerHash() => r'1d06b69e995bac6c6c5f475666eda38ce34c0c5c';
 
 /// Drives one media file from the picker all the way to persisted words.
-///
-/// Every step that touches the filesystem or the engine lives here rather
-/// than in a widget, so the import screen can be redesigned without moving
-/// any of this logic (CLAUDE.md 4).
 
 abstract class _$ImportController extends $Notifier<ImportStatus> {
   ImportStatus build();

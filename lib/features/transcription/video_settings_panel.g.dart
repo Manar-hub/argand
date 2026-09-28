@@ -9,22 +9,12 @@ part of 'video_settings_panel.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Whether a project's video settings are open, and on which item.
-///
-/// A provider rather than widget state because two separate parts of the
-/// screen answer to it: the transport row, which hides its buttons, and the
-/// body, which shows the panel. It also remembers the last item for as long
-/// as the project is open, so reopening the panel lands where it was left.
 
 @ProviderFor(VideoSettingsPanelController)
 final videoSettingsPanelControllerProvider =
     VideoSettingsPanelControllerFamily._();
 
 /// Whether a project's video settings are open, and on which item.
-///
-/// A provider rather than widget state because two separate parts of the
-/// screen answer to it: the transport row, which hides its buttons, and the
-/// body, which shows the panel. It also remembers the last item for as long
-/// as the project is open, so reopening the panel lands where it was left.
 final class VideoSettingsPanelControllerProvider
     extends
         $NotifierProvider<
@@ -32,11 +22,6 @@ final class VideoSettingsPanelControllerProvider
           VideoSettingsPanelState
         > {
   /// Whether a project's video settings are open, and on which item.
-  ///
-  /// A provider rather than widget state because two separate parts of the
-  /// screen answer to it: the transport row, which hides its buttons, and the
-  /// body, which shows the panel. It also remembers the last item for as long
-  /// as the project is open, so reopening the panel lands where it was left.
   VideoSettingsPanelControllerProvider._({
     required VideoSettingsPanelControllerFamily super.from,
     required String super.argument,
@@ -86,11 +71,6 @@ String _$videoSettingsPanelControllerHash() =>
     r'cf644d0fb922b84ae9a5d1ecc522d93efb5cd6a0';
 
 /// Whether a project's video settings are open, and on which item.
-///
-/// A provider rather than widget state because two separate parts of the
-/// screen answer to it: the transport row, which hides its buttons, and the
-/// body, which shows the panel. It also remembers the last item for as long
-/// as the project is open, so reopening the panel lands where it was left.
 
 final class VideoSettingsPanelControllerFamily extends $Family
     with
@@ -111,11 +91,6 @@ final class VideoSettingsPanelControllerFamily extends $Family
       );
 
   /// Whether a project's video settings are open, and on which item.
-  ///
-  /// A provider rather than widget state because two separate parts of the
-  /// screen answer to it: the transport row, which hides its buttons, and the
-  /// body, which shows the panel. It also remembers the last item for as long
-  /// as the project is open, so reopening the panel lands where it was left.
 
   VideoSettingsPanelControllerProvider call(String projectId) =>
       VideoSettingsPanelControllerProvider._(argument: projectId, from: this);
@@ -125,11 +100,6 @@ final class VideoSettingsPanelControllerFamily extends $Family
 }
 
 /// Whether a project's video settings are open, and on which item.
-///
-/// A provider rather than widget state because two separate parts of the
-/// screen answer to it: the transport row, which hides its buttons, and the
-/// body, which shows the panel. It also remembers the last item for as long
-/// as the project is open, so reopening the panel lands where it was left.
 
 abstract class _$VideoSettingsPanelController
     extends $Notifier<VideoSettingsPanelState> {

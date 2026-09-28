@@ -9,19 +9,11 @@ part of 'timeline_blocks.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// The project's timeline as blocks on tracks.
-///
-/// **One list for every kind**, which is what lets one set of gestures move,
-/// resize and select any of them: the tracks draw from it, the drag plans on
-/// it (`planMove`), and a long press on a track selects what it lists there.
 
 @ProviderFor(timelineContents)
 final timelineContentsProvider = TimelineContentsFamily._();
 
 /// The project's timeline as blocks on tracks.
-///
-/// **One list for every kind**, which is what lets one set of gestures move,
-/// resize and select any of them: the tracks draw from it, the drag plans on
-/// it (`planMove`), and a long press on a track selects what it lists there.
 
 final class TimelineContentsProvider
     extends
@@ -32,10 +24,6 @@ final class TimelineContentsProvider
         >
     with $Provider<TimelineContents> {
   /// The project's timeline as blocks on tracks.
-  ///
-  /// **One list for every kind**, which is what lets one set of gestures move,
-  /// resize and select any of them: the tracks draw from it, the drag plans on
-  /// it (`planMove`), and a long press on a track selects what it lists there.
   TimelineContentsProvider._({
     required TimelineContentsFamily super.from,
     required String super.argument,
@@ -90,10 +78,6 @@ final class TimelineContentsProvider
 String _$timelineContentsHash() => r'82eaf37f917d1f0bfa2dde300b2193ad00beaba9';
 
 /// The project's timeline as blocks on tracks.
-///
-/// **One list for every kind**, which is what lets one set of gestures move,
-/// resize and select any of them: the tracks draw from it, the drag plans on
-/// it (`planMove`), and a long press on a track selects what it lists there.
 
 final class TimelineContentsFamily extends $Family
     with $FunctionalFamilyOverride<TimelineContents, String> {
@@ -107,10 +91,6 @@ final class TimelineContentsFamily extends $Family
       );
 
   /// The project's timeline as blocks on tracks.
-  ///
-  /// **One list for every kind**, which is what lets one set of gestures move,
-  /// resize and select any of them: the tracks draw from it, the drag plans on
-  /// it (`planMove`), and a long press on a track selects what it lists there.
 
   TimelineContentsProvider call(String projectId) =>
       TimelineContentsProvider._(argument: projectId, from: this);

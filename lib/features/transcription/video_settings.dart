@@ -18,6 +18,7 @@ class VideoSettings {
     this.quality = ExportQuality.p1080,
     this.corner = WatermarkCorner.topRight,
     this.previewWatermark = true,
+    this.showSpeakerNames = false,
   });
 
   static const VideoSettings defaults = VideoSettings();
@@ -29,17 +30,23 @@ class VideoSettings {
   /// Whether the timeline draws the watermark over the preview.
   final bool previewWatermark;
 
+  /// Whether each caption carries its speaker's name, in the preview and
+  /// the export.
+  final bool showSpeakerNames;
+
   VideoSettings copyWith({
     ExportAspect? aspect,
     ExportQuality? quality,
     WatermarkCorner? corner,
     bool? previewWatermark,
+    bool? showSpeakerNames,
   }) {
     return VideoSettings(
       aspect: aspect ?? this.aspect,
       quality: quality ?? this.quality,
       corner: corner ?? this.corner,
       previewWatermark: previewWatermark ?? this.previewWatermark,
+      showSpeakerNames: showSpeakerNames ?? this.showSpeakerNames,
     );
   }
 
@@ -59,6 +66,7 @@ class VideoSettings {
         'quality': quality.name,
         'corner': corner.name,
         'previewWatermark': previewWatermark,
+        'showSpeakerNames': showSpeakerNames,
       });
 
   /// Falls back to the defaults for anything missing or unrecognised: a
@@ -85,6 +93,7 @@ class VideoSettings {
       previewWatermark: map['previewWatermark'] is bool
           ? map['previewWatermark'] as bool
           : defaults.previewWatermark,
+      showSpeakerNames: map['showSpeakerNames'] == true,
     );
   }
 
@@ -94,10 +103,12 @@ class VideoSettings {
       other.aspect == aspect &&
       other.quality == quality &&
       other.corner == corner &&
-      other.previewWatermark == previewWatermark;
+      other.previewWatermark == previewWatermark &&
+      other.showSpeakerNames == showSpeakerNames;
 
   @override
-  int get hashCode => Object.hash(aspect, quality, corner, previewWatermark);
+  int get hashCode =>
+      Object.hash(aspect, quality, corner, previewWatermark, showSpeakerNames);
 }
 
 /// The `Settings` key a project's video settings live under.

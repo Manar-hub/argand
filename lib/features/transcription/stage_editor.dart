@@ -21,6 +21,8 @@ import '../../core/video/video_export.dart' show imageExtentFraction;
 import 'clip_controller.dart';
 import 'timeline_history.dart';
 import 'transcript_repository.dart';
+import 'video_settings.dart';
+import '../../l10n/app_localizations.dart';
 
 part 'stage_editor.g.dart';
 
@@ -317,6 +319,12 @@ typedef _ShownCaption = ({
 
   /// The track it sits on: where its sentence was moved, else its layer's.
   String? trackId,
+
+  /// The speaker's own colour (ARGB), when one was chosen.
+  int? speakerColor,
+
+  /// The speaker's name above the words, when names are shown.
+  String? label,
 });
 
 class _StageEditorState extends ConsumerState<StageEditor> {
@@ -589,6 +597,12 @@ class _StageEditorState extends ConsumerState<StageEditor> {
     Map<TimelineItem, ItemTransform> live = const {},
   }) {
     final shown = <TimelineItem, _ShownCaption>{};
+    final showNames = ref
+            .watch(projectVideoSettingsProvider(widget.projectId))
+            .value
+            ?.showSpeakerNames ??
+        false;
+    final l10n = AppLocalizations.of(context);
     for (final transcript in transcripts) {
       final cues = ref.watch(captionCuesProvider(transcript.id)).value;
       final cue = cues == null ? null : cueAt(cues, widget.mediaPositionMs);
@@ -596,6 +610,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
 
       final layer =
           layers.where((l) => l.id == transcript.layerId).firstOrNull;
+      final names = ref.watch(speakerNamesProvider(transcript.id));
       final first = cue.words.first.position;
       final sentence = sentences
           .where((s) =>
@@ -626,6 +641,13 @@ class _StageEditorState extends ConsumerState<StageEditor> {
         own: own,
         look: cue.words.first.ownLook ?? layer?.look ?? ItemLook.defaults,
         trackId: cue.words.first.captionTrackId ?? layer?.trackId,
+        speakerColor: names.colorOf(cue.speaker),
+        label: showNames && cue.speaker != null
+            ? names.labelFor(
+                cue.speaker!,
+                defaultLabel: l10n.speakerLabel(cue.speaker! + 1),
+              )
+            : null,
       );
     }
     return shown;
@@ -797,13 +819,24 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                 item: shown.item,
                 selected: selection.contains(shown.item),
                 scale: where(shown.item).scale,
-                style: _captionStyle(shown.cue, shown.look, shortEdge),
+                style: _captionStyle(
+                  shown.cue,
+                  shown.look,
+                  shortEdge,
+                  speakerColor: shown.speakerColor,
+                ),
                 text: shown.cue.text,
                 rich: _captionSpan(
                   shown.cue,
                   shown.look,
-                  _captionStyle(shown.cue, shown.look, shortEdge),
+                  _captionStyle(
+                    shown.cue,
+                    shown.look,
+                    shortEdge,
+                    speakerColor: shown.speakerColor,
+                  ),
                   widget.mediaPositionMs,
+                  label: shown.label,
                 ),
                 padded: false,
               ),
@@ -1109,12 +1142,21 @@ class _Outline extends StatelessWidget {
 /// A caption as the render burns it: its look's font, its colour -- or the
 /// speaker's -- its background if it has one, else its shadow, sized from
 /// the frame rather than the text theme.
-TextStyle _captionStyle(CaptionCue cue, ItemLook look, double shortEdge) =>
+TextStyle _captionStyle(
+  CaptionCue cue,
+  ItemLook look,
+  double shortEdge, {
+  int? speakerColor,
+}) =>
     _lookStyle(
       look,
       color: look.colorArgb != null
           ? Color(look.colorArgb!)
-          : SpeakerPalette.colorFor(cue.speaker, fallback: Colors.white),
+          : SpeakerPalette.colorFor(
+              cue.speaker,
+              fallback: Colors.white,
+              custom: speakerColor,
+            ),
       fontSize: math.max(shortEdge * captionTextFraction, 6),
     );
 
@@ -1159,8 +1201,9 @@ InlineSpan _captionSpan(
   CaptionCue cue,
   ItemLook look,
   TextStyle base,
-  int atMs,
-) {
+  int atMs, {
+  String? label,
+}) {
   final runs = captionRunsAt(
     [
       for (final word in cue.words)
@@ -1175,6 +1218,17 @@ InlineSpan _captionSpan(
   return TextSpan(
     style: base,
     children: [
+      // The speaker's name on its own line, smaller and bold, as the render
+      // draws it (`LABEL_SCALE` in VideoExportChannel.kt).
+      if (label != null)
+        TextSpan(
+          text: '$label\n',
+          style: TextStyle(
+            fontSize: (base.fontSize ?? 14) * 0.7,
+            fontWeight: FontWeight.w700,
+            backgroundColor: Colors.transparent,
+          ),
+        ),
       for (final (index, run) in runs.indexed) ...[
         if (index > 0) const TextSpan(text: ' '),
         TextSpan(

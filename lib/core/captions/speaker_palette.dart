@@ -16,7 +16,8 @@ abstract final class SpeakerPalette {
 
   /// Colour for [speaker], or [fallback] when the transcript was never
   /// diarized.
-  static Color colorFor(int? speaker, {required Color fallback}) {
+  static Color colorFor(int? speaker, {required Color fallback, int? custom}) {
+    if (custom != null) return Color(custom);
     if (speaker == null) return fallback;
     return _colors[speaker.abs() % _colors.length];
   }
@@ -37,16 +38,24 @@ abstract final class SpeakerPalette {
     int? speaker, {
     required Brightness brightness,
     required Color fallback,
+    int? custom,
   }) {
+    if (custom != null) {
+      final color = Color(custom);
+      if (brightness == Brightness.dark) return color;
+      // On paper a pale colour is unreadable: darken it, keeping its hue.
+      final hsl = HSLColor.fromColor(color);
+      return hsl.lightness > 0.4 ? hsl.withLightness(0.4).toColor() : color;
+    }
     if (speaker == null) return fallback;
     final index = speaker.abs() % _colors.length;
     return brightness == Brightness.dark ? _colors[index] : _inkOnLight[index];
   }
 
   /// Text colour that stays legible on top of [colorFor].
-  static Color onColorFor(int? speaker, {required Color fallback}) {
-    if (speaker == null) return fallback;
-    final background = colorFor(speaker, fallback: fallback);
+  static Color onColorFor(int? speaker, {required Color fallback, int? custom}) {
+    if (speaker == null && custom == null) return fallback;
+    final background = colorFor(speaker, fallback: fallback, custom: custom);
     return ThemeData.estimateBrightnessForColor(background) == Brightness.dark
         ? Colors.white
         : Colors.black87;

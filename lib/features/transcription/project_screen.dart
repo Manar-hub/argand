@@ -10,6 +10,7 @@ import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/theme/app_controls.dart';
+import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/timeline/translation_texts.dart';
 import '../../core/theme/app_dialog.dart';
@@ -25,6 +26,7 @@ import 'clip_controller.dart';
 import 'editor_mode_controller.dart';
 import 'export_sheet.dart';
 import 'video_settings_panel.dart';
+import 'video_settings.dart';
 import 'media_player_controller.dart';
 import 'project_fullscreen.dart';
 import 'subtitle_export_controller.dart';
@@ -310,7 +312,10 @@ Future<void> _renderVideo(
   // there was nothing left to show.
   final render = ref
       .read(videoExportControllerProvider(projectId).notifier)
-      .export(options: options);
+      .export(
+        options: options,
+        defaultSpeakerLabel: (speaker) => l10n.speakerLabel(speaker + 1),
+      );
 
   final cancelled = await showExportProgress(context, projectId);
   await render;
@@ -394,6 +399,7 @@ class _EditScopeBanner extends ConsumerWidget {
             if (scope == TranscriptEditScope.speakers) ...[
               const SizedBox(height: 8),
               _SpeakerPalette(transcriptId: transcriptId, speakers: speakers),
+              _SpeakerNamesToggle(transcriptId: transcriptId),
             ],
             const SizedBox(height: 8),
             Row(
@@ -462,12 +468,32 @@ class _SpeakerPalette extends ConsumerWidget {
               color: SpeakerPalette.colorFor(
                 speaker,
                 fallback: theme.colorScheme.surfaceContainerHighest,
+                custom: names.colorOf(speaker),
               ),
               onTap: () =>
                   ref.read(selectedSpeakerProvider.notifier).select(speaker),
+              onLongPress: available.contains(speaker)
+                  ? () => editSpeaker(
+                        context,
+                        ref,
+                        transcriptId: transcriptId,
+                        speaker: speaker,
+                      )
+                  : null,
             ),
             const SizedBox(width: 8),
           ],
+          if (available.isNotEmpty)
+            IconButton(
+              tooltip: l10n.editSpeakerTitle,
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              onPressed: () => editSpeaker(
+                context,
+                ref,
+                transcriptId: transcriptId,
+                speaker: available.contains(selected) ? selected : available.first,
+              ),
+            ),
         ],
       ),
     );
@@ -483,6 +509,61 @@ class _SpeakerPalette extends ConsumerWidget {
   }
 }
 
+/// Whether captions carry their speaker's name, in the preview and export.
+class _SpeakerNamesToggle extends ConsumerWidget {
+  const _SpeakerNamesToggle({required this.transcriptId});
+
+  final String transcriptId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final projectId =
+        ref.watch(transcriptByIdProvider(transcriptId)).value?.projectId;
+    final settings = projectId == null
+        ? null
+        : ref.watch(projectVideoSettingsProvider(projectId)).value;
+    final on = settings?.showSpeakerNames ?? false;
+    void flip() => ref
+        .read(projectVideoSettingsProvider(projectId!).notifier)
+        .change(settings!.copyWith(showSpeakerNames: !on));
+
+    return MergeSemantics(
+      child: InkWell(
+        onTap: settings == null ? null : flip,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.showSpeakerNamesOnVideo,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    Text(
+                      l10n.showSpeakerNamesOnVideoDetail,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              AppToggle(
+                value: on,
+                onChanged: settings == null ? null : (_) => flip(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// One speaker in the Speakers-scope palette.
 class _SpeakerChip extends StatelessWidget {
   const _SpeakerChip({
@@ -490,12 +571,14 @@ class _SpeakerChip extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
+    this.onLongPress,
   });
 
   final bool selected;
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -518,6 +601,7 @@ class _SpeakerChip extends StatelessWidget {
           splashColor: Colors.transparent,
           highlightColor: Colors.transparent,
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.sm,
@@ -910,7 +994,11 @@ class CaptionOverlay extends ConsumerWidget {
     // actually behave.
     if (cue == null) return const SizedBox.shrink();
 
-    final color = SpeakerPalette.colorFor(cue.speaker, fallback: Colors.white);
+    final color = SpeakerPalette.colorFor(
+      cue.speaker,
+      fallback: Colors.white,
+      custom: ref.watch(speakerNamesProvider(transcriptId)).colorOf(cue.speaker),
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
@@ -1406,6 +1494,9 @@ List<Widget> _cueRows(
             editing: editing,
             anchor: anchor,
             speaker: turn.speaker,
+            speakerColor: ref
+                .watch(speakerNamesProvider(turn.words.first.transcriptId))
+                .colorOf(turn.speaker),
             // In Line scope the unit is the row, so the row is the target —
             // including the empty space after a short line.
             onRowTap: editing &&
@@ -1759,6 +1850,7 @@ class _CueLine extends StatefulWidget {
     required this.editing,
     required this.anchor,
     required this.speaker,
+    this.speakerColor,
     required this.open,
     required this.onRowTap,
     required this.onWordTap,
@@ -1785,6 +1877,9 @@ class _CueLine extends StatefulWidget {
   /// diarized — in which case the timestamp stays plain, because a colour
   /// standing for nothing is worse than no colour.
   final int? speaker;
+
+  /// The speaker's own colour (ARGB), when one was chosen.
+  final int? speakerColor;
 
   /// The span of positions open for retyping anywhere in the transcript, or
   /// null. Compared against this cue's own words to decide whether the row
@@ -1910,6 +2005,7 @@ class _CueLineState extends State<_CueLine> {
   Color _stampColour(ThemeData theme) {
     return SpeakerPalette.textColorFor(
       widget.speaker,
+      custom: widget.speakerColor,
       brightness: theme.brightness,
       fallback: theme.colorScheme.onSurface.withValues(alpha: 0.55),
     );
@@ -2203,6 +2299,7 @@ class _SpeakerPicker extends ConsumerWidget {
                 backgroundColor: SpeakerPalette.colorFor(
                   speaker,
                   fallback: theme.colorScheme.surfaceContainerHighest,
+                  custom: names.colorOf(speaker),
                 ),
               ),
               title: Text(
@@ -2239,42 +2336,59 @@ class _SpeakerPicker extends ConsumerWidget {
     WidgetRef ref,
     int speaker,
     SpeakerNames names,
-  ) async {
-    final l10n = AppLocalizations.of(context);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => _SpeakerNameEditor(
-        speaker: speaker,
-        initial: names[speaker] ?? '',
-      ),
-    );
-    if (name == null) return;
-
-    await ref.read(transcriptRepositoryProvider).renameSpeaker(
-          transcriptId: transcriptId,
-          speaker: speaker,
-          name: name,
-        );
-    // The label the export and the transcript will now use.
-    debugPrint('Renamed speaker ${speaker + 1} to '
-        '"${name.trim().isEmpty ? l10n.speakerLabel(speaker + 1) : name.trim()}"');
-  }
+  ) =>
+      editSpeaker(context, ref, transcriptId: transcriptId, speaker: speaker);
 }
 
-/// One text field for a speaker's name.
-class _SpeakerNameEditor extends StatefulWidget {
-  const _SpeakerNameEditor({required this.speaker, required this.initial});
+/// Edits one speaker: its name and its colour, saved together.
+Future<void> editSpeaker(
+  BuildContext context,
+  WidgetRef ref, {
+  required String transcriptId,
+  required int speaker,
+}) async {
+  final names = ref.read(speakerNamesProvider(transcriptId));
+  final result = await showDialog<({String name, int? color})>(
+    context: context,
+    builder: (context) => _SpeakerEditor(
+      speaker: speaker,
+      initialName: names[speaker] ?? '',
+      initialColor: names.colorOf(speaker),
+    ),
+  );
+  if (result == null) return;
+  final repository = ref.read(transcriptRepositoryProvider);
+  await repository.renameSpeaker(
+    transcriptId: transcriptId,
+    speaker: speaker,
+    name: result.name,
+  );
+  await repository.recolorSpeaker(
+    transcriptId: transcriptId,
+    speaker: speaker,
+    argb: result.color,
+  );
+}
+
+class _SpeakerEditor extends StatefulWidget {
+  const _SpeakerEditor({
+    required this.speaker,
+    required this.initialName,
+    required this.initialColor,
+  });
 
   final int speaker;
-  final String initial;
+  final String initialName;
+  final int? initialColor;
 
   @override
-  State<_SpeakerNameEditor> createState() => _SpeakerNameEditorState();
+  State<_SpeakerEditor> createState() => _SpeakerEditorState();
 }
 
-class _SpeakerNameEditorState extends State<_SpeakerNameEditor> {
+class _SpeakerEditorState extends State<_SpeakerEditor> {
   late final TextEditingController _controller =
-      TextEditingController(text: widget.initial);
+      TextEditingController(text: widget.initialName);
+  late int? _color = widget.initialColor;
 
   @override
   void dispose() {
@@ -2282,36 +2396,49 @@ class _SpeakerNameEditorState extends State<_SpeakerNameEditor> {
     super.dispose();
   }
 
+  void _save() => Navigator.of(context).pop((name: _controller.text, color: _color));
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return AppDialog(
-      title: l10n.renameSpeakerTitle,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (value) => Navigator.of(context).pop(value),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            l10n.renameSpeakerHint(widget.speaker + 1),
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
+      title: l10n.editSpeakerTitle,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _save(),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              l10n.renameSpeakerHint(widget.speaker + 1),
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(l10n.speakerColor, style: theme.textTheme.labelLarge),
+            const SizedBox(height: AppSpacing.sm),
+            // The Style panel's picker; Default is the speaker's palette colour.
+            AppColorPicker(
+              current: _color,
+              defaultLabel: l10n.styleColorDefault,
+              onChanged: (argb) => setState(() => _color = argb),
+            ),
+          ],
+        ),
       ),
       actions: [
         AppDialogAction(
           label: l10n.editSave,
           emphasis: AppDialogEmphasis.primary,
-          onPressed: () => Navigator.of(context).pop(_controller.text),
+          onPressed: _save,
         ),
         AppDialogAction(
           label: l10n.editCancel,

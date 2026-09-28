@@ -976,5 +976,32 @@
   "@styleScopeSpeaker": { "description": "Style panel scope: apply the change to everything said by the speakers of what is selected" },
 
   "styleScopeAllTranslations": "All translations",
-  "@styleScopeAllTranslations": { "description": "Style panel scope when only translation lines are selected: apply to every translation line" }
+  "@styleScopeAllTranslations": { "description": "Style panel scope when only translation lines are selected: apply to every translation line" },
+
+  "editSpeakerTitle": "Edit speaker",
+  "@editSpeakerTitle": { "description": "Dialog title and button tooltip for changing a speaker's name and colour" },
+
+  "speakerColor": "Colour",
+  "@speakerColor": { "description": "Label above the colour picker in the edit speaker dialog" },
+
+  "showSpeakerNamesOnVideo": "Show names on video",
+  "@showSpeakerNamesOnVideo": { "description": "Toggle: draw each speaker's name above their captions, in the preview and export" },
+
+  "showSpeakerNamesOnVideoDetail": "Each caption shows who is speaking",
+  "@showSpeakerNamesOnVideoDetail": { "description": "Subtitle of the show names on video toggle" },
+
+  "exportAss": "Export ASS",
+  "@exportAss": { "description": "Pro formats tab button that exports speaker-coloured ASS subtitles" },
+
+  "exportProReady": "Ready",
+  "@exportProReady": { "description": "Status beside a Pro format the user can export now" },
+
+  "exportProLocked": "Pro",
+  "@exportProLocked": { "description": "Status beside a Pro format that needs Pro" },
+
+  "supporterTitle": "Argand supporter",
+  "@supporterTitle": { "description": "Settings badge shown instead of Get Pro once Pro is bought" },
+
+  "supporterDetail": "Thank you for backing Argand",
+  "@supporterDetail": { "description": "Line under the supporter badge title" }
 }

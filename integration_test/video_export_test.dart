@@ -263,6 +263,7 @@ void main() {
     scale: 1.0,
     words: <TimedText>[],
     look: ItemLook.defaults,
+    label: null,
   );
 
   /// Six seconds is enough to see the crop and cheap enough to encode on the

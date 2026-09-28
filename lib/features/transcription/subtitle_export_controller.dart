@@ -3,11 +3,13 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
+import 'package:flutter/painting.dart' show Color;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/captions/caption_cue.dart';
 import '../../core/captions/project_cues.dart';
 import '../../core/captions/subtitle_export.dart';
+import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/timeline/project_timeline.dart';
 import '../../core/transcript/speaker_names.dart';
@@ -140,6 +142,13 @@ class SubtitleExporter extends _$SubtitleExporter {
         // Named from the transcript the cue's own words belong to. The same
         // speaker number is a different person in a different run, so a
         // project-wide name map would put one person's name on another.
+        // ASS styles each speaker in their colour: their own, or the palette's.
+        colorOf: (CaptionCue cue) => SpeakerPalette.colorFor(
+          cue.speaker,
+          fallback: const Color(0xFFFFFFFF),
+          custom: namesByTranscript[cue.words.first.transcriptId]
+              ?.colorOf(cue.speaker),
+        ).toARGB32(),
         speakerLabel: fallback == null
             ? null
             : (CaptionCue cue) {

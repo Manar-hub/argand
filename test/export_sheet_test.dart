@@ -310,6 +310,7 @@ void main() {
 
     expect(primaryButton('Export'), findsNothing);
     expect(primaryButton('Get Pro'), findsOneWidget);
-    expect(find.text('Coming with Pro'), findsNWidgets(3));
+    // ASS is built and waits behind Pro; the other two are still coming.
+    expect(find.text('Coming with Pro'), findsNWidgets(2));
   });
 }

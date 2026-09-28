@@ -1545,14 +1545,25 @@ class TranscriptRepository {
     required String transcriptId,
     required int speaker,
     required String? name,
-  }) async {
+  }) =>
+      _editSpeakers(transcriptId, (names) => names.withName(speaker, name));
+
+  /// Gives [speaker] its own colour, or the palette's again when null.
+  Future<void> recolorSpeaker({
+    required String transcriptId,
+    required int speaker,
+    required int? argb,
+  }) =>
+      _editSpeakers(transcriptId, (names) => names.withColor(speaker, argb));
+
+  Future<void> _editSpeakers(
+    String transcriptId,
+    SpeakerNames Function(SpeakerNames) edit,
+  ) async {
     await _db.transaction(() async {
       final transcript = await _db.findTranscript(transcriptId);
       if (transcript == null) return;
-
-      final names = SpeakerNames.decode(transcript.speakerNames)
-          .withName(speaker, name);
-
+      final names = edit(SpeakerNames.decode(transcript.speakerNames));
       await _db.writeSpeakerNames(transcriptId, names.encode());
     });
   }

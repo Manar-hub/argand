@@ -1941,6 +1941,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'All translations'**
   String get styleScopeAllTranslations;
+
+  /// Dialog title and button tooltip for changing a speaker's name and colour
+  ///
+  /// In en, this message translates to:
+  /// **'Edit speaker'**
+  String get editSpeakerTitle;
+
+  /// Label above the colour picker in the edit speaker dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Colour'**
+  String get speakerColor;
+
+  /// Toggle: draw each speaker's name above their captions, in the preview and export
+  ///
+  /// In en, this message translates to:
+  /// **'Show names on video'**
+  String get showSpeakerNamesOnVideo;
+
+  /// Subtitle of the show names on video toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Each caption shows who is speaking'**
+  String get showSpeakerNamesOnVideoDetail;
+
+  /// Pro formats tab button that exports speaker-coloured ASS subtitles
+  ///
+  /// In en, this message translates to:
+  /// **'Export ASS'**
+  String get exportAss;
+
+  /// Status beside a Pro format the user can export now
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get exportProReady;
+
+  /// Status beside a Pro format that needs Pro
+  ///
+  /// In en, this message translates to:
+  /// **'Pro'**
+  String get exportProLocked;
+
+  /// Settings badge shown instead of Get Pro once Pro is bought
+  ///
+  /// In en, this message translates to:
+  /// **'Argand supporter'**
+  String get supporterTitle;
+
+  /// Line under the supporter badge title
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you for backing Argand'**
+  String get supporterDetail;
 }
 
 class _AppLocalizationsDelegate

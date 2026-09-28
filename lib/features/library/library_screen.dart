@@ -1325,7 +1325,6 @@ class _ProSettingsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pro = ref.watch(proUnlockedProvider).value ?? false;
-    if (pro) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.lg,
@@ -1333,7 +1332,10 @@ class _ProSettingsRow extends ConsumerWidget {
         AppSpacing.lg,
         AppSpacing.sm,
       ),
-      child: ProBanner(onPressed: () => showProScreen(context)),
+      // Bought: a thank-you in place of the offer.
+      child: pro
+          ? SupporterBadge(onPressed: () => showProScreen(context))
+          : ProBanner(onPressed: () => showProScreen(context)),
     );
   }
 }

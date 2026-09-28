@@ -1682,6 +1682,11 @@ class _TimelineTrackState extends ConsumerState<_TimelineTrack> {
           final fill = SpeakerPalette.colorFor(
             sentence?.speaker,
             fallback: theme.colorScheme.onSurface,
+            custom: sentence == null
+                ? null
+                : ref
+                    .watch(speakerNamesProvider(sentence.transcriptId))
+                    .colorOf(sentence.speaker),
           );
           return DecoratedBox(
             decoration: BoxDecoration(

@@ -10,6 +10,8 @@ import '../../core/video/export_options.dart';
 import '../../core/video/video_export.dart';
 import 'clip_controller.dart';
 import 'transcript_repository.dart';
+import 'video_settings.dart';
+import '../../core/transcript/speaker_names.dart';
 
 part 'video_export_controller.g.dart';
 
@@ -58,6 +60,7 @@ class VideoExportController extends _$VideoExportController {
   /// Renders the project and saves the result to Downloads.
   Future<VideoExportStatus> export({
     ExportOptions options = ExportOptions.defaults,
+    String Function(int speaker)? defaultSpeakerLabel,
   }) async {
     if (state is VideoExportRunning) return state;
     _cancelled = false;
@@ -70,13 +73,16 @@ class VideoExportController extends _$VideoExportController {
     // part-way through is ordinary rather than exotic.
     final link = ref.keepAlive();
     try {
-      return await _run(options);
+      return await _run(options, defaultSpeakerLabel);
     } finally {
       link.close();
     }
   }
 
-  Future<VideoExportStatus> _run(ExportOptions options) async {
+  Future<VideoExportStatus> _run(
+    ExportOptions options,
+    String Function(int speaker)? defaultSpeakerLabel,
+  ) async {
     final repository = ref.read(transcriptRepositoryProvider);
 
     // Read straight from the repository, not through the clip providers.
@@ -94,7 +100,16 @@ class VideoExportController extends _$VideoExportController {
       timeline: timeline,
       clips: clips,
       withAudio: !playback.audio,
-      captionsByClip: await _captionsFor(repository, clips, shows),
+      captionsByClip: await _captionsFor(
+        repository,
+        clips,
+        shows,
+        // Names over the captions only when the project asks for them.
+        (await ref.read(projectVideoSettingsProvider(projectId).future))
+                .showSpeakerNames
+            ? defaultSpeakerLabel
+            : null,
+      ),
       texts: [
         for (final text in await repository.textLayersForProject(projectId))
           if (shows(text.trackId)) text,
@@ -173,6 +188,7 @@ class VideoExportController extends _$VideoExportController {
     TranscriptRepository repository,
     List<MediaClip> clips,
     bool Function(String? trackId) shows,
+    String Function(int speaker)? speakerLabel,
   ) async {
     final byClip = <String, List<ExportCaption>>{};
     final layers = {
@@ -209,6 +225,8 @@ class VideoExportController extends _$VideoExportController {
                     scale: layer.captionScale,
                   ),
             look: ItemLook.decode(layer?.captionLook) ?? ItemLook.defaults,
+            names: SpeakerNames.decode(transcript.speakerNames),
+            speakerLabel: speakerLabel,
           ),
         );
       }

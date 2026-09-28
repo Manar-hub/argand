@@ -9,7 +9,11 @@ enum SubtitleFormat {
     // players, so the specific one is worth using even though it is informal.
     mimeType: 'application/x-subrip',
   ),
-  vtt(extension: 'vtt', mimeType: 'text/vtt');
+  vtt(extension: 'vtt', mimeType: 'text/vtt'),
+
+  /// Advanced SubStation Alpha: styled, speaker-coloured subtitles for
+  /// editing tools. A Pro format.
+  ass(extension: 'ass', mimeType: 'text/x-ssa');
 
   const SubtitleFormat({required this.extension, required this.mimeType});
 
@@ -59,7 +63,17 @@ String formatSubtitles(
   String Function(CaptionCue cue)? speakerLabel,
   SubtitleOptions options = const SubtitleOptions(),
   String? Function(CaptionCue cue)? translation,
+  int Function(CaptionCue cue)? colorOf,
 }) {
+  if (format == SubtitleFormat.ass) {
+    return _formatAss(
+      cues,
+      speakerLabel: speakerLabel,
+      options: options,
+      translation: translation,
+      colorOf: colorOf ?? (_) => 0xFFFFFFFF,
+    );
+  }
   final buffer = StringBuffer();
   if (format == SubtitleFormat.vtt) buffer.writeln('WEBVTT\n');
 
@@ -132,8 +146,96 @@ String _body(
     // prefix. It counts against the line length, but re-wrapping around it
     // would push the first line short for every cue.
     SubtitleFormat.srt => '$label: $lines',
+    SubtitleFormat.ass => lines,
   };
 }
+
+/// [cues] as an ASS script: one style per speaker colour, the speaker's name
+/// in each line's Name field, sized for a 1080p frame.
+String _formatAss(
+  List<CaptionCue> cues, {
+  required String Function(CaptionCue cue)? speakerLabel,
+  required SubtitleOptions options,
+  required String? Function(CaptionCue cue)? translation,
+  required int Function(CaptionCue cue) colorOf,
+}) {
+  final styles = <int, String>{};
+  for (final cue in cues) {
+    styles.putIfAbsent(colorOf(cue), () => 'Speaker${styles.length + 1}');
+  }
+
+  final buffer = StringBuffer()
+    ..writeln('[Script Info]')
+    ..writeln('; Written by Argand')
+    ..writeln('ScriptType: v4.00+')
+    ..writeln('PlayResX: 1920')
+    ..writeln('PlayResY: 1080')
+    ..writeln('WrapStyle: 0')
+    ..writeln('ScaledBorderAndShadow: yes')
+    ..writeln()
+    ..writeln('[V4+ Styles]')
+    ..writeln(
+      'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, '
+      'OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, '
+      'ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, '
+      'MarginL, MarginR, MarginV, Encoding',
+    );
+  for (final MapEntry(key: argb, value: name) in styles.entries) {
+    buffer.writeln(
+      'Style: $name,Arial,54,${_assColor(argb)},&H000000FF,&H00000000,'
+      '&H80000000,-1,0,0,0,100,100,0,0,1,3,1,2,60,60,90,1',
+    );
+  }
+  buffer
+    ..writeln()
+    ..writeln('[Events]')
+    ..writeln(
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, '
+      'Effect, Text',
+    );
+
+  final timings = _normalise(cues, options);
+  for (final (index, cue) in cues.indexed) {
+    final (start, end) = timings[index];
+    final name = cue.speaker == null || speakerLabel == null
+        ? ''
+        : _escapeAss(speakerLabel(cue)).replaceAll(',', ' ');
+    var text = _wrap(_escapeAss(cue.text), options).join(r'\N');
+    if (translation?.call(cue) case final line? when line.trim().isNotEmpty) {
+      text = '$text\\N${_escapeAss(line.trim())}';
+    }
+    buffer.writeln(
+      'Dialogue: 0,${_assTime(start)},${_assTime(end)},'
+      '${styles[colorOf(cue)]},$name,0,0,0,,$text',
+    );
+  }
+  return buffer.toString();
+}
+
+/// ASS colours are `&HAABBGGRR`, with 00 as opaque.
+String _assColor(int argb) {
+  final r = (argb >> 16) & 0xFF;
+  final g = (argb >> 8) & 0xFF;
+  final b = argb & 0xFF;
+  String hex(int v) => v.toRadixString(16).padLeft(2, '0').toUpperCase();
+  return '&H00${hex(b)}${hex(g)}${hex(r)}';
+}
+
+/// `H:MM:SS.cc`, in centiseconds as ASS counts them.
+String _assTime(int totalMs) {
+  final ms = totalMs < 0 ? 0 : totalMs;
+  final hours = ms ~/ 3600000;
+  final minutes = '${(ms % 3600000) ~/ 60000}'.padLeft(2, '0');
+  final seconds = '${(ms % 60000) ~/ 1000}'.padLeft(2, '0');
+  final centis = '${(ms % 1000) ~/ 10}'.padLeft(2, '0');
+  return '$hours:$minutes:$seconds.$centis';
+}
+
+/// Braces open override tags in ASS, and a line break is `\N`.
+String _escapeAss(String text) => text
+    .replaceAll('{', '(')
+    .replaceAll('}', ')')
+    .replaceAll('\n', ' ');
 
 /// Breaks [text] into at most [SubtitleOptions.maxLines] readable lines.
 List<String> _wrap(String text, SubtitleOptions options) {

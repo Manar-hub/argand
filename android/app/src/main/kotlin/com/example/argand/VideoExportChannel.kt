@@ -11,6 +11,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.text.SpannableString
+import android.text.style.AlignmentSpan
+import android.text.Layout
 import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.BackgroundColorSpan
@@ -113,6 +115,9 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
          * large frame or covers the small one.
          */
         const val CAPTION_TEXT_FRACTION = 0.045f
+
+        /** A speaker name's size, relative to its caption. Mirrors the stage. */
+        const val LABEL_SCALE = 0.7f
 
         /** A look's shadow strength when it names none. */
         const val DEFAULT_SHADOW = 0.4f
@@ -244,6 +249,21 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 null
             }
             if (shadow != null) ShadowRoomSpan.open(builder, shadowReach(shadow))
+            // The speaker's name on a line of its own, above the words.
+            val labelStart = builder.length
+            caption.label?.let { label ->
+                builder.append(label)
+                if (shadow != null) {
+                    builder.setSpan(
+                        ShadowSpan(shadow),
+                        labelStart,
+                        builder.length,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                    )
+                }
+                builder.append('\n')
+            }
+            val labelEnd = builder.length
             val textStart = builder.length
             for ((index, run) in runsAt(caption, presentationTimeUs / 1000).withIndex()) {
                 if (index > 0) builder.append(' ')
@@ -312,6 +332,29 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             )
             caption.typeface?.let {
                 builder.setSpan(FontSpan(it), 0, whole, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            // Set after the caption's size, so it wins: smaller and bold --
+            // and every line centred, so the name sits over the words as the
+            // stage draws it rather than at the left edge of the text.
+            if (labelEnd > labelStart) {
+                builder.setSpan(
+                    AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER),
+                    0,
+                    whole,
+                    Spanned.SPAN_INCLUSIVE_INCLUSIVE,
+                )
+                builder.setSpan(
+                    AbsoluteSizeSpan((textSizePx * LABEL_SCALE).roundToInt()),
+                    labelStart,
+                    labelEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                )
+                builder.setSpan(
+                    StyleSpan(Typeface.BOLD),
+                    labelStart,
+                    labelEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+                )
             }
             return SpannableString(builder)
         }
@@ -623,6 +666,8 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         val typeface: Typeface? = null,
         val backgroundArgb: Int? = null,
         val shadow: Float = DEFAULT_SHADOW,
+        /** The speaker's name, drawn small above the words. */
+        val label: String? = null,
     )
 
     /**
@@ -1381,6 +1426,7 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 backgroundArgb = (map["backgroundArgb"] as? Number)?.toInt(),
                 shadow = (map["shadow"] as? Number)?.toFloat() ?: DEFAULT_SHADOW,
                 typeface = typefaceFor(map["font"] as? String),
+                label = (map["label"] as? String)?.takeIf { it.isNotBlank() },
             )
         }
     }

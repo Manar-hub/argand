@@ -1037,4 +1037,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get styleScopeAllTranslations => 'All translations';
+
+  @override
+  String get editSpeakerTitle => 'Edit speaker';
+
+  @override
+  String get speakerColor => 'Colour';
+
+  @override
+  String get showSpeakerNamesOnVideo => 'Show names on video';
+
+  @override
+  String get showSpeakerNamesOnVideoDetail =>
+      'Each caption shows who is speaking';
+
+  @override
+  String get exportAss => 'Export ASS';
+
+  @override
+  String get exportProReady => 'Ready';
+
+  @override
+  String get exportProLocked => 'Pro';
+
+  @override
+  String get supporterTitle => 'Argand supporter';
+
+  @override
+  String get supporterDetail => 'Thank you for backing Argand';
 }

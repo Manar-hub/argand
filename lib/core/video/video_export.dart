@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 
 import '../captions/project_cues.dart';
 import '../captions/speaker_palette.dart';
+import '../transcript/speaker_names.dart';
 import '../database/database.dart';
 import '../timeline/audio_window.dart';
 import '../timeline/clip_trim.dart';
@@ -22,6 +23,9 @@ typedef ExportCaption = ({
   double scale,
   List<TimedText> words,
   ItemLook look,
+
+  /// The speaker's name, drawn small above the words; null for none.
+  String? label,
 });
 
 /// One text layer's stretch over one clip, timed on that clip's own clock.
@@ -69,6 +73,8 @@ List<ExportCaption> exportCaptionsFor(
   ItemTransform placement = ItemTransform.captionDefault,
   ItemLook look = ItemLook.defaults,
   Color fallback = const Color(0xFFFFFFFF),
+  SpeakerNames names = const SpeakerNames.empty(),
+  String Function(int speaker)? speakerLabel,
 }) {
   // Cues are moved onto the clip's clock; their words are not, so they are
   // moved here by the same amount.
@@ -87,8 +93,11 @@ List<ExportCaption> exportCaptionsFor(
           endMs: cue.endMs,
           text: cue.text,
           colorArgb: style.colorArgb ??
-              SpeakerPalette.colorFor(cue.speaker, fallback: fallback)
-                  .toARGB32(),
+              SpeakerPalette.colorFor(
+                cue.speaker,
+                fallback: fallback,
+                custom: names.colorOf(cue.speaker),
+              ).toARGB32(),
           x: at.x,
           y: at.y,
           scale: at.scale,
@@ -101,6 +110,12 @@ List<ExportCaption> exportCaptionsFor(
               ),
           ],
           look: style,
+          label: speakerLabel == null || cue.speaker == null
+              ? null
+              : names.labelFor(
+                  cue.speaker!,
+                  defaultLabel: speakerLabel(cue.speaker!),
+                ),
         ),
   ];
 }
@@ -318,6 +333,7 @@ class VideoExporter {
                     'endMs': caption.endMs,
                     'text': caption.text,
                     'colorArgb': caption.colorArgb,
+                    'label': caption.label,
                     'x': caption.x,
                     'y': caption.y,
                     'scale': caption.scale,

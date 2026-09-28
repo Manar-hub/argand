@@ -167,7 +167,7 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
                   _ExportTab.srt ||
                   _ExportTab.vtt =>
                     _subtitleOptions(l10n, theme, hasCaptions: hasCaptions),
-                  _ExportTab.pro => _ProFormats(),
+                  _ExportTab.pro => _ProFormats(pro: pro),
                 },
               ),
             ),
@@ -382,12 +382,22 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
                   )
               : null,
         ),
-      // The formats are not built, so even an owner of Pro has nothing to
-      // export here yet; the button says so rather than doing nothing.
+      // ASS is built; the others are still coming.
       _ExportTab.pro => AppDialogAction(
-          label: pro ? l10n.exportProComing : l10n.exportGetPro,
+          label: pro ? l10n.exportAss : l10n.exportGetPro,
           emphasis: AppDialogEmphasis.pro,
-          onPressed: pro ? null : _getPro,
+          onPressed: !pro
+              ? _getPro
+              : hasCaptions
+                  ? () => Navigator.of(context).pop(
+                        SubtitleExportDecision(
+                          format: SubtitleFormat.ass,
+                          includeSpeakers: true,
+                          lineLength: _lineLength,
+                          includeTranslation: _includeTranslation,
+                        ),
+                      )
+                  : null,
         ),
     };
   }
@@ -521,6 +531,10 @@ class _ExportFooter extends StatelessWidget {
 
 /// The professional formats Pro will add.
 class _ProFormats extends StatelessWidget {
+  const _ProFormats({required this.pro});
+
+  final bool pro;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -531,13 +545,22 @@ class _ProFormats extends StatelessWidget {
       children: [
         Text(l10n.exportProFormatsIntro, style: theme.textTheme.bodyMedium),
         const SizedBox(height: AppSpacing.md),
-        for (final (index, (title, detail)) in <(String, String)>[
-          (l10n.exportProFormatAss, l10n.exportProFormatAssDetail),
+        _LockedFormat(
+          title: l10n.exportProFormatAss,
+          detail: l10n.exportProFormatAssDetail,
+          status: pro ? l10n.exportProReady : l10n.exportProLocked,
+          ready: pro,
+        ),
+        for (final (title, detail) in <(String, String)>[
           (l10n.exportProFormatFcpxml, l10n.exportProFormatFcpxmlDetail),
           (l10n.exportProFormatPremiere, l10n.exportProFormatPremiereDetail),
-        ].indexed) ...[
-          if (index > 0) const SizedBox(height: AppSpacing.sm),
-          _LockedFormat(title: title, detail: detail),
+        ]) ...[
+          const SizedBox(height: AppSpacing.sm),
+          _LockedFormat(
+            title: title,
+            detail: detail,
+            status: l10n.exportProComing,
+          ),
         ],
       ],
     );
@@ -545,14 +568,22 @@ class _ProFormats extends StatelessWidget {
 }
 
 class _LockedFormat extends StatelessWidget {
-  const _LockedFormat({required this.title, required this.detail});
+  const _LockedFormat({
+    required this.title,
+    required this.detail,
+    required this.status,
+    this.ready = false,
+  });
 
   final String title;
   final String detail;
+  final String status;
+
+  /// Available to this user now: no lock.
+  final bool ready;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final surface = theme.extension<AppSurface>()!;
 
@@ -565,7 +596,10 @@ class _LockedFormat extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           children: [
-            Icon(Icons.lock_outline, color: theme.colorScheme.onSurfaceVariant),
+            Icon(
+              ready ? Icons.subtitles_outlined : Icons.lock_outline,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -583,7 +617,7 @@ class _LockedFormat extends StatelessWidget {
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
-              l10n.exportProComing,
+              status,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

@@ -1498,22 +1498,10 @@ abstract class AppLocalizations {
   /// **'Video settings'**
   String get videoSettingsOpen;
 
-  /// Shows the watermark in the preview
-  ///
-  /// In en, this message translates to:
-  /// **'Visible'**
-  String get videoSettingsVisible;
-
-  /// Hides the watermark in the preview
-  ///
-  /// In en, this message translates to:
-  /// **'Hidden'**
-  String get videoSettingsHidden;
-
   /// Label beside the Visible/Hidden choice for showing the watermark in the editor's preview
   ///
   /// In en, this message translates to:
-  /// **'Preview'**
+  /// **'Watermark preview'**
   String get videoSettingsWatermarkPreview;
 
   /// Watermark corner
@@ -1545,12 +1533,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close video settings'**
   String get videoSettingsClose;
-
-  /// Settings panel item for the watermark's visibility and position
-  ///
-  /// In en, this message translates to:
-  /// **'Watermark'**
-  String get videoSettingsWatermarkItem;
 
   /// Settings sheet row opening the transcription model manager
   ///
@@ -1995,6 +1977,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Thank you for backing Argand'**
   String get supporterDetail;
+
+  /// Video settings item holding what the stage previews: the watermark and the safe zone
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get videoSettingsPreviewItem;
+
+  /// Toggle: grey out the areas social apps cover with their buttons
+  ///
+  /// In en, this message translates to:
+  /// **'Safe-zone preview'**
+  String get videoSettingsSafeZonePreview;
 }
 
 class _AppLocalizationsDelegate

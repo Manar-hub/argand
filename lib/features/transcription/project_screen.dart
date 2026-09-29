@@ -10,6 +10,7 @@ import '../../core/captions/caption_grouper.dart';
 import '../../core/captions/speaker_palette.dart';
 import '../../core/database/database.dart';
 import '../../core/theme/app_controls.dart';
+import '../../core/theme/argand_logo.dart';
 import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/timeline/translation_texts.dart';
@@ -34,6 +35,7 @@ import 'timeline_screen.dart';
 import 'transcript_edit_controller.dart';
 import 'transcript_repository.dart';
 import 'video_export_controller.dart';
+import 'video_canvas.dart';
 
 /// One project: its media, and either the transcript as tappable words
 /// (Script mode) or the clip/track view (Timeline mode).
@@ -310,11 +312,23 @@ Future<void> _renderVideo(
   // **Started without awaiting.** The progress window has to be on screen
   // while the render runs; awaiting the render first would put it up only once
   // there was nothing left to show.
+  // The watermark as the preview draws it: the lockup, its hand in the
+  // action colour. Only needed when a watermark is burned in.
+  final watermarkPng = options.watermark
+      ? await ArgandLogo.watermarkPng(
+          body: Colors.white,
+          hand: Theme.of(context).colorScheme.primary,
+          plate: watermarkPlateColor,
+          padFraction: watermarkPadFraction,
+        )
+      : null;
+  if (!context.mounted) return;
   final render = ref
       .read(videoExportControllerProvider(projectId).notifier)
       .export(
         options: options,
         defaultSpeakerLabel: (speaker) => l10n.speakerLabel(speaker + 1),
+        watermarkPng: watermarkPng,
       );
 
   final cancelled = await showExportProgress(context, projectId);
@@ -454,11 +468,12 @@ class _SpeakerPalette extends ConsumerWidget {
     final next = _nextFreeSpeaker(available);
     final options = [...available, ?next];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final speaker in options) ...[
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+          for (final speaker in options)
             _SpeakerChip(
               selected: speaker == selected,
               label: names.labelFor(
@@ -472,30 +487,27 @@ class _SpeakerPalette extends ConsumerWidget {
               ),
               onTap: () =>
                   ref.read(selectedSpeakerProvider.notifier).select(speaker),
-              onLongPress: available.contains(speaker)
-                  ? () => editSpeaker(
-                        context,
-                        ref,
-                        transcriptId: transcriptId,
-                        speaker: speaker,
-                      )
-                  : null,
-            ),
-            const SizedBox(width: 8),
-          ],
-          if (available.isNotEmpty)
-            IconButton(
-              tooltip: l10n.editSpeakerTitle,
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: () => editSpeaker(
+              // Every chip, the spare speaker too: it can be named and
+              // coloured before any words are given to it.
+              onLongPress: () => editSpeaker(
                 context,
                 ref,
                 transcriptId: transcriptId,
-                speaker: available.contains(selected) ? selected : available.first,
+                speaker: speaker,
               ),
             ),
-        ],
-      ),
+          // Edits the speaker that is selected -- whichever chip that is.
+          IconButton(
+            tooltip: l10n.editSpeakerTitle,
+            icon: const Icon(Icons.edit_outlined, size: 22),
+            onPressed: () => editSpeaker(
+              context,
+              ref,
+              transcriptId: transcriptId,
+              speaker: selected,
+            ),
+          ),
+      ],
     );
   }
 
@@ -586,41 +598,59 @@ class _SpeakerChip extends StatelessWidget {
     final surface = context.surface;
     final radius = BorderRadius.circular(surface.radius);
 
-    return PressableSurface(
+    // A flat box: the speaker's colour fills it when it is the one chosen.
+    return Semantics(
       selected: selected,
-      fill: selected ? color : theme.colorScheme.surfaceContainerHighest,
-      border: true,
-      borderRadius: radius,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
+      button: true,
+      child: AnimatedContainer(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        constraints: const BoxConstraints(minHeight: 44),
+        decoration: BoxDecoration(
+          // Dark draws no outlines, so there the box is a tone instead.
+          color: selected
+              ? color
+              : surface.outlined
+                  ? Colors.transparent
+                  : theme.colorScheme.surfaceContainerHighest,
           borderRadius: radius,
-          // `PressableSurface` already shows the press; Material's own
-          // splash/highlight would be a second, conflicting kind of feedback
-          // on top of it.
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(radius: 8, backgroundColor: color),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: selected
-                        ? AppTheme.inkOn(color)
-                        : theme.colorScheme.onSurface,
+          border: surface.outlined
+              ? Border.all(color: surface.outline, width: surface.borderWidth)
+              : null,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onTap,
+            onLongPress: onLongPress,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!selected) ...[
+                    SizedBox.square(
+                      dimension: 12,
+                      child: ColoredBox(color: color),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
+                  Text(
+                    label,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: selected
+                          ? AppTheme.inkOn(color)
+                          : theme.colorScheme.onSurface,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -264,7 +264,7 @@ void main() {
 
       await tap(tester, gear());
 
-      for (final label in ['Script', 'Aspect ratio', 'Resolution', 'Watermark']) {
+      for (final label in ['Script', 'Aspect ratio', 'Resolution', 'Preview']) {
         expect(find.text(label), findsOneWidget, reason: label);
       }
 
@@ -337,7 +337,7 @@ void main() {
       expect(find.bySemanticsLabel('Lower left'), findsNothing);
 
       await tap(tester, gear());
-      await tap(tester, find.text('Watermark'));
+      await tap(tester, find.text('Preview'));
       expect(find.bySemanticsLabel('Lower left'), findsOneWidget);
 
       await tap(tester, gear());
@@ -367,9 +367,10 @@ void main() {
       final (container, projectId) = await mount(tester);
 
       await tap(tester, gear());
-      await tap(tester, find.text('Watermark'));
+      await tap(tester, find.text('Preview'));
       await tap(tester, find.bySemanticsLabel('Lower left'));
-      await tap(tester, find.text('Hidden'));
+      // The watermark row's toggle turns its preview off.
+      await tap(tester, find.text('Watermark preview'));
 
       final settings =
           container.read(projectVideoSettingsProvider(projectId)).value!;
@@ -418,11 +419,11 @@ void main() {
       await mount(tester);
 
       await tap(tester, gear());
-      await tap(tester, find.text('Watermark'));
+      await tap(tester, find.text('Preview'));
       await tap(tester, gear());
       await tap(tester, gear());
 
-      expect(find.text('Hidden'), findsOneWidget);
+      expect(find.text('Safe-zone preview'), findsOneWidget);
 
       await unmount(tester);
     });
@@ -443,7 +444,7 @@ void main() {
       await mount(tester, textScale: 2);
 
       await tap(tester, gear());
-      for (final item in ['Aspect ratio', 'Resolution', 'Watermark']) {
+      for (final item in ['Aspect ratio', 'Resolution', 'Preview']) {
         await tap(tester, find.text(item));
         expect(tester.takeException(), isNull, reason: item);
       }

@@ -309,6 +309,7 @@ class VideoExporter {
     void Function(int percent)? onProgress,
     bool hideVideo = false,
     bool muteAudio = false,
+    Uint8List? watermarkPng,
   }) async {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'progress' && onProgress != null) {
@@ -400,6 +401,9 @@ class VideoExporter {
         // overlays still drawn on it), and silence.
         'hideVideo': hideVideo,
         'muteAudio': muteAudio,
+        // The logo to burn in as the watermark; the render falls back to the
+        // word when it is missing.
+        'watermarkPng': ?watermarkPng,
         // Spread rather than nested, so the native side reads one flat map and
         // an option added later needs no new unwrapping on the way down.
         ...options.encode(),

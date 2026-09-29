@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart' show debugPrint, debugPrintStack;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -61,6 +63,7 @@ class VideoExportController extends _$VideoExportController {
   Future<VideoExportStatus> export({
     ExportOptions options = ExportOptions.defaults,
     String Function(int speaker)? defaultSpeakerLabel,
+    Uint8List? watermarkPng,
   }) async {
     if (state is VideoExportRunning) return state;
     _cancelled = false;
@@ -73,7 +76,7 @@ class VideoExportController extends _$VideoExportController {
     // part-way through is ordinary rather than exotic.
     final link = ref.keepAlive();
     try {
-      return await _run(options, defaultSpeakerLabel);
+      return await _run(options, defaultSpeakerLabel, watermarkPng);
     } finally {
       link.close();
     }
@@ -82,6 +85,7 @@ class VideoExportController extends _$VideoExportController {
   Future<VideoExportStatus> _run(
     ExportOptions options,
     String Function(int speaker)? defaultSpeakerLabel,
+    Uint8List? watermarkPng,
   ) async {
     final repository = ref.read(transcriptRepositoryProvider);
 
@@ -96,6 +100,12 @@ class VideoExportController extends _$VideoExportController {
         hiddenPlaybackOf(hidden, await repository.ensureTracks(projectId));
     bool shows(String? trackId) => trackId == null || !hidden.contains(trackId);
 
+    // Names lead each caption and translation line only when asked for.
+    final names = (await ref.read(projectVideoSettingsProvider(projectId).future))
+            .showSpeakerNames
+        ? defaultSpeakerLabel
+        : null;
+
     final request = exportRequestFor(
       timeline: timeline,
       clips: clips,
@@ -104,11 +114,7 @@ class VideoExportController extends _$VideoExportController {
         repository,
         clips,
         shows,
-        // Names over the captions only when the project asks for them.
-        (await ref.read(projectVideoSettingsProvider(projectId).future))
-                .showSpeakerNames
-            ? defaultSpeakerLabel
-            : null,
+        names,
       ),
       texts: [
         for (final text in await repository.textLayersForProject(projectId))
@@ -118,6 +124,7 @@ class VideoExportController extends _$VideoExportController {
           projectId: projectId,
           timeline: timeline,
           clips: clips,
+          speakerLabel: names,
         ))
           if (shows(line.trackId)) line,
       ],
@@ -145,6 +152,7 @@ class VideoExportController extends _$VideoExportController {
         options: options,
         hideVideo: playback.video,
         muteAudio: playback.audio,
+        watermarkPng: watermarkPng,
         onProgress: (percent) {
           // Dropped if the controller has already finished or been torn down:
           // progress can arrive one poll after completion, and `state` itself

@@ -756,13 +756,7 @@
   "videoSettingsOpen": "Video settings",
   "@videoSettingsOpen": { "description": "Tooltip on the gear that opens the video settings panel" },
 
-  "videoSettingsVisible": "Visible",
-  "@videoSettingsVisible": { "description": "Shows the watermark in the preview" },
-
-  "videoSettingsHidden": "Hidden",
-  "@videoSettingsHidden": { "description": "Hides the watermark in the preview" },
-
-  "videoSettingsWatermarkPreview": "Preview",
+  "videoSettingsWatermarkPreview": "Watermark preview",
   "@videoSettingsWatermarkPreview": { "description": "Label beside the Visible/Hidden choice for showing the watermark in the editor's preview" },
 
   "watermarkTopLeft": "Upper left",
@@ -779,9 +773,6 @@
 
   "videoSettingsClose": "Close video settings",
   "@videoSettingsClose": { "description": "Tooltip on the gear while the settings panel is open" },
-
-  "videoSettingsWatermarkItem": "Watermark",
-  "@videoSettingsWatermarkItem": { "description": "Settings panel item for the watermark's visibility and position" },
 
   "settingsModels": "Transcription models",
   "@settingsModels": { "description": "Settings sheet row opening the transcription model manager" },
@@ -1003,5 +994,11 @@
   "@supporterTitle": { "description": "Settings badge shown instead of Get Pro once Pro is bought" },
 
   "supporterDetail": "Thank you for backing Argand",
-  "@supporterDetail": { "description": "Line under the supporter badge title" }
+  "@supporterDetail": { "description": "Line under the supporter badge title" },
+
+  "videoSettingsPreviewItem": "Preview",
+  "@videoSettingsPreviewItem": { "description": "Video settings item holding what the stage previews: the watermark and the safe zone" },
+
+  "videoSettingsSafeZonePreview": "Safe-zone preview",
+  "@videoSettingsSafeZonePreview": { "description": "Toggle: grey out the areas social apps cover with their buttons" }
 }

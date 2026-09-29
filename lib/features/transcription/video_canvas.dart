@@ -8,6 +8,7 @@ import '../../core/media/media_converter.dart';
 import '../../core/media/thumbnail_service.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_surface.dart';
+import '../../core/theme/argand_logo.dart';
 import '../../core/video/export_options.dart';
 import '../../l10n/app_localizations.dart';
 import 'transcript_repository.dart';
@@ -20,6 +21,7 @@ class VideoCanvas extends StatelessWidget {
     required this.picture,
     this.overlay,
     this.foreground,
+    this.safeZone = false,
     this.watermark,
     this.pickCorner,
     this.pickedCorner,
@@ -33,6 +35,9 @@ class VideoCanvas extends StatelessWidget {
   /// Drawn along the bottom of the frame -- the captions, where they will be
   /// burned in.
   final Widget? overlay;
+
+  /// Grey out where social apps put their buttons and text (preview only).
+  final bool safeZone;
 
   /// Fills the frame over the picture and under the watermark: the stage's
   /// texts, captions and editing handles. Under the mark because that is the
@@ -83,6 +88,10 @@ class VideoCanvas extends StatelessWidget {
                   if (overlay case final overlay?)
                     Positioned(left: 0, right: 0, bottom: 0, child: overlay),
                   ?foreground,
+                  if (safeZone)
+                    const IgnorePointer(
+                      child: CustomPaint(painter: _SafeZonePainter()),
+                    ),
                   if (pickCorner != null)
                     for (final target in WatermarkCorner.values)
                       if (target != picked)
@@ -228,19 +237,19 @@ class WatermarkMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The top bar's lockup on a translucent plate, sized as the render sizes
+    // the PNG it is given (`ArgandLogo.watermarkPng`).
+    final plate = math.max(shortEdge * watermarkPlateFraction, 8.0);
+    final logo = plate / (1 + 2 * watermarkPadFraction);
     return ColoredBox(
-      // Matches WATERMARK_BACKGROUND and WATERMARK_COLOR in
-      // VideoExportChannel.kt.
-      color: const Color(0x66000000),
-      child: Text(
-        // Padded with spaces the way the render pads it, so the plate is the
-        // same width around the word.
-        ' $watermarkText ',
-        textScaler: TextScaler.noScaling,
-        style: TextStyle(
-          color: const Color(0xF2FFFFFF),
-          fontSize: math.max(shortEdge * watermarkTextFraction, 6),
-          height: 1.2,
+      color: watermarkPlateColor,
+      child: Padding(
+        padding: EdgeInsets.all(logo * watermarkPadFraction),
+        child: ArgandLogo(
+          semanticLabel: watermarkText,
+          height: logo,
+          ink: Colors.white,
+          hand: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -423,4 +432,45 @@ class _ProjectFramePreviewState extends ConsumerState<ProjectFramePreview> {
 
     return l10n.exportFrameSize(frame.width, frame.height);
   }
+}
+
+/// The watermark's plate, in the preview and the rendered PNG.
+const Color watermarkPlateColor = Color(0x66000000);
+
+/// The parts of a vertical video that TikTok, Reels and Shorts cover with
+/// their buttons, captions and bars, measured on a 1080x1920 template: 254 px
+/// at the top, 381 at the bottom, 120 on the left, and on the right 129 px
+/// down to y = 720, then 201 px where the like and share column sits. Kept as
+/// shares of the frame, so any stage size gets the same zones.
+List<Rect> unsafeRects(Size frame) {
+  final w = frame.width;
+  final h = frame.height;
+  final top = h * 254 / 1920;
+  final bottom = h - h * 381 / 1920;
+  final left = w * 120 / 1080;
+  final rightUpper = w - w * 129 / 1080;
+  final rightLower = w - w * 201 / 1080;
+  final turn = h * 720 / 1920;
+  return [
+    Rect.fromLTRB(0, 0, w, top),
+    Rect.fromLTRB(0, bottom, w, h),
+    Rect.fromLTRB(0, top, left, bottom),
+    Rect.fromLTRB(rightUpper, top, w, turn),
+    Rect.fromLTRB(rightLower, turn, w, bottom),
+  ];
+}
+
+class _SafeZonePainter extends CustomPainter {
+  const _SafeZonePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0x59808080);
+    for (final rect in unsafeRects(size)) {
+      canvas.drawRect(rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SafeZonePainter oldDelegate) => false;
 }

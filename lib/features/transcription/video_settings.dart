@@ -19,6 +19,7 @@ class VideoSettings {
     this.corner = WatermarkCorner.topRight,
     this.previewWatermark = true,
     this.showSpeakerNames = false,
+    this.previewSafeZone = false,
   });
 
   static const VideoSettings defaults = VideoSettings();
@@ -34,12 +35,16 @@ class VideoSettings {
   /// the export.
   final bool showSpeakerNames;
 
+  /// Whether the stage greys the areas social apps cover with their buttons.
+  final bool previewSafeZone;
+
   VideoSettings copyWith({
     ExportAspect? aspect,
     ExportQuality? quality,
     WatermarkCorner? corner,
     bool? previewWatermark,
     bool? showSpeakerNames,
+    bool? previewSafeZone,
   }) {
     return VideoSettings(
       aspect: aspect ?? this.aspect,
@@ -47,6 +52,7 @@ class VideoSettings {
       corner: corner ?? this.corner,
       previewWatermark: previewWatermark ?? this.previewWatermark,
       showSpeakerNames: showSpeakerNames ?? this.showSpeakerNames,
+      previewSafeZone: previewSafeZone ?? this.previewSafeZone,
     );
   }
 
@@ -67,6 +73,7 @@ class VideoSettings {
         'corner': corner.name,
         'previewWatermark': previewWatermark,
         'showSpeakerNames': showSpeakerNames,
+        'previewSafeZone': previewSafeZone,
       });
 
   /// Falls back to the defaults for anything missing or unrecognised: a
@@ -94,6 +101,7 @@ class VideoSettings {
           ? map['previewWatermark'] as bool
           : defaults.previewWatermark,
       showSpeakerNames: map['showSpeakerNames'] == true,
+      previewSafeZone: map['previewSafeZone'] == true,
     );
   }
 
@@ -104,11 +112,19 @@ class VideoSettings {
       other.quality == quality &&
       other.corner == corner &&
       other.previewWatermark == previewWatermark &&
-      other.showSpeakerNames == showSpeakerNames;
+      other.showSpeakerNames == showSpeakerNames &&
+      other.previewSafeZone == previewSafeZone;
 
   @override
   int get hashCode =>
-      Object.hash(aspect, quality, corner, previewWatermark, showSpeakerNames);
+      Object.hash(
+        aspect,
+        quality,
+        corner,
+        previewWatermark,
+        showSpeakerNames,
+        previewSafeZone,
+      );
 }
 
 /// The `Settings` key a project's video settings live under.

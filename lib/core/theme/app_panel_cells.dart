@@ -519,10 +519,11 @@ class AppPanelItem extends StatelessWidget {
       child: AppSelectedBleed(
         selected: selected,
         color: theme.colorScheme.secondary,
-        child: PressableSurface(
-          selected: selected,
-          fill: selected ? theme.colorScheme.secondary : Colors.transparent,
-          borderRadius: BorderRadius.zero,
+        // A flat fill in the action colour, eased in: a choice, not a press.
+        child: AnimatedContainer(
+          duration: _fillMotion(context),
+          curve: Curves.easeOut,
+          color: selected ? theme.colorScheme.secondary : Colors.transparent,
           child: Material(
             type: MaterialType.transparency,
             child: InkWell(
@@ -604,12 +605,12 @@ class AppChoice extends StatelessWidget {
         child: AppSelectedBleed(
           selected: selected,
           color: selectedFill ?? theme.colorScheme.secondary,
-          child: PressableSurface(
-            selected: selected,
-            fill: selected
+          child: AnimatedContainer(
+            duration: _fillMotion(context),
+            curve: Curves.easeOut,
+            color: selected
                 ? selectedFill ?? theme.colorScheme.secondary
                 : Colors.transparent,
-            borderRadius: BorderRadius.zero,
             child: Material(
               type: MaterialType.transparency,
               child: InkWell(
@@ -682,3 +683,9 @@ class _BleedPainter extends CustomPainter {
   bool shouldRepaint(covariant _BleedPainter old) =>
       old.color != color || old.bleed != bleed;
 }
+
+/// How fast a chosen cell fills: quick, and instant without animations.
+Duration _fillMotion(BuildContext context) =>
+    MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 160);

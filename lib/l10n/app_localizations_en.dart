@@ -792,13 +792,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get videoSettingsOpen => 'Video settings';
 
   @override
-  String get videoSettingsVisible => 'Visible';
-
-  @override
-  String get videoSettingsHidden => 'Hidden';
-
-  @override
-  String get videoSettingsWatermarkPreview => 'Preview';
+  String get videoSettingsWatermarkPreview => 'Watermark preview';
 
   @override
   String get watermarkTopLeft => 'Upper left';
@@ -814,9 +808,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get videoSettingsClose => 'Close video settings';
-
-  @override
-  String get videoSettingsWatermarkItem => 'Watermark';
 
   @override
   String get settingsModels => 'Transcription models';
@@ -1065,4 +1056,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get supporterDetail => 'Thank you for backing Argand';
+
+  @override
+  String get videoSettingsPreviewItem => 'Preview';
+
+  @override
+  String get videoSettingsSafeZonePreview => 'Safe-zone preview';
 }

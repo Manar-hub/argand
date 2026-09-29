@@ -1122,23 +1122,52 @@ class TranscriptRepository {
   /// Every translation line in the project as a text over the picture, for
   /// the export -- the same rows [projectTranslationTexts] gives the stage,
   /// read straight from the database for the reason `_run` explains.
+  ///
+  /// With [speakerLabel], each line leads with its speaker's name --
+  /// "John: …" -- their own name when they have one.
   Future<List<TextLayer>> translationTextsForProject({
     required String projectId,
     required ProjectTimeline timeline,
     required List<MediaClip> clips,
+    String Function(int speaker)? speakerLabel,
   }) async {
     final layers = await _db.layersForProject(projectId);
-    return [
-      for (final clip in clips)
-        for (final transcript in await _db.transcriptsForClip(clip.id))
-          ...translationTextsFor(
-            timeline: timeline,
-            projectId: projectId,
-            clipId: clip.id,
-            lines: await _db.translationLinesFor(transcript.id),
-            layer: layers.where((l) => l.id == transcript.layerId).firstOrNull,
-          ),
-    ];
+    final texts = <TextLayer>[];
+    for (final clip in clips) {
+      for (final transcript in await _db.transcriptsForClip(clip.id)) {
+        final lines = await _db.translationLinesFor(transcript.id);
+        final pieces = translationTextsFor(
+          timeline: timeline,
+          projectId: projectId,
+          clipId: clip.id,
+          lines: lines,
+          layer: layers.where((l) => l.id == transcript.layerId).firstOrNull,
+        );
+        if (speakerLabel == null) {
+          texts.addAll(pieces);
+          continue;
+        }
+        final words = await watchWords(transcript.id).first;
+        final names = SpeakerNames.decode(transcript.speakerNames);
+        final labels = <String, String>{
+          for (final line in lines)
+            if (speakerOfTranslation(line, words) case final speaker?)
+              line.id: names.labelFor(
+                speaker,
+                defaultLabel: speakerLabel(speaker),
+              ),
+        };
+        for (final piece in pieces) {
+          final label = labels[translationLineIdOf(piece.id)];
+          texts.add(
+            label == null
+                ? piece
+                : piece.copyWith(content: '$label: ${piece.content}'),
+          );
+        }
+      }
+    }
+    return texts;
   }
 
   Stream<List<MediaClip>> watchClips(String projectId) =>

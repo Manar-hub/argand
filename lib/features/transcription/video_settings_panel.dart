@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/monetization/monetization.dart';
+import '../../core/theme/app_controls.dart';
 import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_spacing.dart';
@@ -281,8 +282,8 @@ class _PanelBody extends ConsumerWidget {
                 ),
                 (
                   VideoSettingsItem.watermark,
-                  Icons.branding_watermark_outlined,
-                  l10n.videoSettingsWatermarkItem,
+                  Icons.visibility_outlined,
+                  l10n.videoSettingsPreviewItem,
                 ),
               ])
                 AppPanelItem(
@@ -487,34 +488,44 @@ class _WatermarkOptions extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    // The same hanging strip as the other two items: what the row is
-    // about, then its two choices.
-    return AppStrip(
-      bare: true,
-      flex: const [2, 1, 1],
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              l10n.videoSettingsWatermarkPreview,
-              style: theme.textTheme.labelLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+    // What the stage shows on top of the picture, each on or off. Neither is
+    // ever part of the export by itself.
+    Widget row(String label, bool value, VideoSettings Function(bool) next) =>
+        MergeSemantics(
+          child: InkWell(
+            onTap: () => onChanged(next(!value)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: Text(label, style: theme.textTheme.labelLarge)),
+                  AppToggle(
+                    value: value,
+                    onChanged: (v) => onChanged(next(v)),
+                  ),
+                ],
+              ),
             ),
           ),
+        );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row(
+          l10n.videoSettingsWatermarkPreview,
+          settings.previewWatermark,
+          (v) => settings.copyWith(previewWatermark: v),
         ),
-        for (final (visible, label) in [
-          (true, l10n.videoSettingsVisible),
-          (false, l10n.videoSettingsHidden),
-        ])
-          AppChoice(
-            selected: settings.previewWatermark == visible,
-            onTap: () =>
-                onChanged(settings.copyWith(previewWatermark: visible)),
-            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
+        row(
+          l10n.videoSettingsSafeZonePreview,
+          settings.previewSafeZone,
+          (v) => settings.copyWith(previewSafeZone: v),
+        ),
       ],
     );
   }
@@ -627,6 +638,7 @@ class ProjectStageCanvas extends ConsumerWidget {
       watermark: settings.previewWatermark && (!pro || picking)
           ? settings.corner
           : null,
+      safeZone: settings.previewSafeZone,
       pickCorner: picking
           ? (corner) => ref
               .read(projectVideoSettingsProvider(projectId).notifier)

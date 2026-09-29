@@ -118,3 +118,12 @@ List<TextLayer> translationTextsFor({
   }
   return texts;
 }
+
+/// Who says [line]: the speaker of its first word in [words], or null when
+/// the words carry no speaker.
+int? speakerOfTranslation(TranslationLine line, List<Word> words) {
+  for (final word in words) {
+    if (word.position == line.firstWord) return int.tryParse(word.speakerId ?? '');
+  }
+  return null;
+}

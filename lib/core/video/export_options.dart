@@ -102,8 +102,14 @@ enum WatermarkCorner {
   double get anchorY => vertical * (1 - 2 * insetY);
 }
 
-/// The watermark's text height, as a share of the output's short edge.
-const double watermarkTextFraction = 0.030;
+/// The logo watermark's plate height (logo plus padding), as a share of the
+/// output's short edge. Mirrors WATERMARK_PLATE_FRACTION in
+/// VideoExportChannel.kt.
+const double watermarkPlateFraction = 0.06;
+
+/// The padding round the logo on its plate, as a share of the logo's height.
+const double watermarkPadFraction = 0.25;
+
 
 /// A caption's text height at scale 1, as a share of the output's short edge.
 const double captionTextFraction = 0.045;

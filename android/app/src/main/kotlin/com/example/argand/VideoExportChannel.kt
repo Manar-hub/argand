@@ -11,8 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.text.SpannableString
-import android.text.style.AlignmentSpan
-import android.text.Layout
 import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.BackgroundColorSpan
@@ -116,8 +114,6 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
          */
         const val CAPTION_TEXT_FRACTION = 0.045f
 
-        /** A speaker name's size, relative to its caption. Mirrors the stage. */
-        const val LABEL_SCALE = 0.7f
 
         /** A look's shadow strength when it names none. */
         const val DEFAULT_SHADOW = 0.4f
@@ -178,6 +174,9 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
          * are -- it has to read the same on a 720p export and a 4K one.
          */
         const val WATERMARK_TEXT_FRACTION = 0.030f
+
+        /** The logo watermark's plate height, as a share of the short edge. */
+        const val WATERMARK_PLATE_FRACTION = 0.06f
 
         const val WATERMARK_COLOR = 0xF2FFFFFF.toInt()
         const val WATERMARK_BACKGROUND = 0x66000000.toInt()
@@ -249,10 +248,10 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 null
             }
             if (shadow != null) ShadowRoomSpan.open(builder, shadowReach(shadow))
-            // The speaker's name on a line of its own, above the words.
-            val labelStart = builder.length
+            // "John: the words" -- the name leads the line, in its style.
             caption.label?.let { label ->
-                builder.append(label)
+                val labelStart = builder.length
+                builder.append(label).append(": ")
                 if (shadow != null) {
                     builder.setSpan(
                         ShadowSpan(shadow),
@@ -261,9 +260,7 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
                     )
                 }
-                builder.append('\n')
             }
-            val labelEnd = builder.length
             val textStart = builder.length
             for ((index, run) in runsAt(caption, presentationTimeUs / 1000).withIndex()) {
                 if (index > 0) builder.append(' ')
@@ -332,29 +329,6 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             )
             caption.typeface?.let {
                 builder.setSpan(FontSpan(it), 0, whole, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-            // Set after the caption's size, so it wins: smaller and bold --
-            // and every line centred, so the name sits over the words as the
-            // stage draws it rather than at the left edge of the text.
-            if (labelEnd > labelStart) {
-                builder.setSpan(
-                    AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER),
-                    0,
-                    whole,
-                    Spanned.SPAN_INCLUSIVE_INCLUSIVE,
-                )
-                builder.setSpan(
-                    AbsoluteSizeSpan((textSizePx * LABEL_SCALE).roundToInt()),
-                    labelStart,
-                    labelEnd,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-                )
-                builder.setSpan(
-                    StyleSpan(Typeface.BOLD),
-                    labelStart,
-                    labelEnd,
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-                )
             }
             return SpannableString(builder)
         }
@@ -652,6 +626,29 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             settings
     }
 
+    /**
+     * The logo watermark: the PNG Dart drew (`ArgandLogo.watermarkPng`),
+     * anchored exactly as the word version is.
+     */
+    private class WatermarkLogoOverlay(
+        private val bitmap: Bitmap,
+        anchorX: Float,
+        anchorY: Float,
+    ) : BitmapOverlay() {
+        private val settings = StaticOverlaySettings.Builder()
+            .setBackgroundFrameAnchor(anchorX, anchorY)
+            .setOverlayFrameAnchor(
+                if (anchorX < 0f) -1f else 1f,
+                if (anchorY < 0f) -1f else 1f,
+            )
+            .build()
+
+        override fun getBitmap(presentationTimeUs: Long): Bitmap = bitmap
+
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings =
+            settings
+    }
+
     /** One caption, in the clip's own timebase. */
     private data class Caption(
         val startMs: Long,
@@ -912,6 +909,7 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                         ?.toFloat() ?: WATERMARK_ANCHOR_Y,
                     hideVideo = call.argument<Boolean>("hideVideo") ?: false,
                     muteAudio = call.argument<Boolean>("muteAudio") ?: false,
+                    watermarkPng = call.argument<ByteArray>("watermarkPng"),
                     result = result,
                 )
             }
@@ -955,6 +953,7 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         watermarkAnchorY: Float,
         hideVideo: Boolean,
         muteAudio: Boolean,
+        watermarkPng: ByteArray?,
         result: MethodChannel.Result,
     ) {
         val clipPaths = clips.mapNotNull { it["path"] as? String }
@@ -1006,6 +1005,17 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
             (min(size.first, size.second) * CAPTION_TEXT_FRACTION).roundToInt()
         val watermarkSizePx =
             (min(size.first, size.second) * WATERMARK_TEXT_FRACTION).roundToInt()
+        // The logo scaled to its plate height on this frame.
+        val watermarkLogo = watermarkPng?.let { bytes ->
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { decoded ->
+                val height = maxOf(
+                    8,
+                    (min(size.first, size.second) * WATERMARK_PLATE_FRACTION).roundToInt(),
+                )
+                val width = maxOf(1, (decoded.width * height.toFloat() / decoded.height).roundToInt())
+                Bitmap.createScaledBitmap(decoded, width, height, true)
+            }
+        }
         val textLayerSizePx =
             (min(size.first, size.second) * TEXT_LAYER_FRACTION).roundToInt()
         val imageLongerPx =
@@ -1055,8 +1065,14 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
                 overlays.add(CaptionOverlay(captions, textSizePx))
             }
             if (watermark) {
+                // The logo when Dart drew one, else the word.
+                val logo = watermarkLogo
                 overlays.add(
-                    WatermarkOverlay(watermarkSizePx, watermarkAnchorX, watermarkAnchorY),
+                    if (logo != null) {
+                        WatermarkLogoOverlay(logo, watermarkAnchorX, watermarkAnchorY)
+                    } else {
+                        WatermarkOverlay(watermarkSizePx, watermarkAnchorX, watermarkAnchorY)
+                    },
                 )
             }
             if (overlays.isNotEmpty()) {

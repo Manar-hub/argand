@@ -750,6 +750,34 @@ class _StageEditorState extends ConsumerState<StageEditor> {
       }
     }
 
+    // With names on, a translation line leads with its speaker's name too.
+    final showNames = ref
+            .watch(projectVideoSettingsProvider(projectId))
+            .value
+            ?.showSpeakerNames ??
+        false;
+    final translationLines = showNames
+        ? ref.watch(projectTranslationLinesProvider(projectId))
+        : const <ProjectTranslationLine>[];
+    final l10n = AppLocalizations.of(context);
+    String withSpeaker(TextLayer text) {
+      if (!showNames) return text.content;
+      final line = translationLines
+          .where((l) => l.line.id == translationLineIdOf(text.id))
+          .firstOrNull
+          ?.line;
+      if (line == null) return text.content;
+      final words =
+          ref.watch(transcriptWordsProvider(line.transcriptId)).value ?? const [];
+      final speaker = speakerOfTranslation(line, words);
+      if (speaker == null) return text.content;
+      final name = ref.watch(speakerNamesProvider(line.transcriptId)).labelFor(
+            speaker,
+            defaultLabel: l10n.speakerLabel(speaker + 1),
+          );
+      return '$name: ${text.content}';
+    }
+
     // Only what is selected keeps an outline key; a key left behind would be
     // found by the next resize and scale something no longer selected.
     _outlines.removeWhere((item, _) => !selection.contains(item));
@@ -882,7 +910,7 @@ class _StageEditorState extends ConsumerState<StageEditor> {
                         ItemLook.decode(line.look) ?? ItemLook.defaults,
                         shortEdge,
                       ),
-                      text: line.content,
+                      text: withSpeaker(line),
                       padded: false,
                       direction: translationDirectionOf(line.content),
                     ),
@@ -1218,17 +1246,8 @@ InlineSpan _captionSpan(
   return TextSpan(
     style: base,
     children: [
-      // The speaker's name on its own line, smaller and bold, as the render
-      // draws it (`LABEL_SCALE` in VideoExportChannel.kt).
-      if (label != null)
-        TextSpan(
-          text: '$label\n',
-          style: TextStyle(
-            fontSize: (base.fontSize ?? 14) * 0.7,
-            fontWeight: FontWeight.w700,
-            backgroundColor: Colors.transparent,
-          ),
-        ),
+      // "John: the words", in the caption's own style, as the render draws it.
+      if (label != null) TextSpan(text: '$label: '),
       for (final (index, run) in runs.indexed) ...[
         if (index > 0) const TextSpan(text: ' '),
         TextSpan(

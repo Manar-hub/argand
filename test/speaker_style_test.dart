@@ -3,7 +3,9 @@ import 'package:argand/core/captions/speaker_palette.dart';
 import 'package:argand/core/captions/subtitle_export.dart';
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/transcript/speaker_names.dart';
+import 'package:argand/core/timeline/translation_texts.dart';
 import 'package:argand/core/video/video_export.dart';
+import 'package:argand/features/transcription/video_canvas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -121,6 +123,46 @@ void main() {
         contains('Dialogue: 0,0:00:01.23,0:00:03.45,Speaker1,Ana,0,0,0,,Hi (there)'),
       );
       expect(ass, contains('Dialogue: 0,0:00:04.00,0:00:05.00,Speaker2,Omar,'));
+    });
+  });
+
+  group('translation lines', () {
+    test('are spoken by whoever says their first word', () {
+      final words = [
+        _word('Hi', 0, 300, speaker: '0'),
+        _word('there', 300, 600, speaker: '2', position: 1),
+      ];
+      final line = TranslationLine(
+        id: 'l',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        transcriptId: 't',
+        language: 'de',
+        position: 0,
+        firstWord: 1,
+        lastWord: 1,
+        startMs: 300,
+        endMs: 600,
+        content: 'da',
+      );
+      expect(speakerOfTranslation(line, words), 2);
+    });
+  });
+
+  group('safe zone', () {
+    test('matches the 1080x1920 template', () {
+      final rects = unsafeRects(const Size(1080, 1920));
+      expect(rects[0], const Rect.fromLTRB(0, 0, 1080, 254));
+      expect(rects[1], const Rect.fromLTRB(0, 1539, 1080, 1920));
+      expect(rects[2], const Rect.fromLTRB(0, 254, 120, 1539));
+      expect(rects[3], const Rect.fromLTRB(951, 254, 1080, 720));
+      expect(rects[4], const Rect.fromLTRB(879, 720, 1080, 1539));
+    });
+
+    test('scales with the stage', () {
+      final rects = unsafeRects(const Size(108, 192));
+      expect(rects[0].height, closeTo(25.4, 0.01));
+      expect(rects[2].width, closeTo(12, 0.01));
     });
   });
 }

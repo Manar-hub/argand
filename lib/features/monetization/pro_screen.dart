@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/material.dart';
@@ -172,7 +171,8 @@ class _ProScreenState extends ConsumerState<ProScreen> {
                 l10n.proNoWatermarkTitle,
                 l10n.proNoWatermarkDetail,
               ),
-              (_Glyph.future, l10n.proFutureTitle, l10n.proFutureDetail),
+              (_Glyph.exports, l10n.proExportsTitle, l10n.proExportsDetail),
+              (_Glyph.fonts, l10n.proFontsTitle, l10n.proFontsDetail),
             ])
               _BenefitRow(glyph: glyph, title: title, detail: detail),
           ],
@@ -293,7 +293,8 @@ class _Thanks extends StatelessWidget {
             for (final text in [
               l10n.proThanksAds,
               l10n.proThanksWatermark,
-              l10n.proThanksFuture,
+              l10n.proThanksExports,
+              l10n.proThanksFonts,
               l10n.proThanksRestore,
             ])
               _CheckRow(text: text),
@@ -659,7 +660,7 @@ class _InkButton extends StatelessWidget {
   }
 }
 
-enum _Glyph { heart, noAds, noWatermark, future }
+enum _Glyph { heart, noAds, noWatermark, exports, fonts }
 
 /// The benefit icons, on a 24-unit grid in the app's line: square caps, mitred
 /// corners.
@@ -745,22 +746,48 @@ class _GlyphPainter extends CustomPainter {
           ..drawRect(const Rect.fromLTRB(13, 13, 18, 16), solid);
         strike();
 
-      case _Glyph.future:
-        // A large four-point spark and a small one: what is still to come.
-        Path spark(Offset c, double r, double waist) {
-          final path = Path();
-          for (var i = 0; i < 8; i++) {
-            final a = i * math.pi / 4 - math.pi / 2;
-            final d = i.isEven ? r : waist;
-            final p = c + Offset(math.cos(a), math.sin(a)) * d;
-            i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
-          }
-          return path..close();
-        }
-
+      case _Glyph.exports:
+        // An arrow leaving an open tray: the work, out to another tool.
         canvas
-          ..drawPath(spark(const Offset(10, 13), 8, 2.2), line)
-          ..drawPath(spark(const Offset(19, 5), 3.5, 1), solid);
+          ..drawPath(
+            Path()
+              ..moveTo(4, 13)
+              ..lineTo(4, 20)
+              ..lineTo(20, 20)
+              ..lineTo(20, 13),
+            line,
+          )
+          ..drawLine(const Offset(12, 15), const Offset(12, 4), line)
+          ..drawPath(
+            Path()
+              ..moveTo(7.5, 8.5)
+              ..lineTo(12, 4)
+              ..lineTo(16.5, 8.5),
+            line,
+          );
+
+      case _Glyph.fonts:
+        // "Aa" in the display face, and a colour swatch on its corner.
+        final text = TextPainter(
+          text: TextSpan(
+            text: 'Aa',
+            style: TextStyle(
+              color: ink,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              fontFamily: AppTheme.displayFamily,
+              height: 1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        text.paint(canvas, Offset(9 - text.width / 2, 8 - text.height / 2));
+        canvas
+          ..drawRect(
+            const Rect.fromLTRB(14, 14, 23, 23),
+            Paint()..color = AppTheme.proGold,
+          )
+          ..drawRect(const Rect.fromLTRB(15.5, 15.5, 21.5, 21.5), solid);
     }
   }
 

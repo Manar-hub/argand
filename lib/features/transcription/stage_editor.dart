@@ -1200,7 +1200,7 @@ TextStyle _lookStyle(
       ? captionShadowFor(look.shadow, fontSize)
       : null;
   return TextStyle(
-    fontFamily: look.font.drawFamily,
+    fontFamily: look.drawFamily,
     color: color,
     fontWeight: fontWeight,
     fontSize: fontSize,
@@ -1275,6 +1275,6 @@ TextStyle _textLayerStyle(ItemLook look, double shortEdge) => _lookStyle(
       color: Color(look.colorArgb ?? 0xFFFFFFFF),
       // The bundled faces are already display weights; asking them for bold
       // would have the engine smear a fake one on top.
-      fontWeight: look.font == LookFont.standard ? FontWeight.bold : null,
+      fontWeight: look.isDefaultFont ? FontWeight.bold : null,
       fontSize: math.max(shortEdge * textLayerFraction, 6),
     );

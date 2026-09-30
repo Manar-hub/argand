@@ -1768,18 +1768,6 @@ abstract class AppLocalizations {
   /// **'Clean exports, every time'**
   String get proNoWatermarkDetail;
 
-  /// Pro benefit
-  ///
-  /// In en, this message translates to:
-  /// **'Pro exports and more'**
-  String get proFutureTitle;
-
-  /// Pro benefit detail
-  ///
-  /// In en, this message translates to:
-  /// **'Everything Pro has and gains later is yours'**
-  String get proFutureDetail;
-
   /// After the price on the Pro page
   ///
   /// In en, this message translates to:
@@ -1833,12 +1821,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Watermark removed from exports'**
   String get proThanksWatermark;
-
-  /// Thank-you check list item
-  ///
-  /// In en, this message translates to:
-  /// **'Every Pro feature, future included'**
-  String get proThanksFuture;
 
   /// Thank-you check list item
   ///
@@ -2031,6 +2013,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rename'**
   String get renameProjectAction;
+
+  /// Pro benefit: the professional export formats
+  ///
+  /// In en, this message translates to:
+  /// **'Pro exports'**
+  String get proExportsTitle;
+
+  /// Pro benefit detail: TTML, ASS, Final Cut and Premiere exports
+  ///
+  /// In en, this message translates to:
+  /// **'Take your captions into any editor'**
+  String get proExportsDetail;
+
+  /// Pro benefit: adding your own fonts and choosing the action colour
+  ///
+  /// In en, this message translates to:
+  /// **'Custom fonts and themes'**
+  String get proFontsTitle;
+
+  /// Pro benefit detail for custom fonts and themes
+  ///
+  /// In en, this message translates to:
+  /// **'Your own typefaces, your own colours'**
+  String get proFontsDetail;
+
+  /// Thank-you page line: the professional export formats are available
+  ///
+  /// In en, this message translates to:
+  /// **'Pro exports unlocked'**
+  String get proThanksExports;
+
+  /// Thank-you page line: custom fonts and the action colour are available
+  ///
+  /// In en, this message translates to:
+  /// **'Custom fonts and themes unlocked'**
+  String get proThanksFonts;
+
+  /// Style panel cell that opens the font search window
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get fontSearchCell;
+
+  /// Title of the font search window
+  ///
+  /// In en, this message translates to:
+  /// **'Fonts'**
+  String get fontSearchTitle;
+
+  /// Hint in the font search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search fonts'**
+  String get fontSearchHint;
+
+  /// Gold button in the font search window that adds a font file
+  ///
+  /// In en, this message translates to:
+  /// **'Add custom font'**
+  String get fontSearchAdd;
+
+  /// Gold button while a picked font file is being added
+  ///
+  /// In en, this message translates to:
+  /// **'Adding…'**
+  String get fontSearchAdding;
+
+  /// Shown when a picked file cannot be added as a font
+  ///
+  /// In en, this message translates to:
+  /// **'That file isn\'t a font. Choose a .ttf or .otf file.'**
+  String get fontSearchNotAFont;
+
+  /// Shown in the font list when the search matches nothing
+  ///
+  /// In en, this message translates to:
+  /// **'No fonts match'**
+  String get fontSearchNone;
 }
 
 class _AppLocalizationsDelegate

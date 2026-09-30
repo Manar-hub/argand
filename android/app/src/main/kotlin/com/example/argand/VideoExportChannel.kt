@@ -776,6 +776,10 @@ class VideoExportChannel(private val activity: Activity) : MethodChannel.MethodC
         if (asset.isNullOrBlank()) return null
         typefaces[asset]?.let { return it }
         return try {
+            // An absolute path is a font the user added, kept in app storage.
+            if (asset.startsWith("/")) {
+                return Typeface.createFromFile(asset).also { typefaces[asset] = it }
+            }
             val key = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset(asset)
             Typeface.createFromAsset(activity.assets, key).also { typefaces[asset] = it }
         } catch (error: Exception) {

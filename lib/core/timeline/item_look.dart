@@ -41,6 +41,9 @@ enum LookFont {
   String get drawFamily => family ?? 'Roboto';
 }
 
+/// The Flutter family a font the user added is drawn with.
+String customFontFamily(String id) => 'ArgandCustom-$id';
+
 /// How a caption's words appear as they are spoken.
 enum CaptionMode {
   /// The whole line at once, as captions have always been.
@@ -62,6 +65,7 @@ enum CaptionMode {
 class ItemLook {
   const ItemLook({
     this.font = LookFont.standard,
+    this.customFont,
     this.colorArgb,
     this.backgroundArgb,
     this.shadow = defaultShadow,
@@ -82,6 +86,17 @@ class ItemLook {
   static const int defaultHighlight = 0xFFFFFFFF;
 
   final LookFont font;
+
+  /// A font the user added, by its file id, drawn in place of [font]; null
+  /// for a built-in one.
+  final String? customFont;
+
+  /// The Flutter family the words are drawn in.
+  String get drawFamily =>
+      customFont == null ? font.drawFamily : customFontFamily(customFont!);
+
+  /// The platform's own face, which is drawn bold.
+  bool get isDefaultFont => customFont == null && font == LookFont.standard;
 
   /// The words' colour, or null for the default: a caption's speaker colour,
   /// a text's white.
@@ -108,8 +123,10 @@ class ItemLook {
   bool get usesHighlight =>
       mode == CaptionMode.karaoke || mode == CaptionMode.highlight;
 
+  /// Choosing a built-in [font] clears any custom one.
   ItemLook copyWith({
     LookFont? font,
+    String? customFont,
     int? Function()? colorArgb,
     int? Function()? backgroundArgb,
     double? shadow,
@@ -119,6 +136,7 @@ class ItemLook {
   }) {
     return ItemLook(
       font: font ?? this.font,
+      customFont: customFont ?? (font != null ? null : this.customFont),
       colorArgb: colorArgb != null ? colorArgb() : this.colorArgb,
       backgroundArgb:
           backgroundArgb != null ? backgroundArgb() : this.backgroundArgb,
@@ -132,6 +150,7 @@ class ItemLook {
   /// Stored by name, so reordering an enum cannot restyle saved captions.
   String encode() => jsonEncode({
         'font': font.name,
+        'customFont': customFont,
         'color': colorArgb,
         'background': backgroundArgb,
         'shadow': shadow,
@@ -149,6 +168,8 @@ class ItemLook {
       if (map is! Map) return defaults;
       return ItemLook(
         font: LookFont.values.asNameMap()[map['font']] ?? LookFont.standard,
+        customFont:
+            map['customFont'] is String ? map['customFont'] as String : null,
         colorArgb: map['color'] is int ? map['color'] as int : null,
         backgroundArgb:
             map['background'] is int ? map['background'] as int : null,
@@ -172,6 +193,7 @@ class ItemLook {
   bool operator ==(Object other) =>
       other is ItemLook &&
       other.font == font &&
+      other.customFont == customFont &&
       other.colorArgb == colorArgb &&
       other.backgroundArgb == backgroundArgb &&
       other.shadow == shadow &&
@@ -182,6 +204,7 @@ class ItemLook {
   @override
   int get hashCode => Object.hash(
         font,
+        customFont,
         colorArgb,
         backgroundArgb,
         shadow,

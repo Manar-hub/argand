@@ -888,12 +888,6 @@
   "proNoWatermarkDetail": "Clean exports, every time",
   "@proNoWatermarkDetail": { "description": "Pro benefit detail" },
 
-  "proFutureTitle": "Pro exports and more",
-  "@proFutureTitle": { "description": "Pro benefit" },
-
-  "proFutureDetail": "Everything Pro has and gains later is yours",
-  "@proFutureDetail": { "description": "Pro benefit detail" },
-
   "proOnce": "once",
   "@proOnce": { "description": "After the price on the Pro page" },
 
@@ -920,9 +914,6 @@
 
   "proThanksWatermark": "Watermark removed from exports",
   "@proThanksWatermark": { "description": "Thank-you check list item" },
-
-  "proThanksFuture": "Every Pro feature, future included",
-  "@proThanksFuture": { "description": "Thank-you check list item" },
 
   "proThanksRestore": "Restore anytime on a new device",
   "@proThanksRestore": { "description": "Thank-you check list item" },
@@ -1018,5 +1009,44 @@
   "@renameProjectTitle": { "description": "Heading of the dialog that renames a project" },
 
   "renameProjectAction": "Rename",
-  "@renameProjectAction": { "description": "Project menu entry, and the dialog button, that renames a project" }
+  "@renameProjectAction": { "description": "Project menu entry, and the dialog button, that renames a project" },
+
+  "proExportsTitle": "Pro exports",
+  "@proExportsTitle": { "description": "Pro benefit: the professional export formats" },
+
+  "proExportsDetail": "Take your captions into any editor",
+  "@proExportsDetail": { "description": "Pro benefit detail: TTML, ASS, Final Cut and Premiere exports" },
+
+  "proFontsTitle": "Custom fonts and themes",
+  "@proFontsTitle": { "description": "Pro benefit: adding your own fonts and choosing the action colour" },
+
+  "proFontsDetail": "Your own typefaces, your own colours",
+  "@proFontsDetail": { "description": "Pro benefit detail for custom fonts and themes" },
+
+  "proThanksExports": "Pro exports unlocked",
+  "@proThanksExports": { "description": "Thank-you page line: the professional export formats are available" },
+
+  "proThanksFonts": "Custom fonts and themes unlocked",
+  "@proThanksFonts": { "description": "Thank-you page line: custom fonts and the action colour are available" },
+
+  "fontSearchCell": "Search",
+  "@fontSearchCell": { "description": "Style panel cell that opens the font search window" },
+
+  "fontSearchTitle": "Fonts",
+  "@fontSearchTitle": { "description": "Title of the font search window" },
+
+  "fontSearchHint": "Search fonts",
+  "@fontSearchHint": { "description": "Hint in the font search field" },
+
+  "fontSearchAdd": "Add custom font",
+  "@fontSearchAdd": { "description": "Gold button in the font search window that adds a font file" },
+
+  "fontSearchAdding": "Adding…",
+  "@fontSearchAdding": { "description": "Gold button while a picked font file is being added" },
+
+  "fontSearchNotAFont": "That file isn't a font. Choose a .ttf or .otf file.",
+  "@fontSearchNotAFont": { "description": "Shown when a picked file cannot be added as a font" },
+
+  "fontSearchNone": "No fonts match",
+  "@fontSearchNone": { "description": "Shown in the font list when the search matches nothing" }
 }

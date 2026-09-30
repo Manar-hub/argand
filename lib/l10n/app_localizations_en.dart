@@ -945,12 +945,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get proNoWatermarkDetail => 'Clean exports, every time';
 
   @override
-  String get proFutureTitle => 'Pro exports and more';
-
-  @override
-  String get proFutureDetail => 'Everything Pro has and gains later is yours';
-
-  @override
   String get proOnce => 'once';
 
   @override
@@ -978,9 +972,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get proThanksWatermark => 'Watermark removed from exports';
-
-  @override
-  String get proThanksFuture => 'Every Pro feature, future included';
 
   @override
   String get proThanksRestore => 'Restore anytime on a new device';
@@ -1083,4 +1074,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get renameProjectAction => 'Rename';
+
+  @override
+  String get proExportsTitle => 'Pro exports';
+
+  @override
+  String get proExportsDetail => 'Take your captions into any editor';
+
+  @override
+  String get proFontsTitle => 'Custom fonts and themes';
+
+  @override
+  String get proFontsDetail => 'Your own typefaces, your own colours';
+
+  @override
+  String get proThanksExports => 'Pro exports unlocked';
+
+  @override
+  String get proThanksFonts => 'Custom fonts and themes unlocked';
+
+  @override
+  String get fontSearchCell => 'Search';
+
+  @override
+  String get fontSearchTitle => 'Fonts';
+
+  @override
+  String get fontSearchHint => 'Search fonts';
+
+  @override
+  String get fontSearchAdd => 'Add custom font';
+
+  @override
+  String get fontSearchAdding => 'Adding…';
+
+  @override
+  String get fontSearchNotAFont =>
+      'That file isn\'t a font. Choose a .ttf or .otf file.';
+
+  @override
+  String get fontSearchNone => 'No fonts match';
 }

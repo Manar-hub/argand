@@ -13,9 +13,13 @@ class AppShine extends StatefulWidget {
     this.delay = const Duration(milliseconds: 250),
     this.period = const Duration(milliseconds: 1800),
     this.gap = const Duration(milliseconds: 3200),
+    this.color = Colors.white,
   });
 
   final Widget child;
+
+  /// The light's colour: white over gold, gold over a plain surface.
+  final Color color;
 
   /// Before the first sweep: long enough for a sheet to finish rising.
   final Duration delay;
@@ -72,6 +76,7 @@ class _AppShineState extends State<AppShine>
     return CustomPaint(
       foregroundPainter: _ShinePainter(
         CurvedAnimation(parent: _sweep, curve: Curves.easeInOut),
+        widget.color,
       ),
       child: widget.child,
     );
@@ -79,9 +84,10 @@ class _AppShineState extends State<AppShine>
 }
 
 class _ShinePainter extends CustomPainter {
-  _ShinePainter(this.progress) : super(repaint: progress);
+  _ShinePainter(this.progress, this.color) : super(repaint: progress);
 
   final Animation<double> progress;
+  final Color color;
 
   /// The light's tilt from vertical.
   static const _tilt = 20 * math.pi / 180;
@@ -114,9 +120,9 @@ class _ShinePainter extends CustomPainter {
         Paint()
           ..shader = LinearGradient(
             colors: [
-              Colors.white.withValues(alpha: 0),
-              Colors.white.withValues(alpha: opacity),
-              Colors.white.withValues(alpha: 0),
+              color.withValues(alpha: 0),
+              color.withValues(alpha: opacity),
+              color.withValues(alpha: 0),
             ],
           ).createShader(rect),
       );

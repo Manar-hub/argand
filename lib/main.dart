@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'core/fonts/custom_fonts.dart';
 import 'core/monetization/monetization.dart';
 import 'core/monetization/purchases.dart';
 import 'core/theme/accent_color_controller.dart';
@@ -27,6 +28,8 @@ Future<void> main() async {
       container.read(themeModeSettingProvider.future),
       container.read(accentColorSettingProvider.future),
       container.read(proUnlockedProvider.future),
+      // Fonts the user added, loaded before anything is drawn in them.
+      container.read(customFontsProvider.future),
     ]);
   } on Object {
     // A settings row that cannot be read is not a reason not to start: the

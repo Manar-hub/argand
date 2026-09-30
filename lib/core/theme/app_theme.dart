@@ -49,6 +49,11 @@ abstract final class AppTheme {
   /// wherever it appears.
   static const proGold = Color(0xFFFFC300);
 
+  /// [proGold] as text: the gold itself on dark, a deeper one on paper,
+  /// where the bright gold does not read.
+  static Color proGoldText(Brightness brightness) =>
+      brightness == Brightness.dark ? proGold : const Color(0xFF8A6500);
+
   /// Reserved for genuine destruction — deleting a project. Also outside the
   /// speaker set, so it cannot be mistaken for an attribution.
   static const danger = Color(0xFFE03131);

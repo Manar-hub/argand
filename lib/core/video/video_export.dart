@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 
 import '../captions/project_cues.dart';
 import '../captions/speaker_palette.dart';
+import '../fonts/custom_fonts.dart' show customFontsDirectory;
 import '../transcript/speaker_names.dart';
 import '../database/database.dart';
 import '../timeline/audio_window.dart';
@@ -319,6 +320,19 @@ class VideoExporter {
       return null;
     });
 
+    // A font the user added is sent as its file's path; a bundled one as its
+    // asset.
+    final usesCustomFont = clips.any(
+      (clip) =>
+          clip.captions.any((caption) => caption.look.customFont != null) ||
+          clip.texts.any((text) => text.look.customFont != null),
+    );
+    final fontsDir =
+        usesCustomFont ? (await customFontsDirectory()).path : null;
+    String? fontOf(ItemLook look) => look.customFont != null && fontsDir != null
+        ? '$fontsDir/${look.customFont}'
+        : look.font.asset;
+
     try {
       final result = await _channel.invokeMapMethod<String, dynamic>('export', {
         'clips': [
@@ -338,7 +352,7 @@ class VideoExporter {
                     'x': caption.x,
                     'y': caption.y,
                     'scale': caption.scale,
-                    'font': caption.look.font.asset,
+                    'font': fontOf(caption.look),
                     'mode': caption.look.mode.name,
                     'highlightArgb': caption.look.highlightArgb,
                     'highlightBox': caption.look.highlightBox,
@@ -364,10 +378,10 @@ class VideoExporter {
                     'y': text.placement.y,
                     'scale': text.placement.scale,
                     'rotation': text.placement.rotation,
-                    'font': text.look.font.asset,
+                    'font': fontOf(text.look),
                     'colorArgb': text.look.colorArgb ?? 0xFFFFFFFF,
                     // The bundled faces are display weights already.
-                    'bold': text.look.font == LookFont.standard,
+                    'bold': text.look.isDefaultFont,
                     'backgroundArgb': text.look.backgroundArgb,
                     'shadow': text.look.shadow,
                   },

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/database/database.dart';
+import '../../core/fonts/custom_fonts.dart';
 import '../../core/theme/app_color_picker.dart';
 import '../../core/theme/app_panel_cells.dart';
 import '../../core/theme/app_segment_row.dart';
@@ -13,6 +14,7 @@ import '../../core/timeline/timeline_selection.dart';
 import '../../core/timeline/timeline_sentences.dart';
 import '../../l10n/app_localizations.dart';
 import 'clip_controller.dart';
+import 'font_search_dialog.dart';
 import 'timeline_history.dart';
 import 'transcript_repository.dart';
 
@@ -506,9 +508,8 @@ class _StylePanelState extends ConsumerState<StylePanel> {
                   key: ValueKey(item),
                   child: switch (item) {
                     _StyleItem.font => _FontOptions(
-                        current: current.font,
-                        onChanged: (font) =>
-                            change((look) => look.copyWith(font: font)),
+                        current: current,
+                        onChanged: change,
                       ),
                     _StyleItem.color => Padding(
                         padding: const EdgeInsets.all(AppSpacing.sm),
@@ -614,15 +615,40 @@ class _StylePanelState extends ConsumerState<StylePanel> {
   }
 }
 
-/// Every font, each named in itself.
-class _FontOptions extends StatelessWidget {
+/// Search first, then every font, each named in itself -- the fonts the user
+/// added last.
+class _FontOptions extends ConsumerWidget {
   const _FontOptions({required this.current, required this.onChanged});
 
-  final LookFont current;
-  final ValueChanged<LookFont> onChanged;
+  final ItemLook current;
+  final void Function(ItemLook Function(ItemLook) edit) onChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final custom = ref.watch(customFontsProvider).value ?? const [];
+
+    Widget cell({
+      required String label,
+      required String family,
+      required bool selected,
+      required ItemLook Function(ItemLook) apply,
+    }) =>
+        SizedBox(
+          width: 84,
+          child: AppChoice(
+            selected: selected,
+            onTap: () => onChanged(apply),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontFamily: family, fontSize: 15),
+            ),
+          ),
+        );
+
     // Clipped only at the sides, so the rules' bars can reach the frame's
     // edge line above and below the row.
     return AppSideClippedScroller(
@@ -632,20 +658,37 @@ class _FontOptions extends StatelessWidget {
         bare: true,
         tees: AppTees.bottom,
         children: [
-          for (final font in LookFont.values)
-            SizedBox(
-              width: 84,
-              child: AppChoice(
-                selected: font == current,
-                onTap: () => onChanged(font),
-                child: Text(
-                  font.label,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontFamily: font.drawFamily, fontSize: 15),
-                ),
+          SizedBox(
+            width: 84,
+            child: AppChoice(
+              selected: false,
+              onTap: () async {
+                final edit = await showFontSearch(context, current: current);
+                if (edit != null) onChanged(edit);
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.search, size: 16),
+                  const SizedBox(width: AppSpacing.xxs),
+                  Text(l10n.fontSearchCell, style: const TextStyle(fontSize: 15)),
+                ],
               ),
+            ),
+          ),
+          for (final font in LookFont.values)
+            cell(
+              label: font.label,
+              family: font.drawFamily,
+              selected: current.customFont == null && font == current.font,
+              apply: (look) => look.copyWith(font: font),
+            ),
+          for (final font in custom)
+            cell(
+              label: font.name,
+              family: font.family,
+              selected: current.customFont == font.id,
+              apply: (look) => look.copyWith(customFont: font.id),
             ),
         ],
       ),

@@ -121,9 +121,12 @@ class SubtitleExporter extends _$SubtitleExporter {
       }
 
       final fallback = defaultSpeakerLabel;
+      final project = await repository.findProject(projectId);
       final content = formatSubtitles(
         cues,
         format: format,
+        title: project?.title ?? '',
+        language: language ?? '',
         options: SubtitleOptions(maxLineCharacters: lineLength.maxCharacters),
         // The translated sentence being said when the cue starts, so it is on
         // screen for as long as its stretch of speech is. By time, because a
@@ -160,7 +163,6 @@ class SubtitleExporter extends _$SubtitleExporter {
               },
       );
 
-      final project = await repository.findProject(projectId);
       final fileName = subtitleFileName(
         title: project?.title ?? '',
         language: language ?? '',

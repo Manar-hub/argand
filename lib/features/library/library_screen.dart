@@ -71,6 +71,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// open in, consumed the moment the pipeline reports [ImportSucceeded].
   EditorMode? _pendingImportMode;
 
+  /// The name typed on the Transcribe sheet. Held here rather than by the
+  /// sheet, so it outlives the sheet's closing animation.
+  final _importName = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -90,6 +94,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     _queryDebounce?.cancel();
     _search.dispose();
     _searchFocus.dispose();
+    _importName.dispose();
     _shares?.cancel();
     super.dispose();
   }
@@ -114,11 +119,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _startImport(EditorMode mode) async {
-    if (!await showTranscriptionOptions(context)) return;
+    _importName.clear();
+    if (!await showTranscriptionOptions(context, name: _importName)) return;
     if (!mounted) return;
 
     _pendingImportMode = mode;
-    ref.read(importControllerProvider.notifier).importFromPicker();
+    ref
+        .read(importControllerProvider.notifier)
+        .importFromPicker(title: _importName.text);
   }
 
   /// Names an empty project and opens it on the timeline.
@@ -239,24 +247,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             error: (error, _) =>
                 SliverToBoxAdapter(child: _ImportError(error: error)),
-            data: (items) => items.isEmpty
-                ? const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: _EmptyLibrary(),
-                  )
-                : SliverMainAxisGroup(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: _ProjectsHeading(
-                          controller: _search,
-                          focusNode: _searchFocus,
-                          onChanged: _onSearchChanged,
-                          onClear: _clearSearch,
-                        ),
-                      ),
-                      _results(items, l10n),
-                    ],
+            // The heading and search stay with no projects, so the page keeps
+            // its shape; the empty note sits where the list will be.
+            data: (items) => SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: _ProjectsHeading(
+                    controller: _search,
+                    focusNode: _searchFocus,
+                    onChanged: _onSearchChanged,
+                    onClear: _clearSearch,
                   ),
+                ),
+                if (items.isEmpty && searchTokens(_query).isEmpty)
+                  const SliverToBoxAdapter(child: _EmptyLibrary())
+                else
+                  _results(items, l10n),
+              ],
+            ),
           ),
         ],
       ),
@@ -403,16 +411,16 @@ class _ProjectsHeading extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surface,
-                    border: surface.outlined
-                        ? Border.fromBorderSide(surface.side)
-                        : null,
                     boxShadow: [surface.hardShadow],
                   ),
-                  // Inside the outline, so the grey button never paints over it.
-                  child: Padding(
-                    padding: EdgeInsets.all(
-                      surface.outlined ? surface.borderWidth : 0,
-                    ),
+                  // The line drawn over what is inside, so the search button's
+                  // face can run to the field's edge beneath it -- and, pressed,
+                  // move by just the shadow's offset to land square on it.
+                  child: DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(border: surface.border),
+                    child: Padding(
+                    padding: EdgeInsets.only(left: surface.borderWidth),
                     child: IntrinsicHeight(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -440,9 +448,11 @@ class _ProjectsHeading extends StatelessWidget {
                                 color: theme.colorScheme.onSurface
                                     .withValues(alpha: 0.6),
                               ),
-                              contentPadding: const EdgeInsets.symmetric(
+                              contentPadding: EdgeInsets.symmetric(
                                 horizontal: AppSpacing.md,
-                                vertical: AppSpacing.sm + AppSpacing.xxs,
+                                vertical: AppSpacing.sm +
+                                    AppSpacing.xxs +
+                                    surface.borderWidth,
                               ),
                             ),
                           ),
@@ -463,17 +473,14 @@ class _ProjectsHeading extends StatelessWidget {
                         AppPushIn(
                           face: grey,
                           clip: false,
-                          travel: surface.offset +
-                              Offset(surface.borderWidth, surface.borderWidth),
+                          travel: surface.offset,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: focusNode.requestFocus,
                             child: Container(
-                              width: 40,
+                              width: 40 + surface.borderWidth,
                               decoration: BoxDecoration(
-                                border: surface.outlined
-                                    ? Border(left: surface.side)
-                                    : null,
+                                border: Border(left: surface.side),
                               ),
                               child: Icon(
                                 Icons.search,
@@ -487,6 +494,7 @@ class _ProjectsHeading extends StatelessWidget {
                     ),
                   ),
                   ),
+                  ),
                 ),
               ),
             ],
@@ -497,16 +505,24 @@ class _ProjectsHeading extends StatelessWidget {
   }
 }
 
-/// Asks for a new project's name before it is created.
+/// Asks for a project's name: a new one's before it is created, or a new
+/// name for one that exists ([initial]).
 class _NameProjectDialog extends StatefulWidget {
-  const _NameProjectDialog();
+  const _NameProjectDialog({this.initial});
+
+  final String? initial;
 
   @override
   State<_NameProjectDialog> createState() => _NameProjectDialogState();
 }
 
 class _NameProjectDialogState extends State<_NameProjectDialog> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initial)
+    ..selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: widget.initial?.length ?? 0,
+    );
+  bool get _renaming => widget.initial != null;
 
   @override
   void dispose() {
@@ -519,7 +535,7 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
     final l10n = AppLocalizations.of(context);
 
     return AppDialog(
-      title: l10n.createProjectTitle,
+      title: _renaming ? l10n.renameProjectTitle : l10n.createProjectTitle,
       // No transcription options here. This creates an empty project and
       // transcribes nothing -- media is added afterwards and run separately --
       // so there is no run for those choices to apply to.
@@ -532,7 +548,7 @@ class _NameProjectDialogState extends State<_NameProjectDialog> {
       ),
       actions: [
         AppDialogAction(
-          label: l10n.createProjectAction,
+          label: _renaming ? l10n.renameProjectAction : l10n.createProjectAction,
           emphasis: AppDialogEmphasis.primary,
           onPressed: () => Navigator.of(context).pop(_controller.text),
         ),
@@ -691,7 +707,13 @@ class _RowRule extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: appRuleWidth(context),
-      child: ColoredBox(color: appRuleColor(context)),
+      child: Center(
+        child: SizedBox(
+          height: appRuleInk(context),
+          width: double.infinity,
+          child: ColoredBox(color: appRuleColor(context)),
+        ),
+      ),
     );
   }
 }
@@ -855,10 +877,10 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.play_arrow_outlined),
-              title: Text(l10n.openAction),
+              leading: const Icon(Icons.drive_file_rename_outline),
+              title: Text(l10n.renameProjectAction),
               onTap: () =>
-                  Navigator.of(sheetContext).pop(_ProjectAction.open),
+                  Navigator.of(sheetContext).pop(_ProjectAction.rename),
             ),
             ListTile(
               leading: const Icon(Icons.copy_outlined),
@@ -883,13 +905,26 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
     if (action == null || !context.mounted) return;
 
     switch (action) {
-      case _ProjectAction.open:
-        _open(context);
+      case _ProjectAction.rename:
+        await _rename(context, ref);
       case _ProjectAction.duplicate:
         await _duplicate(context, ref, l10n);
       case _ProjectAction.delete:
         await _confirmDelete(context, ref, l10n, bytes);
     }
+  }
+
+  /// A new name, numbered if another project has it. Left empty, the old
+  /// name stays.
+  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final title = await showDialog<String>(
+      context: context,
+      builder: (_) => _NameProjectDialog(initial: widget.project.title),
+    );
+    if (title == null || title.trim().isEmpty) return;
+    await ref
+        .read(transcriptRepositoryProvider)
+        .renameProject(widget.project.id, title);
   }
 
   /// Copies the project, explaining once what a copy actually costs.
@@ -921,7 +956,7 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
 
     await repository.duplicateProject(
       projectId: widget.project.id,
-      title: l10n.duplicateTitle(widget.project.title),
+      title: widget.project.title,
     );
   }
 
@@ -962,7 +997,7 @@ class _ProjectTileState extends ConsumerState<_ProjectTile> {
   }
 }
 
-enum _ProjectAction { open, duplicate, delete }
+enum _ProjectAction { rename, duplicate, delete }
 
 /// Remembers that the shared-media explanation has been shown.
 const _sharedMediaHintKey = 'hint.duplicateSharesMedia';
@@ -975,15 +1010,16 @@ class _EmptyLibrary extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    // Scrollable so the copy still reaches the user on a short screen or at a
-    // large accessibility text scale instead of overflowing.
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xxl,
-        vertical: AppSpacing.xxl,
+    // Under the heading, in the page's own scroll.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xxl,
+        AppSpacing.lg,
+        AppSpacing.xxl,
+        AppSpacing.xxl,
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.graphic_eq, size: 64, color: theme.colorScheme.outline),
           const SizedBox(height: AppSpacing.xl),
@@ -1155,29 +1191,38 @@ String _formatBytes(AppLocalizations l10n, int bytes) {
 }
 
 /// App-bar entry point for the transcription settings sheet.
-class _SettingsButton extends StatelessWidget {
+class _SettingsButton extends ConsumerWidget {
   const _SettingsButton({required this.enabled});
 
   final bool enabled;
 
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      // The sheet sizes to its content but is allowed to scroll, so a large
+      // accessibility text scale grows it instead of clipping the last row
+      // off the bottom.
+      isScrollControlled: true,
+      builder: (_) => const _SettingsSheet(),
+    );
+    // A colour tried without Pro fades back to the default as the sheet
+    // closes; one tried and then bought for is kept.
+    final preview = ref.read(accentPreviewProvider);
+    if (preview != null && (ref.read(proUnlockedProvider).value ?? false)) {
+      unawaited(ref.read(accentColorSettingProvider.notifier).select(preview));
+    }
+    ref.read(accentPreviewProvider.notifier).show(null);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
 
     return IconButton(
       icon: const AppIcon(AppGlyph.settings),
       tooltip: l10n.settingsMenuTooltip,
-      onPressed: enabled
-          ? () => showModalBottomSheet<void>(
-                context: context,
-                showDragHandle: true,
-                // The sheet sizes to its content but is allowed to scroll, so
-                // a large accessibility text scale grows it instead of
-                // clipping the last row off the bottom.
-                isScrollControlled: true,
-                builder: (_) => const _SettingsSheet(),
-              )
-          : null,
+      onPressed: enabled ? () => _open(context, ref) : null,
     );
   }
 }
@@ -1269,12 +1314,12 @@ class _ThemeModeControlState extends ConsumerState<_ThemeModeControl> {
 class _AccentColorControl extends ConsumerWidget {
   const _AccentColorControl();
 
-  /// Presets for an action colour: the default violet first, then hues that
+  /// Presets for an action colour: the default blue first, then hues that
   /// each carry a label -- no white or near-black, which would read as a
   /// disabled or a selected button rather than one to press.
   static const _presets = [
-    0xFF9B6CFF,
     0xFF116DD6,
+    0xFF9B6CFF,
     0xFF00A3A3,
     0xFFFFD93D,
     0xFFFF8A3D,
@@ -1284,9 +1329,11 @@ class _AccentColorControl extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final accent =
-        ref.watch(accentColorSettingProvider).value ?? AppTheme.defaultAccent;
+    final theme = Theme.of(context);
+    final pro = ref.watch(proUnlockedProvider).value ?? false;
+    final accent = ref.watch(appAccentProvider);
     final setting = ref.read(accentColorSettingProvider.notifier);
+    final preview = ref.read(accentPreviewProvider.notifier);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -1298,9 +1345,21 @@ class _AccentColorControl extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            l10n.settingsAccentColor,
-            style: Theme.of(context).textTheme.labelLarge,
+          // Without Pro the colour can be tried, and the label says so.
+          Text.rich(
+            TextSpan(
+              children: pro
+                  ? [TextSpan(text: l10n.settingsAccentColor)]
+                  : [
+                      TextSpan(text: '${l10n.settingsAccentColorPreview} ('),
+                      TextSpan(
+                        text: l10n.settingsProFeature,
+                        style: const TextStyle(color: Color.fromARGB(255, 204, 157, 0)),
+                      ),
+                      const TextSpan(text: ')'),
+                    ],
+            ),
+            style: theme.textTheme.labelLarge,
           ),
           const SizedBox(height: AppSpacing.sm),
           // No separate "Default" cell: the default is the first preset,
@@ -1308,8 +1367,11 @@ class _AccentColorControl extends ConsumerWidget {
           AppColorPicker(
             current: accent.toARGB32(),
             swatches: _presets,
-            onChanged: (argb) =>
-                argb == null ? setting.reset() : setting.select(Color(argb)),
+            onChanged: (argb) {
+              final color = argb == null ? null : Color(argb);
+              if (!pro) return preview.show(color);
+              color == null ? setting.reset() : setting.select(color);
+            },
           ),
         ],
       ),
@@ -1387,13 +1449,11 @@ class _SettingsSheet extends ConsumerWidget {
     // sheet's own selections would stay in the old action colour while the
     // user picks a new one right here.
     final theme = Theme.of(context);
-    final accent = ref.watch(accentColorSettingProvider).value;
+    final accent = ref.watch(appAccentProvider);
     return Theme(
-      data: accent == null
-          ? theme
-          : theme.brightness == Brightness.dark
-              ? AppTheme.dark(accent: accent)
-              : AppTheme.light(accent: accent),
+      data: theme.brightness == Brightness.dark
+          ? AppTheme.dark(accent: accent)
+          : AppTheme.light(accent: accent),
       child: const SafeArea(
         child: Padding(
           padding: EdgeInsets.only(bottom: AppSpacing.lg),
@@ -1402,9 +1462,9 @@ class _SettingsSheet extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _ThemeModeControl(),
-              _AccentColorControl(),
               _SettingsLink(kind: _SettingsPage.models),
               _SettingsLink(kind: _SettingsPage.languages),
+              _AccentColorControl(),
               _ProSettingsRow(),
             ],
           ),

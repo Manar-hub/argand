@@ -479,13 +479,55 @@ class _NoClipPreview extends StatelessWidget {
             ),
           ),
         ),
-        // Just the gear. The settings panel is also where the mode switches,
-        // so an empty project without it would have no way into Script mode.
+        // The player's controls, where they will be once there is a clip:
+        // inactive, apart from the gear (the mode switch lives in its panel)
+        // and history, which can bring back a clip just removed.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Row(
+                children: [
+                  HiddenWhileSettingsOpen(
+                    projectId: projectId,
+                    child: IconButton(
+                      icon: const AppIcon(AppGlyph.fullscreen),
+                      tooltip: l10n.timelineFullscreen,
+                      onPressed: null,
+                    ),
+                  ),
+                  const Spacer(),
+                  VideoSettingsGear(projectId: projectId),
+                  HiddenWhileSettingsOpen(
+                    projectId: projectId,
+                    child: HistoryControls(projectId: projectId),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: null,
+                icon: const AppIcon(AppGlyph.play),
+                iconSize: 32,
+                tooltip: l10n.playAction,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            0,
+            AppSpacing.md,
+            AppSpacing.xxs,
+          ),
           child: Align(
-            alignment: Alignment.centerRight,
-            child: VideoSettingsGear(projectId: projectId),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${_formatPosition(Duration.zero)} / '
+              '${_formatPosition(Duration.zero)}',
+              style: theme.textTheme.bodySmall,
+            ),
           ),
         ),
       ],

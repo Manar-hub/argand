@@ -10,6 +10,7 @@ class AppSurface extends ThemeExtension<AppSurface> {
     required this.borderWidth,
     required this.radius,
     required this.offset,
+    this.outlined = true,
   });
 
   /// Light: a thin near-black line on warm off-white, square-cornered, as in
@@ -24,20 +25,25 @@ class AppSurface extends ThemeExtension<AppSurface> {
       );
 
   /// Dark: no outline -- a card is told from the page by its lighter fill and
-  /// lifted by the pale slab under it.
+  /// lifted by the pale slab under it. The line's room is still kept, so
+  /// switching themes moves nothing.
   factory AppSurface.dark() => const AppSurface(
         outline: Color(0xFFEDEAE3),
         shadow: Color(0xFFEDEAE3),
-        borderWidth: 0,
+        borderWidth: 1.5,
         radius: 0,
         offset: Offset(4, 4),
+        outlined: false,
       );
 
   final Color outline;
   final Color shadow;
 
-  /// Zero for no outline at all -- see [outlined].
+  /// The outline's width, kept in both themes; drawn only when [outlined].
   final double borderWidth;
+
+  /// Whether this theme draws its outline.
+  final bool outlined;
   final double radius;
 
   /// Down and to the right, as in the reference.
@@ -54,17 +60,15 @@ class AppSurface extends ThemeExtension<AppSurface> {
   BoxShadow get hardShadow =>
       BoxShadow(color: shadow, offset: offset, blurRadius: 0);
 
-  /// Whether this theme draws an outline at all.
-  bool get outlined => borderWidth > 0;
+  /// The outline as a side, for a shape: see-through where it is not drawn,
+  /// at the same width, so a box is the same size in both themes.
+  BorderSide get side => BorderSide(
+        color: outlined ? outline : const Color(0x00000000),
+        width: borderWidth,
+      );
 
-  /// The outline as a side, for a shape: [BorderSide.none] without one.
-  BorderSide get side => outlined
-      ? BorderSide(color: outline, width: borderWidth)
-      : BorderSide.none;
-
-  /// The outline as a box border: null without one.
-  Border? get border =>
-      outlined ? Border.all(color: outline, width: borderWidth) : null;
+  /// The outline as a box border, see-through where it is not drawn.
+  Border get border => Border.fromBorderSide(side);
 
   /// A bordered surface filled with [fill], flat unless [raised].
   BoxDecoration decoration({required Color fill, bool raised = false}) {
@@ -98,6 +102,7 @@ class AppSurface extends ThemeExtension<AppSurface> {
     double? borderWidth,
     double? radius,
     Offset? offset,
+    bool? outlined,
   }) {
     return AppSurface(
       outline: outline ?? this.outline,
@@ -105,6 +110,7 @@ class AppSurface extends ThemeExtension<AppSurface> {
       borderWidth: borderWidth ?? this.borderWidth,
       radius: radius ?? this.radius,
       offset: offset ?? this.offset,
+      outlined: outlined ?? this.outlined,
     );
   }
 
@@ -117,6 +123,7 @@ class AppSurface extends ThemeExtension<AppSurface> {
       borderWidth: lerpDouble(borderWidth, other.borderWidth, t),
       radius: lerpDouble(radius, other.radius, t),
       offset: Offset.lerp(offset, other.offset, t)!,
+      outlined: t < 0.5 ? outlined : other.outlined,
     );
   }
 

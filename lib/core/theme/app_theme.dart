@@ -18,8 +18,8 @@ abstract final class AppTheme {
   static const _darkCard = Color(0xFF1E1E1E);
   static const _darkInk = Color(0xFFF2F0EA);
 
-  /// The action colour until the user picks one: the reference's violet.
-  static const defaultAccent = Color(0xFF9B6CFF);
+  /// The action colour until the user picks one -- and always, without Pro.
+  static const defaultAccent = Color(0xFF116DD6);
 
   /// A soft highlight, used where something is emphasised but not chosen:
   /// the word under the playhead, a pending range.

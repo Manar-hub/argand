@@ -85,6 +85,8 @@ dev_dependencies:
   build_runner: ^2.16.0
   drift_dev: ^2.34.5
   riverpod_generator: ^4.0.8
+  # Parses the XML subtitle formats in tests, to prove they are well formed.
+  xml: ^6.6.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -299,11 +299,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get duplicateAction => 'Duplicate';
 
   @override
-  String duplicateTitle(String title) {
-    return '$title copy';
-  }
-
-  @override
   String get duplicateSharesMediaTitle => 'Duplicates share one file';
 
   @override
@@ -324,9 +319,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAccentColor => 'Action colour';
-
-  @override
-  String get openAction => 'Open';
 
   @override
   String sizeGigabytes(String count) {
@@ -756,10 +748,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportProFormatPremiere => 'Premiere Pro (XML)';
 
   @override
-  String get exportProFormatPremiereDetail => 'Captions as a caption track';
-
-  @override
-  String get exportProComing => 'Coming with Pro';
+  String get exportProFormatPremiereDetail =>
+      'Captions as text clips on a video track';
 
   @override
   String get exportProName => 'Argand Pro';
@@ -955,10 +945,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get proNoWatermarkDetail => 'Clean exports, every time';
 
   @override
-  String get proFutureTitle => 'Any new future Pro features';
+  String get proFutureTitle => 'Pro exports and more';
 
   @override
-  String get proFutureDetail => 'Everything Pro gains later is yours too';
+  String get proFutureDetail => 'Everything Pro has and gains later is yours';
 
   @override
   String get proOnce => 'once';
@@ -990,7 +980,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get proThanksWatermark => 'Watermark removed from exports';
 
   @override
-  String get proThanksFuture => 'Every future Pro feature, included';
+  String get proThanksFuture => 'Every Pro feature, future included';
 
   @override
   String get proThanksRestore => 'Restore anytime on a new device';
@@ -1046,9 +1036,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportAss => 'Export ASS';
 
   @override
-  String get exportProReady => 'Ready';
-
-  @override
   String get exportProLocked => 'Pro';
 
   @override
@@ -1062,4 +1049,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get videoSettingsSafeZonePreview => 'Safe-zone preview';
+
+  @override
+  String get exportProFormatTtml => 'TTML';
+
+  @override
+  String get exportProFormatTtmlDetail =>
+      'Timed text for broadcast/streaming, with speaker colours';
+
+  @override
+  String get exportTtml => 'Export TTML';
+
+  @override
+  String get exportFcpxml => 'Export FCPXML';
+
+  @override
+  String get exportPremiereXml => 'Export XML';
+
+  @override
+  String get settingsAccentColorPreview => 'Action colour preview';
+
+  @override
+  String get settingsProFeature => 'Pro feature';
+
+  @override
+  String get transcribeNameTitle => 'Project name';
+
+  @override
+  String get transcribeNameHint => 'Named after the file';
+
+  @override
+  String get renameProjectTitle => 'Rename project';
+
+  @override
+  String get renameProjectAction => 'Rename';
 }

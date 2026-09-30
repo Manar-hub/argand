@@ -234,20 +234,26 @@ void main() {
       expect(flat.border, isNotNull);
     });
 
-    test('dark draws no outline anywhere', () {
-      // An off-white 2pt frame round every card, chip and button read as
-      // cheap on dark. Not even a hairline: Flutter paints a width-0
-      // BorderSide as one pixel, which is why dark reports no side at all.
+    test('dark draws no outline, but keeps its room', () {
+      // An off-white frame round every card, chip and button read as cheap
+      // on dark. The line's width stays, see-through, so nothing moves when
+      // the theme switches.
       final surface = dark.extension<AppSurface>()!;
+      final paper = light.extension<AppSurface>()!;
       expect(surface.outlined, isFalse);
-      expect(surface.side, BorderSide.none);
-      expect(surface.decoration(fill: const Color(0xFFFFFFFF)).border, isNull);
-      expect(dark.chipTheme.side, BorderSide.none);
-      final card = dark.cardTheme.shape! as RoundedRectangleBorder;
-      expect(card.side, BorderSide.none);
-      final field =
-          dark.inputDecorationTheme.enabledBorder! as OutlineInputBorder;
-      expect(field.borderSide, BorderSide.none);
+      expect(surface.borderWidth, paper.borderWidth);
+      for (final side in [
+        surface.side,
+        (surface.decoration(fill: const Color(0xFFFFFFFF)).border! as Border)
+            .top,
+        dark.chipTheme.side!,
+        (dark.cardTheme.shape! as RoundedRectangleBorder).side,
+        (dark.inputDecorationTheme.enabledBorder! as OutlineInputBorder)
+            .borderSide,
+      ]) {
+        expect(side.color.a, 0);
+        expect(side.width, paper.borderWidth);
+      }
     });
 
     test('the outline separates a surface from its ground on paper', () {

@@ -19,13 +19,13 @@ class AppStrip extends StatelessWidget {
     this.bare = false,
     this.bottomOpening,
     this.flex,
-    this.tees = true,
+    this.tees = AppTees.both,
   });
 
-  /// Whether the rules between cells end in a crossbar at the frame's line.
-  /// Off for colour swatches, where a bar over a chosen colour's edge reads
-  /// as a mark on the colour rather than as the frame.
-  final bool tees;
+  /// Which ends of the rules between cells finish in a crossbar at the
+  /// frame's line. None for colour swatches, where a bar over a chosen
+  /// colour's edge reads as a mark on the colour rather than as the frame.
+  final AppTees tees;
 
   /// Leaves the bottom line open between these two points (from the strip's
   /// left), where a link from below meets it.
@@ -70,10 +70,14 @@ class AppStrip extends StatelessWidget {
               child: CustomPaint(
                 painter: _RulePainter(
                   color: rule,
+                  ink: appRuleInk(context),
                   // On paper the rule runs on through the strip's edge line and
                   // ends in a short crossbar there -- lost in the line where
                   // the line is drawn, a T where a link leaves it open.
-                  bar: surface.outlined && tees ? surface.borderWidth : 0,
+                  bar: surface.outlined && tees != AppTees.none
+                      ? surface.borderWidth
+                      : 0,
+                  tees: tees,
                 ),
               ),
             ),
@@ -140,7 +144,11 @@ class AppLinkedPanel extends StatelessWidget {
     this.gap = 12,
     this.upward = false,
     this.itemsOpening,
+    this.tees = AppTees.both,
   });
+
+  /// Which ends of the items row's rules carry a crossbar.
+  final AppTees tees;
 
   /// The cells of the items row.
   final List<Widget> items;
@@ -169,7 +177,11 @@ class AppLinkedPanel extends StatelessWidget {
     final line = surface.outlined ? surface.outline : null;
     final tone = theme.colorScheme.surfaceContainerHighest;
 
-    final strip = AppStrip(bottomOpening: itemsOpening, children: items);
+    final strip = AppStrip(
+      bottomOpening: itemsOpening,
+      tees: tees,
+      children: items,
+    );
 
     return TweenAnimationBuilder<double>(
       tween: Tween(end: selected.toDouble()),
@@ -397,49 +409,76 @@ class AppOpenFramePainter extends CustomPainter {
       old.openTop != openTop;
 }
 
-/// A rule between two cells, and -- when [bar] is set -- its ends carried out
-/// through the strip's edge line, each finished with a short crossbar as thick
-/// as that line.
+/// Which ends of a strip's rules finish in a crossbar.
+enum AppTees {
+  both,
+  top,
+  bottom,
+  none;
+
+  bool get hasTop => this == both || this == top;
+  bool get hasBottom => this == both || this == bottom;
+}
+
+/// A rule between two cells, [ink] wide in the middle of its room, and --
+/// when [bar] is set -- its ends carried out through the strip's edge line,
+/// finished with a short crossbar as thick as that line where [tees] asks.
 class _RulePainter extends CustomPainter {
-  _RulePainter({required this.color, required this.bar});
+  _RulePainter({
+    required this.color,
+    required this.ink,
+    required this.bar,
+    required this.tees,
+  });
 
   final Color color;
+  final double ink;
 
   /// The edge line's thickness, or 0 for a plain rule.
   final double bar;
+  final AppTees tees;
 
   static const double _barHalf = 6;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-    if (bar == 0) {
-      canvas.drawRect(Offset.zero & size, paint);
-      return;
-    }
-    canvas.drawRect(
-      Rect.fromLTRB(0, -bar, size.width, size.height + bar),
-      paint,
-    );
     final centre = size.width / 2;
     canvas.drawRect(
-      Rect.fromLTRB(centre - _barHalf, -bar, centre + _barHalf, 0),
-      paint,
-    );
-    canvas.drawRect(
       Rect.fromLTRB(
-        centre - _barHalf,
-        size.height,
-        centre + _barHalf,
+        centre - ink / 2,
+        -bar,
+        centre + ink / 2,
         size.height + bar,
       ),
       paint,
     );
+    if (bar == 0) return;
+    if (tees.hasTop) {
+      canvas.drawRect(
+        Rect.fromLTRB(centre - _barHalf, -bar, centre + _barHalf, 0),
+        paint,
+      );
+    }
+    if (tees.hasBottom) {
+      canvas.drawRect(
+        Rect.fromLTRB(
+          centre - _barHalf,
+          size.height,
+          centre + _barHalf,
+          size.height + bar,
+        ),
+        paint,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(covariant _RulePainter old) =>
-      old.color != color || old.bar != bar;
+      old.color != color ||
+      old.ink != ink ||
+      old.bar != bar ||
+      old.tees != tees;
 }
 
 /// A horizontal scroller that clips only at its sides, so a strip inside it
@@ -477,10 +516,13 @@ class AppSideClipper extends CustomClipper<Rect> {
   bool shouldReclip(covariant AppSideClipper old) => old.bleed != bleed;
 }
 
-/// The thickness of the rule between two rows or cells: a hairline of ink on
-/// paper, a slightly wider cut on dark so the gap reads.
-double appRuleWidth(BuildContext context) =>
-    context.surface.outlined ? 1 : 2;
+/// The room a rule between two rows or cells takes: the same in both themes,
+/// so switching never moves a cell.
+double appRuleWidth(BuildContext context) => 2;
+
+/// How much of that room is drawn: a hairline of ink on paper, the whole of
+/// it on dark, where it is a cut and a wider one reads.
+double appRuleInk(BuildContext context) => context.surface.outlined ? 1 : 2;
 
 /// The rule's colour: the outline's ink on paper; on dark, which draws no
 /// light lines, a cut in the colour of whatever is behind.
@@ -655,33 +697,41 @@ class AppSelectedBleed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = context.surface;
-    final bleed = surface.outlined ? surface.borderWidth : 0.0;
-    if (!selected || bleed == 0) return child;
+    if (!selected) return child;
     return CustomPaint(
-      painter: _BleedPainter(color: color, bleed: bleed),
+      painter: _BleedPainter(
+        color: color,
+        bleed: context.surface.borderWidth,
+        // Up to the ink of the rules beside it, which sits mid-room.
+        side: (appRuleWidth(context) - appRuleInk(context)) / 2,
+      ),
       child: child,
     );
   }
 }
 
 class _BleedPainter extends CustomPainter {
-  _BleedPainter({required this.color, required this.bleed});
+  _BleedPainter({
+    required this.color,
+    required this.bleed,
+    required this.side,
+  });
 
   final Color color;
   final double bleed;
+  final double side;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
-      Rect.fromLTRB(0, -bleed, size.width, size.height + bleed),
+      Rect.fromLTRB(-side, -bleed, size.width + side, size.height + bleed),
       Paint()..color = color,
     );
   }
 
   @override
   bool shouldRepaint(covariant _BleedPainter old) =>
-      old.color != color || old.bleed != bleed;
+      old.color != color || old.bleed != bleed || old.side != side;
 }
 
 /// How fast a chosen cell fills: quick, and instant without animations.

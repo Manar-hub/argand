@@ -1,6 +1,7 @@
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/media/media_converter.dart';
 import 'package:argand/core/theme/app_dialog.dart';
+import 'package:argand/core/theme/accent_color_controller.dart';
 import 'package:argand/core/theme/app_theme.dart';
 import 'package:argand/core/whisper/transcription_language_controller.dart';
 import 'package:argand/features/library/library_screen.dart';
@@ -143,7 +144,7 @@ void main() {
       await settle(tester);
 
       // The sheet offers all three actions before anything destructive.
-      expect(find.text('Open'), findsOneWidget);
+      expect(find.text('Rename'), findsOneWidget);
       expect(find.text('Duplicate'), findsOneWidget);
       await tester.tap(find.text('Delete'));
       await settle(tester);
@@ -210,6 +211,54 @@ void main() {
 
       expect(find.text('doomed'), findsNothing);
       expect(find.text('keep me'), findsOneWidget);
+    });
+  });
+
+  group('empty library', () {
+    uiTest('keeps the heading and search, the note under them',
+        (tester) async {
+      await tester.pumpWidget(host(const LibraryScreen()));
+      await settle(tester);
+
+      expect(find.text('Projects'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('No projects yet'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('No projects yet')).dy,
+        greaterThan(tester.getTopLeft(find.text('Projects')).dy),
+      );
+    });
+  });
+
+  group('action colour without Pro', () {
+    uiTest('can be tried, and goes back when the sheet closes',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 2800);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      const teal = Color(0xFF00A3A3);
+
+      await tester.pumpWidget(host(const LibraryScreen()));
+      await settle(tester);
+      await tester.tap(find.byTooltip('Transcription settings'));
+      await settle(tester);
+
+      expect(find.text('Action colour preview (Pro feature)'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(LibraryScreen)),
+      );
+
+      final swatch = find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.label == '#00A3A3',
+      );
+      await tester.tap(swatch.first);
+      await settle(tester);
+      expect(container.read(appAccentProvider), teal);
+
+      await tester.tapAt(const Offset(10, 10));
+      await settle(tester);
+      expect(container.read(appAccentProvider), AppTheme.defaultAccent);
+      expect(await database.readSetting('app.accentColor'), isNull);
     });
   });
 }

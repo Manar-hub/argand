@@ -616,9 +616,7 @@ class _SpeakerChip extends StatelessWidget {
                   ? Colors.transparent
                   : theme.colorScheme.surfaceContainerHighest,
           borderRadius: radius,
-          border: surface.outlined
-              ? Border.all(color: surface.outline, width: surface.borderWidth)
-              : null,
+          border: surface.border,
         ),
         child: Material(
           type: MaterialType.transparency,

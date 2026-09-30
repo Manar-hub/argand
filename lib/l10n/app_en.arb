@@ -282,12 +282,6 @@
   "duplicateAction": "Duplicate",
   "@duplicateAction": { "description": "Menu entry that copies a project so a second edit can diverge from it" },
 
-  "duplicateTitle": "{title} copy",
-  "@duplicateTitle": {
-    "description": "Title given to a duplicated project",
-    "placeholders": { "title": { "type": "String", "example": "interview" } }
-  },
-
   "duplicateSharesMediaTitle": "Duplicates share one file",
   "@duplicateSharesMediaTitle": { "description": "Heading of the one-time notice explaining how duplicating works" },
 
@@ -308,9 +302,6 @@
 
   "settingsAccentColor": "Action colour",
   "@settingsAccentColor": { "description": "Settings label for the colour every call-to-action button takes" },
-
-  "openAction": "Open",
-  "@openAction": { "description": "Menu entry that opens a project" },
 
   "sizeGigabytes": "{count} GB",
   "@sizeGigabytes": {
@@ -720,11 +711,8 @@
   "exportProFormatPremiere": "Premiere Pro (XML)",
   "@exportProFormatPremiere": { "description": "Adobe Premiere interchange format" },
 
-  "exportProFormatPremiereDetail": "Captions as a caption track",
+  "exportProFormatPremiereDetail": "Captions as text clips on a video track",
   "@exportProFormatPremiereDetail": { "description": "What the Premiere format adds" },
-
-  "exportProComing": "Coming with Pro",
-  "@exportProComing": { "description": "Marks a format that is not built yet and will be part of Pro" },
 
   "exportProName": "Argand Pro",
   "@exportProName": { "description": "Name of the one-time purchase" },
@@ -900,10 +888,10 @@
   "proNoWatermarkDetail": "Clean exports, every time",
   "@proNoWatermarkDetail": { "description": "Pro benefit detail" },
 
-  "proFutureTitle": "Any new future Pro features",
+  "proFutureTitle": "Pro exports and more",
   "@proFutureTitle": { "description": "Pro benefit" },
 
-  "proFutureDetail": "Everything Pro gains later is yours too",
+  "proFutureDetail": "Everything Pro has and gains later is yours",
   "@proFutureDetail": { "description": "Pro benefit detail" },
 
   "proOnce": "once",
@@ -933,7 +921,7 @@
   "proThanksWatermark": "Watermark removed from exports",
   "@proThanksWatermark": { "description": "Thank-you check list item" },
 
-  "proThanksFuture": "Every future Pro feature, included",
+  "proThanksFuture": "Every Pro feature, future included",
   "@proThanksFuture": { "description": "Thank-you check list item" },
 
   "proThanksRestore": "Restore anytime on a new device",
@@ -984,9 +972,6 @@
   "exportAss": "Export ASS",
   "@exportAss": { "description": "Pro formats tab button that exports speaker-coloured ASS subtitles" },
 
-  "exportProReady": "Ready",
-  "@exportProReady": { "description": "Status beside a Pro format the user can export now" },
-
   "exportProLocked": "Pro",
   "@exportProLocked": { "description": "Status beside a Pro format that needs Pro" },
 
@@ -1000,5 +985,38 @@
   "@videoSettingsPreviewItem": { "description": "Video settings item holding what the stage previews: the watermark and the safe zone" },
 
   "videoSettingsSafeZonePreview": "Safe-zone preview",
-  "@videoSettingsSafeZonePreview": { "description": "Toggle: grey out the areas social apps cover with their buttons" }
+  "@videoSettingsSafeZonePreview": { "description": "Toggle: grey out the areas social apps cover with their buttons" },
+
+  "exportProFormatTtml": "TTML",
+  "@exportProFormatTtml": { "description": "Timed Text Markup Language subtitle format" },
+
+  "exportProFormatTtmlDetail": "Timed text for broadcast/streaming, with speaker colours",
+  "@exportProFormatTtmlDetail": { "description": "What the TTML format adds" },
+
+  "exportTtml": "Export TTML",
+  "@exportTtml": { "description": "Pro formats tab button that exports TTML subtitles" },
+
+  "exportFcpxml": "Export FCPXML",
+  "@exportFcpxml": { "description": "Pro formats tab button that exports a Final Cut Pro timeline of captions" },
+
+  "exportPremiereXml": "Export XML",
+  "@exportPremiereXml": { "description": "Pro formats tab button that exports a Premiere Pro XML timeline of captions" },
+
+  "settingsAccentColorPreview": "Action colour preview",
+  "@settingsAccentColorPreview": { "description": "Settings label for the action colour without Pro: the colour can be tried but goes back when the sheet closes" },
+
+  "settingsProFeature": "Pro feature",
+  "@settingsProFeature": { "description": "Gold tag after a setting that needs Pro" },
+
+  "transcribeNameTitle": "Project name",
+  "@transcribeNameTitle": { "description": "Heading of the name field at the bottom of the Transcribe sheet" },
+
+  "transcribeNameHint": "Named after the file",
+  "@transcribeNameHint": { "description": "Hint in the Transcribe sheet's name field: left empty, the project takes the file's name" },
+
+  "renameProjectTitle": "Rename project",
+  "@renameProjectTitle": { "description": "Heading of the dialog that renames a project" },
+
+  "renameProjectAction": "Rename",
+  "@renameProjectAction": { "description": "Project menu entry, and the dialog button, that renames a project" }
 }

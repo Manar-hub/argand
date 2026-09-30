@@ -93,6 +93,7 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
   bool _includeSpeakers = true;
   bool _includeTranslation = false;
   SubtitleLineLength _lineLength = SubtitleLineLength.standard;
+  SubtitleFormat _proFormat = SubtitleFormat.ass;
 
   /// The short edge of the footage, for offering only the sizes it can fill.
   /// Watched, so it is called only while building.
@@ -167,7 +168,12 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
                   _ExportTab.srt ||
                   _ExportTab.vtt =>
                     _subtitleOptions(l10n, theme, hasCaptions: hasCaptions),
-                  _ExportTab.pro => _ProFormats(pro: pro),
+                  _ExportTab.pro => _ProFormats(
+                      pro: pro,
+                      selected: _proFormat,
+                      onSelected: (format) =>
+                          setState(() => _proFormat = format),
+                    ),
                 },
               ),
             ),
@@ -382,16 +388,22 @@ class _ExportSheetState extends ConsumerState<_ExportSheet> {
                   )
               : null,
         ),
-      // ASS is built; the others are still coming.
       _ExportTab.pro => AppDialogAction(
-          label: pro ? l10n.exportAss : l10n.exportGetPro,
+          label: !pro
+              ? l10n.exportGetPro
+              : switch (_proFormat) {
+                  SubtitleFormat.ttml => l10n.exportTtml,
+                  SubtitleFormat.fcpxml => l10n.exportFcpxml,
+                  SubtitleFormat.premiereXml => l10n.exportPremiereXml,
+                  _ => l10n.exportAss,
+                },
           emphasis: AppDialogEmphasis.pro,
           onPressed: !pro
               ? _getPro
               : hasCaptions
                   ? () => Navigator.of(context).pop(
                         SubtitleExportDecision(
-                          format: SubtitleFormat.ass,
+                          format: _proFormat,
                           includeSpeakers: true,
                           lineLength: _lineLength,
                           includeTranslation: _includeTranslation,
@@ -529,11 +541,17 @@ class _ExportFooter extends StatelessWidget {
   }
 }
 
-/// The professional formats Pro will add.
+/// The professional formats: locked without Pro, a choice of one with it.
 class _ProFormats extends StatelessWidget {
-  const _ProFormats({required this.pro});
+  const _ProFormats({
+    required this.pro,
+    required this.selected,
+    required this.onSelected,
+  });
 
   final bool pro;
+  final SubtitleFormat selected;
+  final ValueChanged<SubtitleFormat> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -544,22 +562,35 @@ class _ProFormats extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(l10n.exportProFormatsIntro, style: theme.textTheme.bodyMedium),
-        const SizedBox(height: AppSpacing.md),
-        _LockedFormat(
-          title: l10n.exportProFormatAss,
-          detail: l10n.exportProFormatAssDetail,
-          status: pro ? l10n.exportProReady : l10n.exportProLocked,
-          ready: pro,
-        ),
-        for (final (title, detail) in <(String, String)>[
-          (l10n.exportProFormatFcpxml, l10n.exportProFormatFcpxmlDetail),
-          (l10n.exportProFormatPremiere, l10n.exportProFormatPremiereDetail),
+        for (final (format, title, detail) in <(SubtitleFormat, String, String)>[
+          (
+            SubtitleFormat.ass,
+            l10n.exportProFormatAss,
+            l10n.exportProFormatAssDetail,
+          ),
+          (
+            SubtitleFormat.ttml,
+            l10n.exportProFormatTtml,
+            l10n.exportProFormatTtmlDetail,
+          ),
+          (
+            SubtitleFormat.fcpxml,
+            l10n.exportProFormatFcpxml,
+            l10n.exportProFormatFcpxmlDetail,
+          ),
+          (
+            SubtitleFormat.premiereXml,
+            l10n.exportProFormatPremiere,
+            l10n.exportProFormatPremiereDetail,
+          ),
         ]) ...[
           const SizedBox(height: AppSpacing.sm),
-          _LockedFormat(
+          _ProFormatCard(
             title: title,
             detail: detail,
-            status: l10n.exportProComing,
+            locked: !pro,
+            selected: pro && format == selected,
+            onTap: pro ? () => onSelected(format) : null,
           ),
         ],
       ],
@@ -567,62 +598,81 @@ class _ProFormats extends StatelessWidget {
   }
 }
 
-class _LockedFormat extends StatelessWidget {
-  const _LockedFormat({
+class _ProFormatCard extends StatelessWidget {
+  const _ProFormatCard({
     required this.title,
     required this.detail,
-    required this.status,
-    this.ready = false,
+    required this.locked,
+    required this.selected,
+    required this.onTap,
   });
 
   final String title;
   final String detail;
-  final String status;
-
-  /// Available to this user now: no lock.
-  final bool ready;
+  final bool locked;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final surface = theme.extension<AppSurface>()!;
+    final ink = selected
+        ? theme.colorScheme.onSecondary
+        : theme.colorScheme.onSurfaceVariant;
 
-    return DecoratedBox(
-      decoration: surface.decoration(
-        fill: theme.colorScheme.surfaceContainerHighest,
-        raised: false,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          children: [
-            Icon(
-              ready ? Icons.subtitles_outlined : Icons.lock_outline,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: theme.textTheme.titleSmall),
-                  Text(
-                    detail,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+    return Semantics(
+      selected: selected,
+      button: onTap != null,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          decoration: surface.decoration(
+            fill: selected
+                ? theme.colorScheme.secondary
+                : theme.colorScheme.surfaceContainerHighest,
+            raised: false,
+          ),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Icon(
+                locked ? Icons.lock_outline : Icons.subtitles_outlined,
+                color: ink,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: selected ? ink : null,
+                      ),
                     ),
-                  ),
-                ],
+                    Text(
+                      detail,
+                      style: theme.textTheme.bodySmall?.copyWith(color: ink),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              status,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+              if (locked) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  l10n.exportProLocked,
+                  style: theme.textTheme.labelSmall?.copyWith(color: ink),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -757,11 +807,11 @@ class _ChipRow extends StatelessWidget {
   Widget build(BuildContext context) {
     // One strip across the sheet, a rule between presets and none round each --
     // the same row every other set of choices uses.
-    return AppStrip(onCard: true, children: children);
+    return AppStrip(onCard: true, tees: AppTees.none, children: children);
   }
 }
 
-/// One preset, using the app's own pressed-surface feedback.
+/// One preset: the action colour fills it when chosen.
 class _OptionChip extends StatelessWidget {
   const _OptionChip({
     required this.label,
@@ -780,20 +830,21 @@ class _OptionChip extends StatelessWidget {
     final theme = Theme.of(context);
     final enabled = onTap != null;
 
-    // A cell of the strip: no frame of its own, a block of ink when chosen,
-    // reaching over the strip's lines.
+    // A cell of the strip: no frame of its own, filled when chosen, the fill
+    // reaching over the strip's lines as every chosen cell's does.
     final chip = AppSelectedBleed(
       selected: selected,
       color: theme.colorScheme.secondary,
-      child: PressableSurface(
-      selected: selected,
-      fill: selected ? theme.colorScheme.secondary : Colors.transparent,
-      borderRadius: BorderRadius.zero,
+      child: AnimatedContainer(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      color: selected ? theme.colorScheme.secondary : Colors.transparent,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
-          // The surface already shows the press; Material's splash on top of
-          // it is a second, conflicting kind of feedback.
+          // The fill is the feedback; no splash on top of it.
           splashColor: Colors.transparent,
           highlightColor: Colors.transparent,
           borderRadius: BorderRadius.zero,

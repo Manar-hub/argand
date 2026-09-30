@@ -48,4 +48,4 @@ final class ProPurchasesProvider
   }
 }
 
-String _$proPurchasesHash() => r'd477a515dbd2dbb4ee9567941fee6e99481cb038';
+String _$proPurchasesHash() => r'f520c7371c93632e2059ac7c61ee59982b3de9ec';

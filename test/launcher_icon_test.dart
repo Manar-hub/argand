@@ -12,8 +12,8 @@ void main() {
     });
 
     test('the settings sheet presets each have their own variant', () {
-      expect(LauncherIcon.matching(AppTheme.defaultAccent), LauncherIcon.violet);
-      expect(LauncherIcon.matching(const Color(0xFF116DD6)), LauncherIcon.blue);
+      expect(LauncherIcon.matching(AppTheme.defaultAccent), LauncherIcon.blue);
+      expect(LauncherIcon.matching(const Color(0xFF9B6CFF)), LauncherIcon.violet);
       expect(LauncherIcon.matching(const Color(0xFF00A3A3)), LauncherIcon.teal);
       expect(LauncherIcon.matching(const Color(0xFFFFD93D)), LauncherIcon.yellow);
       expect(LauncherIcon.matching(const Color(0xFFFF8A3D)), LauncherIcon.orange);

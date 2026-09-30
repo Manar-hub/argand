@@ -457,6 +457,7 @@ class _StylePanelState extends ConsumerState<StylePanel> {
             // Options above, items below, the whole panel above the
             // toolbar: each child over its parent.
             upward: true,
+            tees: AppTees.bottom,
             itemsOpening: itemsOpening,
             selected: items.indexWhere((entry) => entry.$1 == item),
             items: [
@@ -629,6 +630,7 @@ class _FontOptions extends StatelessWidget {
         expand: false,
         onCard: true,
         bare: true,
+        tees: AppTees.bottom,
         children: [
           for (final font in LookFont.values)
             SizedBox(
@@ -785,6 +787,7 @@ class _ModeOptions extends StatelessWidget {
     return AppStrip(
       onCard: true,
       bare: true,
+      tees: AppTees.bottom,
       children: [
         for (final (mode, label) in <(CaptionMode, String)>[
           (CaptionMode.standard, l10n.styleModeStandard),

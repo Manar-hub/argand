@@ -77,7 +77,8 @@ class ImportController extends _$ImportController {
   ];
 
   /// Opens the system picker and runs the full pipeline on the chosen file.
-  Future<void> importFromPicker() async {
+  /// The project is named [title], or after the file when that is blank.
+  Future<void> importFromPicker({String? title}) async {
     final picked = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: _mediaExtensions,
@@ -88,6 +89,7 @@ class ImportController extends _$ImportController {
     }
     await _run(
       fileName: picked.name,
+      title: title,
       copyIn: (converter, projectId, clipId) => converter.importToAppStorage(
         projectId: projectId,
         clipId: clipId,
@@ -152,6 +154,7 @@ class ImportController extends _$ImportController {
   /// The pipeline, once the media is identified.
   Future<void> _run({
     required String fileName,
+    String? title,
     required Future<File> Function(
             MediaConverter, String projectId, String clipId)
         copyIn,
@@ -182,7 +185,9 @@ class ImportController extends _$ImportController {
       await repository.saveImport(
         projectId: projectId,
         clipId: clipId,
-        title: p.basenameWithoutExtension(fileName),
+        title: title == null || title.trim().isEmpty
+            ? p.basenameWithoutExtension(fileName)
+            : title.trim(),
         mediaPath: media.path,
         duration: duration,
         language: outcome.language,

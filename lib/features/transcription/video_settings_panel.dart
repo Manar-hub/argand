@@ -251,6 +251,7 @@ class _PanelBody extends ConsumerWidget {
           // like a folder tab: two lines drop from the item's edges, and
           // the rectangle's top is open between them.
           AppLinkedPanel(
+            tees: AppTees.top,
             // The mode switch comes first, so the settings start at 1.
             selected: 1 + panel.item.index,
             items: [
@@ -371,6 +372,7 @@ class _AspectOptions extends StatelessWidget {
 
     return AppStrip(
       bare: true,
+      tees: AppTees.top,
       children: [
         for (final (aspect, label) in <(ExportAspect, String)>[
           (ExportAspect.source, l10n.exportAspectSource),
@@ -450,6 +452,7 @@ class _ResolutionOptions extends ConsumerWidget {
 
     return AppStrip(
       bare: true,
+      tees: AppTees.top,
       children: [
         for (final (quality, label) in <(ExportQuality, String)>[
           (ExportQuality.p720, l10n.exportQuality720),

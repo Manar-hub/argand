@@ -10,6 +10,7 @@ import 'package:whisper_ggml_plus/whisper_ggml_plus.dart';
 
 import '../../core/audio/waveform_service.dart';
 import '../../core/captions/caption_grouper.dart';
+import '../../core/text/unique_title.dart';
 import '../../core/database/database.dart';
 import '../../core/diarization/speaker_assignment.dart';
 import '../../core/diarization/speaker_span.dart';
@@ -1182,10 +1183,35 @@ class TranscriptRepository {
   Future<void> storeClipWaveform(String clipId, Uint8List peaks) =>
       _db.fillMissingClipWaveform(clipId, peaks);
 
+  /// [title], numbered when another project -- other than [except] --
+  /// already has it.
+  Future<String> _freeTitle(String title, {String? except}) async {
+    final live = await (_db.select(_db.projects)
+          ..where((t) => t.deletedAt.isNull()))
+        .get();
+    return uniqueTitle(title, [
+      for (final project in live)
+        if (project.id != except) project.title,
+    ]);
+  }
+
+  /// Renames a project, numbering the name if another project has it.
+  Future<void> renameProject(String projectId, String title) async {
+    final free = await _freeTitle(title, except: projectId);
+    await (_db.update(_db.projects)..where((t) => t.id.equals(projectId)))
+        .write(ProjectsCompanion(
+      title: Value(free),
+      updatedAt: Value(DateTime.now()),
+    ));
+  }
+
   /// Creates an empty project, with no media and nothing transcribed.
   Future<String> createEmptyProject({required String title}) async {
     final projectId = newId();
-    await _db.createEmptyProject(projectId: projectId, title: title);
+    await _db.createEmptyProject(
+      projectId: projectId,
+      title: await _freeTitle(title),
+    );
     return projectId;
   }
 
@@ -1398,15 +1424,16 @@ class TranscriptRepository {
     }
   }
 
-  /// Copies a project so a second edit can diverge from the same source.
+  /// Copies a project so a second edit can diverge from the same source. The
+  /// copy is named [title] with the next free number: "Interview (1)".
   Future<String> duplicateProject({
     required String projectId,
     required String title,
-  }) {
+  }) async {
     return _db.duplicateProject(
       sourceProjectId: projectId,
       newProjectId: newId(),
-      title: title,
+      title: await _freeTitle(title),
       newId: newId,
     );
   }
@@ -1773,6 +1800,7 @@ class TranscriptRepository {
     required WhisperTranscribeResponse result,
   }) async {
     final now = DateTime.now();
+    final projectTitle = await _freeTitle(title);
 
     await _db.transaction(() async {
       await _db.into(_db.projects).insert(
@@ -1780,7 +1808,7 @@ class TranscriptRepository {
               id: projectId,
               createdAt: now,
               updatedAt: now,
-              title: title,
+              title: projectTitle,
               // Vestigial since schema 5 -- the clip below carries the media.
               mediaPath: '',
             ),

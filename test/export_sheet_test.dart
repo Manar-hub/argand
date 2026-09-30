@@ -310,7 +310,22 @@ void main() {
 
     expect(primaryButton('Export'), findsNothing);
     expect(primaryButton('Get Pro'), findsOneWidget);
-    // ASS is built and waits behind Pro; the other two are still coming.
-    expect(find.text('Coming with Pro'), findsNWidgets(2));
+    // All four wait behind Pro.
+    expect(find.text('Pro'), findsNWidgets(4));
+  });
+
+  uiTest('with Pro, the chosen format is the one exported', (tester) async {
+    final projectId = await seedTranscribed();
+    await database.writeSetting(proUnlockedKey, 'true');
+    final sheet = await open(tester, projectId);
+
+    await tapVisible(tester, find.text('Pro formats'));
+    expect(primaryButton('Export ASS'), findsOneWidget);
+
+    await tapVisible(tester, find.text('TTML'));
+    await tapVisible(tester, primaryButton('Export TTML'));
+
+    final decision = sheet.result() as SubtitleExportDecision;
+    expect(decision.format, SubtitleFormat.ttml);
   });
 }

@@ -8,6 +8,7 @@ import 'package:argand/core/video/video_export.dart';
 import 'package:argand/features/transcription/video_canvas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:xml/xml.dart';
 
 Word _word(String text, int startMs, int endMs, {String? speaker, int position = 0}) =>
     Word(
@@ -123,6 +124,89 @@ void main() {
         contains('Dialogue: 0,0:00:01.23,0:00:03.45,Speaker1,Ana,0,0,0,,Hi (there)'),
       );
       expect(ass, contains('Dialogue: 0,0:00:04.00,0:00:05.00,Speaker2,Omar,'));
+    });
+  });
+
+  group('XML formats', () {
+    final cues = [
+      _cue('Tom & <Jerry>', 1000, 2500, 0),
+      _cue('Hello', 3000, 4000, 1),
+    ];
+    String write(SubtitleFormat format) => formatSubtitles(
+          cues,
+          format: format,
+          title: 'My "clip"',
+          language: 'en',
+          speakerLabel: (cue) => cue.speaker == 0 ? 'Ana' : 'Omar',
+          colorOf: (cue) => cue.speaker == 0 ? 0xFFE53935 : 0xFF1E88E5,
+          translation: (cue) => cue.speaker == 1 ? 'Hallo' : null,
+        );
+
+    test('every one is well formed', () {
+      for (final format in [
+        SubtitleFormat.ttml,
+        SubtitleFormat.fcpxml,
+        SubtitleFormat.premiereXml,
+      ]) {
+        expect(() => XmlDocument.parse(write(format)), returnsNormally,
+            reason: format.name);
+      }
+    });
+
+    test('TTML: times, colours, speakers and translation', () {
+      final doc = XmlDocument.parse(write(SubtitleFormat.ttml));
+      final ps = doc.findAllElements('p').toList();
+      expect(ps, hasLength(2));
+      expect(ps[0].getAttribute('begin'), '00:00:01.000');
+      expect(ps[0].getAttribute('end'), '00:00:02.500');
+      expect(ps[0].innerText, 'Tom & <Jerry>');
+      expect(ps[1].findElements('br'), hasLength(1));
+      expect(ps[1].innerText, 'HelloHallo');
+      final styles = doc.findAllElements('style').toList();
+      expect(styles.map((s) => s.getAttribute('tts:color')),
+          ['#E53935', '#1E88E5']);
+      expect(doc.findAllElements('ttm:name').map((n) => n.innerText),
+          ['Ana', 'Omar']);
+    });
+
+    test('FCPXML: captions on frames, named and coloured', () {
+      final doc = XmlDocument.parse(write(SubtitleFormat.fcpxml));
+      expect(doc.findAllElements('project').single.getAttribute('name'),
+          'My "clip"');
+      final captions = doc.findAllElements('caption').toList();
+      expect(captions, hasLength(2));
+      expect(captions[0].getAttribute('offset'), '3000/3000s');
+      expect(captions[0].getAttribute('duration'), '4500/3000s');
+      expect(captions[0].getAttribute('name'), 'Ana');
+      expect(captions[0].getAttribute('role'), 'iTT?captionFormat=ITT.en');
+      expect(
+        captions[1].findAllElements('text-style').first.innerText,
+        'Hello\nHallo',
+      );
+      expect(
+        captions[1].findAllElements('text-style').last.getAttribute('fontColor'),
+        '0.118 0.533 0.898 1',
+      );
+    });
+
+    test('Premiere XML: text clips at frame positions', () {
+      final doc = XmlDocument.parse(write(SubtitleFormat.premiereXml));
+      final clips = doc.findAllElements('generatoritem').toList();
+      expect(clips, hasLength(2));
+      expect(clips[0].getElement('start')!.innerText, '30');
+      expect(clips[0].getElement('end')!.innerText, '75');
+      expect(clips[1].getElement('name')!.innerText, 'Omar');
+      final text = clips[0]
+          .findAllElements('parameter')
+          .firstWhere((p) => p.getElement('parameterid')!.innerText == 'str');
+      expect(text.getElement('value')!.innerText, 'Tom & <Jerry>');
+    });
+
+    test('only SRT and VTT are free', () {
+      expect(
+        SubtitleFormat.values.where((f) => !f.isPro),
+        [SubtitleFormat.srt, SubtitleFormat.vtt],
+      );
     });
   });
 

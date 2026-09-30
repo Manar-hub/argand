@@ -592,12 +592,6 @@ abstract class AppLocalizations {
   /// **'Duplicate'**
   String get duplicateAction;
 
-  /// Title given to a duplicated project
-  ///
-  /// In en, this message translates to:
-  /// **'{title} copy'**
-  String duplicateTitle(String title);
-
   /// Heading of the one-time notice explaining how duplicating works
   ///
   /// In en, this message translates to:
@@ -639,12 +633,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Action colour'**
   String get settingsAccentColor;
-
-  /// Menu entry that opens a project
-  ///
-  /// In en, this message translates to:
-  /// **'Open'**
-  String get openAction;
 
   /// A file size in gigabytes, shown with one decimal place
   ///
@@ -1435,14 +1423,8 @@ abstract class AppLocalizations {
   /// What the Premiere format adds
   ///
   /// In en, this message translates to:
-  /// **'Captions as a caption track'**
+  /// **'Captions as text clips on a video track'**
   String get exportProFormatPremiereDetail;
-
-  /// Marks a format that is not built yet and will be part of Pro
-  ///
-  /// In en, this message translates to:
-  /// **'Coming with Pro'**
-  String get exportProComing;
 
   /// Name of the one-time purchase
   ///
@@ -1789,13 +1771,13 @@ abstract class AppLocalizations {
   /// Pro benefit
   ///
   /// In en, this message translates to:
-  /// **'Any new future Pro features'**
+  /// **'Pro exports and more'**
   String get proFutureTitle;
 
   /// Pro benefit detail
   ///
   /// In en, this message translates to:
-  /// **'Everything Pro gains later is yours too'**
+  /// **'Everything Pro has and gains later is yours'**
   String get proFutureDetail;
 
   /// After the price on the Pro page
@@ -1855,7 +1837,7 @@ abstract class AppLocalizations {
   /// Thank-you check list item
   ///
   /// In en, this message translates to:
-  /// **'Every future Pro feature, included'**
+  /// **'Every Pro feature, future included'**
   String get proThanksFuture;
 
   /// Thank-you check list item
@@ -1954,12 +1936,6 @@ abstract class AppLocalizations {
   /// **'Export ASS'**
   String get exportAss;
 
-  /// Status beside a Pro format the user can export now
-  ///
-  /// In en, this message translates to:
-  /// **'Ready'**
-  String get exportProReady;
-
   /// Status beside a Pro format that needs Pro
   ///
   /// In en, this message translates to:
@@ -1989,6 +1965,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Safe-zone preview'**
   String get videoSettingsSafeZonePreview;
+
+  /// Timed Text Markup Language subtitle format
+  ///
+  /// In en, this message translates to:
+  /// **'TTML'**
+  String get exportProFormatTtml;
+
+  /// What the TTML format adds
+  ///
+  /// In en, this message translates to:
+  /// **'Timed text for broadcast/streaming, with speaker colours'**
+  String get exportProFormatTtmlDetail;
+
+  /// Pro formats tab button that exports TTML subtitles
+  ///
+  /// In en, this message translates to:
+  /// **'Export TTML'**
+  String get exportTtml;
+
+  /// Pro formats tab button that exports a Final Cut Pro timeline of captions
+  ///
+  /// In en, this message translates to:
+  /// **'Export FCPXML'**
+  String get exportFcpxml;
+
+  /// Pro formats tab button that exports a Premiere Pro XML timeline of captions
+  ///
+  /// In en, this message translates to:
+  /// **'Export XML'**
+  String get exportPremiereXml;
+
+  /// Settings label for the action colour without Pro: the colour can be tried but goes back when the sheet closes
+  ///
+  /// In en, this message translates to:
+  /// **'Action colour preview'**
+  String get settingsAccentColorPreview;
+
+  /// Gold tag after a setting that needs Pro
+  ///
+  /// In en, this message translates to:
+  /// **'Pro feature'**
+  String get settingsProFeature;
+
+  /// Heading of the name field at the bottom of the Transcribe sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Project name'**
+  String get transcribeNameTitle;
+
+  /// Hint in the Transcribe sheet's name field: left empty, the project takes the file's name
+  ///
+  /// In en, this message translates to:
+  /// **'Named after the file'**
+  String get transcribeNameHint;
+
+  /// Heading of the dialog that renames a project
+  ///
+  /// In en, this message translates to:
+  /// **'Rename project'**
+  String get renameProjectTitle;
+
+  /// Project menu entry, and the dialog button, that renames a project
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get renameProjectAction;
 }
 
 class _AppLocalizationsDelegate

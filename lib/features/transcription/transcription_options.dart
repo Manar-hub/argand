@@ -257,6 +257,7 @@ String _languageLabel(AppLocalizations l10n, TranscriptionLanguage language) {
 Future<bool> showTranscriptionOptions(
   BuildContext context, {
   String? warning,
+  TextEditingController? name,
 }) async {
   final l10n = AppLocalizations.of(context);
 
@@ -279,6 +280,22 @@ Future<bool> showTranscriptionOptions(
                 const SizedBox(height: AppSpacing.sm),
               ],
               const TranscriptionOptions(dense: true),
+              // A new project's name, last: the file's name when left empty.
+              if (name != null) ...[
+                _SectionHeader(label: l10n.transcribeNameTitle, dense: true),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                  ),
+                  child: TextField(
+                    controller: name,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      hintText: l10n.transcribeNameHint,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

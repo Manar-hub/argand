@@ -88,7 +88,7 @@ class _AppColorPickerState extends State<AppColorPicker> {
         AppStrip(
           onCard: true,
           // No Ts on the swatches' rules: plain lines between colours.
-          tees: false,
+          tees: AppTees.none,
           // A word needs about two swatches' width.
           flex: [
             if (defaultLabel != null) 2,

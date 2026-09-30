@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:argand/core/database/database.dart';
 import 'package:argand/core/monetization/monetization.dart';
 import 'package:argand/core/monetization/purchases.dart';
@@ -33,9 +35,13 @@ class _Store implements ProStore {
 
   bool resets = false;
 
+  /// Holds a reset open, as a store stuck switching customers does.
+  Completer<void>? stall;
+
   @override
   Future<void> reset() async {
     resets = true;
+    await stall?.future;
     ownedNow = false;
   }
 }
@@ -144,6 +150,38 @@ void main() {
       await purchases.resetForTesting();
       expect(store.resets, isTrue);
       expect(await flag(), isFalse);
+    });
+
+    test('a reset turns Pro off at once, even while the store stalls',
+        () async {
+      await purchases.start();
+      await purchases.buy((await purchases.offer())!);
+      store.stall = Completer<void>();
+
+      final reset = purchases.resetForTesting();
+      await Future<void>.delayed(Duration.zero);
+      expect(await flag(), isFalse);
+
+      // The old customer's Pro, reported mid-switch, does not come back.
+      store.listener!(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(await flag(), isFalse);
+
+      store.stall!.complete();
+      await reset;
+      // A purchase after the reset counts again.
+      store.listener!(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(await flag(), isTrue);
+    });
+
+    test('a test customer is made once and replaced on reset', () async {
+      final customer = TestCustomer(database);
+      final first = await customer.current();
+      expect(await customer.current(), first);
+      final next = await customer.next();
+      expect(next, isNot(first));
+      expect(await customer.current(), next);
     });
 
     test('a store that cannot be asked leaves Pro as it was (offline)',

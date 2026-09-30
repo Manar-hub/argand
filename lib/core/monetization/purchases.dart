@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database/database.dart';
 import 'monetization.dart';
@@ -69,6 +70,29 @@ abstract interface class ProStore {
 /// Test Store, where purchases are simulated and cost nothing.
 bool get proResettable => revenueCatApiKey.startsWith('test_');
 
+/// Test Store only: the customer this install buys as, chosen by the app and
+/// kept in settings. A reset is a new one, so it holds from the next launch
+/// even if the store is slow to switch -- RevenueCat's switch from an
+/// anonymous customer waits on Google's Block Store, which can stall.
+class TestCustomer {
+  TestCustomer(this.database);
+
+  final AppDatabase database;
+
+  static const _key = 'pro.testCustomer';
+
+  /// The current one, made on first use.
+  Future<String> current() async =>
+      await database.readSetting(_key) ?? await next();
+
+  /// A new customer, who owns nothing.
+  Future<String> next() async {
+    final id = 'argand-test-${const Uuid().v4()}';
+    await database.writeSetting(_key, id);
+    return id;
+  }
+}
+
 class ProStoreException implements Exception {
   const ProStoreException(this.result);
 
@@ -88,16 +112,22 @@ T? pickProPackage<T>(List<T> packages, bool Function(T) isLifetime) {
 
 /// [ProStore] on RevenueCat.
 class RevenueCatStore implements ProStore {
-  RevenueCatStore() {
+  RevenueCatStore({this.testCustomer}) {
     _ready = () async {
       // The SDK's own account of each step, in debug builds only.
       if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
-      await Purchases.configure(PurchasesConfiguration(revenueCatApiKey));
+      await Purchases.configure(
+        PurchasesConfiguration(revenueCatApiKey)
+          ..appUserID = await testCustomer?.current(),
+      );
     }()
         .catchError((Object error) => debugPrint('RevenueCat: $error'));
   }
 
   late final Future<void> _ready;
+
+  /// Set against the Test Store, where Pro can be reset.
+  final TestCustomer? testCustomer;
 
   /// How long a restore or a status check may take before it is given up
   /// as unreachable -- so no button ever spins for good. A purchase has no
@@ -193,16 +223,15 @@ class RevenueCatStore implements ProStore {
     }
   }
 
-  /// A new anonymous customer. RevenueCat will not log an anonymous user
-  /// out, so this logs in as a throwaway id first -- the old purchases go
-  /// with it -- and then out, which starts a fresh anonymous customer.
+  /// A new customer who owns nothing. Written down first, so the next launch
+  /// starts as them however long the switch below takes.
   @override
   Future<void> reset() async {
+    final customer = testCustomer;
+    if (customer == null) return;
+    final id = await customer.next();
     await _ready;
-    await Purchases.logIn(
-      'argand-test-${DateTime.now().millisecondsSinceEpoch}',
-    );
-    await Purchases.logOut();
+    await Purchases.logIn(id);
   }
 
   @override
@@ -227,11 +256,22 @@ class ProPurchases {
   /// Tells the app the flag changed, so every Pro check reads it again.
   final void Function() onChanged;
 
+  /// While a reset is under way. The store can still report the old
+  /// customer's Pro then, which must not turn it back on.
+  bool _resetting = false;
+
+  /// How long a reset waits on the store before saying it is done: Pro is
+  /// already off here, and the new customer holds from the next launch.
+  static const _resetPatience = Duration(seconds: 3);
+
   /// Starts listening and reconciles once with the store.
   Future<void> start() async {
-    store.listen(_record);
+    store.listen((owned) {
+      if (_resetting && owned) return;
+      _record(owned);
+    });
     final owned = await store.owned();
-    if (owned != null) await _record(owned);
+    if (owned != null && !(_resetting && owned)) await _record(owned);
   }
 
   Future<ProOffer?> offer() => store.offer();
@@ -239,8 +279,12 @@ class ProPurchases {
   /// Pro off, as a new customer -- another take of a demo, another test of
   /// the purchase. Test Store only ([proResettable]).
   Future<void> resetForTesting() async {
-    await store.reset();
+    _resetting = true;
     await _record(false);
+    final switched = store.reset().whenComplete(() => _resetting = false);
+    await switched.timeout(_resetPatience, onTimeout: () {
+      debugPrint('Pro reset: the store is still switching customers');
+    });
   }
 
   Future<ProPurchaseResult> buy(ProOffer offer) =>
@@ -301,7 +345,11 @@ class UnconfiguredStore implements ProStore {
 ProPurchases proPurchases(Ref ref) => ProPurchases(
       store: revenueCatApiKey.isEmpty
           ? const UnconfiguredStore()
-          : RevenueCatStore(),
+          : RevenueCatStore(
+              testCustomer: proResettable
+                  ? TestCustomer(ref.watch(appDatabaseProvider))
+                  : null,
+            ),
       database: ref.watch(appDatabaseProvider),
       onChanged: () => ref.invalidate(proUnlockedProvider),
     );

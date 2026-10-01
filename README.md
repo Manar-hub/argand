@@ -48,7 +48,7 @@ Putting captions on a video you shot on your phone shouldn't mean uploading it, 
 - **Timeline editor.** Split, trim and remove clips, move audio separately (J and L cuts), and add text and images. Undo and redo cover every edit.
 - **Captions you can place and style.** Drag, resize and zoom captions on the preview. Choose the font, colour, background, shadow and karaoke highlight for one line, one speaker or every caption.
 - **Translation.** Translated captions appear under the original, translated on the device with ML Kit.
-- **Export.** MP4 with the captions drawn in, or SRT and VTT subtitle files.
+- **Export.** MP4 high resolution support with the captions drawn in, or SRT, VTT, XML, FCPXML, TML subtitle files.
 - **Argand Pro.** A one-time purchase through RevenueCat. Pro removes the export watermark, and watching a rewarded ad removes it for a single export.
 - **Privacy.** No account, no cloud processing, no analytics, your data is yours.
 

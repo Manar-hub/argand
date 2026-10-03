@@ -7,14 +7,6 @@ All done on your device. High in accuracy, fast, and unlimited.
   <img src="./assets/source_images/logo.png" width="200" height="200" alt="Argand Logo" />
   <img src="https://github.com/user-attachments/assets/15a20a85-3c6a-4a45-b98e-1ea89bd7d527" width="605" height="200" alt="Argand Logo" />
 </p>
-
-<p align="center">
-  <img width="200" height="430" src="https://github.com/user-attachments/assets/01ee6994-0de0-46aa-b090-4cf3b11f05ce" />
-  <img width="200" height="430" src="https://github.com/user-attachments/assets/d804794a-d87e-44e0-9f27-7fb2eaf13c5d" />
-  <img width="200" height="430" src="https://github.com/user-attachments/assets/b759bed0-6793-42f4-846a-4e87964ff351" />
-  <img width="200" height="430" src="https://github.com/user-attachments/assets/0a3ab3b3-9bf2-4448-9745-3bcf1530145b" />
-</p>
-
 <p align="center">
   <a href="https://www.youtube.com/watch?v=fZlcj5yKuvk">
     <picture>
@@ -27,9 +19,17 @@ All done on your device. High in accuracy, fast, and unlimited.
     <img src="https://img.shields.io/badge/YouTube-Watch_Full_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube" />
   </a>
 </p>
+<p align="center">
+  <img width="200" height="430" src="https://github.com/user-attachments/assets/01ee6994-0de0-46aa-b090-4cf3b11f05ce" />
+  <img width="200" height="430" src="https://github.com/user-attachments/assets/d804794a-d87e-44e0-9f27-7fb2eaf13c5d" />
+  <img width="200" height="430" src="https://github.com/user-attachments/assets/b759bed0-6793-42f4-846a-4e87964ff351" />
+  <img width="200" height="430" src="https://github.com/user-attachments/assets/0a3ab3b3-9bf2-4448-9745-3bcf1530145b" />
+</p>
+
 
 **_Demo Note:_**
 This demo is minimally edited to authentically showcase the app's raw performance and transcription quality. 
+
 The sample footage is by @alberta.tech on Instagram, utilized for technical demonstration under fair use.
 
 ## Why Argand
@@ -42,15 +42,15 @@ Putting captions on a video you shot on your phone shouldn't mean uploading it, 
 
 ## Key Features
 
-- **Transcription on the device.** whisper.cpp runs offline with a with any model you wish to add.
-- **Speaker detection.** Each speaker gets a name and a colour, in the transcript and in the captions.
-- **Script mode.** Tap a word to jump to it, retype a line seamlessly, or give a turn to the right speaker.
-- **Timeline editor.** Split, trim and remove clips, move audio separately (J and L cuts), and add text and images. Undo and redo cover every edit.
-- **Captions you can place and style.** Drag, resize and zoom captions on the preview. Choose the font, colour, background, shadow and karaoke highlight for one line, one speaker or every caption.
-- **Translation.** Translated captions appear under the original, translated on the device with ML Kit.
-- **Export.** MP4 high resolution support with the captions drawn in, or SRT, VTT, XML, FCPXML, TML subtitle files.
-- **Argand Pro.** A one-time purchase through RevenueCat. Pro removes the export watermark, and watching a rewarded ad removes it for a single export.
-- **Privacy.** No account, no cloud processing, no analytics, your data is yours.
+- **Transcription on the device:** whisper.cpp runs offline with a with any model you wish to add.
+- **Speaker detection:** Each speaker gets a name and a colour, in the transcript and in the captions.
+- **Script mode:** Tap a word to jump to it, retype a line seamlessly, or give a turn to the right speaker.
+- **Timeline editor:** Split, trim and remove clips, move audio separately (J and L cuts), and add text and images. Undo and redo cover every edit.
+- **Captions you can place and style:** Drag, resize and zoom captions on the preview. Choose the font, colour, background, shadow and karaoke highlight for one line, one speaker or every caption.
+- **Translation:** Translated captions appear under the original, translated on the device with ML Kit.
+- **Export:** MP4 high resolution support with the captions drawn in, or SRT, VTT, XML, FCPXML, TML subtitle files.
+- **Argand Pro:** A one-time purchase through RevenueCat. Pro removes the export watermark, and watching a rewarded ad removes it for a single export. Export formats, custom fonts, and custom themes.
+- **Privacy:** No account, no cloud processing, no analytics, your data is yours.
 
 ## Tech stack
 
@@ -76,28 +76,32 @@ with the NDK and CMake installed from the SDK Manager.
 
    ```sh
    git clone https://github.com/Manar-hub/argand.git
-   cd argand
    ```
+   ```sh
+   cd argand
+   ```   
 
 2. Download the whisper base model into `assets/models/` or any model you wish to use. Base model for example:
 
    ```sh
    curl -L -o assets/models/ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
    ```
-
+   On PowerShell use ```curl.exe```
+   
    Any other `ggml-*.bin` or `whisper-*.gguf` model placed there shows up in
    Settings > Transcription models after the next build.
 
-3. Add your RevenueCat key. Copy `.env.example` to `.env` and paste a public
-   SDK key. A Test Store key works, and test purchases cost nothing:
+4. Copy `.env.example` to `.env` and a public
+   SDK testing key will be pasted directly.
 
    ```sh
    cp .env.example .env
    ```
 
-   Without a key the app still runs, and Pro shows as unavailable.
+   Without a key the app still runs, but Pro shows as unavailable.
+   And in case .env.example does not exist, add the file with ```REVENUECAT_API_KEY=test_ICplbXIzuhkKpEqIMkdaxEeAEMH``` and follow the same steps.
 
-4. Get packages and generate code:
+6. Get packages and generate code:
 
    ```sh
    flutter pub get
@@ -105,13 +109,13 @@ with the NDK and CMake installed from the SDK Manager.
    flutter gen-l10n
    ```
 
-5. Start an emulator or connect a phone, then run:
+7. Start an emulator, then run:
 
    ```sh
    flutter run --dart-define-from-file=.env
    ```
 
-important: Depending on model choice, if using an Android Emulator, increase the AVD RAM to at least 4GB–6GB to prevent Out-Of-Memory errors during local AI transcription with ultra heavy models. Medium_q4 whisper model was run on only 2GB of AVD RAM.
+**_important:_** **Medium_q4 whisper model was run on only 2GB of AVD RAM.** For heavier models, if using an Android Emulator, increase the AVD RAM to at least 4GB–6GB to prevent Out-Of-Memory errors during local AI transcription. 
 
 Ads use Google's public test IDs. 
 In a Test Store build, long-press the logo on the home screen to reset Pro and buy it again.
